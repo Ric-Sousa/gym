@@ -11,10 +11,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -29,19 +26,27 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'YOUR_ANDROID_API_KEY',
-    appId: 'YOUR_ANDROID_APP_ID',
-    messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-    projectId: 'YOUR_PROJECT_ID',
-    storageBucket: 'YOUR_STORAGE_BUCKET',
+    apiKey: 'AIzaSyAEGTM8KH1Nuf3JPkd8wijY_uEDa0wtxPY',
+    appId: '1:844686321044:android:257856a3610576c63f9b81',
+    messagingSenderId: '844686321044',
+    projectId: 'gymbt-4ef87',
+    storageBucket: 'gymbt-4ef87.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'YOUR_IOS_API_KEY',
-    appId: 'YOUR_IOS_APP_ID',
-    messagingSenderId: 'YOUR_MESSAGING_SENDER_ID',
-    projectId: 'YOUR_PROJECT_ID',
-    storageBucket: 'YOUR_STORAGE_BUCKET',
-    iosBundleId: 'YOUR_IOS_BUNDLE_ID',
+    apiKey: 'AIzaSyCX4BVFnNSOcMN3ME7111-FllNCY_oscK0',
+    appId: '1:844686321044:ios:85d71d1fe64ae0f23f9b81',
+    messagingSenderId: '844686321044',
+    projectId: 'gymbt-4ef87',
+    storageBucket: 'gymbt-4ef87.firebasestorage.app',
+    iosBundleId: 'com.gymbt.app',
+  );
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyAeVdBsIpGBTm9x2NlQKJKKarLRMmEVv3U',
+    appId: '1:844686321044:web:fbedc9ce24285d303f9b81',
+    messagingSenderId: '844686321044',
+    projectId: 'gymbt-4ef87',
+    authDomain: 'gymbt-4ef87.firebaseapp.com',
+    storageBucket: 'gymbt-4ef87.firebasestorage.app',
+    measurementId: 'G-5S5DTPH3QF',
   );
 }
