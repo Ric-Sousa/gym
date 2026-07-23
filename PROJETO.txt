@@ -1,0 +1,286 @@
+================================================================================
+ DOCUMENTO TÉCNICO DETALHADO – APP PERSONAL TRAINER & NUTRIÇÃO
+ (Versão sem código, foco em prevenção de erros e configuração precisa)
+================================================================================
+
+1. VISÃO GERAL
+--------------
+Aplicação mobile multiplataforma (iOS e Android) para personal trainers.
+Permite gestão de alunos, criação de planos de treino e nutrição,
+comunicação via chat e acompanhamento diário (água, passos, refeições,
+avaliação) e de progresso (peso, fotos, medidas).
+O backend é serverless, utilizando serviços Firebase da Google.
+
+Perfis de utilizador:
+- Aluno: acede aos seus planos, regista atividades, conversa com o personal.
+- Admin (Personal Trainer): gere todos os alunos, cria e edita planos,
+  visualiza progresso e dados diários, exporta relatórios.
+
+2. TECNOLOGIAS E VERSÕES EXATAS (EVITAR INCOMPATIBILIDADES)
+------------------------------------------------------------
+- SDK Flutter: versão 3.22.x (canal estável)
+- Linguagem Dart: 3.4.x (incluída)
+- Firebase Auth (plugin firebase_auth ^5.x) – email/senha
+- Cloud Firestore (plugin cloud_firestore ^5.x) – base de dados NoSQL
+- Firebase Storage (plugin firebase_storage ^12.x) – ficheiros
+- Firebase Cloud Messaging (firebase_messaging ^15.x) – notificações push
+- Firebase Cloud Functions (Node.js 20, TypeScript) – lógica servidor
+- Gestão de estado: Riverpod (flutter_riverpod ^2.x) – evita rebuilds desnecessários
+- Gráficos: fl_chart (^0.68.0) – leve, para evolução de peso
+- Player de vídeo: video_player + chewie – para exercícios em vídeo
+- Seletor de imagem: image_picker (^1.1.2) – fotos de perfil e progresso
+- Geração de PDF: pdf + printing (^3.10 / ^5.12) – relatórios
+- Pedómetro: pedometer (^4.0.1) – contagem de passos (apenas mobile)
+- Verificação de conectividade: connectivity_plus (^6.0.3) – evita operações offline
+- Cache de imagens: cached_network_image (^3.3.1) – performance e economia de dados
+
+Nota: Verificar compatibilidade exacta entre versões com flutter pub outdated
+antes de atualizações maiores.
+
+3. CONFIGURAÇÃO INICIAL DO PROJETO (PASSO A PASSO SEM ERROS)
+------------------------------------------------------------
+3.1 Criar projeto Flutter com organização (ex: com.personalapp).
+3.2 Definir estrutura de pastas clara:
+    - core/config (Firebase options, constantes de cores, strings)
+    - core/errors (exceções e falhas personalizadas)
+    - core/utils (validadores, conectividade)
+    - data/datasources (chamadas diretas ao Firebase)
+    - data/models (modelos de dados tipados, com fromMap/toMap)
+    - data/repositories (lógica de negócio e acesso a dados)
+    - features/auth (login)
+    - features/aluno (home, nutrição, treino, chat, perfil)
+    - features/admin (painel admin, detalhe do aluno, editor de planos)
+    - shared/widgets (componentes reutilizáveis)
+3.3 Configurar projeto no Firebase Console:
+    - Criar projeto Firebase.
+    - Registar apps Android (package name) e iOS (bundle ID).
+    - Adicionar impressões digitais SHA-1 e SHA-256 (debug e release) no Android.
+    - Descarregar ficheiros de configuração nativos:
+        google-services.json (colocar em android/app/)
+        GoogleService-Info.plist (colocar em ios/Runner/)
+    - Instalar FlutterFire CLI e executar flutterfire configure.
+      Isto gera automaticamente firebase_options.dart e configura as plataformas.
+3.4 Inicializar Firebase no main.dart antes de runApp,
+    garantindo WidgetsFlutterBinding.ensureInitialized().
+3.5 Ativar serviços no Firebase Console:
+    - Authentication: provedor E-mail/Senha.
+    - Cloud Firestore: criar base de dados (modo produção, regras temporárias restritas).
+    - Storage: ativar.
+    - Cloud Functions: ativar (requer plano Blaze, mas uso gratuito generoso).
+    - Cloud Messaging: ativar e obter chave do servidor.
+
+4. MODELOS DE DADOS – ESTRUTURA E CUIDADOS
+------------------------------------------
+Todos os modelos devem ser imutáveis, com tipagem forte e construtores
+factory para parsing de documentos Firestore.
+Tratar sempre valores nulos/ausentes com valores padrão seguros.
+
+4.1 UserModel (coleção 'users')
+    Campos: uid (string), nome, email, role ('aluno' ou 'admin'),
+            pesoAtual (double), altura (double), fotoPerfil (URL string).
+    Tratamento de nulos: role padrão 'aluno', restantes opcionais.
+
+4.2 DiaryModel (subcoleção 'diario', documento = data YYYY-MM-DD)
+    Campos: agua (int, ml), passos (int), avaliacao (int 1-5),
+            treinoConcluido (bool), refeicoes (lista de objetos Refeicao).
+    Refeicao: tipo, descricao, calorias (double), hora (string).
+    Valores padrão: 0 para numéricos, lista vazia para refeições, false para treino.
+
+4.3 NutritionPlanModel (subcoleção 'planoNutricao', documento = dia da semana)
+    Campos: dia (string), metaCalorias (double), refeicoes (lista de RefeicaoPlano).
+    RefeicaoPlano: tipo, alimentos (lista de Alimento), instrucoes.
+    Alimento: nome, quantidade (string), calorias (double).
+    Cuidado: calorias sempre double para cálculos precisos.
+
+4.4 WorkoutPlanModel (subcoleção 'planoTreino', documento = semana/ciclo)
+    Campos: nome (string), dias (lista de DiaTreino).
+    DiaTreino: diaSemana, foco, exercicios (lista de Exercicio).
+    Exercicio: nome, series, repeticoes, cargaSugerida, descanso (segundos),
+               videoURL, observacoes.
+    Nota: permitir lista vazia para dias sem treino.
+
+4.5 MessageModel (subcoleção 'mensagens' dentro de 'chat/{salaId}')
+    Campos: remetenteId, texto, timestamp (DateTime), lida (bool).
+
+4.6 ProgressModel (subcoleção 'progresso')
+    Campos: data (DateTime), peso (double), medidas (mapa: cintura, quadril, etc.),
+            fotos (lista de URLs).
+
+4.7 Alimento (coleção 'alimentos' – base de dados editável pelo admin)
+    Campos: nome, caloriasPor100g, proteinasPor100g, etc.
+    Importante para cálculo automático de calorias nos planos nutricionais.
+
+5. FUNCIONALIDADES DETALHADAS (POR ECRÃ) – COMPORTAMENTO E PREVENÇÃO DE ERROS
+------------------------------------------------------------------------------
+5.1 Login
+    - Validação de formulário: email com formato válido (regex simples),
+      senha com mínimo 6 caracteres.
+    - Feedback visual imediato em campos inválidos.
+    - Botão "Entrar" com estado de carregamento (indicador circular,
+      botão desabilitado enquanto a operação decorre).
+    - Tratamento de exceções FirebaseAuth (email não encontrado, senha errada,
+      conta desativada) -> mensagens de erro claras em snackbar/diálogo.
+    - Após autenticação, buscar documento do utilizador em 'users/{uid}' para
+      obter o role. Se role == 'admin', navegar para painel admin; senão, home aluno.
+    - Caso o documento não exista, mostrar erro e propor contacto com suporte.
+    - Opção "Recuperar senha" usando FirebaseAuth.sendPasswordResetEmail,
+      com validação de email e feedback.
+
+5.2 Home (Dashboard do Aluno)
+    - Ecrã principal do aluno com barra de navegação inferior (5 abas).
+    - Aba Home exibe dados do dia atual.
+    - Se o documento diário ainda não existir, criar automaticamente com valores
+      padrão (0 água, 0 passos, etc.) ao entrar ou ao tentar incrementar.
+    - Indicador de água: círculo progressivo com meta diária (ex: 2500 ml).
+      Botão "+250 ml" que incrementa no Firestore usando FieldValue.increment.
+      Se a app estiver offline, desabilitar botão e avisar.
+    - Passos: integração com pedómetro do dispositivo (solicitar permissão).
+      Caso permissão negada, permitir input manual através de diálogo.
+      Exibir progresso circular.
+    - Refeeições do dia: listagem obtida da subcoleção 'diario'. Comparar total
+      de calorias consumidas com meta calórica do plano nutricional do dia da semana.
+      Se não houver plano atribuído, mostrar mensagem informativa.
+    - Avaliação do dia: componente de 5 estrelas/emojis. Ao selecionar, atualizar
+      o documento do diário. Se falhar, reverter estado e mostrar erro.
+    - Usar StreamBuilder para atualizações em tempo real do documento diário.
+    - Tratar erros de rede: se Firestore lançar exceção, mostrar widget de erro
+      com botão para tentar novamente.
+
+5.3 Nutrição (Aluno)
+    - Aba de nutrição: seletor de dia da semana (abas horizontais ou dropdown).
+    - Carregar plano nutricional do dia selecionado a partir de 'planoNutricao'.
+    - Exibir lista de refeições com alimentos, quantidades e calorias por refeição.
+      Cada refeição tem um botão "Concluída" que, ao pressionar, adiciona um
+      registo na subcoleção 'diario' (campo refeicoes) e subtrai da meta.
+    - Barra de progresso diária: calorias planeadas vs. consumidas.
+    - Opção de adicionar uma refeição não planeada (extra) via pesquisa de
+      alimentos na base de dados 'alimentos'.
+    - Se o aluno não tiver plano nutricional, exibir mensagem "Nenhum plano
+      atribuído" e sugerir contacto com o personal.
+    - Tratamento offline: cache do último plano e impedir ações de escrita.
+
+5.4 Treino (Aluno)
+    - Aba de treino: seletor de semana/ciclo (se existir mais que um).
+    - Para o dia atual, carregar o treino correspondente ao diaSemana.
+    - Lista de exercícios em cards expansíveis:
+        - Nome, séries, repetições, carga sugerida.
+        - Miniatura ou botão play para abrir vídeo (usar chewie para controlos).
+        - Check-in: ao clicar, abrir diálogo para registar carga real e observações.
+          Ao confirmar, marcar treinoConcluido = true no diário e guardar dados.
+    - Histórico de treinos: botão dedicado que filtra documentos do diário com
+      treinoConcluido = true, ordenados por data decrescente.
+    - Vídeos devem ser carregados do Firebase Storage com cache.
+    - Se não houver treino atribuído para o dia, mostrar "Dia de descanso" com
+      opção de ver alongamentos ou cardio (se configurado).
+
+5.5 Chat (Aluno-Admin)
+    - Aba de chat: interface de mensagens.
+    - Sala de chat única entre aluno e o seu personal (ID composto pelos UIDs,
+      ex: "chat_{alunoId}_{personalId}").
+    - Escuta em tempo real via StreamBuilder na subcoleção 'mensagens',
+      ordenada por timestamp ascendente.
+    - Campo de texto e botão enviar. Após envio, limpar campo.
+    - Indicador de "a escrever..." não obrigatório.
+    - Tratamento de exceções: se falhar o envio, mostrar alerta e manter texto.
+    - Nota: é necessário configurar regras de segurança para que ambos possam
+      ler/escrever na sala.
+
+5.6 Perfil (Aluno)
+    - Aba de perfil: exibir foto circular com botão de alteração (câmera/galeria).
+    - Upload da foto para Storage em 'users/{uid}/profile.jpg'. Atualizar URL
+      no documento do utilizador.
+    - Campos editáveis: nome, peso atual, altura. Email apenas leitura.
+    - Métricas rápidas calculadas automaticamente: IMC (peso/altura^2),
+      diferença de peso desde o primeiro registo de progresso.
+    - Secção de Progresso:
+        - Gráfico de evolução do peso (eixo X datas, eixo Y peso) com fl_chart.
+        - Grelha de fotos de progresso (últimas primeiro). Cada foto carregada
+          de forma lazy com cached_network_image.
+        - Botão para adicionar nova foto: tirar foto ou escolher da galeria,
+          upload para Storage ('users/{uid}/progresso/{timestamp}.jpg'),
+          criar documento em 'progresso' com URL e data.
+    - Se não houver dados de progresso, mostrar estado vazio.
+
+5.7 Painel de Administração (Personal Trainer)
+    - Ecrã principal: lista de todos os alunos (coleção 'users' onde role='aluno').
+      Barra de pesquisa por nome. Cada item mostra nome, foto e última atividade
+      (última data de diário modificada).
+    - Toque num aluno abre ecrã de detalhe dividido em abas:
+        a) Resumo: igual ao dashboard do aluno (água, passos, refeições, avaliação)
+           mas com opções de edição (ex: corrigir passos manualmente).
+        b) Nutrição: visualização do plano atual e editor completo.
+        c) Treino: visualização e editor.
+        d) Progresso: fotos e gráfico do aluno.
+        e) Chat: acesso direto às mensagens.
+    - Editor de plano nutricional: selecionar dia da semana, adicionar refeições,
+      pesquisar alimentos da base de dados, definir quantidade e calorias.
+      Calorias totais da refeição calculadas automaticamente.
+      Guardar escrevendo em 'users/{alunoId}/planoNutricao/{dia}'.
+    - Editor de plano de treino: criar/editar documento de semana, adicionar dias
+      e exercícios. Pesquisar exercícios de uma coleção 'exercicios' (nome, grupo
+      muscular, vídeo). Permitir ordenação drag-and-drop dos exercícios do dia.
+      Guardar em 'users/{alunoId}/planoTreino/{semana}'.
+    - O admin pode gerar relatório em PDF do progresso do aluno (gráfico e fotos)
+      usando os pacotes pdf e printing, com opção de partilhar/guardar.
+    - Importante: o admin nunca vê nem edita dados de outro admin.
+
+6. REGRAS DE SEGURANÇA DO FIRESTORE E STORAGE
+----------------------------------------------
+As regras devem ser restritivas e testadas no emulador antes de publicar.
+Regras essenciais:
+- Utilizador só pode ler/escrever o seu próprio documento em 'users'.
+- Admin (verificado pelo campo role no seu documento) pode ler/escrever qualquer documento em 'users'.
+- Documentos diários e subcoleções ('diario', 'progresso', 'planoNutricao', 'planoTreino') dentro de 'users/{userId}' só podem ser acedidos pelo próprio ou por admin.
+- Coleção 'chat': documento com ID composto por UIDs; permitir acesso se o UID do utilizador autenticado estiver contido no ID.
+- Storage: mesma lógica de permissões baseada no caminho (ex: users/{userId}/...).
+- Funções administrativas (Cloud Functions) devem ter acesso via service account, não expostas ao cliente.
+- Regras devem ser versionadas e testadas com o emulador local e com testes unitários.
+
+7. PREVENÇÃO DE ERROS COMUNS (BOAS PRÁTICAS)
+--------------------------------------------
+- Sempre verificar conectividade antes de writes (usar connectivity_plus). Se offline, mostrar aviso e guardar ações pendentes em fila local (opcional com sqflite ou Firestore offline).
+- Firestore: ativar persistência offline (FirebaseFirestore.instance.settings = Settings(persistenceEnabled: true)).
+- Índices compostos: ao fazer consultas com ordenação e filtros (ex: diario por data e treinoConcluido), criar índices manualmente no Firebase Console para evitar erros "FAILED_PRECONDITION".
+- Upload de imagens: comprimir antes de enviar (usar image_picker com imageQuality: 70) para reduzir custos e tempo.
+- Cache de imagens com cached_network_image e política de expiração.
+- Autenticação: tratar expiração de token (Firebase Auth renova automaticamente, mas verificar estado com listen).
+- Notificações push: testar em dispositivos físicos (iOS precisa de APNs configuradas). Implementar tratamento de permissão negada.
+- Cloud Functions: tratar erros com try/catch, usar logger, retornar mensagens de erro amigáveis. Definir variáveis de ambiente em vez de hardcoding.
+- Testes: escrever testes unitários para modelos, repositórios e regras de segurança. Testes de widget para ecrãs chave.
+- Internacionalização: usar chaves de string (flutter_localizations) para facilitar futuras traduções (começar com português).
+- Tratamento de dados sensíveis: nunca armazenar passwords; todo o tráfego é HTTPS. Conformidade com LGPD/GDPR (consentimento de fotos, possibilidade de apagar dados).
+
+8. FUNCIONALIDADES TRANSVERSAIS IMPORTANTES
+-------------------------------------------
+- Notificações push: lembrar o aluno de beber água a cada 2 horas (se ainda não atingiu meta), registar refeições, treino do dia. Notificar ao receber nova mensagem do personal.
+  Implementar via Cloud Functions (gatilho Firestore em 'chat' e Cloud Scheduler para lembretes).
+- Backups: exportação periódica do Firestore via Cloud Functions com Cloud Storage (para segurança dos dados).
+- Monitorização: usar Firebase Analytics e Crashlytics para acompanhar erros e uso.
+- Temas: dark mode opcional, mas não prioritário.
+- Adaptação desktop: o admin pode preferir usar no computador. O Flutter permite compilar para web ou desktop no futuro; manter responsividade desde o início.
+
+9. ESTRUTURA DA BASE DE DADOS (RESUMO ESQUEMÁTICO)
+----------------------------------------------------
+- Coleção 'users'
+  - Documento {userId}
+    - Subcoleção 'diario' (documentos = data)
+    - Subcoleção 'progresso' (documentos = auto ID)
+    - Subcoleção 'planoNutricao' (documentos = diaSemana)
+    - Subcoleção 'planoTreino' (documentos = nomeCiclo)
+- Coleção 'chat'
+  - Documento {salaId} (ex: "chat_uidAluno_uidPersonal")
+    - Subcoleção 'mensagens' (documentos auto ID, ordenados por timestamp)
+- Coleção 'alimentos' (documentos auto ID)
+- Coleção 'exercicios' (documentos auto ID, com nome, grupo muscular, videoURL)
+
+10. CONSIDERAÇÕES FINAIS PARA UM DESENVOLVIMENTO SEM ERROS
+----------------------------------------------------------
+- Configurar CI/CD (Codemagic ou GitHub Actions) para builds automatizadas.
+- Utilizar branches de git (develop, release) e pull requests.
+- Documentar todas as funções e classes (comentários úteis).
+- Manter comunicação constante com a personal trainer para validar fluxos.
+- Realizar testes de usabilidade com pelo menos 2 alunos beta.
+- Publicar versão beta fechada antes da produção (TestFlight / Google Play Beta).
+
+Este documento serve de guia completo e exaustivo. Qualquer dúvida, rever secção específica antes de implementar.
+================================================================================

@@ -1,0 +1,76 @@
+name: gym_app
+description: App de Personal Trainer & Nutrição - Gestão de alunos, planos de treino e nutrição.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.12.0 <4.0.0'
+  flutter: '>=3.44.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # Firebase (versões atualizadas para Flutter 3.44.x)
+  firebase_core: ^4.12.1
+  firebase_auth: ^6.5.6
+  cloud_firestore: ^6.7.1
+  firebase_storage: ^13.4.5
+  firebase_messaging: ^16.4.3
+  firebase_analytics: ^12.4.5
+  firebase_crashlytics: ^5.2.6
+
+  # State Management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # Charts
+  fl_chart: ^0.68.0
+
+  # Video Player
+  video_player: ^2.8.6
+  chewie: ^1.7.5
+
+  # Image Picker
+  image_picker: ^1.1.2
+  image_picker_for_web: ^3.0.0
+
+  # PDF Generation
+  pdf: ^3.10.8
+  printing: ^5.12.0
+
+  # Pedometer
+  pedometer: ^4.0.1
+
+  # Connectivity
+  connectivity_plus: ^6.0.3
+
+  # Image Cache
+  cached_network_image: ^3.4.0
+
+  # Utilities
+  intl: ^0.20.0
+  path_provider: ^2.1.2
+  share_plus: ^10.0.0
+  uuid: ^4.3.3
+  equatable: ^2.0.5
+
+dev_dependencies:
+  flutter_lints: ^5.0.0
+  riverpod_generator: ^2.6.0
+  build_runner: ^2.4.9
+  mocktail: ^1.0.3
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/
+
+flutter_intl:
+  enabled: true
+  main_locale: pt
