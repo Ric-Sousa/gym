@@ -176,7 +176,7 @@ exports.seedFoods = functions.https.onCall(async (request) => {
  * Envia notificação quando uma nova mensagem de chat é criada.
  * Gatilho: documento criado em chat/{salaId}/mensagens/{msgId}
  */
-exports.onNewChatMessage = functions.firestore
+exports.onNewChatMessage = functions.region('europe-west1').firestore
     .document('chat/{salaId}/mensagens/{msgId}')
     .onCreate(async (snap, context) => {
     const data = snap.data();
