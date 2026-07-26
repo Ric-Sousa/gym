@@ -49,6 +49,15 @@ class AuthRepository {
     }
   }
 
+  /// Obtém o UserModel do Firestore para o utilizador atual.
+  /// Usado quando o Firebase Auth restaura a sessão (ex: F5 no browser).
+  Future<UserModel> getUserModel() async {
+    final user = _authDataSource.currentUser;
+    if (user == null) throw const AuthFailure(message: 'Sem sessão ativa', code: 'no-session');
+    final userDoc = await _authDataSource.getUserDoc(user.uid);
+    return UserModel.fromMap(user.uid, userDoc.data()! as Map<String, dynamic>);
+  }
+
   /// Termina sessão.
   Future<void> signOut() async {
     await _authDataSource.signOut();

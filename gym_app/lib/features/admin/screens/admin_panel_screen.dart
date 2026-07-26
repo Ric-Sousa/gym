@@ -6,6 +6,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/config/app_colors.dart';
+import '../../../core/config/admin_theme.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/models/food_model.dart';
 import '../../../features/auth/providers/auth_provider.dart';
@@ -51,14 +52,21 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.adminBg,
+      backgroundColor: AdminThemeColors.of(context).bg,
       body: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _AdminSidebar(
             currentView: _view,
             isClientDetail: _selectedClient != null,
             onNavigate: _navigate,
             onLogout: () => ref.read(authProvider.notifier).signOut(),
+            onToggleTheme: () {
+              ref.read(adminThemeModeProvider.notifier).state =
+                  ref.read(adminThemeModeProvider) == ThemeMode.dark
+                      ? ThemeMode.light
+                      : ThemeMode.dark;
+            },
           ),
           Expanded(
             child: _selectedClient != null
@@ -103,17 +111,20 @@ class _AdminSidebar extends StatelessWidget {
     required this.isClientDetail,
     required this.onNavigate,
     required this.onLogout,
+    required this.onToggleTheme,
   });
+
+  final VoidCallback onToggleTheme;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: 220,
       decoration: BoxDecoration(
-        color: AppColors.adminSurface,
+        color: AdminThemeColors.of(context).surface,
         boxShadow: [
           BoxShadow(
-            color: AppColors.adminShadow,
+            color: AdminThemeColors.of(context).shadow,
             blurRadius: 12,
             offset: const Offset(2, 0),
           ),
@@ -131,13 +142,13 @@ class _AdminSidebar extends StatelessWidget {
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: AppColors.adminLimeDim,
+                    color: AdminThemeColors.of(context).limeDim,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                        color: AppColors.adminLime.withValues(alpha: 0.3)),
+                        color: AdminThemeColors.of(context).lime.withValues(alpha: 0.3)),
                   ),
                   child: Icon(Icons.fitness_center,
-                      color: AppColors.adminLime, size: 16),
+                      color: AdminThemeColors.of(context).lime, size: 16),
                 ),
                 const SizedBox(width: 10),
                 Text(
@@ -145,14 +156,27 @@ class _AdminSidebar extends StatelessWidget {
                   style: GoogleFonts.dmSans(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.adminText,
+                    color: AdminThemeColors.of(context).text,
                     letterSpacing: -0.3,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 28),
+          IconButton(
+            icon: Icon(
+              Theme.of(context).brightness == Brightness.dark
+                  ? Icons.light_mode_outlined
+                  : Icons.dark_mode_outlined,
+              color: AdminThemeColors.of(context).muted,
+              size: 18,
+            ),
+            onPressed: onToggleTheme,
+            tooltip: 'Alternar tema',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+          const SizedBox(height: 16),
           // Nav items
           _NavItem(
             icon: Icons.dashboard_outlined,
@@ -195,12 +219,12 @@ class _AdminSidebar extends StatelessWidget {
                 child: Row(
                   children: [
                     Icon(Icons.logout,
-                        color: AppColors.adminMuted, size: 16),
+                        color: AdminThemeColors.of(context).muted, size: 16),
                     const SizedBox(width: 10),
                     Text(
                       'Sair',
                       style: GoogleFonts.dmSans(
-                          color: AppColors.adminMuted, fontSize: 13),
+                          color: AdminThemeColors.of(context).muted, fontSize: 13),
                     ),
                   ],
                 ),
@@ -228,7 +252,7 @@ class _NavCategory extends StatelessWidget {
           fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.12,
-          color: AppColors.adminMuted,
+          color: AdminThemeColors.of(context).muted,
         ),
       ),
     );
@@ -255,7 +279,7 @@ class _NavItem extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       child: Material(
-        color: active ? AppColors.adminLimeDim : Colors.transparent,
+        color: active ? AdminThemeColors.of(context).limeDim : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           onTap: onTap,
@@ -267,7 +291,7 @@ class _NavItem extends StatelessWidget {
                 Icon(
                   active ? activeIcon : icon,
                   size: 18,
-                  color: active ? AppColors.adminLime : AppColors.adminMuted,
+                  color: active ? AdminThemeColors.of(context).lime : AdminThemeColors.of(context).muted,
                 ),
                 const SizedBox(width: 10),
                 Text(
@@ -275,7 +299,7 @@ class _NavItem extends StatelessWidget {
                   style: GoogleFonts.dmSans(
                     fontSize: 13,
                     fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                    color: active ? AppColors.adminText : AppColors.adminMuted,
+                    color: active ? AdminThemeColors.of(context).text : AdminThemeColors.of(context).muted,
                   ),
                 ),
                 if (active)
@@ -284,7 +308,7 @@ class _NavItem extends StatelessWidget {
                     height: 4,
                     margin: const EdgeInsets.only(left: 6),
                     decoration: BoxDecoration(
-                      color: AppColors.adminLime,
+                      color: AdminThemeColors.of(context).lime,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -299,12 +323,17 @@ class _NavItem extends StatelessWidget {
 
 // ─── Dashboard View ───────────────────────────────────────────────
 
-class _AdminDashboard extends ConsumerWidget {
+class _AdminDashboard extends ConsumerStatefulWidget {
   final Function(UserModel) onSelectClient;
   const _AdminDashboard({required this.onSelectClient});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_AdminDashboard> createState() => _AdminDashboardState();
+}
+
+class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
+  @override
+  Widget build(BuildContext context) {
     final statsAsync = ref.watch(adminDashboardStatsProvider);
     final alunosAsync = ref.watch(alunosListProvider);
 
@@ -313,12 +342,12 @@ class _AdminDashboard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('DASHBOARD', style: _adminDisplay(40)),
+          Text('DASHBOARD', style: _adminDisplay(context, 40)),
           const SizedBox(height: 4),
           Text(
             DateFormat('EEEE, d MMMM yyyy', 'pt').format(DateTime.now()),
             style:
-                GoogleFonts.dmSans(fontSize: 14, color: AppColors.adminMuted),
+                GoogleFonts.dmSans(fontSize: 14, color: AdminThemeColors.of(context).muted),
           ),
           const SizedBox(height: 32),
           statsAsync.when(
@@ -329,11 +358,11 @@ class _AdminDashboard extends ConsumerWidget {
           const SizedBox(height: 32),
           alunosAsync.when(
             data: (alunos) => _buildDashboardColumns(alunos),
-            loading: () => const Center(
+            loading: () => Center(
                 child:
-                    CircularProgressIndicator(color: AppColors.adminLime)),
+                    CircularProgressIndicator(color: AdminThemeColors.of(context).lime)),
             error: (_, __) => Text('Erro',
-                style: GoogleFonts.dmSans(color: AppColors.adminMuted)),
+                style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted)),
           ),
         ],
       ),
@@ -342,10 +371,10 @@ class _AdminDashboard extends ConsumerWidget {
 
   Widget _buildStats(AdminDashboardStats stats) {
     final items = [
-      ('Clientes Totais', stats.totalAlunos, Icons.people, AppColors.adminLime),
-      ('Ativos (30d)', stats.activeAlunos, Icons.trending_up, AppColors.adminBlue),
-      ('Sessões Mês', stats.sessoesMes, Icons.calendar_today, AppColors.adminOrange),
-      ('Sessões Totais', stats.sessoesTotal, Icons.emoji_events, AppColors.adminPurple),
+      ('Clientes Totais', stats.totalAlunos, Icons.people, AdminThemeColors.of(context).lime),
+      ('Ativos (30d)', stats.activeAlunos, Icons.trending_up, AdminThemeColors.of(context).blue),
+      ('Sessões Mês', stats.sessoesMes, Icons.calendar_today, AdminThemeColors.of(context).orange),
+      ('Sessões Totais', stats.sessoesTotal, Icons.emoji_events, AdminThemeColors.of(context).purple),
     ];
     return LayoutBuilder(builder: (_, constraints) {
       final cols = constraints.maxWidth > 800 ? 4 : 2;
@@ -362,10 +391,10 @@ class _AdminDashboard extends ConsumerWidget {
 
   Widget _buildStatsLoading() {
     final items = [
-      ('Clientes Totais', '...', Icons.people, AppColors.adminLime),
-      ('Ativos (30d)', '...', Icons.trending_up, AppColors.adminBlue),
-      ('Sessões Mês', '...', Icons.calendar_today, AppColors.adminOrange),
-      ('Sessões Totais', '...', Icons.emoji_events, AppColors.adminPurple),
+      ('Clientes Totais', '...', Icons.people, AdminThemeColors.of(context).lime),
+      ('Ativos (30d)', '...', Icons.trending_up, AdminThemeColors.of(context).blue),
+      ('Sessões Mês', '...', Icons.calendar_today, AdminThemeColors.of(context).orange),
+      ('Sessões Totais', '...', Icons.emoji_events, AdminThemeColors.of(context).purple),
     ];
     return LayoutBuilder(builder: (_, constraints) {
       final cols = constraints.maxWidth > 800 ? 4 : 2;
@@ -384,12 +413,12 @@ class _AdminDashboard extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: AppColors.adminSurface,
+        color: AdminThemeColors.of(context).surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.adminBorder),
+        border: Border.all(color: AdminThemeColors.of(context).border),
         boxShadow: [
           BoxShadow(
-            color: AppColors.adminShadow,
+            color: AdminThemeColors.of(context).shadow,
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -404,7 +433,7 @@ class _AdminDashboard extends ConsumerWidget {
               Text(label.toUpperCase(),
                   style: GoogleFonts.dmSans(
                       fontSize: 11,
-                      color: AppColors.adminMuted,
+                      color: AdminThemeColors.of(context).muted,
                       letterSpacing: 0.04)),
               Container(
                 width: 38,
@@ -422,7 +451,7 @@ class _AdminDashboard extends ConsumerWidget {
               style: GoogleFonts.barlowCondensed(
                   fontSize: 42,
                   fontWeight: FontWeight.w900,
-                  color: AppColors.adminText,
+                  color: AdminThemeColors.of(context).text,
                   height: 1)),
         ],
       ),
@@ -463,12 +492,12 @@ class _AdminDashboard extends ConsumerWidget {
   Widget _clientsCard(List<UserModel> alunos) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.adminSurface,
+        color: AdminThemeColors.of(context).surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.adminBorder),
+        border: Border.all(color: AdminThemeColors.of(context).border),
         boxShadow: [
           BoxShadow(
-            color: AppColors.adminShadow,
+            color: AdminThemeColors.of(context).shadow,
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -480,40 +509,40 @@ class _AdminDashboard extends ConsumerWidget {
             padding: const EdgeInsets.all(20),
             child: Row(
               children: [
-                Icon(Icons.people, color: AppColors.adminLime, size: 16),
+                Icon(Icons.people, color: AdminThemeColors.of(context).lime, size: 16),
                 const SizedBox(width: 8),
                 Text('CLIENTES',
                     style: GoogleFonts.barlowCondensed(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.03,
-                        color: AppColors.adminText)),
+                        color: AdminThemeColors.of(context).text)),
                 const Spacer(),
                 TextButton(
                   onPressed: () {},
                   child: Text('Ver todos',
                       style: GoogleFonts.dmSans(
-                          fontSize: 12, color: AppColors.adminLime)),
+                          fontSize: 12, color: AdminThemeColors.of(context).lime)),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, color: AppColors.adminBorder),
+          Divider(height: 1, color: AdminThemeColors.of(context).border),
           if (alunos.isEmpty)
             Padding(
               padding: const EdgeInsets.all(40),
               child: Column(
                 children: [
-                  const Icon(Icons.people_outline,
-                      size: 48, color: AppColors.adminMuted),
+                  Icon(Icons.people_outline,
+                      size: 48, color: AdminThemeColors.of(context).muted),
                   const SizedBox(height: 12),
                   Text('Nenhum aluno cadastrado',
                       style: GoogleFonts.dmSans(
-                          color: AppColors.adminMuted, fontSize: 14)),
+                          color: AdminThemeColors.of(context).muted, fontSize: 14)),
                   const SizedBox(height: 4),
                   Text('Clique em "Clientes" para adicionar o primeiro.',
                       style: GoogleFonts.dmSans(
-                          color: AppColors.adminMuted, fontSize: 12)),
+                          color: AdminThemeColors.of(context).muted, fontSize: 12)),
                 ],
               ),
             )
@@ -527,22 +556,22 @@ class _AdminDashboard extends ConsumerWidget {
   Widget _clientRow(UserModel aluno) {
     final weight = aluno.pesoAtual;
     return InkWell(
-      onTap: () => onSelectClient(aluno),
+      onTap: () => widget.onSelectClient(aluno),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: AppColors.adminBorder))),
+        decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: AdminThemeColors.of(context).border))),
         child: Row(
           children: [
             CircleAvatar(
               radius: 18,
-              backgroundColor: AppColors.adminSurface2,
+              backgroundColor: AdminThemeColors.of(context).surface2,
               child: Text(
                 aluno.nome.isNotEmpty
                     ? aluno.nome[0].toUpperCase()
                     : '?',
                 style: GoogleFonts.barlowCondensed(
-                    color: AppColors.adminLime,
+                    color: AdminThemeColors.of(context).lime,
                     fontWeight: FontWeight.w700,
                     fontSize: 13),
               ),
@@ -556,21 +585,21 @@ class _AdminDashboard extends ConsumerWidget {
                       style: GoogleFonts.dmSans(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.adminText)),
+                          color: AdminThemeColors.of(context).text)),
                   Text('${aluno.email}',
                       style: GoogleFonts.dmSans(
-                          fontSize: 11, color: AppColors.adminMuted)),
+                          fontSize: 11, color: AdminThemeColors.of(context).muted)),
                 ],
               ),
             ),
             if (weight != null) ...[
               Text('${weight.toStringAsFixed(0)}kg',
                   style: GoogleFonts.dmMono(
-                      fontSize: 13, color: AppColors.adminText)),
+                      fontSize: 13, color: AdminThemeColors.of(context).text)),
               const SizedBox(width: 8),
             ],
-            const Icon(Icons.chevron_right,
-                size: 14, color: AppColors.adminMuted),
+            Icon(Icons.chevron_right,
+                size: 14, color: AdminThemeColors.of(context).muted),
           ],
         ),
       ),
@@ -581,12 +610,12 @@ class _AdminDashboard extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.adminSurface,
+        color: AdminThemeColors.of(context).surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.adminBorder),
+        border: Border.all(color: AdminThemeColors.of(context).border),
         boxShadow: [
           BoxShadow(
-            color: AppColors.adminShadow,
+            color: AdminThemeColors.of(context).shadow,
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -600,7 +629,7 @@ class _AdminDashboard extends ConsumerWidget {
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.03,
-                  color: AppColors.adminText)),
+                  color: AdminThemeColors.of(context).text)),
           const SizedBox(height: 16),
           ...['Segunda', 'Quarta', 'Sexta'].map((day) {
             final isToday = _todayWeekday() == day;
@@ -617,21 +646,21 @@ class _AdminDashboard extends ConsumerWidget {
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.08,
                               color: isToday
-                                  ? AppColors.adminLime
-                                  : AppColors.adminMuted)),
+                                  ? AdminThemeColors.of(context).lime
+                                  : AdminThemeColors.of(context).muted)),
                       if (isToday) ...[
                         const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 6, vertical: 1),
                           decoration: BoxDecoration(
-                              color: AppColors.adminLime,
+                              color: AdminThemeColors.of(context).lime,
                               borderRadius: BorderRadius.circular(20)),
                           child: Text('HOJE',
                               style: GoogleFonts.dmSans(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w700,
-                                  color: AppColors.adminBg)),
+                                  color: AdminThemeColors.of(context).bg)),
                         ),
                       ],
                     ],
@@ -639,7 +668,7 @@ class _AdminDashboard extends ConsumerWidget {
                   const SizedBox(height: 4),
                   Text('Consulta os planos dos alunos',
                       style: GoogleFonts.dmSans(
-                          fontSize: 12, color: AppColors.adminMuted)),
+                          fontSize: 12, color: AdminThemeColors.of(context).muted)),
                 ],
               ),
             );
@@ -653,18 +682,18 @@ class _AdminDashboard extends ConsumerWidget {
     final ativosSemana = alunos.where((a) => a.ultimaAtividade != null && DateTime.now().difference(a.ultimaAtividade!).inDays <= 7).length;
     final totalAlunos = alunos.length;
     final goals = [
-      ('Ativos esta semana', ativosSemana, AppColors.adminBlue),
-      ('Total de alunos', totalAlunos, AppColors.adminLime),
+      ('Ativos esta semana', ativosSemana, AdminThemeColors.of(context).blue),
+      ('Total de alunos', totalAlunos, AdminThemeColors.of(context).lime),
     ];
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.adminSurface,
+        color: AdminThemeColors.of(context).surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.adminBorder),
+        border: Border.all(color: AdminThemeColors.of(context).border),
         boxShadow: [
           BoxShadow(
-            color: AppColors.adminShadow,
+            color: AdminThemeColors.of(context).shadow,
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -678,7 +707,7 @@ class _AdminDashboard extends ConsumerWidget {
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.03,
-                  color: AppColors.adminText)),
+                  color: AdminThemeColors.of(context).text)),
           const SizedBox(height: 16),
           ...goals.map((g) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
@@ -689,10 +718,10 @@ class _AdminDashboard extends ConsumerWidget {
                       children: [
                         Text(g.$1,
                             style: GoogleFonts.dmSans(
-                                fontSize: 12, color: AppColors.adminMuted)),
+                                fontSize: 12, color: AdminThemeColors.of(context).muted)),
                         Text('${g.$2}',
                             style: GoogleFonts.dmMono(
-                                fontSize: 12, color: AppColors.adminText)),
+                                fontSize: 12, color: AdminThemeColors.of(context).text)),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -702,7 +731,7 @@ class _AdminDashboard extends ConsumerWidget {
                         value: alunos.isEmpty
                             ? 0.0
                             : (g.$2 / alunos.length).clamp(0.0, 1.0),
-                        backgroundColor: AppColors.adminSurface2,
+                        backgroundColor: AdminThemeColors.of(context).surface2,
                         valueColor: AlwaysStoppedAnimation(g.$3),
                         minHeight: 4,
                       ),
@@ -752,11 +781,11 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('CLIENTES', style: _adminDisplay(40)),
+                    Text('CLIENTES', style: _adminDisplay(context, 40)),
                     Text(
                         '${alunosAsync.valueOrNull?.length ?? 0} clientes cadastrados',
                         style: GoogleFonts.dmSans(
-                            fontSize: 14, color: AppColors.adminMuted)),
+                            fontSize: 14, color: AdminThemeColors.of(context).muted)),
                   ],
                 ),
               ),
@@ -769,8 +798,8 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.02)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.adminLime,
-                  foregroundColor: AppColors.adminBg,
+                  backgroundColor: AdminThemeColors.of(context).lime,
+                  foregroundColor: AdminThemeColors.of(context).bg,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
                   padding: const EdgeInsets.symmetric(
@@ -789,24 +818,24 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                   child: TextField(
                     onChanged: (v) => setState(() => _search = v),
                     style: GoogleFonts.dmSans(
-                        fontSize: 13, color: AppColors.adminText),
+                        fontSize: 13, color: AdminThemeColors.of(context).text),
                     decoration: InputDecoration(
                       hintText: 'Buscar cliente...',
                       hintStyle: GoogleFonts.dmSans(
-                          fontSize: 13, color: AppColors.adminMuted),
-                      prefixIcon: const Icon(Icons.search,
-                          size: 16, color: AppColors.adminMuted),
+                          fontSize: 13, color: AdminThemeColors.of(context).muted),
+                      prefixIcon: Icon(Icons.search,
+                          size: 16, color: AdminThemeColors.of(context).muted),
                       filled: true,
-                      fillColor: AppColors.adminSurface,
+                      fillColor: AdminThemeColors.of(context).surface,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                         borderSide:
-                            const BorderSide(color: AppColors.adminBorder),
+                            BorderSide(color: AdminThemeColors.of(context).border),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                         borderSide:
-                            const BorderSide(color: AppColors.adminBorder),
+                            BorderSide(color: AdminThemeColors.of(context).border),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 10),
@@ -831,11 +860,11 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                           horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
                         color: active
-                            ? AppColors.adminSurface2
-                            : AppColors.adminSurface,
+                            ? AdminThemeColors.of(context).surface2
+                            : AdminThemeColors.of(context).surface,
                         borderRadius: BorderRadius.circular(10),
                         border:
-                            Border.all(color: AppColors.adminBorder),
+                            Border.all(color: AdminThemeColors.of(context).border),
                       ),
                       child: Text(labels[f]!,
                           style: GoogleFonts.dmSans(
@@ -844,8 +873,8 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                                   ? FontWeight.w600
                                   : FontWeight.w400,
                               color: active
-                                  ? AppColors.adminText
-                                  : AppColors.adminMuted)),
+                                  ? AdminThemeColors.of(context).text
+                                  : AdminThemeColors.of(context).muted)),
                     ),
                   ),
                 );
@@ -855,11 +884,11 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
           const SizedBox(height: 24),
           alunosAsync.when(
             data: (alunos) => _buildGrid(alunos),
-            loading: () => const Center(
+            loading: () => Center(
                 child: CircularProgressIndicator(
-                    color: AppColors.adminLime)),
+                    color: AdminThemeColors.of(context).lime)),
             error: (_, __) => Text('Erro',
-                style: GoogleFonts.dmSans(color: AppColors.adminMuted)),
+                style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted)),
           ),
         ],
       ),
@@ -885,10 +914,10 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
         child: Center(
           child: Column(
             children: [
-              const Icon(Icons.person_search, size: 48, color: AppColors.adminMuted),
+              Icon(Icons.person_search, size: 48, color: AdminThemeColors.of(context).muted),
               const SizedBox(height: 12),
               Text('Nenhum cliente encontrado',
-                  style: GoogleFonts.dmSans(color: AppColors.adminMuted)),
+                  style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted)),
             ],
           ),
         ),
@@ -912,7 +941,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
 
   Widget _clientCard(UserModel aluno) {
     return Material(
-      color: AppColors.adminSurface,
+      color: AdminThemeColors.of(context).surface,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: () => widget.onSelect(aluno),
@@ -921,10 +950,10 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.adminBorder),
+            border: Border.all(color: AdminThemeColors.of(context).border),
             boxShadow: [
               BoxShadow(
-                color: AppColors.adminShadow,
+                color: AdminThemeColors.of(context).shadow,
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -937,13 +966,13 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                 children: [
                   CircleAvatar(
                     radius: 22,
-                    backgroundColor: AppColors.adminSurface2,
+                    backgroundColor: AdminThemeColors.of(context).surface2,
                     child: Text(
                       aluno.nome.isNotEmpty
                           ? aluno.nome[0].toUpperCase()
                           : '?',
                       style: GoogleFonts.barlowCondensed(
-                          color: AppColors.adminLime,
+                          color: AdminThemeColors.of(context).lime,
                           fontWeight: FontWeight.w700,
                           fontSize: 15),
                     ),
@@ -957,12 +986,12 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                             style: GoogleFonts.dmSans(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
-                                color: AppColors.adminText)),
+                                color: AdminThemeColors.of(context).text)),
                         Text(
                             '${aluno.pesoAtual?.toStringAsFixed(1) ?? '--'} kg',
                             style: GoogleFonts.dmSans(
                                 fontSize: 12,
-                                color: AppColors.adminMuted)),
+                                color: AdminThemeColors.of(context).muted)),
                       ],
                     ),
                   ),
@@ -984,17 +1013,17 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  const Icon(Icons.email_outlined,
-                      size: 12, color: AppColors.adminMuted),
+                  Icon(Icons.email_outlined,
+                      size: 12, color: AdminThemeColors.of(context).muted),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(aluno.email,
                         style: GoogleFonts.dmSans(
-                            fontSize: 11, color: AppColors.adminMuted),
+                            fontSize: 11, color: AdminThemeColors.of(context).muted),
                         overflow: TextOverflow.ellipsis),
                   ),
-                  const Icon(Icons.chevron_right,
-                      size: 14, color: AppColors.adminMuted),
+                  Icon(Icons.chevron_right,
+                      size: 14, color: AdminThemeColors.of(context).muted),
                 ],
               ),
             ],
@@ -1008,7 +1037,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: AppColors.adminBg,
+        color: AdminThemeColors.of(context).bg,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -1017,13 +1046,13 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
           Text(label,
               style: GoogleFonts.dmSans(
                   fontSize: 10,
-                  color: AppColors.adminMuted,
+                  color: AdminThemeColors.of(context).muted,
                   letterSpacing: 0.06)),
           Text(value,
               style: GoogleFonts.dmMono(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: AppColors.adminText)),
+                  color: AdminThemeColors.of(context).text)),
         ],
       ),
     );
@@ -1041,27 +1070,27 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.adminSurface,
+          backgroundColor: AdminThemeColors.of(context).surface,
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
-              side: const BorderSide(color: AppColors.adminBorder)),
+              side: BorderSide(color: AdminThemeColors.of(context).border)),
           title: Text('Novo Cliente',
               style: GoogleFonts.dmSans(
-                  fontWeight: FontWeight.w700, color: AppColors.adminText)),
+                  fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nomeCtrl,
-                style: GoogleFonts.dmSans(color: AppColors.adminText),
+                style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text),
                 decoration: InputDecoration(
                   labelText: 'Nome completo',
-                  labelStyle: GoogleFonts.dmSans(color: AppColors.adminMuted),
+                  labelStyle: GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted),
                   filled: true,
-                  fillColor: AppColors.adminBg,
+                  fillColor: AdminThemeColors.of(context).bg,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: AppColors.adminBorder),
+                    borderRadius: BorderRadius.circular(10),                        borderSide:
+                            BorderSide(color: AdminThemeColors.of(context).border),
                   ),
                 ),
               ),
@@ -1069,21 +1098,21 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
               TextField(
                 controller: emailCtrl,
                 keyboardType: TextInputType.emailAddress,
-                style: GoogleFonts.dmSans(color: AppColors.adminText),
+                style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text),
                 decoration: InputDecoration(
                   labelText: 'Email',
-                  labelStyle: GoogleFonts.dmSans(color: AppColors.adminMuted),
+                  labelStyle: GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted),
                   filled: true,
-                  fillColor: AppColors.adminBg,
+                  fillColor: AdminThemeColors.of(context).bg,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: AppColors.adminBorder),
+                    borderRadius: BorderRadius.circular(10),                        borderSide:
+                            BorderSide(color: AdminThemeColors.of(context).border),
                   ),
                 ),
               ),
               if (loading) ...[
                 const SizedBox(height: 16),
-                const LinearProgressIndicator(color: AppColors.adminLime),
+                LinearProgressIndicator(color: AdminThemeColors.of(context).lime),
               ],
             ],
           ),
@@ -1091,7 +1120,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
             TextButton(
               onPressed: loading ? null : () => Navigator.pop(ctx),
               child: Text('Cancelar',
-                  style: GoogleFonts.dmSans(color: AppColors.adminMuted)),
+                  style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted)),
             ),
             ElevatedButton(
               onPressed: loading
@@ -1121,14 +1150,14 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('Erro: ${e.toString()}'),
-                            backgroundColor: AppColors.adminDanger,
+                            backgroundColor: AdminThemeColors.of(context).danger,
                           ),
                         );
                       }
                     },
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.adminLime,
-                foregroundColor: AppColors.adminBg,
+                backgroundColor: AdminThemeColors.of(context).lime,
+                foregroundColor: AdminThemeColors.of(context).bg,
               ),
               child: Text('Criar',
                   style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
@@ -1147,7 +1176,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
             content: Text(hasPassword
                 ? 'Aluno criado! Password temporária: ${result['password']}'
                 : 'Aluno "${result['email']}" já existia. Documento atualizado.'),
-            backgroundColor: AppColors.adminLime,
+            backgroundColor: AdminThemeColors.of(context).lime,
             duration: const Duration(seconds: 8),
           ),
         );
@@ -1182,12 +1211,12 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
             onTap: widget.onBack,
             child: Row(
               children: [
-                const Icon(Icons.arrow_back,
-                    size: 14, color: AppColors.adminMuted),
+                Icon(Icons.arrow_back,
+                    size: 14, color: AdminThemeColors.of(context).muted),
                 const SizedBox(width: 6),
                 Text('Clientes',
                     style: GoogleFonts.dmSans(
-                        fontSize: 13, color: AppColors.adminMuted)),
+                        fontSize: 13, color: AdminThemeColors.of(context).muted)),
               ],
             ),
           ),
@@ -1196,12 +1225,12 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: AppColors.adminSurface,
+              color: AdminThemeColors.of(context).surface,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.adminBorder),
+              border: Border.all(color: AdminThemeColors.of(context).border),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.adminShadow,
+                  color: AdminThemeColors.of(context).shadow,
                   blurRadius: 10,
                   offset: const Offset(0, 3),
                 ),
@@ -1211,7 +1240,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
               children: [
                 CircleAvatar(
                   radius: 30,
-                  backgroundColor: AppColors.adminSurface2,
+                  backgroundColor: AdminThemeColors.of(context).surface2,
                   child: Text(
                     c.nome.isNotEmpty
                         ? c.nome.substring(
@@ -1220,7 +1249,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                     style: GoogleFonts.barlowCondensed(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.adminLime),
+                        color: AdminThemeColors.of(context).lime),
                   ),
                 ),
                 const SizedBox(width: 18),
@@ -1233,11 +1262,11 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                               fontSize: 32,
                               fontWeight: FontWeight.w900,
                               letterSpacing: -0.01,
-                              color: AppColors.adminText)),
+                              color: AdminThemeColors.of(context).text)),
                       Text(
                           '${c.pesoAtual?.toStringAsFixed(1) ?? '-'}kg · ${c.altura?.toStringAsFixed(0) ?? '-'}cm · IMC: ${c.imc?.toStringAsFixed(1) ?? '-'}',
                           style: GoogleFonts.dmSans(
-                              fontSize: 13, color: AppColors.adminMuted)),
+                              fontSize: 13, color: AdminThemeColors.of(context).muted)),
                     ],
                   ),
                 ),
@@ -1280,20 +1309,20 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
         padding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: active ? AppColors.adminLimeDim : AppColors.adminSurface,
+          color: active ? AdminThemeColors.of(context).limeDim : AdminThemeColors.of(context).surface,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
               color: active
-                  ? AppColors.adminLime
-                  : AppColors.adminBorder),
+                  ? AdminThemeColors.of(context).lime
+                  : AdminThemeColors.of(context).border),
         ),
         child: Row(
           children: [
             Icon(icon,
                 size: 14,
                 color: active
-                    ? AppColors.adminLime
-                    : AppColors.adminMuted),
+                    ? AdminThemeColors.of(context).lime
+                    : AdminThemeColors.of(context).muted),
             const SizedBox(width: 8),
             Text(label,
                 style: GoogleFonts.dmSans(
@@ -1301,8 +1330,8 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                     fontWeight:
                         active ? FontWeight.w600 : FontWeight.w400,
                     color: active
-                        ? AppColors.adminLime
-                        : AppColors.adminMuted)),
+                        ? AdminThemeColors.of(context).lime
+                        : AdminThemeColors.of(context).muted)),
           ],
         ),
       ),
@@ -1345,12 +1374,12 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.adminSurface,
+        color: AdminThemeColors.of(context).surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.adminBorder),
+        border: Border.all(color: AdminThemeColors.of(context).border),
         boxShadow: [
           BoxShadow(
-            color: AppColors.adminShadow,
+            color: AdminThemeColors.of(context).shadow,
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -1364,7 +1393,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.03,
-                  color: AppColors.adminText)),
+                  color: AdminThemeColors.of(context).text)),
           const SizedBox(height: 16),
           SizedBox(
             height: 180,
@@ -1391,12 +1420,12 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                             ][e.key]))
                         .toList(),
                     isCurved: true,
-                    color: AppColors.adminLime,
+                    color: AdminThemeColors.of(context).lime,
                     barWidth: 2,
                     dotData: const FlDotData(show: true),
                     belowBarData: BarAreaData(
                       show: true,
-                      color: AppColors.adminLime.withValues(alpha: 0.08),
+                      color: AdminThemeColors.of(context).lime.withValues(alpha: 0.08),
                     ),
                   ),
                 ],
@@ -1430,12 +1459,12 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.adminSurface,
+        color: AdminThemeColors.of(context).surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.adminBorder),
+        border: Border.all(color: AdminThemeColors.of(context).border),
         boxShadow: [
           BoxShadow(
-            color: AppColors.adminShadow,
+            color: AdminThemeColors.of(context).shadow,
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -1449,7 +1478,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.05,
-                  color: AppColors.adminMuted)),
+                  color: AdminThemeColors.of(context).muted)),
           const SizedBox(height: 12),
           ...rows.map((r) => Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1458,12 +1487,12 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                   children: [
                     Text(r.$1,
                         style: GoogleFonts.dmSans(
-                            fontSize: 12, color: AppColors.adminMuted)),
+                            fontSize: 12, color: AdminThemeColors.of(context).muted)),
                     Text(r.$2,
                         style: GoogleFonts.dmMono(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.adminText)),
+                            color: AdminThemeColors.of(context).text)),
                   ],
                 ),
               )),
@@ -1509,11 +1538,11 @@ class _AdminExerciseLibraryState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('BIBLIOTECA DE EXERCÍCIOS',
-                        style: _adminDisplay(40)),
+                        style: _adminDisplay(context, 40)),
                     Text(
                         '${exercisesAsync.valueOrNull?.length ?? 0} exercícios',
                         style: GoogleFonts.dmSans(
-                            fontSize: 14, color: AppColors.adminMuted)),
+                            fontSize: 14, color: AdminThemeColors.of(context).muted)),
                   ],
                 ),
               ),
@@ -1524,8 +1553,8 @@ class _AdminExerciseLibraryState
                     style: GoogleFonts.dmSans(
                         fontSize: 13, fontWeight: FontWeight.w700)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.adminLime,
-                  foregroundColor: AppColors.adminBg,
+                  backgroundColor: AdminThemeColors.of(context).lime,
+                  foregroundColor: AdminThemeColors.of(context).bg,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
                   padding: const EdgeInsets.symmetric(
@@ -1542,23 +1571,23 @@ class _AdminExerciseLibraryState
             child: TextField(
               onChanged: (v) => setState(() => _search = v),
               style: GoogleFonts.dmSans(
-                  fontSize: 13, color: AppColors.adminText),
+                  fontSize: 13, color: AdminThemeColors.of(context).text),
               decoration: InputDecoration(
                 hintText: 'Buscar exercício...',
                 hintStyle: GoogleFonts.dmSans(
-                    fontSize: 13, color: AppColors.adminMuted),
-                prefixIcon: const Icon(Icons.search,
-                    size: 16, color: AppColors.adminMuted),
+                    fontSize: 13, color: AdminThemeColors.of(context).muted),
+                prefixIcon: Icon(Icons.search,
+                    size: 16, color: AdminThemeColors.of(context).muted),
                 filled: true,
-                fillColor: AppColors.adminSurface,
+                fillColor: AdminThemeColors.of(context).surface,
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(
-                        color: AppColors.adminBorder)),
+                    borderSide: BorderSide(
+                        color: AdminThemeColors.of(context).border)),
                 enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(
-                        color: AppColors.adminBorder)),
+                    borderSide: BorderSide(
+                        color: AdminThemeColors.of(context).border)),
                 contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14, vertical: 10),
               ),
@@ -1577,20 +1606,20 @@ class _AdminExerciseLibraryState
                       horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: active
-                        ? AppColors.adminLimeDim
+                        ? AdminThemeColors.of(context).limeDim
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                         color: active
-                            ? AppColors.adminLime
-                            : AppColors.adminBorder),
+                            ? AdminThemeColors.of(context).lime
+                            : AdminThemeColors.of(context).border),
                   ),
                   child: Text(m,
                       style: GoogleFonts.dmSans(
                           fontSize: 12,
                           color: active
-                              ? AppColors.adminLime
-                              : AppColors.adminMuted)),
+                              ? AdminThemeColors.of(context).lime
+                              : AdminThemeColors.of(context).muted)),
                 ),
               );
             }).toList(),
@@ -1613,12 +1642,12 @@ class _AdminExerciseLibraryState
                     padding: const EdgeInsets.all(60),
                     child: Column(
                       children: [
-                        const Icon(Icons.fitness_center,
-                            size: 48, color: AppColors.adminMuted),
+                        Icon(Icons.fitness_center,
+                            size: 48, color: AdminThemeColors.of(context).muted),
                         const SizedBox(height: 12),
                         Text('Nenhum exercício encontrado',
                             style: GoogleFonts.dmSans(
-                                color: AppColors.adminMuted)),
+                                color: AdminThemeColors.of(context).muted)),
                       ],
                     ),
                   ),
@@ -1646,13 +1675,13 @@ class _AdminExerciseLibraryState
                       child: Container(
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
-                          color: AppColors.adminSurface,
+                          color: AdminThemeColors.of(context).surface,
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                              color: AppColors.adminBorder),
+                              color: AdminThemeColors.of(context).border),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.adminShadow,
+                              color: AdminThemeColors.of(context).shadow,
                               blurRadius: 6,
                               offset: const Offset(0, 2),
                             ),
@@ -1666,7 +1695,7 @@ class _AdminExerciseLibraryState
                                 style: GoogleFonts.barlowCondensed(
                                     fontSize: 48,
                                     fontWeight: FontWeight.w900,
-                                    color: AppColors.adminText
+                                    color: AdminThemeColors.of(context).text
                                         .withValues(alpha: 0.04),
                                     height: 1)),
                             const SizedBox(height: 8),
@@ -1674,15 +1703,15 @@ class _AdminExerciseLibraryState
                                 style: GoogleFonts.dmSans(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w700,
-                                    color: AppColors.adminText)),
+                                    color: AdminThemeColors.of(context).text)),
                             const SizedBox(height: 6),
                             Row(
                               children: [
                                 _exChip(
-                                    grupo, AppColors.adminBlue),
+                                    grupo, AdminThemeColors.of(context).blue),
                                 const SizedBox(width: 6),
                                 _exChip(equipamento,
-                                    AppColors.adminMuted),
+                                    AdminThemeColors.of(context).muted),
                               ],
                             ),
                           ],
@@ -1693,18 +1722,18 @@ class _AdminExerciseLibraryState
                 );
               });
             },
-            loading: () => const Center(
+            loading: () => Center(
                 child: CircularProgressIndicator(
-                    color: AppColors.adminLime)),
+                    color: AdminThemeColors.of(context).lime)),
             error: (_, __) => Center(
               child: Column(
                 children: [
-                  const Icon(Icons.error_outline,
-                      size: 32, color: AppColors.adminMuted),
+                  Icon(Icons.error_outline,
+                      size: 32, color: AdminThemeColors.of(context).muted),
                   const SizedBox(height: 8),
                   Text('Erro ao carregar exercícios',
                       style: GoogleFonts.dmSans(
-                          color: AppColors.adminMuted)),
+                          color: AdminThemeColors.of(context).muted)),
                 ],
               ),
             ),
@@ -1736,27 +1765,27 @@ class _AdminExerciseLibraryState
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.adminSurface,
+          backgroundColor: AdminThemeColors.of(context).surface,
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
-              side: const BorderSide(color: AppColors.adminBorder)),
+              side: BorderSide(color: AdminThemeColors.of(context).border)),
           title: Text('Novo Exercício',
               style: GoogleFonts.dmSans(
                   fontWeight: FontWeight.w700,
-                  color: AppColors.adminText)),
+                  color: AdminThemeColors.of(context).text)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: nomeCtrl,
-                  style: GoogleFonts.dmSans(color: AppColors.adminText),
+                  style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text),
                   decoration: InputDecoration(
                     labelText: 'Nome do exercício',
                     labelStyle: GoogleFonts.dmSans(
-                        color: AppColors.adminMuted),
+                        color: AdminThemeColors.of(context).muted),
                     filled: true,
-                    fillColor: AppColors.adminBg,
+                    fillColor: AdminThemeColors.of(context).bg,
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
@@ -1764,14 +1793,14 @@ class _AdminExerciseLibraryState
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   value: selectedGrupo,
-                  dropdownColor: AppColors.adminSurface,
-                  style: GoogleFonts.dmSans(color: AppColors.adminText),
+                  dropdownColor: AdminThemeColors.of(context).surface,
+                  style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text),
                   decoration: InputDecoration(
                     labelText: 'Grupo Muscular',
                     labelStyle: GoogleFonts.dmSans(
-                        color: AppColors.adminMuted),
+                        color: AdminThemeColors.of(context).muted),
                     filled: true,
-                    fillColor: AppColors.adminBg,
+                    fillColor: AdminThemeColors.of(context).bg,
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
@@ -1781,7 +1810,7 @@ class _AdminExerciseLibraryState
                           value: m,
                           child: Text(m,
                               style: GoogleFonts.dmSans(
-                                  color: AppColors.adminText))))
+                                  color: AdminThemeColors.of(context).text))))
                       .toList(),
                   onChanged: (v) => setDialogState(
                       () => selectedGrupo = v ?? 'Peito'),
@@ -1789,14 +1818,14 @@ class _AdminExerciseLibraryState
                 const SizedBox(height: 12),
                 TextField(
                   controller: equipCtrl,
-                  style: GoogleFonts.dmSans(color: AppColors.adminText),
+                  style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text),
                   decoration: InputDecoration(
                     hintText: 'Ex: Barra, Halter, Máquina, Polia...',
                     labelText: 'Equipamento',
                     labelStyle: GoogleFonts.dmSans(
-                        color: AppColors.adminMuted),
+                        color: AdminThemeColors.of(context).muted),
                     filled: true,
-                    fillColor: AppColors.adminBg,
+                    fillColor: AdminThemeColors.of(context).bg,
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
@@ -1809,7 +1838,7 @@ class _AdminExerciseLibraryState
               onPressed: () => Navigator.pop(ctx),
               child: Text('Cancelar',
                   style:
-                      GoogleFonts.dmSans(color: AppColors.adminMuted)),
+                      GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted)),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -1828,8 +1857,8 @@ class _AdminExerciseLibraryState
                 } catch (_) {}
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.adminLime,
-                foregroundColor: AppColors.adminBg,
+                backgroundColor: AdminThemeColors.of(context).lime,
+                foregroundColor: AdminThemeColors.of(context).bg,
               ),
               child: Text('Adicionar',
                   style: GoogleFonts.dmSans(
@@ -1871,11 +1900,11 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('BIBLIOTECA DE ALIMENTOS',
-                        style: _adminDisplay(40)),
+                        style: _adminDisplay(context, 40)),
                     Text(
                         '${foodsAsync.valueOrNull?.length ?? 0} alimentos',
                         style: GoogleFonts.dmSans(
-                            fontSize: 14, color: AppColors.adminMuted)),
+                            fontSize: 14, color: AdminThemeColors.of(context).muted)),
                   ],
                 ),
               ),
@@ -1886,8 +1915,8 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                     style: GoogleFonts.dmSans(
                         fontSize: 13, fontWeight: FontWeight.w700)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.adminLime,
-                  foregroundColor: AppColors.adminBg,
+                  backgroundColor: AdminThemeColors.of(context).lime,
+                  foregroundColor: AdminThemeColors.of(context).bg,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10)),
                   padding: const EdgeInsets.symmetric(
@@ -1903,23 +1932,23 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
             child: TextField(
               onChanged: (v) => setState(() => _search = v),
               style: GoogleFonts.dmSans(
-                  fontSize: 13, color: AppColors.adminText),
+                  fontSize: 13, color: AdminThemeColors.of(context).text),
               decoration: InputDecoration(
                 hintText: 'Buscar alimento...',
                 hintStyle: GoogleFonts.dmSans(
-                    fontSize: 13, color: AppColors.adminMuted),
-                prefixIcon: const Icon(Icons.search,
-                    size: 16, color: AppColors.adminMuted),
+                    fontSize: 13, color: AdminThemeColors.of(context).muted),
+                prefixIcon: Icon(Icons.search,
+                    size: 16, color: AdminThemeColors.of(context).muted),
                 filled: true,
-                fillColor: AppColors.adminSurface,
+                fillColor: AdminThemeColors.of(context).surface,
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(
-                        color: AppColors.adminBorder)),
+                    borderSide: BorderSide(
+                        color: AdminThemeColors.of(context).border)),
                 enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(
-                        color: AppColors.adminBorder)),
+                    borderSide: BorderSide(
+                        color: AdminThemeColors.of(context).border)),
                 contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14, vertical: 10),
               ),
@@ -1934,18 +1963,18 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                     padding: const EdgeInsets.all(60),
                     child: Column(
                       children: [
-                        const Icon(Icons.restaurant,
-                            size: 48, color: AppColors.adminMuted),
+                        Icon(Icons.restaurant,
+                            size: 48, color: AdminThemeColors.of(context).muted),
                         const SizedBox(height: 12),
                         Text('Nenhum alimento encontrado',
                             style: GoogleFonts.dmSans(
-                                color: AppColors.adminMuted)),
+                                color: AdminThemeColors.of(context).muted)),
                         const SizedBox(height: 8),
                         Text(
                             'Adiciona os primeiros alimentos à biblioteca.',
                             style: GoogleFonts.dmSans(
                                 fontSize: 12,
-                                color: AppColors.adminMuted)),
+                                color: AdminThemeColors.of(context).muted)),
                       ],
                     ),
                   ),
@@ -1972,13 +2001,13 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                 );
               });
             },
-            loading: () => const Center(
+            loading: () => Center(
                 child: CircularProgressIndicator(
-                    color: AppColors.adminLime)),
+                    color: AdminThemeColors.of(context).lime)),
             error: (_, __) => Center(
               child: Text('Erro',
                   style: GoogleFonts.dmSans(
-                      color: AppColors.adminMuted)),
+                      color: AdminThemeColors.of(context).muted)),
             ),
           ),
         ],
@@ -1988,27 +2017,27 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
 
   Widget _foodCard(FoodModel food) {
     final categoryColors = {
-      'proteina': AppColors.adminBlue,
-      'hidrato': AppColors.adminOrange,
-      'gordura': AppColors.adminPurple,
-      'vegetal': AppColors.adminLime,
-      'laticinio': AppColors.adminBlue,
-      'fruta': AppColors.adminLime,
-      'bebida': AppColors.adminText,
+      'proteina': AdminThemeColors.of(context).blue,
+      'hidrato': AdminThemeColors.of(context).orange,
+      'gordura': AdminThemeColors.of(context).purple,
+      'vegetal': AdminThemeColors.of(context).lime,
+      'laticinio': AdminThemeColors.of(context).blue,
+      'fruta': AdminThemeColors.of(context).lime,
+      'bebida': AdminThemeColors.of(context).text,
     };
     final catColor =
-        categoryColors[food.categoria] ?? AppColors.adminMuted;
+        categoryColors[food.categoria] ?? AdminThemeColors.of(context).muted;
     final catLabel = food.categoria ?? 'Geral';
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.adminSurface,
+        color: AdminThemeColors.of(context).surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.adminBorder),
+        border: Border.all(color: AdminThemeColors.of(context).border),
         boxShadow: [
           BoxShadow(
-            color: AppColors.adminShadow,
+            color: AdminThemeColors.of(context).shadow,
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -2025,7 +2054,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                     style: GoogleFonts.dmSans(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.adminText)),
+                        color: AdminThemeColors.of(context).text)),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -2047,25 +2076,25 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
           Text(
               '${food.caloriasPor100g.toStringAsFixed(0)} kcal / 100g',
               style: GoogleFonts.dmMono(
-                  fontSize: 13, color: AppColors.adminLime)),
+                  fontSize: 13, color: AdminThemeColors.of(context).lime)),
           const SizedBox(height: 6),
           Row(
             children: [
               if (food.proteinasPor100g != null)
                 _macroChip(
                     'P: ${food.proteinasPor100g!.toStringAsFixed(1)}g',
-                    AppColors.adminBlue),
+                    AdminThemeColors.of(context).blue),
               if (food.hidratosPor100g != null) ...[
                 const SizedBox(width: 4),
                 _macroChip(
                     'C: ${food.hidratosPor100g!.toStringAsFixed(1)}g',
-                    AppColors.adminOrange),
+                    AdminThemeColors.of(context).orange),
               ],
               if (food.gordurasPor100g != null) ...[
                 const SizedBox(width: 4),
                 _macroChip(
                     'G: ${food.gordurasPor100g!.toStringAsFixed(1)}g',
-                    AppColors.adminPurple),
+                    AdminThemeColors.of(context).purple),
               ],
             ],
           ),
@@ -2104,27 +2133,27 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.adminSurface,
+          backgroundColor: AdminThemeColors.of(context).surface,
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
-              side: const BorderSide(color: AppColors.adminBorder)),
+              side: BorderSide(color: AdminThemeColors.of(context).border)),
           title: Text('Novo Alimento',
               style: GoogleFonts.dmSans(
                   fontWeight: FontWeight.w700,
-                  color: AppColors.adminText)),
+                  color: AdminThemeColors.of(context).text)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: nomeCtrl,
-                  style: GoogleFonts.dmSans(color: AppColors.adminText),
+                  style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text),
                   decoration: InputDecoration(
                     labelText: 'Nome do alimento',
                     labelStyle: GoogleFonts.dmSans(
-                        color: AppColors.adminMuted),
+                        color: AdminThemeColors.of(context).muted),
                     filled: true,
-                    fillColor: AppColors.adminBg,
+                    fillColor: AdminThemeColors.of(context).bg,
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
@@ -2133,13 +2162,13 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                 TextField(
                   controller: calCtrl,
                   keyboardType: TextInputType.number,
-                  style: GoogleFonts.dmSans(color: AppColors.adminText),
+                  style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text),
                   decoration: InputDecoration(
                     labelText: 'Calorias (por 100g/ml)',
                     labelStyle: GoogleFonts.dmSans(
-                        color: AppColors.adminMuted),
+                        color: AdminThemeColors.of(context).muted),
                     filled: true,
-                    fillColor: AppColors.adminBg,
+                    fillColor: AdminThemeColors.of(context).bg,
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
@@ -2152,14 +2181,14 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                         controller: protCtrl,
                         keyboardType: TextInputType.number,
                         style: GoogleFonts.dmSans(
-                            color: AppColors.adminText),
+                            color: AdminThemeColors.of(context).text),
                         decoration: InputDecoration(
                           labelText: 'Proteína (g)',
                           labelStyle: GoogleFonts.dmSans(
-                              color: AppColors.adminMuted,
+                              color: AdminThemeColors.of(context).muted,
                               fontSize: 12),
                           filled: true,
-                          fillColor: AppColors.adminBg,
+                          fillColor: AdminThemeColors.of(context).bg,
                           border: OutlineInputBorder(
                               borderRadius:
                                   BorderRadius.circular(10)),
@@ -2174,14 +2203,14 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                         controller: carbCtrl,
                         keyboardType: TextInputType.number,
                         style: GoogleFonts.dmSans(
-                            color: AppColors.adminText),
+                            color: AdminThemeColors.of(context).text),
                         decoration: InputDecoration(
                           labelText: 'Hidratos (g)',
                           labelStyle: GoogleFonts.dmSans(
-                              color: AppColors.adminMuted,
+                              color: AdminThemeColors.of(context).muted,
                               fontSize: 12),
                           filled: true,
-                          fillColor: AppColors.adminBg,
+                          fillColor: AdminThemeColors.of(context).bg,
                           border: OutlineInputBorder(
                               borderRadius:
                                   BorderRadius.circular(10)),
@@ -2196,14 +2225,14 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                         controller: gordCtrl,
                         keyboardType: TextInputType.number,
                         style: GoogleFonts.dmSans(
-                            color: AppColors.adminText),
+                            color: AdminThemeColors.of(context).text),
                         decoration: InputDecoration(
                           labelText: 'Gordura (g)',
                           labelStyle: GoogleFonts.dmSans(
-                              color: AppColors.adminMuted,
+                              color: AdminThemeColors.of(context).muted,
                               fontSize: 12),
                           filled: true,
-                          fillColor: AppColors.adminBg,
+                          fillColor: AdminThemeColors.of(context).bg,
                           border: OutlineInputBorder(
                               borderRadius:
                                   BorderRadius.circular(10)),
@@ -2217,15 +2246,15 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   value: selectedCat,
-                  dropdownColor: AppColors.adminSurface,
+                  dropdownColor: AdminThemeColors.of(context).surface,
                   style:
-                      GoogleFonts.dmSans(color: AppColors.adminText),
+                      GoogleFonts.dmSans(color: AdminThemeColors.of(context).text),
                   decoration: InputDecoration(
                     labelText: 'Categoria',
                     labelStyle: GoogleFonts.dmSans(
-                        color: AppColors.adminMuted),
+                        color: AdminThemeColors.of(context).muted),
                     filled: true,
-                    fillColor: AppColors.adminBg,
+                    fillColor: AdminThemeColors.of(context).bg,
                     border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
@@ -2235,7 +2264,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                           child: Text(c,
                               style: GoogleFonts.dmSans(
                                   color:
-                                      AppColors.adminText))))
+                                      AdminThemeColors.of(context).text))))
                       .toList(),
                   onChanged: (v) => setDialogState(
                       () => selectedCat = v ?? 'proteina'),
@@ -2248,7 +2277,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
               onPressed: () => Navigator.pop(ctx),
               child: Text('Cancelar',
                   style: GoogleFonts.dmSans(
-                      color: AppColors.adminMuted)),
+                      color: AdminThemeColors.of(context).muted)),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -2273,8 +2302,8 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                 } catch (_) {}
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.adminLime,
-                foregroundColor: AppColors.adminBg,
+                backgroundColor: AdminThemeColors.of(context).lime,
+                foregroundColor: AdminThemeColors.of(context).bg,
               ),
               child: Text('Adicionar',
                   style: GoogleFonts.dmSans(
@@ -2289,11 +2318,11 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
 
 // ─── Shared Helpers ───────────────────────────────────────────────
 
-TextStyle _adminDisplay(double size) {
+TextStyle _adminDisplay(BuildContext context, double size) {
   return GoogleFonts.barlowCondensed(
     fontSize: size,
     fontWeight: FontWeight.w900,
     letterSpacing: -0.01,
-    color: AppColors.adminText,
+    color: AdminThemeColors.of(context).text,
   );
 }
