@@ -8,6 +8,7 @@ import '../../../../core/config/app_strings.dart';
 import '../../../../data/models/message_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
+import '../../../../shared/widgets/app_notification.dart';
 
 final chatMessagesProvider =
     StreamProvider.family<List<MessageModel>, String>((ref, salaId) {
@@ -183,12 +184,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _scrollToBottom();
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(AppStrings.messageSendError),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        showAppNotification(context, AppStrings.messageSendError, type: NotificationType.error);
       }
     }
   }

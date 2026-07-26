@@ -12,6 +12,7 @@ import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/star_rating.dart';
 import '../../../../shared/widgets/offline_banner.dart';
+import '../../../../shared/widgets/app_notification.dart';
 
 /// Provider do plano de treino de hoje (se existir).
 final todayWorkoutPlanProvider = FutureProvider.family<WorkoutDay?, String>(
@@ -811,7 +812,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
     try {
       await ref.read(diaryRepositoryProvider).addWater(userId, today, AppConstants.waterIncrementMl);
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text(AppStrings.networkError), backgroundColor: AppColors.error));
+      if (mounted) showAppNotification(context, AppStrings.networkError, type: NotificationType.error);
     }
   }
 

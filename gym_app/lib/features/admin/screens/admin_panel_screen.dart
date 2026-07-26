@@ -12,6 +12,7 @@ import '../../../data/models/food_model.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../shared/providers/global_providers.dart';
 import '../../../shared/providers/admin_providers.dart';
+import '../../../shared/widgets/app_notification.dart';
 import '../../admin/widgets/workout_editor.dart';
 import '../../admin/widgets/nutrition_editor.dart';
 
@@ -1147,12 +1148,16 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                         });
                       } catch (e) {
                         setDialogState(() => loading = false);
+<<<<<<< Updated upstream
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content: Text('Erro: ${e.toString()}'),
                             backgroundColor: AdminThemeColors.of(context).danger,
                           ),
                         );
+=======
+                        showAppNotification(context, 'Erro: ${e.toString()}', type: NotificationType.error);
+>>>>>>> Stashed changes
                       }
                     },
               style: ElevatedButton.styleFrom(
@@ -1171,6 +1176,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
       ref.invalidate(alunosListProvider);
       if (mounted) {
         final hasPassword = result['password'] != null;
+<<<<<<< Updated upstream
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(hasPassword
@@ -1179,6 +1185,15 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
             backgroundColor: AdminThemeColors.of(context).lime,
             duration: const Duration(seconds: 8),
           ),
+=======
+        showAppNotification(
+          context,
+          hasPassword
+              ? 'Aluno criado! Password temporária: ${result['password']}'
+              : 'Aluno "${result['email']}" já existia. Documento atualizado.',
+          type: NotificationType.success,
+          duration: const Duration(seconds: 8),
+>>>>>>> Stashed changes
         );
       }
     }

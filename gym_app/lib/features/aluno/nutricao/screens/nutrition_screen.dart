@@ -10,6 +10,7 @@ import '../../../../data/models/food_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
+import '../../../../shared/widgets/app_notification.dart';
 
 final nutritionPlanProvider =
     FutureProvider.family<NutritionPlanModel?, (String, String)>(
@@ -59,6 +60,8 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
 
   /// Gramas consumidas por alimento (chave: "${diaSemana}_${tipoRefeicao}_${nomeAlimento}").
   final Map<String, double> _consumoPorAlimento = {};
+  /// Modo de medição por alimento: 'g' (gramas) ou 'un' (unidades).
+  final Map<String, String> _modoPorAlimento = {};
   /// Contador para forçar recriação dos TextFormField apenas
   /// quando o valor muda programaticamente (ex: "Porção completa").
   int _formRebuildCounter = 0;
@@ -175,13 +178,13 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildCaloriesBar(plan, consumedCalories),
+            _buildCaloriesBar(plan, consumedCalories, diaSemana: diaSemana),
             const SizedBox(height: 16),
             Text(
               'Refeições do dia',
               style: GoogleFonts.montserrat(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
+                fontSize: 15,
+                fontWeight: FontWeight.w400,
                 color: AppColors.onSurface,
               ),
             ),
@@ -204,9 +207,74 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
     );
   }
 
-  Widget _buildCaloriesBar(NutritionPlanModel plan, double consumed) {
+  /// Calcula os totais diários de macronutrientes a partir dos inputs.
+  (double proteinas, double hidratos, double gorduras) _dailyMacroTotals(
+      NutritionPlanModel plan, String diaSemana) {
+    double prots = 0, carbs = 0, gords = 0;
+    for (final meal in plan.refeicoes) {
+      for (final alimento in meal.alimentos) {
+        final key = '${diaSemana}_${meal.tipo}_${alimento.nome}';
+        final gramas = _consumoPorAlimento[key] ?? 0.0;
+        if (gramas > 0) {
+          prots += alimento.proteinasParaGramas(gramas);
+          carbs += alimento.hidratosParaGramas(gramas);
+          gords += alimento.gordurasParaGramas(gramas);
+        }
+      }
+    }
+    return (prots, carbs, gords);
+  }
+
+  /// Barra de progresso individual para um macronutriente.
+  Widget _macroProgressBar(
+      String label, double consumed, double goal, Color color) {
+    final progress = goal > 0 ? (consumed / goal).clamp(0.0, 1.0) : 0.0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 10,
+            fontWeight: FontWeight.w500,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 3),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(3),
+          child: LinearProgressIndicator(
+            value: progress,
+            backgroundColor: AppColors.outline,
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+            minHeight: 6,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          '${consumed.toStringAsFixed(0)}g/${goal.toStringAsFixed(0)}g',
+          style: GoogleFonts.montserrat(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCaloriesBar(NutritionPlanModel plan, double consumed,
+      {required String diaSemana}) {
     final progress =
         plan.metaCalorias > 0 ? consumed / plan.metaCalorias : 0.0;
+    final restante = (plan.metaCalorias - consumed).clamp(0.0, plan.metaCalorias);
+    final (dailyProts, dailyCarbs, dailyGords) =
+        _dailyMacroTotals(plan, diaSemana);
+
+    // Metas de macronutrientes calculadas a partir das calorias
+    final metaProteina = (plan.metaCalorias * 0.30) / 4;
+    final metaHidratos = (plan.metaCalorias * 0.40) / 4;
+    final metaGorduras = (plan.metaCalorias * 0.30) / 9;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -217,32 +285,107 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
       ),
       child: Column(
         children: [
-          Text(
-            AppStrings.caloriesConsumed,
-            style: GoogleFonts.inter(
-              color: AppColors.textSecondary,
-              fontSize: 13,
-            ),
+          // ── Linha superior: Calorias | Restante ──────────
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Calorias (esquerda)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Calorias',
+                    style: GoogleFonts.inter(
+                      color: AppColors.textSecondary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '${consumed.toStringAsFixed(0)}',
+                          style: GoogleFonts.montserrat(
+                            color: AppColors.onSurface,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        TextSpan(
+                          text:
+                              ' / ${plan.metaCalorias.toStringAsFixed(0)} kcal',
+                          style: GoogleFonts.montserrat(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              // Restante (direita)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'Restante',
+                    style: GoogleFonts.inter(
+                      color: AppColors.textSecondary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    '${restante.toStringAsFixed(0)} kcal',
+                    style: GoogleFonts.montserrat(
+                      color: AppColors.onSurfaceVariant,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            '${consumed.toStringAsFixed(0)} / ${plan.metaCalorias.toStringAsFixed(0)} kcal',
-            style: GoogleFonts.montserrat(
-              color: AppColors.onSurface,
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 6),
+          // ── Barra de progresso (8px) ──────────────────────
           ClipRRect(
-            borderRadius: BorderRadius.circular(2),
+            borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: progress.clamp(0.0, 1.0),
               backgroundColor: AppColors.outline,
               valueColor:
                   const AlwaysStoppedAnimation<Color>(AppColors.primary),
-              minHeight: 4,
+              minHeight: 8,
             ),
+          ),
+          // ── Totais diários de macronutrientes ───────────────
+          const SizedBox(height: 14),
+          const Divider(color: AppColors.outline),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _macroProgressBar(
+                    'Proteína', dailyProts, metaProteina, AppColors.protein),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _macroProgressBar('Gordura', dailyGords, metaGorduras,
+                    AppColors.fat),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _macroProgressBar('H. Carbonos', dailyCarbs,
+                    metaHidratos, AppColors.carbs),
+              ),
+            ],
           ),
         ],
       ),
@@ -310,7 +453,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
                 Text(
                   '${meal.totalCalorias.toStringAsFixed(0)} kcal',
                   style: GoogleFonts.montserrat(
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w400,
                     fontSize: 13,
                     color: AppColors.textSecondary,
                   ),
@@ -482,150 +625,195 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Linha 1: Nome + gramas
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  alimento.nome,
-                  maxLines: 1,
-                  style: GoogleFonts.inter(
-                    color: AppColors.onSurface,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 12,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Nome + macronutrientes à esquerda
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    alimento.nome,
+                    maxLines: 1,
+                    style: GoogleFonts.inter(
+                      color: AppColors.onSurface,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 12,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                  const SizedBox(height: 3),
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'C: ',
+                          style: GoogleFonts.montserrat(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                        ),
+                        TextSpan(
+                          text: '${caloriasConsumidas.toStringAsFixed(0)}',
+                          style: GoogleFonts.montserrat(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                        ),
+                        TextSpan(
+                          text: 'kcal  ',
+                          style: GoogleFonts.montserrat(
+                            fontSize: 9,
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                        ),
+                        TextSpan(
+                          text: 'H: ${carbs.toStringAsFixed(0)}g',
+                          style: GoogleFonts.montserrat(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.carbs,
+                          ),
+                        ),
+                        TextSpan(
+                          text: '  •  ',
+                          style: GoogleFonts.montserrat(
+                            fontSize: 10,
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                        ),
+                        TextSpan(
+                          text: 'P: ${prots.toStringAsFixed(0)}g',
+                          style: GoogleFonts.montserrat(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.protein,
+                          ),
+                        ),
+                        TextSpan(
+                          text: '  •  ',
+                          style: GoogleFonts.montserrat(
+                            fontSize: 10,
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                        ),
+                        TextSpan(
+                          text: 'G: ${gords.toStringAsFixed(0)}g',
+                          style: GoogleFonts.montserrat(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.fat,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              SizedBox(
-                width: 56,
-                child: TextFormField(
-                  key: ValueKey('gramas_${key}_$_formRebuildCounter'),
-                  initialValue:
-                      gramas > 0 ? gramas.toStringAsFixed(0) : '',
-                  keyboardType: TextInputType.number,
-                  style: GoogleFonts.montserrat(
-                    color: AppColors.onSurface,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  textAlign: TextAlign.center,
-                  decoration: InputDecoration(
-                    hintText: '0 g',
-                    hintStyle: GoogleFonts.montserrat(
-                      color: AppColors.outlineVariant,
-                      fontSize: 11,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 4, vertical: 4),
-                    isDense: true,
-                    filled: true,
-                    fillColor: AppColors.surface,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(6),
-                      borderSide:
-                          const BorderSide(color: AppColors.surfaceLow),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(6),
-                      borderSide:
-                          const BorderSide(color: AppColors.surfaceLow),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(6),
-                      borderSide: const BorderSide(
-                          color: AppColors.primary, width: 1.5),
-                    ),
-                  ),
-                  onChanged: (value) {
-                    final parsed =
-                        double.tryParse(value.replaceAll(',', '.'));
-                    setState(() {
-                      if (parsed != null && parsed > 0) {
-                        _consumoPorAlimento[key] = parsed;
-                      } else {
-                        _consumoPorAlimento.remove(key);
-                      }
-                    });
-                  },
-                ),
-              ),
-              const SizedBox(width: 75),
-            ],
-          ),
-          // Linha 2: kcal + macronutrientes com cores
-          const SizedBox(height: 3),
-          Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(
-                  text: 'C: ',
-                  style: GoogleFonts.montserrat(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                TextSpan(
-                  text: '${caloriasConsumidas.toStringAsFixed(0)}',
-                  style: GoogleFonts.montserrat(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                TextSpan(
-                  text: 'kcal  ',
-                  style: GoogleFonts.montserrat(
-                    fontSize: 7,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                TextSpan(
-                  text: 'H: ${carbs.toStringAsFixed(0)}g',
-                  style: GoogleFonts.montserrat(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.carbs,
-                  ),
-                ),
-                TextSpan(
-                  text: '  •  ',
-                  style: GoogleFonts.montserrat(
-                    fontSize: 9,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                TextSpan(
-                  text: 'P: ${prots.toStringAsFixed(0)}g',
-                  style: GoogleFonts.montserrat(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.protein,
-                  ),
-                ),
-                TextSpan(
-                  text: '  •  ',
-                  style: GoogleFonts.montserrat(
-                    fontSize: 9,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                TextSpan(
-                  text: 'G: ${gords.toStringAsFixed(0)}g',
-                  style: GoogleFonts.montserrat(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.fat,
-                  ),
-                ),
-              ],
             ),
-          ),
-        ],
+            // Input de gramas / unidades
+            SizedBox(
+              width: 62,
+              child: TextFormField(
+                key: ValueKey('gramas_${key}_$_formRebuildCounter'),
+                initialValue:
+                    gramas > 0 ? gramas.toStringAsFixed(0) : '',
+                keyboardType: TextInputType.number,
+                style: GoogleFonts.montserrat(
+                  color: AppColors.onSurface,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+                decoration: InputDecoration(
+                  hintText: '0',
+                  hintStyle: GoogleFonts.montserrat(
+                    color: AppColors.outlineVariant,
+                    fontSize: 11,
+                  ),
+                  suffix: GestureDetector(
+                    onTap: () {
+                      final current = _modoPorAlimento[key] ?? 'g';
+                      setState(() {
+                        _modoPorAlimento[key] =
+                            current == 'g' ? 'un' : 'g';
+                      });
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: Text(
+                        _modoPorAlimento[key] ?? 'g',
+                        style: GoogleFonts.montserrat(
+                          color: AppColors.onSurfaceVariant,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  contentPadding: const EdgeInsets.only(
+                      left: 4, right: 2, top: 7, bottom: 7),
+                  isDense: true,
+                  filled: true,
+                  fillColor: AppColors.surfaceHigh,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide:
+                        const BorderSide(color: AppColors.surfaceLow),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide:
+                        const BorderSide(color: AppColors.surfaceLow),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: const BorderSide(
+                        color: AppColors.primary, width: 1.5),
+                  ),
+                ),
+                onChanged: (value) {
+                  final parsed =
+                      double.tryParse(value.replaceAll(',', '.'));
+                  setState(() {
+                    if (parsed != null && parsed > 0) {
+                      _consumoPorAlimento[key] = parsed;
+                    } else {
+                      _consumoPorAlimento.remove(key);
+                    }
+                  });
+                },
+              ),
+            ),
+            const SizedBox(width: 6),
+            // Botão de substituir alimento
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceHigh,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                iconSize: 14,
+                icon: Icon(Icons.swap_horiz,
+                    color: AppColors.onSurfaceVariant.withValues(alpha: 0.7)),
+                onPressed: () => _showFoodSearch(
+                  diaSemana: diaSemana,
+                  mealTipo: mealTipo,
+                  alimentoToReplace: alimento,
+                ),
+              ),
+            ),
+            const SizedBox(width: 35),
+          ],
+        ),
       ),
     );
   }
@@ -652,12 +840,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
 
     if (alimentosConsumidos.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(AppStrings.noConsumptionIndicated),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        showAppNotification(context, AppStrings.noConsumptionIndicated, type: NotificationType.error);
       }
       return;
     }
@@ -682,26 +865,20 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
       });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(AppStrings.mealCompleted),
-            backgroundColor: AppColors.success,
-          ),
-        );
+        showAppNotification(context, AppStrings.mealCompleted, type: NotificationType.success);
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(AppStrings.networkError),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        showAppNotification(context, AppStrings.networkError, type: NotificationType.error);
       }
     }
   }
 
-  void _showFoodSearch() {
+  void _showFoodSearch({
+    String? diaSemana,
+    String? mealTipo,
+    Alimento? alimentoToReplace,
+  }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -714,6 +891,20 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
         initialChildSize: 0.7,
         builder: (_, scrollController) => _FoodSearchSheet(
           onFoodSelected: (food) {
+            if (alimentoToReplace != null &&
+                diaSemana != null &&
+                mealTipo != null) {
+              final oldKey =
+                  '${diaSemana}_${mealTipo}_${alimentoToReplace.nome}';
+              final gramas = _consumoPorAlimento[oldKey] ?? 0.0;
+              setState(() {
+                _consumoPorAlimento.remove(oldKey);
+                final newKey = '${diaSemana}_${mealTipo}_${food.nome}';
+                if (gramas > 0) {
+                  _consumoPorAlimento[newKey] = gramas;
+                }
+              });
+            }
             Navigator.pop(ctx);
           },
         ),
