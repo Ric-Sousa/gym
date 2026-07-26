@@ -13,6 +13,7 @@ import '../../../../data/models/user_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
+import '../../../../shared/widgets/app_notification.dart';
 
 final userProfileProvider =
     StreamProvider.family<UserModel, String>((ref, uid) {
@@ -511,12 +512,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           .updateUser(userId, {'fotoPerfil': url});
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(AppStrings.uploadError),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        showAppNotification(context, AppStrings.uploadError, type: NotificationType.error);
       }
     }
   }
@@ -542,12 +538,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       });
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(AppStrings.uploadError),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        showAppNotification(context, AppStrings.uploadError, type: NotificationType.error);
       }
     }
   }

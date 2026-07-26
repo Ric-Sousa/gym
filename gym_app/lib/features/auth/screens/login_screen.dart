@@ -5,6 +5,7 @@ import '../../../core/config/app_colors.dart';
 import '../../../core/config/app_strings.dart';
 import '../../../core/utils/validators.dart';
 import '../../../shared/widgets/loading_button.dart';
+import '../../../shared/widgets/app_notification.dart';
 import '../providers/auth_provider.dart';
 
 /// Ecrã de login — Kinetic Dark.
@@ -75,11 +76,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final error =
           await ref.read(authProvider.notifier).sendPasswordResetEmail(result);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error ?? AppStrings.passwordResetSent),
-          backgroundColor: error != null ? AppColors.error : AppColors.success,
-        ),
+      showAppNotification(
+        context,
+        error ?? AppStrings.passwordResetSent,
+        type: error != null ? NotificationType.error : NotificationType.success,
       );
     }
   }
