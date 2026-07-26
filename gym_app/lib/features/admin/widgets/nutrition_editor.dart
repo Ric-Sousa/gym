@@ -31,7 +31,16 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
       children: [
         Container(
           height: 44,
-          color: AppColors.adminSurface,
+          decoration: BoxDecoration(
+            color: AppColors.adminSurface,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.adminShadow,
+                blurRadius: 4,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -116,6 +125,13 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
                   color: AppColors.adminSurface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppColors.adminBorder),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.adminShadow,
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: ExpansionTile(
                   leading: Container(

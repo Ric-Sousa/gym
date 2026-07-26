@@ -109,11 +109,15 @@ class _AdminSidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 220,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.adminSurface,
-        border: Border(
-          right: BorderSide(color: AppColors.adminBorder, width: 1),
-        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.adminShadow,
+            blurRadius: 12,
+            offset: const Offset(2, 0),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -132,22 +136,23 @@ class _AdminSidebar extends StatelessWidget {
                     border: Border.all(
                         color: AppColors.adminLime.withValues(alpha: 0.3)),
                   ),
-                  child: const Icon(Icons.fitness_center,
+                  child: Icon(Icons.fitness_center,
                       color: AppColors.adminLime, size: 16),
                 ),
                 const SizedBox(width: 10),
                 Text(
                   'GYMBT',
                   style: GoogleFonts.dmSans(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
                     color: AppColors.adminText,
+                    letterSpacing: -0.3,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 28),
           // Nav items
           _NavItem(
             icon: Icons.dashboard_outlined,
@@ -189,7 +194,7 @@ class _AdminSidebar extends StatelessWidget {
                 padding: const EdgeInsets.all(10),
                 child: Row(
                   children: [
-                    const Icon(Icons.logout,
+                    Icon(Icons.logout,
                         color: AppColors.adminMuted, size: 16),
                     const SizedBox(width: 10),
                     Text(
@@ -382,6 +387,13 @@ class _AdminDashboard extends ConsumerWidget {
         color: AppColors.adminSurface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.adminBorder),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.adminShadow,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -454,6 +466,13 @@ class _AdminDashboard extends ConsumerWidget {
         color: AppColors.adminSurface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.adminBorder),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.adminShadow,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -461,7 +480,7 @@ class _AdminDashboard extends ConsumerWidget {
             padding: const EdgeInsets.all(20),
             child: Row(
               children: [
-                const Icon(Icons.people, color: AppColors.adminLime, size: 16),
+                Icon(Icons.people, color: AppColors.adminLime, size: 16),
                 const SizedBox(width: 8),
                 Text('CLIENTES',
                     style: GoogleFonts.barlowCondensed(
@@ -565,6 +584,13 @@ class _AdminDashboard extends ConsumerWidget {
         color: AppColors.adminSurface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.adminBorder),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.adminShadow,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -636,6 +662,13 @@ class _AdminDashboard extends ConsumerWidget {
         color: AppColors.adminSurface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.adminBorder),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.adminShadow,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -889,6 +922,13 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: AppColors.adminBorder),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.adminShadow,
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1159,6 +1199,13 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
               color: AppColors.adminSurface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppColors.adminBorder),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.adminShadow,
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
             child: Row(
               children: [
@@ -1301,6 +1348,13 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
         color: AppColors.adminSurface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.adminBorder),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.adminShadow,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1379,6 +1433,13 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
         color: AppColors.adminSurface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.adminBorder),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.adminShadow,
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1589,6 +1650,13 @@ class _AdminExerciseLibraryState
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
                               color: AppColors.adminBorder),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.adminShadow,
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1938,6 +2006,13 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
         color: AppColors.adminSurface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.adminBorder),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.adminShadow,
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

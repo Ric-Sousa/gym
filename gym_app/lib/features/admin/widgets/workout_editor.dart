@@ -98,6 +98,13 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                   color: AppColors.adminSurface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: AppColors.adminBorder),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.adminShadow,
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: ExpansionTile(
                   leading: CircleAvatar(

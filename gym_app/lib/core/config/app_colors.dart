@@ -102,19 +102,51 @@ class AppColors {
   static const Color adminPrimary = Color(0xFF37474F);
   static const Color adminAccent = Color(0xFF00BCD4);
 
-  // ── Admin Design System (Figma: "GYMBT") ────────────────────────
-  static const Color adminBg = Color(0xFF0B0B0E);
-  static const Color adminSurface = Color(0xFF131318);
-  static const Color adminSurface2 = Color(0xFF1C1C24);
-  static const Color adminBorder = Color(0x12FFFFFF);
-  static const Color adminLime = Color(0xFFC8F20D);
-  static const Color adminLimeDim = Color(0x1EC8F20D);
-  static const Color adminText = Color(0xFFF0F0F5);
-  static const Color adminMuted = Color(0xFF6B6B7A);
-  static const Color adminDanger = Color(0xFFF25C5C);
-  static const Color adminBlue = Color(0xFF4D9CFF);
-  static const Color adminOrange = Color(0xFFFF8C42);
-  static const Color adminPurple = Color(0xFFB97CFF);
+  // ── Admin Design System ("Clean Athletic Pro") ────────────────
+  /// Fundo principal — light & airy.
+  static const Color adminBg = Color(0xFFF4F6FA);
+
+  /// Cartões / superfícies elevadas.
+  static const Color adminSurface = Color(0xFFFFFFFF);
+
+  /// Superfície alternativa (hover, chips, etc.).
+  static const Color adminSurface2 = Color(0xFFEEF0F5);
+
+  /// Contorno subtil.
+  static const Color adminBorder = Color(0xFFE2E5ED);
+
+  /// Accent principal — lime vibrante.
+  static const Color adminLime = Color(0xFF94B800);
+
+  /// Accent dim — fundo lime para destaques.
+  static const Color adminLimeDim = Color(0xFFF2FAD5);
+
+  /// Texto principal.
+  static const Color adminText = Color(0xFF1A1B2E);
+
+  /// Texto muted / secundário.
+  static const Color adminMuted = Color(0xFF9495A6);
+
+  /// Perigo / erro.
+  static const Color adminDanger = Color(0xFFF43F5E);
+
+  /// Azul de métrica.
+  static const Color adminBlue = Color(0xFF4F8CFF);
+
+  /// Laranja de métrica.
+  static const Color adminOrange = Color(0xFFFF784B);
+
+  /// Roxo de métrica.
+  static const Color adminPurple = Color(0xFF9B6FFF);
+
+  /// Verde sucesso.
+  static const Color adminGreen = Color(0xFF22C55E);
+
+  /// Sombra de cartão.
+  static Color adminShadow = const Color(0xFF1A1B2E).withValues(alpha: 0.04);
+
+  /// Sombra elevada (hover).
+  static Color adminShadowElevated = const Color(0xFF1A1B2E).withValues(alpha: 0.08);
 
   // ── Glassmorphism ──────────────────────────────────────────────
   /// Cor para overlays com efeito de vidro (60% opacidade).
