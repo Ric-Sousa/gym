@@ -1,8 +1,32 @@
 @echo off
-echo Configurando git filter para paths dinamicos...
-git config filter.pathfix.clean "dart tools/fix_paths.dart clean"
-git config filter.pathfix.smudge "dart tools/fix_paths.dart smudge"
-echo Filter configurado com sucesso!
+setlocal enabledelayedexpansion
+
+echo ============================================
+echo  Configuracao de filtro git para paths
+echo ============================================
 echo.
-echo Agora execute: git add -f .dart_tool/package_config.json .dart_tool/package_graph.json
-echo Depois faca commit normalmente.
+
+where flutter >nul 2>&1
+if %ERRORLEVEL% NEQ 0 (
+    echo [ERRO] Flutter nao encontrado no PATH.
+    echo Adicione flutter ao PATH ou execute este script
+    echo num terminal que tenha flutter disponivel.
+    pause
+    exit /b 1
+)
+
+for /f "delims=" %%i in ('where flutter') do set FLUTTER_PATH=%%i
+for %%i in ("%FLUTTER_PATH%") do set FLUTTER_DIR=%%~dpi
+set DART_PATH=%FLUTTER_DIR%dart.exe
+
+set SCRIPT_PATH=%~dp0tools\fix_paths.dart
+
+echo Flutter SDK: %FLUTTER_DIR%
+echo.
+
+git config filter.pathfix.clean "%DART_PATH% \"%SCRIPT_PATH%\" clean"
+git config filter.pathfix.smudge "%DART_PATH% \"%SCRIPT_PATH%\" smudge"
+
+echo [OK] Filter configurado com sucesso!
+echo.
+pause
