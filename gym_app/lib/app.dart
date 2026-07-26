@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'core/config/app_colors.dart';
 import 'core/config/app_strings.dart';
 import 'features/auth/providers/auth_provider.dart';
@@ -22,7 +23,7 @@ class PersonalFitApp extends ConsumerWidget {
     return MaterialApp(
       title: AppStrings.appName,
       debugShowCheckedModeBanner: false,
-      theme: _buildLightTheme(),
+      theme: _buildKineticDarkTheme(),
       home: _buildHome(authState),
     );
   }
@@ -31,16 +32,34 @@ class PersonalFitApp extends ConsumerWidget {
     switch (authState.status) {
       case AuthStatus.initial:
       case AuthStatus.loading:
-        return const Scaffold(
+        return Scaffold(
+          backgroundColor: AppColors.background,
           body: Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.fitness_center, size: 64, color: AppColors.primary),
-                SizedBox(height: 24),
-                CircularProgressIndicator(color: AppColors.primary),
-                SizedBox(height: 16),
-                Text('A carregar...'),
+                Icon(
+                  Icons.fitness_center,
+                  size: 64,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'A carregar...',
+                  style: GoogleFonts.inter(
+                    color: AppColors.textSecondary,
+                    fontSize: 14,
+                  ),
+                ),
               ],
             ),
           ),
@@ -56,41 +75,314 @@ class PersonalFitApp extends ConsumerWidget {
     }
   }
 
-  ThemeData _buildLightTheme() {
+  ThemeData _buildKineticDarkTheme() {
+    final interTextTheme = GoogleFonts.interTextTheme();
+    final montserratTextTheme = GoogleFonts.montserratTextTheme();
+
     return ThemeData(
       useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.primary,
-        brightness: Brightness.light,
+      brightness: Brightness.dark,
+      scaffoldBackgroundColor: AppColors.background,
+      colorScheme: const ColorScheme.dark(
+        primary: AppColors.primary,
+        onPrimary: AppColors.textOnPrimary,
+        primaryContainer: AppColors.primaryContainer,
+        onPrimaryContainer: AppColors.onPrimaryContainer,
+        secondary: AppColors.secondary,
+        onSecondary: AppColors.onSecondary,
+        secondaryContainer: AppColors.secondaryContainer,
+        surface: AppColors.surface,
+        onSurface: AppColors.onSurface,
+        error: AppColors.error,
+        onError: AppColors.onError,
+        errorContainer: AppColors.errorContainer,
+        outline: AppColors.outline,
+        outlineVariant: AppColors.outlineVariant,
       ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textOnPrimary,
+
+      // ── Typography ───────────────────────────────────────────
+      textTheme: TextTheme(
+        // Headlines → Montserrat
+        displayLarge: montserratTextTheme.displayLarge?.copyWith(
+          fontSize: 40,
+          fontWeight: FontWeight.w800,
+          letterSpacing: -0.02,
+          color: AppColors.onSurface,
+        ),
+        displayMedium: montserratTextTheme.displayMedium?.copyWith(
+          fontSize: 32,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.01,
+          color: AppColors.onSurface,
+        ),
+        displaySmall: montserratTextTheme.displaySmall?.copyWith(
+          fontSize: 28,
+          fontWeight: FontWeight.w700,
+          color: AppColors.onSurface,
+        ),
+        headlineLarge: montserratTextTheme.headlineLarge?.copyWith(
+          fontSize: 24,
+          fontWeight: FontWeight.w700,
+          color: AppColors.onSurface,
+        ),
+        headlineMedium: montserratTextTheme.headlineMedium?.copyWith(
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+          color: AppColors.onSurface,
+        ),
+        headlineSmall: montserratTextTheme.headlineSmall?.copyWith(
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: AppColors.onSurface,
+        ),
+        // Body → Inter
+        bodyLarge: interTextTheme.bodyLarge?.copyWith(
+          fontSize: 18,
+          fontWeight: FontWeight.w400,
+          height: 1.55,
+          color: AppColors.onSurface,
+        ),
+        bodyMedium: interTextTheme.bodyMedium?.copyWith(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          height: 1.5,
+          color: AppColors.onSurface,
+        ),
+        bodySmall: interTextTheme.bodySmall?.copyWith(
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+          color: AppColors.textSecondary,
+        ),
+        // Labels → Inter bold/medium
+        labelLarge: interTextTheme.labelLarge?.copyWith(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.05,
+          color: AppColors.onSurface,
+        ),
+        labelMedium: interTextTheme.labelMedium?.copyWith(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: AppColors.textSecondary,
+        ),
+        labelSmall: interTextTheme.labelSmall?.copyWith(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+          color: AppColors.textSecondary,
+        ),
+      ),
+
+      // ── AppBar ───────────────────────────────────────────────
+      appBarTheme: AppBarTheme(
+        backgroundColor: AppColors.surfaceLow,
+        foregroundColor: AppColors.onSurface,
         elevation: 0,
         centerTitle: false,
+        scrolledUnderElevation: 1,
+        titleTextStyle: GoogleFonts.montserrat(
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          color: AppColors.onSurface,
+        ),
       ),
-      scaffoldBackgroundColor: AppColors.backgroundLight,
+
+      // ── Cards (glass + 1px border) ───────────────────────────
       cardTheme: CardThemeData(
-        elevation: 1,
+        color: AppColors.surface,
+        elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
+          side: const BorderSide(
+            color: AppColors.outline,
+            width: 1,
+          ),
         ),
+        margin: const EdgeInsets.only(bottom: 12),
       ),
+
+      // ── Input fields (bottom border only → focus magenta) ───
       inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        filled: true,
+        fillColor: AppColors.surface,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: const UnderlineInputBorder(
+          borderSide: BorderSide(color: AppColors.outline),
+        ),
+        enabledBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: AppColors.outline),
+        ),
+        focusedBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: AppColors.primary, width: 2),
+        ),
+        errorBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: AppColors.error),
+        ),
+        focusedErrorBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: AppColors.error, width: 2),
+        ),
+        labelStyle: GoogleFonts.inter(
+          fontSize: 14,
+          color: AppColors.textSecondary,
+        ),
+        hintStyle: GoogleFonts.inter(
+          fontSize: 14,
+          color: AppColors.outlineVariant,
+        ),
+        prefixIconColor: AppColors.textSecondary,
       ),
+
+      // ── Buttons ──────────────────────────────────────────────
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: AppColors.textOnPrimary,
+          elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(4),
           ),
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+          textStyle: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.05,
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.onSurface,
+          side: const BorderSide(color: AppColors.outline),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+          textStyle: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          textStyle: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+
+      // ── Chips ────────────────────────────────────────────────
+      chipTheme: ChipThemeData(
+        backgroundColor: AppColors.surfaceHigh,
+        labelStyle: GoogleFonts.inter(
+          fontSize: 12,
+          color: AppColors.onSurface,
+        ),
+        selectedColor: AppColors.primary,
+        secondaryLabelStyle: GoogleFonts.inter(
+          fontSize: 12,
+          color: AppColors.textOnPrimary,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4),
+        ),
+        side: const BorderSide(color: AppColors.outline),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      ),
+
+      // ── Dividers ─────────────────────────────────────────────
+      dividerTheme: const DividerThemeData(
+        color: AppColors.outline,
+        thickness: 1,
+        space: 1,
+      ),
+
+      // ── Bottom Navigation Bar ────────────────────────────────
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        selectedItemColor: AppColors.primaryFixed,
+        unselectedItemColor: AppColors.secondaryFixedDim,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: AppColors.surfaceLow.withValues(alpha: 0.8),
+        indicatorColor: AppColors.primaryFixed.withValues(alpha: 0.12),
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.primaryFixed,
+            );
+          }
+          return GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: AppColors.secondaryFixedDim,
+          );
+        }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return const IconThemeData(color: AppColors.primaryFixed);
+          }
+          return const IconThemeData(color: AppColors.secondaryFixedDim);
+        }),
+      ),
+
+      // ── Tab Bar ──────────────────────────────────────────────
+      tabBarTheme: TabBarThemeData(
+        labelColor: AppColors.primary,
+        unselectedLabelColor: AppColors.textSecondary,
+        indicatorColor: AppColors.primary,
+        dividerColor: AppColors.outline,
+        labelStyle: GoogleFonts.inter(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+        ),
+        unselectedLabelStyle: GoogleFonts.inter(
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+
+      // ── Snackbar ─────────────────────────────────────────────
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: AppColors.surfaceHighest,
+        contentTextStyle: GoogleFonts.inter(
+          color: AppColors.onSurface,
+          fontSize: 14,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4),
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+
+      // ── Dialogs ──────────────────────────────────────────────
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppColors.surfaceHigh,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: const BorderSide(color: AppColors.outline),
+        ),
+        titleTextStyle: GoogleFonts.montserrat(
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          color: AppColors.onSurface,
+        ),
+      ),
+
+      // ── Bottom sheets ────────────────────────────────────────
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: AppColors.surfaceHigh,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
         ),
       ),
     );

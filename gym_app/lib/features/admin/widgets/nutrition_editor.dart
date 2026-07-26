@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../data/models/user_model.dart';
 import '../../../../data/models/nutrition_plan_model.dart';
 import '../../../../data/models/food_model.dart';
-import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/providers/admin_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 
-/// Ecrã de edição do plano nutricional (admin).
+/// Editor do plano nutricional (admin) — GYMBT Lime+Dark.
 class NutritionEditor extends ConsumerStatefulWidget {
   final UserModel aluno;
   const NutritionEditor({super.key, required this.aluno});
@@ -25,15 +25,13 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
   @override
   Widget build(BuildContext context) {
     final diaSemana = AppStrings.daysOfWeek[_selectedDayIndex];
-    final planAsync = ref.watch(
-        adminNutritionPlanProvider((widget.aluno.uid, diaSemana)));
+    final planAsync = ref.watch(adminNutritionPlanProvider((widget.aluno.uid, diaSemana)));
 
     return Column(
       children: [
-        // Seletor de dia
         Container(
           height: 44,
-          color: AppColors.primary.withValues(alpha: 0.05),
+          color: AppColors.adminSurface,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -41,30 +39,29 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
             itemBuilder: (context, index) {
               final selected = index == _selectedDayIndex;
               return Center(
-                child: ChoiceChip(
-                  label: Text(AppStrings.daysOfWeekShort[index]),
-                  selected: selected,
-                  onSelected: (_) => setState(() => _selectedDayIndex = index),
-                  selectedColor: AppColors.primary,
-                  labelStyle: TextStyle(
-                    color: selected
-                        ? AppColors.textOnPrimary
-                        : AppColors.textPrimary,
-                    fontSize: 12,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: ChoiceChip(
+                    label: Text(AppStrings.daysOfWeekShort[index],
+                        style: GoogleFonts.dmSans(fontSize: 12, color: selected ? AppColors.adminBg : AppColors.adminMuted)),
+                    selected: selected,
+                    onSelected: (_) => setState(() => _selectedDayIndex = index),
+                    selectedColor: AppColors.adminLime,
+                    backgroundColor: AppColors.adminSurface2,
+                    side: BorderSide(color: selected ? AppColors.adminLime : AppColors.adminBorder),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                   ),
                 ),
               );
             },
           ),
         ),
-        const Divider(height: 1),
+        const Divider(height: 1, color: AppColors.adminBorder),
         Expanded(
           child: planAsync.when(
             data: (plan) => _buildEditor(plan),
-            loading: () =>
-                const Center(child: CircularProgressIndicator()),
-            error: (_, __) =>
-                const EmptyState(icon: Icons.error, title: 'Erro'),
+            loading: () => const Center(child: CircularProgressIndicator(color: AppColors.adminLime)),
+            error: (_, __) => const EmptyState(icon: Icons.error, title: 'Erro'),
           ),
         ),
       ],
@@ -77,17 +74,16 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const EmptyState(
-              icon: Icons.restaurant_menu,
-              title: AppStrings.noPlanAssigned,
-            ),
+            const EmptyState(icon: Icons.restaurant_menu, title: AppStrings.noPlanAssigned),
             const SizedBox(height: 16),
             ElevatedButton.icon(
-              onPressed: () => _createEmptyPlan(),
-              icon: const Icon(Icons.add),
-              label: const Text('Criar plano'),
+              onPressed: _createEmptyPlan,
+              icon: const Icon(Icons.add, size: 16),
+              label: Text('Criar plano', style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w700)),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
+                backgroundColor: AppColors.adminLime,
+                foregroundColor: AppColors.adminBg,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
           ],
@@ -95,243 +91,176 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: () async => ref.invalidate(
-        adminNutritionPlanProvider(
-            (widget.aluno.uid, AppStrings.daysOfWeek[_selectedDayIndex])),
-      ),
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Text(
-                  'Meta calórica:',
-                  style: TextStyle(fontWeight: FontWeight.w600),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text('Meta calórica:', style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.adminText)),
+              const SizedBox(width: 8),
+              Text('${plan.metaCalorias} kcal', style: GoogleFonts.dmMono(fontSize: 14, color: AppColors.adminOrange)),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: () => _editMetaCalorias(plan),
+                icon: const Icon(Icons.edit, size: 14, color: AppColors.adminLime),
+                label: Text('Editar meta', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.adminLime)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...plan.refeicoes.map((meal) => Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.adminSurface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.adminBorder),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  '${plan.metaCalorias} kcal',
-                  style: const TextStyle(color: AppColors.calories),
-                ),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: () => _editMetaCalorias(plan),
-                  icon: const Icon(Icons.edit, size: 16),
-                  label: const Text('Editar meta'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            ...plan.refeicoes.map((meal) => Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ExpansionTile(
-                    title: Text(meal.tipo,
-                        style: const TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text(
-                        '${meal.totalCalorias.toStringAsFixed(0)} kcal'),
-                    children: [
-                      ...meal.alimentos.map((a) => ListTile(
-                            dense: true,
-                            title: Text(a.nome),
-                            subtitle: Text(a.quantidade),
-                            trailing: Text(
-                                '${a.calorias.toStringAsFixed(0)} kcal'),
-                          )),
-                      TextButton.icon(
-                        onPressed: () => _addAlimentoToMeal(plan, meal.tipo),
-                        icon: const Icon(Icons.add, size: 16),
-                        label: const Text('Adicionar alimento'),
-                      ),
-                    ],
+                child: ExpansionTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.adminLimeDim,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.restaurant, color: AppColors.adminLime, size: 16),
                   ),
-                )),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _addMeal(plan),
-                icon: const Icon(Icons.add),
-                label: const Text('Adicionar refeição'),
+                  title: Text(meal.tipo, style: GoogleFonts.dmSans(fontWeight: FontWeight.w600, color: AppColors.adminText)),
+                  subtitle: Text('${meal.totalCalorias.toStringAsFixed(0)} kcal',
+                      style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.adminMuted)),
+                  children: [
+                    ...meal.alimentos.map((a) => ListTile(
+                          dense: true,
+                          title: Text(a.nome, style: GoogleFonts.dmSans(color: AppColors.adminText, fontSize: 14)),
+                          subtitle: Text(a.quantidade, style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.adminMuted)),
+                          trailing: Text('${a.calorias.toStringAsFixed(0)} kcal',
+                              style: GoogleFonts.dmMono(fontSize: 13, color: AppColors.adminMuted)),
+                        )),
+                    const Divider(color: AppColors.adminBorder, height: 1),
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: TextButton.icon(
+                        onPressed: () => _addAlimentoToMeal(plan, meal.tipo),
+                        icon: const Icon(Icons.add, size: 14, color: AppColors.adminLime),
+                        label: Text('Adicionar alimento', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.adminLime)),
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _addMeal(plan),
+              icon: const Icon(Icons.add, size: 14),
+              label: Text('Adicionar refeição', style: GoogleFonts.dmSans(fontSize: 12)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.adminLime,
+                side: const BorderSide(color: AppColors.adminLime),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Future<void> _createEmptyPlan() async {
     final diaSemana = AppStrings.daysOfWeek[_selectedDayIndex];
-    await ref.read(nutritionRepositoryProvider).savePlan(
-          widget.aluno.uid,
-          diaSemana,
-          {'metaCalorias': 2000, 'refeicoes': []},
-        );
-    ref.invalidate(
-      adminNutritionPlanProvider((widget.aluno.uid, diaSemana)),
-    );
+    await ref.read(nutritionRepositoryProvider).savePlan(widget.aluno.uid, diaSemana, {'metaCalorias': 2000, 'refeicoes': []});
+    ref.invalidate(adminNutritionPlanProvider((widget.aluno.uid, diaSemana)));
   }
 
   Future<void> _editMetaCalorias(NutritionPlanModel plan) async {
-    final controller =
-        TextEditingController(text: plan.metaCalorias.toString());
-
+    final controller = TextEditingController(text: plan.metaCalorias.toString());
     final result = await showDialog<double>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Meta calórica'),
+        backgroundColor: AppColors.adminSurface,
+        title: Text('Meta calórica', style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, color: AppColors.adminText)),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
-          decoration:
-              const InputDecoration(labelText: 'Calorias', suffixText: 'kcal'),
+          style: GoogleFonts.dmSans(color: AppColors.adminText),
+          decoration: const InputDecoration(labelText: 'Calorias', suffixText: 'kcal'),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text(AppStrings.cancel),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.cancel, style: GoogleFonts.dmSans(color: AppColors.adminMuted))),
           ElevatedButton(
-            onPressed: () => Navigator.pop(
-                ctx, double.tryParse(controller.text.replaceAll(',', '.'))),
-            child: const Text(AppStrings.save),
+            onPressed: () => Navigator.pop(ctx, double.tryParse(controller.text.replaceAll(',', '.'))),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.adminLime, foregroundColor: AppColors.adminBg),
+            child: Text(AppStrings.save, style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
     );
-
     if (result != null && result > 0) {
-      await ref.read(nutritionRepositoryProvider).savePlan(
-            widget.aluno.uid,
-            plan.dia,
-            {'metaCalorias': result},
-          );
-      ref.invalidate(
-        adminNutritionPlanProvider((widget.aluno.uid, plan.dia)),
-      );
+      await ref.read(nutritionRepositoryProvider).savePlan(widget.aluno.uid, plan.dia, {'metaCalorias': result});
+      ref.invalidate(adminNutritionPlanProvider((widget.aluno.uid, plan.dia)));
     }
   }
 
-  Future<void> _addAlimentoToMeal(
-      NutritionPlanModel plan, String mealTipo) async {
-    final nomeController = TextEditingController();
-    final qtdController = TextEditingController();
-    final kcalController = TextEditingController();
-
+  Future<void> _addAlimentoToMeal(NutritionPlanModel plan, String mealTipo) async {
+    final nome = TextEditingController();
+    final qtd = TextEditingController();
+    final kcal = TextEditingController();
     final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Adicionar alimento'),
+        backgroundColor: AppColors.adminSurface,
+        title: Text('Adicionar alimento', style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, color: AppColors.adminText)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
-              controller: nomeController,
-              decoration:
-                  const InputDecoration(labelText: 'Nome do alimento'),
-            ),
-            TextField(
-              controller: qtdController,
-              decoration: const InputDecoration(labelText: 'Quantidade'),
-            ),
-            TextField(
-              controller: kcalController,
-              keyboardType: TextInputType.number,
-              decoration:
-                  const InputDecoration(labelText: 'Calorias'),
-            ),
+            TextField(controller: nome, style: GoogleFonts.dmSans(color: AppColors.adminText), decoration: const InputDecoration(labelText: 'Nome do alimento')),
+            TextField(controller: qtd, style: GoogleFonts.dmSans(color: AppColors.adminText), decoration: const InputDecoration(labelText: 'Quantidade')),
+            TextField(controller: kcal, keyboardType: TextInputType.number, style: GoogleFonts.dmSans(color: AppColors.adminText), decoration: const InputDecoration(labelText: 'Calorias')),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text(AppStrings.cancel),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.cancel, style: GoogleFonts.dmSans(color: AppColors.adminMuted))),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, {
-              'nome': nomeController.text.trim(),
-              'quantidade': qtdController.text.trim(),
-              'calorias': kcalController.text.replaceAll(',', '.'),
-            }),
-            child: const Text(AppStrings.save),
+            onPressed: () => Navigator.pop(ctx, {'nome': nome.text.trim(), 'quantidade': qtd.text.trim(), 'calorias': kcal.text.replaceAll(',', '.')}),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.adminLime, foregroundColor: AppColors.adminBg),
+            child: Text(AppStrings.save, style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
     );
-
     if (result != null && result['nome']!.isNotEmpty) {
-      final alimento = Alimento(
-        nome: result['nome']!,
-        quantidade: result['quantidade']!,
-        calorias: double.tryParse(result['calorias']!) ?? 0.0,
-      );
-
-      final updatedMeals = plan.refeicoes.map((m) {
-        if (m.tipo == mealTipo) {
-          return PlannedMeal(
-            tipo: m.tipo,
-            alimentos: [...m.alimentos, alimento],
-            instrucoes: m.instrucoes,
-          );
-        }
-        return m;
-      }).toList();
-
-      await ref.read(nutritionRepositoryProvider).savePlan(
-            widget.aluno.uid,
-            plan.dia,
-            {'refeicoes': updatedMeals.map((m) => m.toMap()).toList()},
-          );
-      ref.invalidate(
-        adminNutritionPlanProvider((widget.aluno.uid, plan.dia)),
-      );
+      final alimento = Alimento(nome: result['nome']!, quantidade: result['quantidade']!, calorias: double.tryParse(result['calorias']!) ?? 0.0);
+      final updated = plan.refeicoes.map((m) => m.tipo == mealTipo ? PlannedMeal(tipo: m.tipo, alimentos: [...m.alimentos, alimento], instrucoes: m.instrucoes) : m).toList();
+      await ref.read(nutritionRepositoryProvider).savePlan(widget.aluno.uid, plan.dia, {'refeicoes': updated.map((m) => m.toMap()).toList()});
+      ref.invalidate(adminNutritionPlanProvider((widget.aluno.uid, plan.dia)));
     }
   }
 
   Future<void> _addMeal(NutritionPlanModel plan) async {
-    final tipoController = TextEditingController();
-
+    final tipo = TextEditingController();
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Nova refeição'),
-        content: TextField(
-          controller: tipoController,
-          decoration:
-              const InputDecoration(labelText: 'Tipo', hintText: 'Almoço'),
-        ),
+        backgroundColor: AppColors.adminSurface,
+        title: Text('Nova refeição', style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, color: AppColors.adminText)),
+        content: TextField(controller: tipo, style: GoogleFonts.dmSans(color: AppColors.adminText), decoration: const InputDecoration(labelText: 'Tipo', hintText: 'Almoço')),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text(AppStrings.cancel),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.cancel, style: GoogleFonts.dmSans(color: AppColors.adminMuted))),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, tipoController.text.trim()),
-            child: const Text(AppStrings.save),
+            onPressed: () => Navigator.pop(ctx, tipo.text.trim()),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.adminLime, foregroundColor: AppColors.adminBg),
+            child: Text(AppStrings.save, style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
     );
-
     if (result != null && result.isNotEmpty) {
-      final newMeal = PlannedMeal(tipo: result);
-      final updatedMeals = [
-        ...plan.refeicoes.map((m) => m.toMap()),
-        newMeal.toMap(),
-      ];
-
-      await ref.read(nutritionRepositoryProvider).savePlan(
-            widget.aluno.uid,
-            plan.dia,
-            {'refeicoes': updatedMeals},
-          );
-      ref.invalidate(
-        adminNutritionPlanProvider((widget.aluno.uid, plan.dia)),
-      );
+      final updated = [...plan.refeicoes.map((m) => m.toMap()), PlannedMeal(tipo: result).toMap()];
+      await ref.read(nutritionRepositoryProvider).savePlan(widget.aluno.uid, plan.dia, {'refeicoes': updated});
+      ref.invalidate(adminNutritionPlanProvider((widget.aluno.uid, plan.dia)));
     }
   }
 }

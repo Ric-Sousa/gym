@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../core/config/app_colors.dart';
 
-/// Indicador circular de progresso (água, passos, etc.).
+/// Indicador circular de progresso (água, passos, etc.) — Kinetic Dark.
 class CircularProgressWidget extends StatelessWidget {
   final double value; // 0.0 a 1.0
   final String label;
@@ -22,7 +23,7 @@ class CircularProgressWidget extends StatelessWidget {
     required this.goalValue,
     this.unit = '',
     required this.color,
-    this.backgroundColor = const Color(0xFFE0E0E0),
+    this.backgroundColor = const Color(0xFF333627),
     required this.icon,
     this.onIncrement,
     this.incrementLabel,
@@ -34,15 +35,9 @@ class CircularProgressWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.outline),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -60,7 +55,7 @@ class CircularProgressWidget extends StatelessWidget {
                   child: CircularProgressIndicator(
                     value: clampedValue,
                     strokeWidth: 8,
-                    backgroundColor: backgroundColor,
+                    backgroundColor: AppColors.outline,
                     valueColor: AlwaysStoppedAnimation<Color>(color),
                   ),
                 ),
@@ -71,17 +66,18 @@ class CircularProgressWidget extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       currentValue,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: color,
+                      style: GoogleFonts.montserrat(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.onSurface,
                       ),
                     ),
                     if (unit.isNotEmpty)
                       Text(
                         unit,
-                        style: TextStyle(
+                        style: GoogleFonts.inter(
                           fontSize: 10,
+                          fontWeight: FontWeight.w500,
                           color: AppColors.textSecondary,
                         ),
                       ),
@@ -93,15 +89,15 @@ class CircularProgressWidget extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             label,
-            style: const TextStyle(
+            style: GoogleFonts.inter(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
+              color: AppColors.onSurface,
             ),
           ),
           Text(
             goalValue,
-            style: const TextStyle(
+            style: GoogleFonts.inter(
               fontSize: 11,
               color: AppColors.textSecondary,
             ),
@@ -115,12 +111,12 @@ class CircularProgressWidget extends StatelessWidget {
                 icon: Icon(Icons.add_circle_outline, size: 16, color: color),
                 label: Text(
                   incrementLabel!,
-                  style: TextStyle(fontSize: 12, color: color),
+                  style: GoogleFonts.inter(fontSize: 12, color: color),
                 ),
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: color.withValues(alpha: 0.5)),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(4),
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 6),
                 ),

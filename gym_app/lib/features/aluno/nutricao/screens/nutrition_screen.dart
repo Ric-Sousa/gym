@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/app_constants.dart';
@@ -10,7 +11,6 @@ import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 
-/// Provider do plano nutricional do dia.
 final nutritionPlanProvider =
     FutureProvider.family<NutritionPlanModel?, (String, String)>(
   (ref, params) {
@@ -19,16 +19,13 @@ final nutritionPlanProvider =
   },
 );
 
-/// Provider de pesquisa de alimentos.
 final foodSearchProvider =
     FutureProvider.family<List<FoodModel>, String>((ref, query) {
-  if (query.isEmpty) {
-    return ref.read(nutritionRepositoryProvider).getAllFoods();
-  }
+  if (query.isEmpty) return ref.read(nutritionRepositoryProvider).getAllFoods();
   return ref.read(nutritionRepositoryProvider).searchFoods(query);
 });
 
-/// Ecrã de nutrição do aluno.
+/// Ecrã de nutrição — Kinetic Dark.
 class NutritionScreen extends ConsumerStatefulWidget {
   const NutritionScreen({super.key});
 
@@ -37,7 +34,7 @@ class NutritionScreen extends ConsumerStatefulWidget {
 }
 
 class _NutritionScreenState extends ConsumerState<NutritionScreen> {
-  int _selectedDayIndex = DateTime.now().weekday - 1; // 0 = Segunda
+  int _selectedDayIndex = DateTime.now().weekday - 1;
   String _searchQuery = '';
 
   @override
@@ -48,21 +45,26 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
     final planAsync = ref.watch(nutritionPlanProvider((userId, diaSemana)));
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(AppStrings.nutritionPlan),
+        title: Text(
+          AppStrings.nutritionPlan,
+          style: GoogleFonts.montserrat(
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.search),
-            onPressed: () => _showFoodSearch(),
+            onPressed: _showFoodSearch,
           ),
         ],
       ),
       body: Column(
         children: [
-          // Seletor de dia da semana
           _buildDaySelector(),
-          const Divider(height: 1),
-          // Conteúdo do plano
+          const Divider(height: 1, color: AppColors.outline),
           Expanded(
             child: planAsync.when(
               data: (plan) {
@@ -74,7 +76,8 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
                 }
                 return _buildPlanView(plan);
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () =>
+                  const Center(child: CircularProgressIndicator(color: AppColors.primary)),
               error: (_, __) =>
                   const EmptyState(icon: Icons.error_outline, title: 'Erro'),
             ),
@@ -86,12 +89,12 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
 
   Widget _buildDaySelector() {
     return Container(
-      height: 50,
-      color: AppColors.primary.withValues(alpha: 0.05),
+      height: 52,
+      color: AppColors.surfaceLow,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: 7,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
         itemBuilder: (context, index) {
           final isSelected = index == _selectedDayIndex;
           return GestureDetector(
@@ -99,19 +102,21 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
             child: Container(
               alignment: Alignment.center,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
               decoration: BoxDecoration(
-                color: isSelected ? AppColors.primary : Colors.transparent,
-                borderRadius: BorderRadius.circular(20),
+                color: isSelected
+                    ? AppColors.primary
+                    : AppColors.surfaceHigh,
+                borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
                 AppStrings.daysOfWeekShort[index],
-                style: TextStyle(
+                style: GoogleFonts.inter(
                   color: isSelected
                       ? AppColors.textOnPrimary
-                      : AppColors.textPrimary,
-                  fontWeight:
-                      isSelected ? FontWeight.bold : FontWeight.normal,
+                      : AppColors.textSecondary,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  fontSize: 13,
                 ),
               ),
             ),
@@ -122,32 +127,29 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
   }
 
   Widget _buildPlanView(NutritionPlanModel plan) {
-    final consumedCalories = 0.0; // Integrar com diário no futuro
+    final consumedCalories = 0.0;
 
     return RefreshIndicator(
-      onRefresh: () async {
-        ref.invalidate(nutritionPlanProvider(
-            (plan.userId, AppStrings.daysOfWeek[_selectedDayIndex])));
-      },
+      onRefresh: () async => ref.invalidate(nutritionPlanProvider(
+          (plan.userId, AppStrings.daysOfWeek[_selectedDayIndex]))),
+      color: AppColors.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Barra de calorias
             _buildCaloriesBar(plan, consumedCalories),
             const SizedBox(height: 24),
-
-            // Lista de refeições
             Text(
               'Refeições do dia',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: GoogleFonts.montserrat(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppColors.onSurface,
+              ),
             ),
             const SizedBox(height: 12),
-
             if (plan.refeicoes.isEmpty)
               const EmptyState(
                 icon: Icons.no_food,
@@ -166,36 +168,39 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
         plan.metaCalorias > 0 ? consumed / plan.metaCalorias : 0.0;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.calories, AppColors.accent],
-        ),
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
-          const Text(
+          Text(
             AppStrings.caloriesConsumed,
-            style: TextStyle(color: Colors.white70, fontSize: 13),
+            style: GoogleFonts.inter(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+            ),
           ),
           const SizedBox(height: 4),
           Text(
             '${consumed.toStringAsFixed(0)} / ${plan.metaCalorias.toStringAsFixed(0)} kcal',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
+            style: GoogleFonts.montserrat(
+              color: AppColors.onSurface,
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(2),
             child: LinearProgressIndicator(
               value: progress.clamp(0.0, 1.0),
-              backgroundColor: Colors.white24,
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-              minHeight: 8,
+              backgroundColor: AppColors.outline,
+              valueColor:
+                  const AlwaysStoppedAnimation<Color>(AppColors.primary),
+              minHeight: 4,
             ),
           ),
         ],
@@ -204,39 +209,50 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
   }
 
   Widget _buildMealCard(NutritionPlanModel plan, PlannedMeal meal) {
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 1,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.outline),
+      ),
       child: ExpansionTile(
         leading: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: AppColors.caloriesLight,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(4),
           ),
-          child: const Icon(Icons.restaurant, color: AppColors.calories),
+          child:
+              const Icon(Icons.restaurant, color: AppColors.calories, size: 18),
         ),
         title: Text(
           meal.tipo,
-          style: const TextStyle(fontWeight: FontWeight.w600),
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w600,
+            color: AppColors.onSurface,
+          ),
         ),
         subtitle: Text(
           '${meal.totalCalorias.toStringAsFixed(0)} kcal • ${meal.alimentos.length} alimentos',
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: AppColors.textSecondary,
+          ),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               '${meal.totalCalorias.toStringAsFixed(0)} kcal',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w600,
                 color: AppColors.calories,
                 fontSize: 13,
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(Icons.expand_more),
+            const Icon(Icons.expand_more, color: AppColors.textSecondary),
           ],
         ),
         children: [
@@ -245,23 +261,34 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Text(
                 meal.instrucoes!,
-                style: const TextStyle(
-                    fontStyle: FontStyle.italic,
-                    color: AppColors.textSecondary),
+                style: GoogleFonts.inter(
+                  fontStyle: FontStyle.italic,
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                ),
               ),
             ),
           ...meal.alimentos.map(
             (alimento) => ListTile(
               dense: true,
-              title: Text(alimento.nome),
-              subtitle: Text(alimento.quantidade),
+              title: Text(
+                alimento.nome,
+                style: GoogleFonts.inter(color: AppColors.onSurface),
+              ),
+              subtitle: Text(
+                alimento.quantidade,
+                style: GoogleFonts.inter(color: AppColors.textSecondary),
+              ),
               trailing: Text(
                 '${alimento.calorias.toStringAsFixed(0)} kcal',
-                style: const TextStyle(fontWeight: FontWeight.w500),
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.textSecondary,
+                ),
               ),
             ),
           ),
-          const Divider(),
+          const Divider(color: AppColors.outline),
           Padding(
             padding: const EdgeInsets.all(12),
             child: SizedBox(
@@ -272,7 +299,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
                 label: const Text('Concluir refeição'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.success,
-                  foregroundColor: Colors.white,
+                  foregroundColor: AppColors.textOnPrimary,
                 ),
               ),
             ),
@@ -317,8 +344,9 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: AppColors.surfaceHigh,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
       builder: (ctx) => DraggableScrollableSheet(
         expand: false,
@@ -326,7 +354,6 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
         builder: (_, scrollController) => _FoodSearchSheet(
           onFoodSelected: (food) {
             Navigator.pop(ctx);
-            // Adicionar alimento extra
           },
         ),
       ),
@@ -334,10 +361,8 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
   }
 }
 
-/// Sheet de pesquisa de alimentos.
 class _FoodSearchSheet extends ConsumerStatefulWidget {
   final Function(FoodModel) onFoodSelected;
-
   const _FoodSearchSheet({required this.onFoodSelected});
 
   @override
@@ -357,13 +382,11 @@ class _FoodSearchSheetState extends ConsumerState<_FoodSearchSheet> {
             decoration: InputDecoration(
               hintText: AppStrings.searchFood,
               prefixIcon: const Icon(Icons.search),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
               filled: true,
-              fillColor: AppColors.backgroundLight,
+              fillColor: AppColors.surface,
             ),
             onChanged: (q) => setState(() => _query = q.trim()),
+            style: GoogleFonts.inter(color: AppColors.onSurface),
           ),
         ),
         Expanded(
@@ -377,21 +400,31 @@ class _FoodSearchSheetState extends ConsumerState<_FoodSearchSheet> {
                     backgroundColor: AppColors.caloriesLight,
                     child: Text(
                       food.nome[0].toUpperCase(),
-                      style: const TextStyle(color: AppColors.calories),
+                      style: GoogleFonts.inter(
+                        color: AppColors.calories,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                  title: Text(food.nome),
+                  title: Text(
+                    food.nome,
+                    style: GoogleFonts.inter(color: AppColors.onSurface),
+                  ),
                   subtitle: Text(
                     '${food.caloriasPor100g.toStringAsFixed(0)} kcal/100g',
+                    style: GoogleFonts.inter(color: AppColors.textSecondary),
                   ),
-                  trailing: const Icon(Icons.add_circle_outline),
+                  trailing: const Icon(Icons.add_circle_outline,
+                      color: AppColors.primary),
                   onTap: () => widget.onFoodSelected(food),
                 );
               },
             ),
             loading: () =>
-                const Center(child: CircularProgressIndicator()),
-            error: (_, __) => const Center(child: Text('Erro')),
+                const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+            error: (_, __) => const Center(
+              child: Text('Erro', style: TextStyle(color: AppColors.textSecondary)),
+            ),
           ),
         ),
       ],

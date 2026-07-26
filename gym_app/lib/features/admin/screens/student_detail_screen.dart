@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/app_constants.dart';
@@ -14,7 +15,7 @@ import '../widgets/workout_editor.dart';
 import '../widgets/report_generator.dart';
 import '../../aluno/chat/screens/chat_screen.dart';
 
-/// Ecrã de detalhe do aluno (admin).
+/// Ecrã de detalhe do aluno (admin) — Kinetic Dark.
 class StudentDetailScreen extends ConsumerStatefulWidget {
   final UserModel aluno;
   const StudentDetailScreen({super.key, required this.aluno});
@@ -53,8 +54,15 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
     final aluno = widget.aluno;
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(aluno.nome),
+        title: Text(
+          aluno.nome,
+          style: GoogleFonts.montserrat(
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.picture_as_pdf),
@@ -67,9 +75,17 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
           isScrollable: true,
           tabAlignment: TabAlignment.start,
           tabs: tabs.map((t) => Tab(text: t)).toList(),
-          labelColor: AppColors.textOnPrimary,
-          unselectedLabelColor: AppColors.textOnPrimary.withValues(alpha: 0.7),
-          indicatorColor: Colors.white,
+          labelColor: AppColors.primary,
+          unselectedLabelColor: AppColors.textSecondary,
+          indicatorColor: AppColors.primary,
+          labelStyle: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+          unselectedLabelStyle: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ),
       body: TabBarView(
@@ -88,7 +104,12 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
   }
 
   Widget _buildResumo(UserModel aluno) {
-    return const Center(child: Text('Dashboard do aluno (admin)'));
+    return Center(
+      child: Text(
+        'Dashboard do aluno (admin)',
+        style: GoogleFonts.inter(color: AppColors.textSecondary),
+      ),
+    );
   }
 
   Widget _buildNutricao(UserModel aluno) {
@@ -111,17 +132,28 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
           );
         }
         return ListView.builder(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           itemCount: list.length,
           itemBuilder: (_, i) {
             final p = list[i];
-            return Card(
+            return Container(
               margin: const EdgeInsets.only(bottom: 8),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.outline),
+              ),
               child: ListTile(
                 title: Text(
                   DateFormat(AppConstants.displayDateFormat).format(p.data),
+                  style: GoogleFonts.inter(color: AppColors.onSurface),
                 ),
-                subtitle: p.peso != null ? Text('${p.peso} kg') : null,
+                subtitle: p.peso != null
+                    ? Text(
+                        '${p.peso} kg',
+                        style: GoogleFonts.inter(color: AppColors.textSecondary),
+                      )
+                    : null,
                 trailing: p.fotos.isNotEmpty
                     ? const Icon(Icons.photo, color: AppColors.primary)
                     : null,
@@ -130,8 +162,12 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
           },
         );
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, __) => const Center(child: Text('Erro ao carregar dados')),
+      loading: () =>
+          const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+      error: (_, __) => const Center(
+        child: Text('Erro ao carregar dados',
+            style: TextStyle(color: AppColors.textSecondary)),
+      ),
     );
   }
 

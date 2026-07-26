@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/app_constants.dart';
@@ -10,20 +11,18 @@ import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 
-/// Provider de planos de treino do aluno.
 final workoutPlansProvider =
     FutureProvider.family<List<WorkoutPlanModel>, String>((ref, userId) {
   return ref.read(workoutRepositoryProvider).getAllPlans(userId);
 });
 
-/// Provider do diário de hoje para verificar treino concluído.
 final todayWorkoutDiaryProvider =
     StreamProvider.family<DiaryModel?, String>((ref, userId) {
   final today = DateFormat(AppConstants.dateFormat).format(DateTime.now());
   return ref.read(diaryRepositoryProvider).diaryEntryStream(userId, today);
 });
 
-/// Ecrã de treino do aluno.
+/// Ecrã de treino — Kinetic Dark.
 class WorkoutScreen extends ConsumerStatefulWidget {
   const WorkoutScreen({super.key});
 
@@ -41,8 +40,15 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
     final plansAsync = ref.watch(workoutPlansProvider(userId));
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(AppStrings.workoutPlan),
+        title: Text(
+          AppStrings.workoutPlan,
+          style: GoogleFonts.montserrat(
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.history),
@@ -61,7 +67,8 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
           }
           return _buildWorkoutContent(plans, userId);
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () =>
+            const Center(child: CircularProgressIndicator(color: AppColors.primary)),
         error: (_, __) =>
             const EmptyState(icon: Icons.error_outline, title: 'Erro'),
       ),
@@ -75,7 +82,6 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
 
     return Column(
       children: [
-        // Seletor de plano
         if (plans.length > 1)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 12),
@@ -88,15 +94,26 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: ChoiceChip(
-                      label: Text(entry.value.nome),
+                      label: Text(
+                        entry.value.nome,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: isSelected
+                              ? AppColors.textOnPrimary
+                              : AppColors.onSurface,
+                        ),
+                      ),
                       selected: isSelected,
                       onSelected: (_) =>
                           setState(() => _selectedPlanIndex = entry.key),
                       selectedColor: AppColors.primary,
-                      labelStyle: TextStyle(
-                        color: isSelected
-                            ? AppColors.textOnPrimary
-                            : AppColors.textPrimary,
+                      backgroundColor: AppColors.surfaceHigh,
+                      side: BorderSide(
+                        color:
+                            isSelected ? AppColors.primary : AppColors.outline,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
                       ),
                     ),
                   );
@@ -104,8 +121,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
               ),
             ),
           ),
-        const Divider(height: 1),
-        // Conteúdo do treino
+        const Divider(height: 1, color: AppColors.outline),
         Expanded(
           child: todayWorkout == null || todayWorkout.exercicios.isEmpty
               ? _buildRestDay()
@@ -116,25 +132,25 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
   }
 
   Widget _buildRestDay() {
-    return const SingleChildScrollView(
-      padding: EdgeInsets.all(32),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(32),
       child: Column(
         children: [
-          Icon(Icons.self_improvement, size: 80, color: AppColors.info),
-          SizedBox(height: 16),
+          const Icon(Icons.self_improvement, size: 80, color: AppColors.info),
+          const SizedBox(height: 16),
           Text(
             AppStrings.restDay,
-            style: TextStyle(
+            style: GoogleFonts.montserrat(
               fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+              color: AppColors.onSurface,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             AppStrings.restDayMessage,
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textSecondary),
+            style: GoogleFonts.inter(color: AppColors.textSecondary),
           ),
         ],
       ),
@@ -149,11 +165,13 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
       data: (diary) {
         final isCompleted = diary?.treinoConcluido ?? false;
         return RefreshIndicator(
-          onRefresh: () async => ref.invalidate(workoutPlansProvider(userId)),
+          onRefresh: () async =>
+              ref.invalidate(workoutPlansProvider(userId)),
+          color: AppColors.primary,
           child: ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             itemCount: todayWorkout.exercicios.length +
-                (isCompleted ? 0 : 1), // Botão de concluir no final
+                (isCompleted ? 0 : 1),
             itemBuilder: (context, index) {
               if (index == todayWorkout.exercicios.length) {
                 return _buildCompleteButton(userId);
@@ -164,28 +182,41 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
           ),
         );
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, __) => const Center(child: Text('Erro')),
+      loading: () =>
+          const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+      error: (_, __) => const Center(
+        child: Text('Erro', style: TextStyle(color: AppColors.textSecondary)),
+      ),
     );
   }
 
   Widget _buildExerciseCard(Exercise exercise, bool isCompleted) {
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 1,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isCompleted ? AppColors.primary : AppColors.outline,
+        ),
+      ),
       child: ExpansionTile(
         leading: CircleAvatar(
-          backgroundColor: AppColors.primaryLight.withValues(alpha: 0.2),
-          child: const Icon(Icons.fitness_center, color: AppColors.primary),
+          radius: 18,
+          backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+          child: const Icon(Icons.fitness_center,
+              color: AppColors.primary, size: 18),
         ),
         title: Text(
           exercise.nome,
-          style: const TextStyle(fontWeight: FontWeight.w600),
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w600,
+            color: AppColors.onSurface,
+          ),
         ),
         subtitle: Text(
           '${exercise.series}x${exercise.repeticoes} • ${exercise.descanso}s descanso',
-          style: const TextStyle(fontSize: 13),
+          style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary),
         ),
         children: [
           Padding(
@@ -209,9 +240,10 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
                   const SizedBox(height: 8),
                   Text(
                     '${AppStrings.suggestedLoad}: ${exercise.cargaSugerida} kg',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w500,
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w600,
                       color: AppColors.primary,
+                      fontSize: 13,
                     ),
                   ),
                 ],
@@ -219,9 +251,10 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
                   const SizedBox(height: 8),
                   Text(
                     exercise.observacoes!,
-                    style: const TextStyle(
+                    style: GoogleFonts.inter(
                       fontStyle: FontStyle.italic,
                       color: AppColors.textSecondary,
+                      fontSize: 13,
                     ),
                   ),
                 ],
@@ -229,10 +262,11 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
                     onPressed: () {},
-                    icon: const Icon(Icons.play_circle_outline),
+                    icon: const Icon(Icons.play_circle_outline, size: 16),
                     label: const Text(AppStrings.watchVideo),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.info,
+                      side: const BorderSide(color: AppColors.info),
                     ),
                   ),
                 ],
@@ -241,13 +275,9 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () =>
-                          _showCheckInDialog(exercise),
+                      onPressed: () => _showCheckInDialog(exercise),
                       icon: const Icon(Icons.check_circle_outline, size: 18),
                       label: const Text(AppStrings.checkIn),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                      ),
                     ),
                   ),
                 ],
@@ -264,15 +294,22 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.backgroundLight,
-        borderRadius: BorderRadius.circular(20),
+        color: AppColors.surfaceHigh,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppColors.outline),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 14, color: AppColors.textSecondary),
           const SizedBox(width: 4),
-          Text(label, style: const TextStyle(fontSize: 12)),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: AppColors.onSurfaceVariant,
+            ),
+          ),
         ],
       ),
     );
@@ -287,15 +324,18 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
         child: ElevatedButton.icon(
           onPressed: () => _completeWorkout(userId),
           icon: const Icon(Icons.emoji_events),
-          label: const Text(
+          label: Text(
             'Concluir Treino! 💪',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.success,
-            foregroundColor: Colors.white,
+            backgroundColor: AppColors.primary,
+            foregroundColor: AppColors.textOnPrimary,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(4),
             ),
           ),
         ),
@@ -339,7 +379,13 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Check-in: ${exercise.nome}'),
+        title: Text(
+          'Check-in: ${exercise.nome}',
+          style: GoogleFonts.montserrat(
+            fontWeight: FontWeight.w700,
+            color: AppColors.onSurface,
+          ),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -350,6 +396,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
                 labelText: AppStrings.actualLoad,
                 suffixText: 'kg',
               ),
+              style: GoogleFonts.inter(color: AppColors.onSurface),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -359,6 +406,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
                 labelText: AppStrings.observations,
                 hintText: 'Como te sentiste?',
               ),
+              style: GoogleFonts.inter(color: AppColors.onSurface),
             ),
           ],
         ),
@@ -369,9 +417,6 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-            ),
             child: const Text(AppStrings.save),
           ),
         ],
@@ -383,16 +428,18 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: AppColors.surfaceHigh,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
       builder: (ctx) => DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.7,
         builder: (_, scrollController) {
           return FutureBuilder<List<DiaryModel>>(
-            future:
-                ref.read(diaryRepositoryProvider).getHistory(userId, limit: 30),
+            future: ref
+                .read(diaryRepositoryProvider)
+                .getHistory(userId, limit: 30),
             builder: (context, snapshot) {
               final completedWorkouts = (snapshot.data ?? [])
                   .where((d) => d.treinoConcluido)
@@ -400,20 +447,24 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
                 ..sort((a, b) => b.data.compareTo(a.data));
 
               if (completedWorkouts.isEmpty) {
-                return const Center(
-                  child: Text('Nenhum treino concluído ainda.'),
+                return Center(
+                  child: Text(
+                    'Nenhum treino concluído ainda.',
+                    style: GoogleFonts.inter(color: AppColors.textSecondary),
+                  ),
                 );
               }
 
               return Column(
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.all(16),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
                     child: Text(
                       AppStrings.workoutHistory,
-                      style: TextStyle(
+                      style: GoogleFonts.montserrat(
                         fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.onSurface,
                       ),
                     ),
                   ),
@@ -426,11 +477,12 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
                         return ListTile(
                           leading: const CircleAvatar(
                             backgroundColor: AppColors.success,
-                            child: Icon(Icons.check, color: Colors.white),
+                            child: Icon(Icons.check, color: Colors.white, size: 18),
                           ),
                           title: Text(
                             DateFormat(AppConstants.displayDateFormat)
                                 .format(DateTime.parse(workout.data)),
+                            style: GoogleFonts.inter(color: AppColors.onSurface),
                           ),
                           trailing: const Text('✅'),
                         );

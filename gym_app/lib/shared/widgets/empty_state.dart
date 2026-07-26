@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../core/config/app_colors.dart';
-import '../../core/config/app_strings.dart';
 
-/// Widget de estado vazio reutilizável.
+/// Widget de estado vazio reutilizável — Kinetic Dark.
 class EmptyState extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -27,35 +27,38 @@ class EmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 80, color: AppColors.textSecondary.withValues(alpha: 0.4)),
+            Icon(
+              icon,
+              size: 72,
+              color: AppColors.textSecondary.withValues(alpha: 0.3),
+            ),
             const SizedBox(height: 16),
             Text(
               title,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textSecondary,
+              ),
             ),
             if (subtitle != null) ...[
               const SizedBox(height: 8),
               Text(
                 subtitle!,
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary.withValues(alpha: 0.7),
-                    ),
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: AppColors.textSecondary.withValues(alpha: 0.6),
+                ),
               ),
             ],
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed: onAction,
-                icon: const Icon(Icons.refresh),
+                icon: const Icon(Icons.refresh, size: 18),
                 label: Text(actionLabel!),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.textOnPrimary,
-                ),
               ),
             ],
           ],

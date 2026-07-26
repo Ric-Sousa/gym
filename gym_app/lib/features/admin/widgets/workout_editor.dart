@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../data/models/user_model.dart';
 import '../../../../data/models/workout_plan_model.dart';
-import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/providers/admin_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
-import '../screens/student_detail_screen.dart';
 
-/// Ecrã de edição do plano de treino (admin).
+/// Editor do plano de treino (admin) — GYMBT Lime+Dark.
 class WorkoutEditor extends ConsumerStatefulWidget {
   final UserModel aluno;
   const WorkoutEditor({super.key, required this.aluno});
@@ -24,8 +23,7 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
 
   @override
   Widget build(BuildContext context) {
-    final plansAsync =
-        ref.watch(adminWorkoutPlansProvider(widget.aluno.uid));
+    final plansAsync = ref.watch(adminWorkoutPlansProvider(widget.aluno.uid));
 
     return plansAsync.when(
       data: (plans) {
@@ -34,16 +32,17 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const EmptyState(
-                  icon: Icons.fitness_center,
-                  title: AppStrings.noWorkoutAssigned,
-                ),
+                const EmptyState(icon: Icons.fitness_center, title: AppStrings.noWorkoutAssigned),
+                const SizedBox(height: 16),
                 ElevatedButton.icon(
-                  onPressed: () => _createEmptyPlan(),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Criar plano de treino'),
+                  onPressed: _createEmptyPlan,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: Text('Criar plano de treino', style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w700)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
+                    backgroundColor: AppColors.adminLime,
+                    foregroundColor: AppColors.adminBg,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   ),
                 ),
               ],
@@ -52,8 +51,8 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
         }
         return _buildPlanEditor(plans);
       },
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, __) => const Center(child: Text('Erro ao carregar planos')),
+      loading: () => const Center(child: CircularProgressIndicator(color: AppColors.adminLime)),
+      error: (_, __) => Center(child: Text('Erro ao carregar planos', style: GoogleFonts.dmSans(color: AppColors.adminMuted))),
     );
   }
 
@@ -62,7 +61,6 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
 
     return Column(
       children: [
-        // Seletor de plano
         if (plans.length > 1)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -74,64 +72,66 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: ChoiceChip(
-                      label: Text(entry.value.nome),
+                      label: Text(entry.value.nome, style: GoogleFonts.dmSans(fontSize: 13, color: selected ? AppColors.adminBg : AppColors.adminMuted)),
                       selected: selected,
-                      onSelected: (_) =>
-                          setState(() => _selectedPlanIndex = entry.key),
-                      selectedColor: AppColors.primary,
-                      labelStyle: TextStyle(
-                        color: selected
-                            ? AppColors.textOnPrimary
-                            : AppColors.textPrimary,
-                        fontSize: 13,
-                      ),
+                      onSelected: (_) => setState(() => _selectedPlanIndex = entry.key),
+                      selectedColor: AppColors.adminLime,
+                      backgroundColor: AppColors.adminSurface2,
+                      side: BorderSide(color: selected ? AppColors.adminLime : AppColors.adminBorder),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                     ),
                   );
                 }).toList(),
               ),
             ),
           ),
-        const Divider(height: 1),
-        // Lista de dias e exercícios
+        const Divider(height: 1, color: AppColors.adminBorder),
         Expanded(
-          child: RefreshIndicator(
-            onRefresh: () async =>
-                ref.invalidate(adminWorkoutPlansProvider(widget.aluno.uid)),
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: plan.dias.length,
-              itemBuilder: (_, index) {
-                final day = plan.dias[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ExpansionTile(
-                    title: Text(
-                      day.diaSemana,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: day.foco.isNotEmpty
-                        ? Text('Foco: ${day.foco}')
-                        : null,
-                    children: [
-                      ...day.exercicios.map((ex) => ListTile(
-                            dense: true,
-                            title: Text(ex.nome),
-                            subtitle: Text(
-                              '${ex.series}x${ex.repeticoes} • ${ex.descanso}s descanso',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          )),
-                      TextButton.icon(
-                        onPressed: () =>
-                            _addExercise(plan, day.diaSemana),
-                        icon: const Icon(Icons.add, size: 16),
-                        label: const Text('Adicionar exercício'),
-                      ),
-                    ],
+          child: ListView.builder(
+            padding: const EdgeInsets.all(20),
+            itemCount: plan.dias.length,
+            itemBuilder: (_, index) {
+              final day = plan.dias[index];
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.adminSurface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.adminBorder),
+                ),
+                child: ExpansionTile(
+                  leading: CircleAvatar(
+                    radius: 16,
+                    backgroundColor: AppColors.adminLimeDim,
+                    child: const Icon(Icons.fitness_center, color: AppColors.adminLime, size: 16),
                   ),
-                );
-              },
-            ),
+                  title: Text(day.diaSemana, style: GoogleFonts.dmSans(fontWeight: FontWeight.w600, color: AppColors.adminText)),
+                  subtitle: day.foco.isNotEmpty
+                      ? Text('Foco: ${day.foco}', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.adminMuted))
+                      : null,
+                  children: [
+                    ...day.exercicios.map((ex) => ListTile(
+                          dense: true,
+                          title: Text(ex.nome, style: GoogleFonts.dmSans(color: AppColors.adminText, fontSize: 14)),
+                          subtitle: Text('${ex.series}x${ex.repeticoes} • ${ex.descanso}s descanso',
+                              style: GoogleFonts.dmMono(fontSize: 12, color: AppColors.adminMuted)),
+                          trailing: ex.cargaSugerida != null
+                              ? Text('${ex.cargaSugerida}kg', style: GoogleFonts.dmMono(fontSize: 13, color: AppColors.adminOrange))
+                              : null,
+                        )),
+                    const Divider(color: AppColors.adminBorder, height: 1),
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: TextButton.icon(
+                        onPressed: () => _addExercise(plan, day.diaSemana),
+                        icon: const Icon(Icons.add, size: 14, color: AppColors.adminLime),
+                        label: Text('Adicionar exercício', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.adminLime)),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ],
@@ -139,147 +139,85 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
   }
 
   Future<void> _createEmptyPlan() async {
-    final nameController = TextEditingController(text: 'Semana 1');
+    final nameCtrl = TextEditingController(text: 'Semana 1');
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Novo plano de treino'),
-        content: TextField(
-          controller: nameController,
-          decoration: const InputDecoration(labelText: 'Nome do plano'),
-        ),
+        backgroundColor: AppColors.adminSurface,
+        title: Text('Novo plano de treino', style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, color: AppColors.adminText)),
+        content: TextField(controller: nameCtrl, style: GoogleFonts.dmSans(color: AppColors.adminText), decoration: const InputDecoration(labelText: 'Nome do plano')),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text(AppStrings.cancel),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.cancel, style: GoogleFonts.dmSans(color: AppColors.adminMuted))),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, nameController.text.trim()),
-            child: const Text(AppStrings.save),
+            onPressed: () => Navigator.pop(ctx, nameCtrl.text.trim()),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.adminLime, foregroundColor: AppColors.adminBg),
+            child: Text(AppStrings.save, style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
     );
-
     if (result != null && result.isNotEmpty) {
-      final defaultDays = AppStrings.daysOfWeek
-          .map((d) => WorkoutDay(diaSemana: d).toMap())
-          .toList();
-
-      await ref.read(workoutRepositoryProvider).savePlan(
-            widget.aluno.uid,
-            result,
-            {'dias': defaultDays},
-          );
+      final defaultDays = AppStrings.daysOfWeek.map((d) => WorkoutDay(diaSemana: d).toMap()).toList();
+      await ref.read(workoutRepositoryProvider).savePlan(widget.aluno.uid, result, {'dias': defaultDays});
       ref.invalidate(adminWorkoutPlansProvider(widget.aluno.uid));
     }
   }
 
   Future<void> _addExercise(WorkoutPlanModel plan, String diaSemana) async {
-    final nomeCtrl = TextEditingController();
-    final seriesCtrl = TextEditingController(text: '3');
-    final repsCtrl = TextEditingController(text: '10');
-    final cargaCtrl = TextEditingController();
-    final descansoCtrl = TextEditingController(text: '60');
-    final obsCtrl = TextEditingController();
+    final nome = TextEditingController();
+    final series = TextEditingController(text: '3');
+    final reps = TextEditingController(text: '10');
+    final carga = TextEditingController();
+    final descanso = TextEditingController(text: '60');
+    final obs = TextEditingController();
 
     final result = await showDialog<Exercise>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Adicionar exercício'),
+        backgroundColor: AppColors.adminSurface,
+        title: Text('Adicionar exercício', style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, color: AppColors.adminText)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
-                controller: nomeCtrl,
-                decoration: const InputDecoration(labelText: 'Nome'),
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: seriesCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Séries'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextField(
-                      controller: repsCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Reps'),
-                    ),
-                  ),
-                ],
-              ),
-              TextField(
-                controller: cargaCtrl,
-                keyboardType: TextInputType.number,
-                decoration:
-                    const InputDecoration(labelText: 'Carga (kg)'),
-              ),
-              TextField(
-                controller: descansoCtrl,
-                keyboardType: TextInputType.number,
-                decoration:
-                    const InputDecoration(labelText: 'Descanso (s)'),
-              ),
-              TextField(
-                controller: obsCtrl,
-                decoration:
-                    const InputDecoration(labelText: 'Observações'),
-              ),
+              TextField(controller: nome, style: GoogleFonts.dmSans(color: AppColors.adminText), decoration: const InputDecoration(labelText: 'Nome')),
+              Row(children: [
+                Expanded(child: TextField(controller: series, keyboardType: TextInputType.number, style: GoogleFonts.dmSans(color: AppColors.adminText), decoration: const InputDecoration(labelText: 'Séries'))),
+                const SizedBox(width: 12),
+                Expanded(child: TextField(controller: reps, keyboardType: TextInputType.number, style: GoogleFonts.dmSans(color: AppColors.adminText), decoration: const InputDecoration(labelText: 'Reps'))),
+              ]),
+              TextField(controller: carga, keyboardType: TextInputType.number, style: GoogleFonts.dmSans(color: AppColors.adminText), decoration: const InputDecoration(labelText: 'Carga (kg)')),
+              TextField(controller: descanso, keyboardType: TextInputType.number, style: GoogleFonts.dmSans(color: AppColors.adminText), decoration: const InputDecoration(labelText: 'Descanso (s)')),
+              TextField(controller: obs, style: GoogleFonts.dmSans(color: AppColors.adminText), decoration: const InputDecoration(labelText: 'Observações')),
             ],
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text(AppStrings.cancel),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.cancel, style: GoogleFonts.dmSans(color: AppColors.adminMuted))),
           ElevatedButton(
             onPressed: () {
-              final nome = nomeCtrl.text.trim();
-              if (nome.isEmpty) return;
-              Navigator.pop(
-                ctx,
-                Exercise(
-                  nome: nome,
-                  series: int.tryParse(seriesCtrl.text) ?? 3,
-                  repeticoes: int.tryParse(repsCtrl.text) ?? 10,
-                  cargaSugerida:
-                      double.tryParse(cargaCtrl.text.replaceAll(',', '.')),
-                  descanso: int.tryParse(descansoCtrl.text) ?? 60,
-                  observacoes:
-                      obsCtrl.text.isNotEmpty ? obsCtrl.text.trim() : null,
-                ),
-              );
+              if (nome.text.trim().isEmpty) return;
+              Navigator.pop(ctx, Exercise(
+                nome: nome.text.trim(),
+                series: int.tryParse(series.text) ?? 3,
+                repeticoes: int.tryParse(reps.text) ?? 10,
+                cargaSugerida: double.tryParse(carga.text.replaceAll(',', '.')),
+                descanso: int.tryParse(descanso.text) ?? 60,
+                observacoes: obs.text.isNotEmpty ? obs.text.trim() : null,
+              ));
             },
-            child: const Text(AppStrings.save),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.adminLime, foregroundColor: AppColors.adminBg),
+            child: Text(AppStrings.save, style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
     );
-
     if (result != null) {
-      final updatedDays = plan.dias.map((d) {
-        if (d.diaSemana == diaSemana) {
-          return WorkoutDay(
-            diaSemana: d.diaSemana,
-            foco: d.foco,
-            exercicios: [...d.exercicios, result],
-          );
-        }
+      final updated = plan.dias.map((d) {
+        if (d.diaSemana == diaSemana) return WorkoutDay(diaSemana: d.diaSemana, foco: d.foco, exercicios: [...d.exercicios, result]);
         return d;
       }).toList();
-
-      await ref.read(workoutRepositoryProvider).savePlan(
-            widget.aluno.uid,
-            plan.nome,
-            {'dias': updatedDays.map((d) => d.toMap()).toList()},
-          );
+      await ref.read(workoutRepositoryProvider).savePlan(widget.aluno.uid, plan.nome, {'dias': updated.map((d) => d.toMap()).toList()});
       ref.invalidate(adminWorkoutPlansProvider(widget.aluno.uid));
     }
   }

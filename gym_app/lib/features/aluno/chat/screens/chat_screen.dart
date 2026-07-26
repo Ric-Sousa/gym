@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/app_constants.dart';
@@ -8,18 +9,14 @@ import '../../../../data/models/message_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 
-/// Provider do chat.
 final chatMessagesProvider =
     StreamProvider.family<List<MessageModel>, String>((ref, salaId) {
   return ref.read(chatRepositoryProvider).messagesStream(salaId);
 });
 
-/// Ecrã de chat entre aluno e personal trainer.
-/// Se [chatPartnerId] for fornecido (ex: pelo admin), usa-o como o outro participante.
-/// Caso contrário, usa o [personalId] do utilizador autenticado (modo aluno).
+/// Ecrã de chat — Kinetic Dark.
 class ChatScreen extends ConsumerStatefulWidget {
   final String? chatPartnerId;
-
   const ChatScreen({super.key, this.chatPartnerId});
 
   @override
@@ -51,69 +48,69 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final userId = authState.user?.uid ?? '';
-
-    // Determina o outro participante
-    final otherId = widget.chatPartnerId ??
-        authState.user?.personalId ??
-        '';
+    final otherId = widget.chatPartnerId ?? authState.user?.personalId ?? '';
 
     if (otherId.isEmpty || otherId == userId) {
-      return const Scaffold(
+      return Scaffold(
+        backgroundColor: AppColors.background,
         body: Center(
-          child: Text('Nenhum participante associado ao chat.'),
+          child: Text(
+            'Nenhum participante associado ao chat.',
+            style: GoogleFonts.inter(color: AppColors.textSecondary),
+          ),
         ),
       );
     }
 
-    final salaId = ref.read(chatRepositoryProvider).getChatRoomId(
-          userId,
-          otherId,
-        );
+    final salaId = ref.read(chatRepositoryProvider).getChatRoomId(userId, otherId);
     final messagesAsync = ref.watch(chatMessagesProvider(salaId));
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(AppStrings.chatTitle),
-        centerTitle: false,
+        title: Text(
+          AppStrings.chatTitle,
+          style: GoogleFonts.montserrat(
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
       ),
       body: Column(
         children: [
-          // Lista de mensagens
           Expanded(
             child: messagesAsync.when(
               data: (messages) {
-                WidgetsBinding.instance.addPostFrameCallback(
-                    (_) => _scrollToBottom());
+                WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
                 if (messages.isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Text(
                       AppStrings.noMessages,
-                      style: TextStyle(color: AppColors.textSecondary),
+                      style: GoogleFonts.inter(color: AppColors.textSecondary),
                     ),
                   );
                 }
                 return ListView.builder(
                   controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   itemCount: messages.length,
                   itemBuilder: (_, index) {
                     final message = messages[index];
                     final isMine = message.remetenteId == userId;
-                    return _MessageBubble(
-                      message: message,
-                      isMine: isMine,
-                    );
+                    return _MessageBubble(message: message, isMine: isMine);
                   },
                 );
               },
               loading: () =>
-                  const Center(child: CircularProgressIndicator()),
-              error: (_, __) =>
-                  const Center(child: Text('Erro ao carregar mensagens')),
+                  const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+              error: (_, __) => Center(
+                child: Text(
+                  'Erro ao carregar mensagens',
+                  style: GoogleFonts.inter(color: AppColors.textSecondary),
+                ),
+              ),
             ),
           ),
-          // Campo de texto
           _buildMessageInput(salaId, userId),
         ],
       ),
@@ -122,16 +119,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Widget _buildMessageInput(String salaId, String userId) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 4,
-            offset: const Offset(0, -2),
-          ),
-        ],
+        color: AppColors.surfaceLow,
+        border: const Border(top: BorderSide(color: AppColors.outline)),
       ),
       child: SafeArea(
         child: Row(
@@ -142,28 +133,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 maxLines: 4,
                 minLines: 1,
                 textCapitalization: TextCapitalization.sentences,
+                style: GoogleFonts.inter(color: AppColors.onSurface, fontSize: 14),
                 decoration: InputDecoration(
                   hintText: AppStrings.typeMessage,
+                  hintStyle: GoogleFonts.inter(color: AppColors.outlineVariant),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(24),
                     borderSide: BorderSide.none,
                   ),
                   filled: true,
-                  fillColor: AppColors.backgroundLight,
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 10),
+                  fillColor: AppColors.surface,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),
               ),
             ),
             const SizedBox(width: 8),
             Container(
+              width: 44,
+              height: 44,
               decoration: const BoxDecoration(
                 color: AppColors.primary,
                 shape: BoxShape.circle,
               ),
               child: IconButton(
                 onPressed: () => _sendMessage(salaId, userId),
-                icon: const Icon(Icons.send, color: Colors.white),
+                icon: const Icon(Icons.send, color: Colors.white, size: 20),
+                padding: EdgeInsets.zero,
               ),
             ),
           ],
@@ -199,7 +194,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 }
 
-/// Bubble de mensagem.
 class _MessageBubble extends StatelessWidget {
   final MessageModel message;
   final bool isMine;
@@ -218,36 +212,35 @@ class _MessageBubble extends StatelessWidget {
         ),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: isMine ? AppColors.primary : AppColors.backgroundLight,
+          color: isMine ? AppColors.primary.withValues(alpha: 0.15) : AppColors.surface,
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: isMine
-                ? const Radius.circular(16)
-                : const Radius.circular(4),
-            bottomRight: isMine
-                ? const Radius.circular(4)
-                : const Radius.circular(16),
+            topLeft: const Radius.circular(12),
+            topRight: const Radius.circular(12),
+            bottomLeft: isMine ? const Radius.circular(12) : const Radius.circular(2),
+            bottomRight: isMine ? const Radius.circular(2) : const Radius.circular(12),
+          ),
+          border: Border.all(
+            color: isMine
+                ? AppColors.primary.withValues(alpha: 0.3)
+                : AppColors.outline,
           ),
         ),
         child: Column(
-          crossAxisAlignment:
-              isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
             Text(
               message.texto,
-              style: TextStyle(
-                color: isMine ? AppColors.textOnPrimary : AppColors.textPrimary,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                color: AppColors.onSurface,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               time,
-              style: TextStyle(
+              style: GoogleFonts.inter(
                 fontSize: 10,
-                color: isMine
-                    ? AppColors.textOnPrimary.withValues(alpha: 0.7)
-                    : AppColors.textSecondary,
+                color: AppColors.textSecondary,
               ),
             ),
           ],

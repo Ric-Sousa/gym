@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -13,19 +14,17 @@ import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 
-/// Provider do perfil do utilizador.
 final userProfileProvider =
     StreamProvider.family<UserModel, String>((ref, uid) {
   return ref.read(userRepositoryProvider).userStream(uid);
 });
 
-/// Provider do histórico de progresso.
 final progressHistoryProvider =
     FutureProvider.family<List<ProgressModel>, String>((ref, userId) {
   return ref.read(progressRepositoryProvider).getHistory(userId);
 });
 
-/// Ecrã de perfil do aluno.
+/// Ecrã de perfil — Kinetic Dark.
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
@@ -43,8 +42,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final userAsync = ref.watch(userProfileProvider(userId));
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(AppStrings.profile),
+        title: Text(
+          AppStrings.profile,
+          style: GoogleFonts.montserrat(
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -55,8 +61,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ),
       body: userAsync.when(
         data: (user) => _buildProfileContent(user),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => const Center(child: Text('Erro ao carregar perfil')),
+        loading: () =>
+            const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+        error: (_, __) => const Center(
+          child: Text('Erro ao carregar perfil',
+              style: TextStyle(color: AppColors.textSecondary)),
+        ),
       ),
     );
   }
@@ -71,27 +81,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Header com foto
             _buildProfileHeader(user),
             const SizedBox(height: 24),
-
-            // Métricas rápidas
             _buildQuickMetrics(user),
             const SizedBox(height: 24),
-
-            // Campos editáveis
             _buildEditableFields(user),
             const SizedBox(height: 24),
-
-            // Progresso
             Text(
               AppStrings.weightEvolution,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: GoogleFonts.montserrat(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppColors.onSurface,
+              ),
             ),
             const SizedBox(height: 12),
             progressAsync.when(
@@ -104,13 +109,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 }
                 return _buildWeightChart(progressList);
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) =>
-                  const Text('Erro ao carregar dados de progresso'),
+              loading: () =>
+                  const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+              error: (_, __) => const Text(
+                'Erro ao carregar dados de progresso',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
             ),
             const SizedBox(height: 24),
-
-            // Fotos de progresso
             _buildProgressPhotos(user.uid, progressAsync),
           ],
         ),
@@ -127,17 +133,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             children: [
               CircleAvatar(
                 radius: 50,
-                backgroundColor: AppColors.primaryLight,
+                backgroundColor: AppColors.primary.withValues(alpha: 0.15),
                 backgroundImage: user.fotoPerfil != null
                     ? NetworkImage(user.fotoPerfil!)
                     : null,
                 child: user.fotoPerfil == null
                     ? Text(
-                        user.nome.isNotEmpty
-                            ? user.nome[0].toUpperCase()
-                            : '?',
-                        style: const TextStyle(
-                            fontSize: 36, color: Colors.white),
+                        user.nome.isNotEmpty ? user.nome[0].toUpperCase() : '?',
+                        style: GoogleFonts.montserrat(
+                          fontSize: 36,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary,
+                        ),
                       )
                     : null,
               ),
@@ -150,8 +157,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     color: AppColors.primary,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.camera_alt,
-                      size: 18, color: Colors.white),
+                  child: const Icon(Icons.camera_alt, size: 16, color: Colors.white),
                 ),
               ),
             ],
@@ -160,13 +166,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         const SizedBox(height: 12),
         Text(
           user.nome,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+          style: GoogleFonts.montserrat(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: AppColors.onSurface,
+          ),
         ),
+        const SizedBox(height: 4),
         Text(
           user.email,
-          style: const TextStyle(color: AppColors.textSecondary),
+          style: GoogleFonts.inter(
+            color: AppColors.textSecondary,
+            fontSize: 14,
+          ),
         ),
       ],
     );
@@ -204,31 +216,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Widget _metricCard(String label, String value, IconData icon) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.outline),
       ),
       child: Column(
         children: [
-          Icon(icon, color: AppColors.primary, size: 24),
+          Icon(icon, color: AppColors.primary, size: 22),
           const SizedBox(height: 8),
           Text(
             value,
-            style: const TextStyle(
-                fontWeight: FontWeight.bold, fontSize: 16),
+            style: GoogleFonts.montserrat(
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+              color: AppColors.onSurface,
+            ),
           ),
+          const SizedBox(height: 2),
           Text(
             label,
-            style: const TextStyle(
-                color: AppColors.textSecondary, fontSize: 12),
+            style: GoogleFonts.inter(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+            ),
           ),
         ],
       ),
@@ -236,8 +248,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildEditableFields(UserModel user) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.outline),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -245,10 +261,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           children: [
             Row(
               children: [
-                const Text(
+                Text(
                   'Informações',
-                  style:
-                      TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.onSurface,
+                  ),
                 ),
                 const Spacer(),
                 TextButton.icon(
@@ -258,7 +277,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ],
             ),
-            const Divider(),
+            const Divider(color: AppColors.outline),
             _infoRow('Nome', user.nome),
             _infoRow('E-mail', user.email),
             _infoRow(
@@ -283,8 +302,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: AppColors.textSecondary)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              color: AppColors.textSecondary,
+              fontSize: 14,
+            ),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w500,
+              color: AppColors.onSurface,
+              fontSize: 14,
+            ),
+          ),
         ],
       ),
     );
@@ -293,8 +325,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget _buildWeightChart(List<ProgressModel> progressList) {
     final sorted = List<ProgressModel>.from(progressList)
       ..sort((a, b) => a.data.compareTo(b.data));
-    final weightEntries =
-        sorted.where((p) => p.peso != null).toList();
+    final weightEntries = sorted.where((p) => p.peso != null).toList();
 
     if (weightEntries.isEmpty) return const SizedBox.shrink();
 
@@ -302,40 +333,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       height: 200,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.outline),
       ),
       child: LineChart(
         LineChartData(
-          gridData: const FlGridData(show: false),
+          gridData: const FlGridData(
+            show: false,
+          ),
           titlesData: const FlTitlesData(show: false),
           borderData: FlBorderData(show: false),
           minX: 0,
           maxX: (weightEntries.length - 1).toDouble(),
-          minY: weightEntries.map((e) => e.peso!).reduce(
-                (a, b) => a < b ? a : b,
-              ) -
-              5,
-          maxY: weightEntries.map((e) => e.peso!).reduce(
-                (a, b) => a > b ? a : b,
-              ) +
-              5,
+          minY: weightEntries.map((e) => e.peso!).reduce((a, b) => a < b ? a : b) - 5,
+          maxY: weightEntries.map((e) => e.peso!).reduce((a, b) => a > b ? a : b) + 5,
           lineBarsData: [
             LineChartBarData(
               spots: weightEntries
                   .asMap()
                   .entries
-                  .map((e) => FlSpot(
-                        e.key.toDouble(),
-                        e.value.peso!,
-                      ))
+                  .map((e) => FlSpot(e.key.toDouble(), e.value.peso!))
                   .toList(),
               isCurved: true,
               color: AppColors.primary,
@@ -369,10 +387,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       children: [
         Text(
           AppStrings.progressPhotos,
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(fontWeight: FontWeight.bold),
+          style: GoogleFonts.montserrat(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: AppColors.onSurface,
+          ),
         ),
         const SizedBox(height: 12),
         GridView.builder(
@@ -390,39 +409,39 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 onTap: () => _addProgressPhoto(userId),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: AppColors.primary.withValues(alpha: 0.3),
                       width: 2,
-                      strokeAlign: BorderSide.strokeAlignInside,
                     ),
                   ),
                   child: const Icon(
                     Icons.add_a_photo,
                     color: AppColors.primary,
-                    size: 32,
+                    size: 28,
                   ),
                 ),
               );
             }
             final photo = photos[index];
             return ClipRRect(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
               child: Image.network(
                 photo.foto,
                 fit: BoxFit.cover,
                 loadingBuilder: (_, child, progress) {
                   if (progress == null) return child;
                   return Container(
-                    color: AppColors.backgroundLight,
-                    child: const Center(child: CircularProgressIndicator()),
+                    color: AppColors.surfaceHigh,
+                    child: const Center(
+                      child: CircularProgressIndicator(color: AppColors.primary),
+                    ),
                   );
                 },
                 errorBuilder: (_, __, ___) => Container(
-                  color: AppColors.backgroundLight,
-                  child:
-                      const Icon(Icons.broken_image, color: AppColors.error),
+                  color: AppColors.surfaceHigh,
+                  child: const Icon(Icons.broken_image, color: AppColors.error),
                 ),
               ),
             );
@@ -436,25 +455,34 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final source = await showDialog<ImageSource>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('Alterar foto'),
+        backgroundColor: AppColors.surfaceHigh,
+        title: Text(
+          'Alterar foto',
+          style: GoogleFonts.montserrat(
+            fontWeight: FontWeight.w700,
+            color: AppColors.onSurface,
+          ),
+        ),
         children: [
           SimpleDialogOption(
             onPressed: () => Navigator.pop(ctx, ImageSource.camera),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.camera_alt),
-                SizedBox(width: 12),
-                Text('Câmara'),
+                const Icon(Icons.camera_alt, color: AppColors.primary),
+                const SizedBox(width: 12),
+                Text('Câmara',
+                    style: GoogleFonts.inter(color: AppColors.onSurface)),
               ],
             ),
           ),
           SimpleDialogOption(
             onPressed: () => Navigator.pop(ctx, ImageSource.gallery),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.photo_library),
-                SizedBox(width: 12),
-                Text('Galeria'),
+                const Icon(Icons.photo_library, color: AppColors.primary),
+                const SizedBox(width: 12),
+                Text('Galeria',
+                    style: GoogleFonts.inter(color: AppColors.onSurface)),
               ],
             ),
           ),
@@ -536,7 +564,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text(AppStrings.editProfile),
+        title: Text(
+          AppStrings.editProfile,
+          style: GoogleFonts.montserrat(
+            fontWeight: FontWeight.w700,
+            color: AppColors.onSurface,
+          ),
+        ),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -544,16 +578,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               TextField(
                 controller: nomeController,
                 decoration: const InputDecoration(labelText: 'Nome'),
+                style: GoogleFonts.inter(color: AppColors.onSurface),
               ),
               TextField(
                 controller: pesoController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: 'Peso (kg)'),
+                style: GoogleFonts.inter(color: AppColors.onSurface),
               ),
               TextField(
                 controller: alturaController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: 'Altura (cm)'),
+                style: GoogleFonts.inter(color: AppColors.onSurface),
               ),
             ],
           ),
@@ -579,7 +616,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       final novoPeso = double.tryParse(pesoController.text.replaceAll(',', '.'));
       if (novoPeso != null && novoPeso != user.pesoAtual) {
         updates['pesoAtual'] = novoPeso;
-        // Guarda também como entrada de progresso
         await ref.read(progressRepositoryProvider).addProgress(user.uid, {
           'data': DateTime.now(),
           'peso': novoPeso,
