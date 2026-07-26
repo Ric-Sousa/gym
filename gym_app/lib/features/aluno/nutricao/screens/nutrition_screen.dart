@@ -55,8 +55,25 @@ class NutritionScreen extends ConsumerStatefulWidget {
 }
 
 class _NutritionScreenState extends ConsumerState<NutritionScreen> {
-  int _selectedDayIndex = DateTime.now().weekday - 1;
+  DateTime _selectedDate = DateTime.now();
+  late DateTime _weekStart;
+  double _slideDirection = 1.0;
   String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _weekStart = _mondayOfWeek(DateTime.now());
+  }
+
+  /// Segunda-feira da semana que contém [date].
+  DateTime _mondayOfWeek(DateTime date) {
+    final weekday = date.weekday;
+    return date.subtract(Duration(days: weekday - 1));
+  }
+
+  /// Dia da semana correspondente à data selecionada.
+  String get _diaSemana => AppStrings.daysOfWeek[_selectedDate.weekday - 1];
 
   /// Gramas consumidas por alimento (chave: "${diaSemana}_${tipoRefeicao}_${nomeAlimento}").
   final Map<String, double> _consumoPorAlimento = {};
@@ -70,7 +87,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final userId = authState.user?.uid ?? '';
-    final diaSemana = AppStrings.daysOfWeek[_selectedDayIndex];
+    final diaSemana = _diaSemana;
     final planAsync = ref.watch(nutritionPlanProvider((userId, diaSemana)));
 
     return Scaffold(
@@ -117,40 +134,200 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
   }
 
   Widget _buildDaySelector() {
-    return Container(
-      height: 52,
-      color: AppColors.surfaceLow,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: 7,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        itemBuilder: (context, index) {
-          final isSelected = index == _selectedDayIndex;
-          return GestureDetector(
-            onTap: () => setState(() => _selectedDayIndex = index),
-            child: Container(
-              alignment: Alignment.center,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? AppColors.primary
-                    : AppColors.surfaceHigh,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                AppStrings.daysOfWeekShort[index],
-                style: GoogleFonts.inter(
-                  color: isSelected
-                      ? AppColors.textOnPrimary
-                      : AppColors.textSecondary,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  fontSize: 13,
-                ),
+    final today = DateTime.now();
+    final monthYear = DateFormat('MMMM yyyy', 'pt').format(_weekStart);
+    final days = List.generate(7, (i) => _weekStart.add(Duration(days: i)));
+    final canGoBack = _weekStart.isAfter(_mondayOfWeek(today).subtract(const Duration(days: 60)));
+    final canGoForward = _weekStart.isBefore(_mondayOfWeek(today).add(const Duration(days: 60)));
+
+    Future<void> _openMonthPicker() async {
+      final picked = await showDatePicker(
+        context: context,
+        initialDate: _weekStart,
+        firstDate: DateTime(2020),
+        lastDate: DateTime(2035),
+        initialDatePickerMode: DatePickerMode.day,
+        builder: (ctx, child) => Theme(
+          data: Theme.of(ctx).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: AppColors.primary,
+              onPrimary: AppColors.textOnPrimary,
+              surface: AppColors.surfaceLowest,
+              onSurface: AppColors.onSurface,
+            ),
+          ),
+          child: child!,
+        ),
+      );
+      if (picked != null) {
+        _slideDirection = 1.0;
+        setState(() {
+          _weekStart = _mondayOfWeek(picked);
+          _selectedDate = _weekStart;
+        });
+      }
+    }
+
+    void _navigateWeek(int offset) {
+      _slideDirection = offset.toDouble();
+      setState(() {
+        _weekStart = _weekStart.add(Duration(days: offset * 7));
+        _selectedDate = _weekStart;
+      });
+    }
+
+    return GestureDetector(
+      onHorizontalDragEnd: (details) {
+        if (details.primaryVelocity == null) return;
+        final velocity = details.primaryVelocity!;
+        if (velocity < -400 && canGoForward) {
+          _navigateWeek(1);
+        } else if (velocity > 400 && canGoBack) {
+          _navigateWeek(-1);
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        color: AppColors.surfaceLow,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Mês Ano (tocável) ────────────────────────
+            GestureDetector(
+              onTap: _openMonthPicker,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    monthYear,
+                    style: GoogleFonts.montserrat(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_drop_down,
+                    size: 16,
+                    color: AppColors.onSurfaceVariant.withValues(alpha: 0.6),
+                  ),
+                ],
               ),
             ),
-          );
-        },
+            const SizedBox(height: 4),
+            // ── Setas + dias (com AnimatedSwitcher) ───────
+            Row(
+              children: [
+                // Seta esquerda
+                GestureDetector(
+                  onTap: canGoBack ? () => _navigateWeek(-1) : null,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 2, right: 1),
+                    child: Icon(
+                      Icons.chevron_left,
+                      size: 20,
+                      color: canGoBack
+                          ? AppColors.onSurfaceVariant
+                          : AppColors.outlineVariant.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ),
+                // 7 dias (animados)
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    transitionBuilder: (child, animation) {
+                      return SlideTransition(
+                        position: Tween<Offset>(
+                          begin: Offset(_slideDirection * 0.3, 0.0),
+                          end: Offset.zero,
+                        ).animate(CurvedAnimation(
+                          parent: animation,
+                          curve: Curves.easeOutCubic,
+                        )),
+                        child: FadeTransition(
+                          opacity: animation,
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: Row(
+                      key: ValueKey(_weekStart),
+                      children: days.map((date) {
+                        final isSelected = date.day == _selectedDate.day &&
+                            date.month == _selectedDate.month &&
+                            date.year == _selectedDate.year;
+                        final isToday = date.day == today.day &&
+                            date.month == today.month &&
+                            date.year == today.year;
+                        return Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => _selectedDate = date),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              curve: Curves.easeOutCubic,
+                              height: 32,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? AppColors.primary
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(6),
+                                border: isToday && !isSelected
+                                    ? Border.all(color: AppColors.primary.withValues(alpha: 0.5))
+                                    : null,
+                              ),
+                              child: TweenAnimationBuilder<double>(
+                                duration: const Duration(milliseconds: 150),
+                                tween: Tween<double>(
+                                  begin: 1.0,
+                                  end: isSelected ? 1.1 : 1.0,
+                                ),
+                                builder: (_, scale, child) => Transform.scale(
+                                  scale: scale,
+                                  child: child,
+                                ),
+                                child: Text(
+                                  '${date.day}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    fontWeight: isSelected || isToday ? FontWeight.w700 : FontWeight.w500,
+                                    color: isSelected
+                                        ? AppColors.textOnPrimary
+                                        : isToday
+                                            ? AppColors.onSurface
+                                            : AppColors.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+                // Seta direita
+                GestureDetector(
+                  onTap: canGoForward ? () => _navigateWeek(1) : null,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 2, left: 1),
+                    child: Icon(
+                      Icons.chevron_right,
+                      size: 20,
+                      color: canGoForward
+                          ? AppColors.onSurfaceVariant
+                          : AppColors.outlineVariant.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -167,7 +344,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
     return RefreshIndicator(
       onRefresh: () async {
         ref.invalidate(nutritionPlanProvider(
-            (plan.userId, AppStrings.daysOfWeek[_selectedDayIndex])));
+            (plan.userId, _diaSemana)));
         ref.invalidate(todayConsumedCaloriesProvider(plan.userId));
         ref.invalidate(todayCompletedMealTypesProvider(plan.userId));
       },
