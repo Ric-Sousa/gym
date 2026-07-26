@@ -22,7 +22,7 @@ void main() {
       final diary = DiaryModel(
         data: date,
         userId: userId,
-        refeicoes: const [
+        refeicoes: [
           MealEntry(
             tipo: 'Almoço',
             descricao: 'Arroz e frango',
@@ -42,7 +42,7 @@ void main() {
     });
 
     test('toMap converte corretamente', () {
-      const diary = DiaryModel(
+      final diary = DiaryModel(
         data: date,
         userId: userId,
         agua: 1500,
@@ -63,7 +63,7 @@ void main() {
 
   group('MealEntry', () {
     test('fromMap/toMap são consistentes', () {
-      const meal = MealEntry(
+      final meal = MealEntry(
         tipo: 'Almoço',
         descricao: 'Arroz e feijão',
         calorias: 450,
