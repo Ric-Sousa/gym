@@ -48,6 +48,7 @@ class AppStrings {
   static const String addExtraMeal = 'Adicionar refeição extra';
   static const String searchFood = 'Pesquisar alimento...';
   static const String mealCompleted = 'Refeição concluída!';
+  static const String noConsumptionIndicated = 'Indica a quantidade consumida de pelo menos um alimento.';
   static const String caloriesLabel = 'calorias';
   static const String proteinLabel = 'proteínas';
   static const String carbsLabel = 'hidratos';
