@@ -611,7 +611,7 @@ class _AdminDashboard extends ConsumerWidget {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  const Text('Consulta os planos dos alunos',
+                  Text('Consulta os planos dos alunos',
                       style: GoogleFonts.dmSans(
                           fontSize: 12, color: AppColors.adminMuted)),
                 ],
