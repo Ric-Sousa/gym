@@ -1,41 +1,40 @@
 import 'package:flutter/material.dart';
 
-/// Paleta de cores "Kinetic Dark" — design system de alta performance.
-/// Inspirado pelo DESIGN.md do Stitch.
+/// Paleta de cores "Kinetic Dark" — tons de preto e cinza.
 class AppColors {
   AppColors._();
 
   // ── Background & Surfaces ──────────────────────────────────────
-  /// Fundo principal (OLED-optimized black).
-  static const Color background = Color(0xFF111508);
+  /// Fundo principal (preto puro).
+  static const Color background = Color(0xFF1E1E1E);
 
   /// Container mais baixo.
-  static const Color surfaceLowest = Color(0xFF0C0F04);
+  static const Color surfaceLowest = Color(0xFF0D0D0D);
 
   /// Container baixo.
-  static const Color surfaceLow = Color(0xFF1A1D10);
+  static const Color surfaceLow = Color(0xFF141414);
 
   /// Container padrão.
-  static const Color surface = Color(0xFF1E2113);
+  static const Color surface = Color(0xFF1C1C1C);
 
   /// Container alto.
-  static const Color surfaceHigh = Color(0xFF282B1D);
+  static const Color surfaceHigh = Color(0xFF242424);
 
   /// Container mais alto.
-  static const Color surfaceHighest = Color(0xFF333627);
+  static const Color surfaceHighest = Color(0xFF2E2E2E);
 
   // ── Texto ──────────────────────────────────────────────────────
   /// Texto principal sobre superfícies escuras.
-  static const Color onSurface = Color(0xFFE2E4CF);
+  static const Color onSurface = Color(0xFFE8E8E8);
 
   /// Texto secundário / muted.
-  static const Color onSurfaceVariant = Color(0xFFC4C9AC);
+  static const Color onSurfaceVariant = Color(0xFFB0B0B0);
 
   /// Texto sobre fundo escuro (usado como subtítulo).
-  static const Color textPrimary = Color(0xFFE2E4CF);
+  static const Color textPrimary = Color(0xFFE8E8E8);
 
   /// Texto secundário.
-  static const Color textSecondary = Color(0xFF8E9379);
+  static const Color textSecondary = Color(0xFF808080);
 
   /// Texto sobre cor primária.
   static const Color textOnPrimary = Colors.white;
@@ -68,10 +67,10 @@ class AppColors {
 
   // ── Outlines ───────────────────────────────────────────────────
   /// Contorno de cartões.
-  static const Color outline = Color(0xFF444933);
+  static const Color outline = Color(0xFF333333);
 
   /// Contorno secundário.
-  static const Color outlineVariant = Color(0xFF8E9379);
+  static const Color outlineVariant = Color(0xFF555555);
 
   // ── Semantic ───────────────────────────────────────────────────
   static const Color success = Color(0xFF4CAF50);
@@ -88,15 +87,20 @@ class AppColors {
 
   /// Calorias - laranja mantido.
   static const Color calories = Color(0xFFFF5722);
-  static const Color caloriesLight = Color(0xFF3A2018);
+  static const Color caloriesLight = Color(0xFF2A1A1A);
 
   /// Passos - verde mantido.
   static const Color steps = Color(0xFF8BC34A);
   static const Color stepsLight = Color(0xFF1A2E10);
 
+  // ── Macronutrientes ──────────────────────────────────────
+  static const Color carbs = Color(0xFF2196F3);    // Azul
+  static const Color protein = Color(0xFFE91E63);   // Rosa
+  static const Color fat = Color(0xFFFFC107);       // Amarelo
+
   // ── Rating stars ───────────────────────────────────────────────
   static const Color starFilled = Color(0xFFFFB300);
-  static const Color starEmpty = Color(0xFF444933);
+  static const Color starEmpty = Color(0xFF333333);
 
   // ── Admin ──────────────────────────────────────────────────────
   static const Color adminPrimary = Color(0xFF37474F);

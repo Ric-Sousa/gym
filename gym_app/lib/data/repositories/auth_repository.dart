@@ -49,6 +49,14 @@ class AuthRepository {
     }
   }
 
+  /// Obtém o UserModel a partir do UID do Firebase.
+  /// Usado para restaurar a sessão quando o authStateChanges emite
+  /// um utilizador já autenticado (ex: ao reabrir a app).
+  Future<UserModel> fetchUserModel(String uid) async {
+    final userDoc = await _authDataSource.getUserDoc(uid);
+    return UserModel.fromMap(uid, userDoc.data()! as Map<String, dynamic>);
+  }
+
   /// Termina sessão.
   Future<void> signOut() async {
     await _authDataSource.signOut();

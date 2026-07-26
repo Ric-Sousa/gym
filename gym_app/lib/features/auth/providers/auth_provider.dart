@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/errors/exceptions.dart';
 import '../../../core/errors/failures.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/repositories/auth_repository.dart';
@@ -59,10 +60,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     _authSubscription = _authRepository.authStateChanges.listen(
       (user) {
         if (user != null) {
-          state = state.copyWith(
-            status: AuthStatus.authenticated,
-            firebaseUser: user,
-          );
+          _onUserAuthenticated(user);
         } else {
           state = const AuthState(status: AuthStatus.unauthenticated);
         }
@@ -71,6 +69,42 @@ class AuthNotifier extends StateNotifier<AuthState> {
         state = const AuthState(status: AuthStatus.unauthenticated);
       },
     );
+  }
+
+  /// Obtém o UserModel do Firestore quando o Firebase deteta
+  /// um utilizador autenticado (login inicial ou restauro de sessão).
+  Future<void> _onUserAuthenticated(User firebaseUser) async {
+    // Mantém loading até o UserModel estar disponível,
+    // para evitar que os ecrãs renderizem com state.user == null.
+    state = state.copyWith(
+      status: AuthStatus.loading,
+      firebaseUser: firebaseUser,
+    );
+
+    // Se o UserModel já foi carregado (ex: após signIn), apenas confirma.
+    if (state.user != null && state.user!.uid == firebaseUser.uid) {
+      state = state.copyWith(status: AuthStatus.authenticated);
+      return;
+    }
+
+    try {
+      final userModel =
+          await _authRepository.fetchUserModel(firebaseUser.uid);
+      state = state.copyWith(
+        user: userModel,
+        status: AuthStatus.authenticated,
+      );
+    } on DocumentNotFoundException {
+      await _authRepository.signOut();
+      state = const AuthState(
+        status: AuthStatus.error,
+        errorMessage: 'Conta não encontrada. Contacta o suporte.',
+      );
+    } catch (_) {
+      // Erro transitório (rede, etc.) — define authenticated para que
+      // o utilizador possa tentar refreshUser() ou reabrir a app.
+      state = state.copyWith(status: AuthStatus.authenticated);
+    }
   }
 
   /// Inicia sessão.
@@ -124,11 +158,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   /// Atualiza o userModel após login (ex: quando o stream deteta autenticação).
   Future<void> refreshUser() async {
-    if (state.firebaseUser == null) return;
+    final fbUser = state.firebaseUser;
+    if (fbUser == null) return;
     try {
-      final authDS = _authRepository;
-      // Força o reload do user model
+      final userModel = await _authRepository.fetchUserModel(fbUser.uid);
       state = state.copyWith(
+        user: userModel,
         status: AuthStatus.authenticated,
       );
     } catch (_) {}

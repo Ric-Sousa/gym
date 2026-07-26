@@ -16,6 +16,44 @@ class Alimento {
     this.gorduras,
   });
 
+  /// Tenta extrair os gramas a partir do campo [quantidade].
+  /// Ex: "150g" → 150.0, "200 gramas" → 200.0.
+  /// Retorna null se não for possível fazer o parse.
+  double? get quantidadeGramas {
+    final match = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(quantidade);
+    if (match == null) return null;
+    return double.tryParse(match.group(1)!);
+  }
+
+  /// Calcula calorias proporcionais aos gramas consumidos.
+  /// Se [quantidadeGramas] não estiver disponível, retorna [calorias] total.
+  double caloriasParaGramas(double gramas) {
+    final porcaoG = quantidadeGramas;
+    if (porcaoG == null || porcaoG <= 0) return calorias;
+    return (gramas / porcaoG) * calorias;
+  }
+
+  /// Calcula proteínas proporcionais aos gramas consumidos.
+  double proteinasParaGramas(double gramas) {
+    final porcaoG = quantidadeGramas;
+    if (porcaoG == null || porcaoG <= 0) return proteinas ?? 0;
+    return (gramas / porcaoG) * (proteinas ?? 0);
+  }
+
+  /// Calcula hidratos proporcionais aos gramas consumidos.
+  double hidratosParaGramas(double gramas) {
+    final porcaoG = quantidadeGramas;
+    if (porcaoG == null || porcaoG <= 0) return hidratos ?? 0;
+    return (gramas / porcaoG) * (hidratos ?? 0);
+  }
+
+  /// Calcula gorduras proporcionais aos gramas consumidos.
+  double gordurasParaGramas(double gramas) {
+    final porcaoG = quantidadeGramas;
+    if (porcaoG == null || porcaoG <= 0) return gorduras ?? 0;
+    return (gramas / porcaoG) * (gorduras ?? 0);
+  }
+
   factory Alimento.fromMap(Map<String, dynamic> map) {
     return Alimento(
       nome: map['nome'] as String? ?? '',

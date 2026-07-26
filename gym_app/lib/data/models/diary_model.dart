@@ -5,6 +5,8 @@ class MealEntry {
   final double calorias;
   final String hora; // HH:mm
   final List<String> alimentos;
+  /// Gramas consumidas por alimento (nome → gramas).
+  final Map<String, double> consumoPorAlimento;
 
   const MealEntry({
     required this.tipo,
@@ -12,15 +14,20 @@ class MealEntry {
     required this.calorias,
     required this.hora,
     this.alimentos = const [],
+    this.consumoPorAlimento = const {},
   });
 
   factory MealEntry.fromMap(Map<String, dynamic> map) {
+    final consumoRaw = map['consumoPorAlimento'] as Map<String, dynamic>?;
     return MealEntry(
       tipo: map['tipo'] as String? ?? '',
       descricao: map['descricao'] as String? ?? '',
       calorias: (map['calorias'] as num?)?.toDouble() ?? 0.0,
       hora: map['hora'] as String? ?? '',
       alimentos: List<String>.from(map['alimentos'] as List? ?? []),
+      consumoPorAlimento: consumoRaw?.map(
+        (k, v) => MapEntry(k, (v as num).toDouble()),
+      ) ?? {},
     );
   }
 
@@ -31,6 +38,8 @@ class MealEntry {
       'calorias': calorias,
       'hora': hora,
       'alimentos': alimentos,
+      if (consumoPorAlimento.isNotEmpty)
+        'consumoPorAlimento': consumoPorAlimento,
     };
   }
 
@@ -40,6 +49,7 @@ class MealEntry {
     double? calorias,
     String? hora,
     List<String>? alimentos,
+    Map<String, double>? consumoPorAlimento,
   }) {
     return MealEntry(
       tipo: tipo ?? this.tipo,
@@ -47,6 +57,7 @@ class MealEntry {
       calorias: calorias ?? this.calorias,
       hora: hora ?? this.hora,
       alimentos: alimentos ?? this.alimentos,
+      consumoPorAlimento: consumoPorAlimento ?? this.consumoPorAlimento,
     );
   }
 }
