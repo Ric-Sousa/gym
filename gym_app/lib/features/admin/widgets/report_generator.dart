@@ -4,6 +4,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/config/admin_theme.dart';
 import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../data/models/user_model.dart';
@@ -68,7 +69,7 @@ class ReportGenerator {
       if (context.mounted) {
 <<<<<<< Updated upstream
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Erro ao gerar relatório PDF.'), backgroundColor: AppColors.adminDanger),
+          SnackBar(content: Text('Erro ao gerar relatório PDF.'), backgroundColor: AdminThemeColors.of(context).danger),
         );
 =======
         showAppNotification(context, 'Erro ao gerar relatório PDF.', type: NotificationType.error);

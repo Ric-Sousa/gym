@@ -58,9 +58,22 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   void _listenAuthChanges() {
     _authSubscription = _authRepository.authStateChanges.listen(
-      (user) {
+      (user) async {
         if (user != null) {
-          _onUserAuthenticated(user);
+          // Mostra loading enquanto carrega o UserModel do Firestore
+          state = state.copyWith(status: AuthStatus.loading);
+          try {
+            final userModel = await _authRepository.getUserModel();
+            state = AuthState(
+              status: AuthStatus.authenticated,
+              user: userModel,
+              firebaseUser: user,
+            );
+          } catch (_) {
+            // Se falhar ao carregar o UserModel, faz logout
+            await _authRepository.signOut();
+            state = const AuthState(status: AuthStatus.unauthenticated);
+          }
         } else {
           state = const AuthState(status: AuthStatus.unauthenticated);
         }
