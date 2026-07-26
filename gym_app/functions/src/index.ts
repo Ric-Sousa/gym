@@ -7,6 +7,28 @@ const db = admin.firestore();
 const messaging = admin.messaging();
 
 // ────────────────────────────────────────────────
+// CRIAÇÃO DE UTILIZADOR
+// ────────────────────────────────────────────────
+
+/**
+ * Cria automaticamente o documento do utilizador no Firestore
+ * quando uma nova conta Firebase Auth é criada.
+ * Por defeito todos os novos utilizadores são 'aluno'.
+ * Para criar um admin, define role: 'admin' manualmente no Firestore.
+ */
+export const onUserCreated = functions.auth.user().onCreate(async (user) => {
+  const userDoc = {
+    nome: user.displayName ?? user.email?.split('@')[0] ?? 'Novo Aluno',
+    email: user.email ?? '',
+    role: 'aluno',
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  await db.collection('users').doc(user.uid).set(userDoc);
+  console.log(`User document created for ${user.uid} with role: aluno`);
+});
+
+// ────────────────────────────────────────────────
 // NOTIFICAÇÕES PUSH
 // ────────────────────────────────────────────────
 
