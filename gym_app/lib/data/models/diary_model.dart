@@ -8,7 +8,7 @@ class MealEntry {
   /// Gramas consumidas por alimento (nome → gramas).
   final Map<String, double> consumoPorAlimento;
 
-  const MealEntry({
+  MealEntry({
     required this.tipo,
     required this.descricao,
     required this.calorias,
@@ -73,7 +73,7 @@ class DiaryModel {
   final List<MealEntry> refeicoes;
   final Map<String, dynamic>? treinoData; // dados extra do treino do dia
 
-  const DiaryModel({
+  DiaryModel({
     required this.data,
     required this.userId,
     this.agua = 0,
