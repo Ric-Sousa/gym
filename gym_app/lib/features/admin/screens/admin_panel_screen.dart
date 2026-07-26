@@ -976,7 +976,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                             borderData: FlBorderData(show: false),
                             lineBarsData: [
                               LineChartBarData(
-                                spots: [0, 1, 2, 3, 4, 5, 6].asMap().entries.map((e) => FlSpot(e.key.toDouble(), [80, 80.5, 81, 81.8, 82, 82.3, 82][e.key])).toList(),
+                                spots: [0, 1, 2, 3, 4, 5, 6].asMap().entries.map((e) => FlSpot(e.key.toDouble(), [80.0, 80.5, 81.0, 81.8, 82.0, 82.3, 82.0][e.key])).toList(),
                                 isCurved: true,
                                 color: AppColors.adminLime,
                                 barWidth: 2,
