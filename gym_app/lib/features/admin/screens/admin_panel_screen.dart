@@ -3,20 +3,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/config/app_colors.dart';
 import '../../../data/models/user_model.dart';
+import '../../../data/models/food_model.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../shared/providers/global_providers.dart';
+import '../../../shared/providers/admin_providers.dart';
+import '../../admin/widgets/workout_editor.dart';
+import '../../admin/widgets/nutrition_editor.dart';
 
-// ─── Enums & Providers ────────────────────────────────────────────
+// ─── Enums & Local Providers ──────────────────────────────────────
 
-enum AdminView { dashboard, clients, exercises }
+enum AdminView { dashboard, clients, exercises, foods }
 
 final alunosListProvider = FutureProvider<List<UserModel>>((ref) {
   return ref.read(userRepositoryProvider).getAllAlunos();
 });
 
-final alunosSearchProvider = FutureProvider.family<List<UserModel>, String>((ref, query) {
+final alunosSearchProvider =
+    FutureProvider.family<List<UserModel>, String>((ref, query) {
   if (query.isEmpty) return ref.read(userRepositoryProvider).getAllAlunos();
   return ref.read(userRepositoryProvider).searchAlunos(query);
 });
@@ -76,7 +83,9 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
       case AdminView.clients:
         return _AdminClientsList(onSelect: (c) => setState(() => _selectedClient = c));
       case AdminView.exercises:
-        return _AdminExerciseLibrary();
+        return const _AdminExerciseLibrary();
+      case AdminView.foods:
+        return const _AdminFoodLibrary();
     }
   }
 }
@@ -120,9 +129,11 @@ class _AdminSidebar extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: AppColors.adminLimeDim,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.adminLime.withValues(alpha: 0.3)),
+                    border: Border.all(
+                        color: AppColors.adminLime.withValues(alpha: 0.3)),
                   ),
-                  child: const Icon(Icons.fitness_center, color: AppColors.adminLime, size: 16),
+                  child: const Icon(Icons.fitness_center,
+                      color: AppColors.adminLime, size: 16),
                 ),
                 const SizedBox(width: 10),
                 Text(
@@ -160,6 +171,13 @@ class _AdminSidebar extends StatelessWidget {
             active: currentView == AdminView.exercises,
             onTap: () => onNavigate(AdminView.exercises),
           ),
+          _NavItem(
+            icon: Icons.restaurant_outlined,
+            activeIcon: Icons.restaurant,
+            label: 'Alimentos',
+            active: currentView == AdminView.foods,
+            onTap: () => onNavigate(AdminView.foods),
+          ),
           const Spacer(),
           // Logout
           Padding(
@@ -171,11 +189,13 @@ class _AdminSidebar extends StatelessWidget {
                 padding: const EdgeInsets.all(10),
                 child: Row(
                   children: [
-                    const Icon(Icons.logout, color: AppColors.adminMuted, size: 16),
+                    const Icon(Icons.logout,
+                        color: AppColors.adminMuted, size: 16),
                     const SizedBox(width: 10),
                     Text(
                       'Sair',
-                      style: GoogleFonts.dmSans(color: AppColors.adminMuted, fontSize: 13),
+                      style: GoogleFonts.dmSans(
+                          color: AppColors.adminMuted, fontSize: 13),
                     ),
                   ],
                 ),
@@ -280,6 +300,7 @@ class _AdminDashboard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final statsAsync = ref.watch(adminDashboardStatsProvider);
     final alunosAsync = ref.watch(alunosListProvider);
 
     return SingleChildScrollView(
@@ -287,54 +308,68 @@ class _AdminDashboard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
           Text('DASHBOARD', style: _adminDisplay(40)),
           const SizedBox(height: 4),
           Text(
             DateFormat('EEEE, d MMMM yyyy', 'pt').format(DateTime.now()),
-            style: GoogleFonts.dmSans(fontSize: 14, color: AppColors.adminMuted),
+            style:
+                GoogleFonts.dmSans(fontSize: 14, color: AppColors.adminMuted),
           ),
           const SizedBox(height: 32),
-          // Stats row
-          alunosAsync.when(
-            data: (alunos) {
-              final active = alunos.where((a) => a.ultimaAtividade != null && 
-                  DateTime.now().difference(a.ultimaAtividade!).inDays < 30).length;
-              return _buildStats(alunos.length, active);
-            },
-            loading: () => _buildStats(0, 0),
-            error: (_, __) => _buildStats(0, 0),
+          statsAsync.when(
+            data: (stats) => _buildStats(stats),
+            loading: () => _buildStatsLoading(),
+            error: (_, __) => _buildStatsLoading(),
           ),
           const SizedBox(height: 32),
-          // Clients & Agenda columns
           alunosAsync.when(
             data: (alunos) => _buildDashboardColumns(alunos),
-            loading: () => const Center(child: CircularProgressIndicator(color: AppColors.adminLime)),
-            error: (_, __) => Text('Erro', style: GoogleFonts.dmSans(color: AppColors.adminMuted)),
+            loading: () => const Center(
+                child:
+                    CircularProgressIndicator(color: AppColors.adminLime)),
+            error: (_, __) => Text('Erro',
+                style: GoogleFonts.dmSans(color: AppColors.adminMuted)),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStats(int total, int active) {
-    final stats = [
-      ('Clientes Totais', total, Icons.people, AppColors.adminLime),
-      ('Ativos', active, Icons.trending_up, AppColors.adminBlue),
-      ('Sessões Mês', 38, Icons.calendar_today, AppColors.adminOrange),
-      ('Sessões Totais', 176, Icons.emoji_events, AppColors.adminPurple),
+  Widget _buildStats(AdminDashboardStats stats) {
+    final items = [
+      ('Clientes Totais', stats.totalAlunos, Icons.people, AppColors.adminLime),
+      ('Ativos (30d)', stats.activeAlunos, Icons.trending_up, AppColors.adminBlue),
+      ('Sessões Mês', stats.sessoesMes, Icons.calendar_today, AppColors.adminOrange),
+      ('Sessões Totais', stats.sessoesTotal, Icons.emoji_events, AppColors.adminPurple),
     ];
     return LayoutBuilder(builder: (_, constraints) {
       final cols = constraints.maxWidth > 800 ? 4 : 2;
       return Wrap(
         spacing: 14,
         runSpacing: 14,
-        children: stats.map((s) {
+        children: items.map((s) {
           final width = (constraints.maxWidth - 14 * (cols - 1)) / cols;
-          return SizedBox(
-            width: width,
-            child: _statCard(s.$1, s.$2.toString(), s.$3, s.$4),
-          );
+          return SizedBox(width: width, child: _statCard(s.$1, s.$2.toString(), s.$3, s.$4));
+        }).toList(),
+      );
+    });
+  }
+
+  Widget _buildStatsLoading() {
+    final items = [
+      ('Clientes Totais', '...', Icons.people, AppColors.adminLime),
+      ('Ativos (30d)', '...', Icons.trending_up, AppColors.adminBlue),
+      ('Sessões Mês', '...', Icons.calendar_today, AppColors.adminOrange),
+      ('Sessões Totais', '...', Icons.emoji_events, AppColors.adminPurple),
+    ];
+    return LayoutBuilder(builder: (_, constraints) {
+      final cols = constraints.maxWidth > 800 ? 4 : 2;
+      return Wrap(
+        spacing: 14,
+        runSpacing: 14,
+        children: items.map((s) {
+          final width = (constraints.maxWidth - 14 * (cols - 1)) / cols;
+          return SizedBox(width: width, child: _statCard(s.$1, s.$2, s.$3, s.$4));
         }).toList(),
       );
     });
@@ -355,9 +390,13 @@ class _AdminDashboard extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(label.toUpperCase(),
-                  style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.adminMuted, letterSpacing: 0.04)),
+                  style: GoogleFonts.dmSans(
+                      fontSize: 11,
+                      color: AppColors.adminMuted,
+                      letterSpacing: 0.04)),
               Container(
-                width: 38, height: 38,
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
@@ -368,7 +407,11 @@ class _AdminDashboard extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           Text(value,
-              style: GoogleFonts.barlowCondensed(fontSize: 42, fontWeight: FontWeight.w900, color: AppColors.adminText, height: 1)),
+              style: GoogleFonts.barlowCondensed(
+                  fontSize: 42,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.adminText,
+                  height: 1)),
         ],
       ),
     );
@@ -377,24 +420,29 @@ class _AdminDashboard extends ConsumerWidget {
   Widget _buildDashboardColumns(List<UserModel> alunos) {
     return LayoutBuilder(builder: (_, constraints) {
       final isWide = constraints.maxWidth > 800;
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            flex: isWide ? 2 : 1,
-            child: _clientsCard(alunos),
-          ),
-          if (isWide) ...[
+      if (isWide) {
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 2, child: _clientsCard(alunos)),
             const SizedBox(width: 20),
             Expanded(
-              child: Column(children: [_agendaCard(), const SizedBox(height: 20), _goalsCard(alunos)]),
+              child: Column(children: [
+                _agendaCard(),
+                const SizedBox(height: 20),
+                _goalsCard(alunos),
+              ]),
             ),
-          ] else ...[
-            const SizedBox(height: 20),
-            Expanded(child: _agendaCard()),
-            const SizedBox(height: 20),
-            Expanded(child: _goalsCard(alunos)),
           ],
+        );
+      }
+      return Column(
+        children: [
+          _clientsCard(alunos),
+          const SizedBox(height: 20),
+          _agendaCard(),
+          const SizedBox(height: 20),
+          _goalsCard(alunos),
         ],
       );
     });
@@ -415,37 +463,69 @@ class _AdminDashboard extends ConsumerWidget {
               children: [
                 const Icon(Icons.people, color: AppColors.adminLime, size: 16),
                 const SizedBox(width: 8),
-                Text('CLIENTES', style: GoogleFonts.barlowCondensed(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 0.03, color: AppColors.adminText)),
+                Text('CLIENTES',
+                    style: GoogleFonts.barlowCondensed(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.03,
+                        color: AppColors.adminText)),
                 const Spacer(),
                 TextButton(
                   onPressed: () {},
-                  child: Text('Ver todos', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.adminLime)),
+                  child: Text('Ver todos',
+                      style: GoogleFonts.dmSans(
+                          fontSize: 12, color: AppColors.adminLime)),
                 ),
               ],
             ),
           ),
           const Divider(height: 1, color: AppColors.adminBorder),
-          ...alunos.take(5).map((a) => _clientRow(a)),
+          if (alunos.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(40),
+              child: Column(
+                children: [
+                  const Icon(Icons.people_outline,
+                      size: 48, color: AppColors.adminMuted),
+                  const SizedBox(height: 12),
+                  Text('Nenhum aluno cadastrado',
+                      style: GoogleFonts.dmSans(
+                          color: AppColors.adminMuted, fontSize: 14)),
+                  const SizedBox(height: 4),
+                  Text('Clique em "Clientes" para adicionar o primeiro.',
+                      style: GoogleFonts.dmSans(
+                          color: AppColors.adminMuted, fontSize: 12)),
+                ],
+              ),
+            )
+          else
+            ...alunos.take(5).map((a) => _clientRow(a)),
         ],
       ),
     );
   }
 
   Widget _clientRow(UserModel aluno) {
-    final weight = aluno.pesoAtual ?? 0;
+    final weight = aluno.pesoAtual;
     return InkWell(
       onTap: () => onSelectClient(aluno),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.adminBorder))),
+        decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: AppColors.adminBorder))),
         child: Row(
           children: [
             CircleAvatar(
               radius: 18,
               backgroundColor: AppColors.adminSurface2,
               child: Text(
-                aluno.nome.isNotEmpty ? aluno.nome[0].toUpperCase() : '?',
-                style: GoogleFonts.barlowCondensed(color: AppColors.adminLime, fontWeight: FontWeight.w700, fontSize: 13),
+                aluno.nome.isNotEmpty
+                    ? aluno.nome[0].toUpperCase()
+                    : '?',
+                style: GoogleFonts.barlowCondensed(
+                    color: AppColors.adminLime,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13),
               ),
             ),
             const SizedBox(width: 12),
@@ -453,23 +533,25 @@ class _AdminDashboard extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(aluno.nome, style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.adminText)),
-                  Text('${aluno.email}', style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.adminMuted)),
+                  Text(aluno.nome,
+                      style: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.adminText)),
+                  Text('${aluno.email}',
+                      style: GoogleFonts.dmSans(
+                          fontSize: 11, color: AppColors.adminMuted)),
                 ],
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: AppColors.adminLime.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text('ATIVO', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.adminLime, letterSpacing: 0.06)),
-            ),
-            const SizedBox(width: 12),
-            Text('${weight.toStringAsFixed(0)}kg', style: GoogleFonts.dmMono(fontSize: 13, color: AppColors.adminText)),
-            const SizedBox(width: 8),
-            const Icon(Icons.chevron_right, size: 14, color: AppColors.adminMuted),
+            if (weight != null) ...[
+              Text('${weight.toStringAsFixed(0)}kg',
+                  style: GoogleFonts.dmMono(
+                      fontSize: 13, color: AppColors.adminText)),
+              const SizedBox(width: 8),
+            ],
+            const Icon(Icons.chevron_right,
+                size: 14, color: AppColors.adminMuted),
           ],
         ),
       ),
@@ -487,10 +569,15 @@ class _AdminDashboard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('AGENDA DA SEMANA', style: GoogleFonts.barlowCondensed(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 0.03, color: AppColors.adminText)),
+          Text('AGENDA DA SEMANA',
+              style: GoogleFonts.barlowCondensed(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.03,
+                  color: AppColors.adminText)),
           const SizedBox(height: 16),
           ...['Segunda', 'Quarta', 'Sexta'].map((day) {
-            final isToday = day == 'Quarta';
+            final isToday = _todayWeekday() == day;
             return Padding(
               padding: const EdgeInsets.only(bottom: 14),
               child: Column(
@@ -499,38 +586,34 @@ class _AdminDashboard extends ConsumerWidget {
                   Row(
                     children: [
                       Text(day.toUpperCase(),
-                          style: GoogleFonts.dmSans(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.08,
-                              color: isToday ? AppColors.adminLime : AppColors.adminMuted)),
+                          style: GoogleFonts.dmSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.08,
+                              color: isToday
+                                  ? AppColors.adminLime
+                                  : AppColors.adminMuted)),
                       if (isToday) ...[
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(color: AppColors.adminLime, borderRadius: BorderRadius.circular(20)),
-                          child: Text('HOJE', style: GoogleFonts.dmSans(fontSize: 9, fontWeight: FontWeight.w700, color: AppColors.adminBg)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                              color: AppColors.adminLime,
+                              borderRadius: BorderRadius.circular(20)),
+                          child: Text('HOJE',
+                              style: GoogleFonts.dmSans(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.adminBg)),
                         ),
                       ],
                     ],
                   ),
                   const SizedBox(height: 4),
-                  ...[
-                    'Rafael Mendes 07:00',
-                    'Fernanda Costa 08:30',
-                  ].map((s) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 6, height: 6,
-                              decoration: BoxDecoration(
-                                color: isToday ? AppColors.adminLime : AppColors.adminMuted,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(s, style: GoogleFonts.dmSans(fontSize: 12, color: isToday ? AppColors.adminText : AppColors.adminMuted)),
-                          ],
-                        ),
-                      )),
+                  const Text('Consulta os planos dos alunos',
+                      style: GoogleFonts.dmSans(
+                          fontSize: 12, color: AppColors.adminMuted)),
                 ],
               ),
             );
@@ -541,11 +624,11 @@ class _AdminDashboard extends ConsumerWidget {
   }
 
   Widget _goalsCard(List<UserModel> alunos) {
+    final ativosSemana = alunos.where((a) => a.ultimaAtividade != null && DateTime.now().difference(a.ultimaAtividade!).inDays <= 7).length;
+    final totalAlunos = alunos.length;
     final goals = [
-      ('Hipertrofia', 2, AppColors.adminBlue),
-      ('Emagrecimento', 1, AppColors.adminLime),
-      ('Condicionamento', 1, AppColors.adminOrange),
-      ('Saúde geral', 1, AppColors.adminPurple),
+      ('Ativos esta semana', ativosSemana, AppColors.adminBlue),
+      ('Total de alunos', totalAlunos, AppColors.adminLime),
     ];
     return Container(
       padding: const EdgeInsets.all(20),
@@ -557,7 +640,12 @@ class _AdminDashboard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('OBJETIVOS', style: GoogleFonts.barlowCondensed(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 0.03, color: AppColors.adminText)),
+          Text('MÉTRICAS',
+              style: GoogleFonts.barlowCondensed(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.03,
+                  color: AppColors.adminText)),
           const SizedBox(height: 16),
           ...goals.map((g) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
@@ -566,15 +654,21 @@ class _AdminDashboard extends ConsumerWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(g.$1, style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.adminMuted)),
-                        Text('${g.$2}', style: GoogleFonts.dmMono(fontSize: 12, color: AppColors.adminText)),
+                        Text(g.$1,
+                            style: GoogleFonts.dmSans(
+                                fontSize: 12, color: AppColors.adminMuted)),
+                        Text('${g.$2}',
+                            style: GoogleFonts.dmMono(
+                                fontSize: 12, color: AppColors.adminText)),
                       ],
                     ),
                     const SizedBox(height: 4),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(2),
                       child: LinearProgressIndicator(
-                        value: g.$2 / alunos.length,
+                        value: alunos.isEmpty
+                            ? 0.0
+                            : (g.$2 / alunos.length).clamp(0.0, 1.0),
                         backgroundColor: AppColors.adminSurface2,
                         valueColor: AlwaysStoppedAnimation(g.$3),
                         minHeight: 4,
@@ -586,6 +680,13 @@ class _AdminDashboard extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  String _todayWeekday() {
+    const days = [
+      'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'
+    ];
+    return days[DateTime.now().weekday - 1];
   }
 }
 
@@ -619,21 +720,28 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('CLIENTES', style: _adminDisplay(40)),
-                    Text('${alunosAsync.valueOrNull?.length ?? 0} clientes cadastrados',
-                        style: GoogleFonts.dmSans(fontSize: 14, color: AppColors.adminMuted)),
+                    Text(
+                        '${alunosAsync.valueOrNull?.length ?? 0} clientes cadastrados',
+                        style: GoogleFonts.dmSans(
+                            fontSize: 14, color: AppColors.adminMuted)),
                   ],
                 ),
               ),
               ElevatedButton.icon(
-                onPressed: () {},
+                onPressed: _showCreateStudentDialog,
                 icon: const Icon(Icons.add, size: 16),
                 label: Text('NOVO CLIENTE',
-                    style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.02)),
+                    style: GoogleFonts.dmSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.02)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.adminLime,
                   foregroundColor: AppColors.adminBg,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
                 ),
               ),
             ],
@@ -647,44 +755,64 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                   height: 40,
                   child: TextField(
                     onChanged: (v) => setState(() => _search = v),
-                    style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.adminText),
+                    style: GoogleFonts.dmSans(
+                        fontSize: 13, color: AppColors.adminText),
                     decoration: InputDecoration(
-                      hintText: 'Buscar cliente ou objetivo...',
-                      hintStyle: GoogleFonts.dmSans(fontSize: 13, color: AppColors.adminMuted),
-                      prefixIcon: const Icon(Icons.search, size: 16, color: AppColors.adminMuted),
+                      hintText: 'Buscar cliente...',
+                      hintStyle: GoogleFonts.dmSans(
+                          fontSize: 13, color: AppColors.adminMuted),
+                      prefixIcon: const Icon(Icons.search,
+                          size: 16, color: AppColors.adminMuted),
                       filled: true,
                       fillColor: AppColors.adminSurface,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AppColors.adminBorder),
+                        borderSide:
+                            const BorderSide(color: AppColors.adminBorder),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AppColors.adminBorder),
+                        borderSide:
+                            const BorderSide(color: AppColors.adminBorder),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
                     ),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
-              ...['all', 'active', 'new', 'inactive'].map((f) {
+              ...['all', 'active', 'inactive'].map((f) {
                 final active = _filter == f;
-                final labels = {'all': 'Todos', 'active': 'Ativo', 'new': 'Novo', 'inactive': 'Inativo'};
+                final labels = {
+                  'all': 'Todos',
+                  'active': 'Ativo',
+                  'inactive': 'Inativo'
+                };
                 return Padding(
                   padding: const EdgeInsets.only(left: 6),
                   child: GestureDetector(
                     onTap: () => setState(() => _filter = f),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
-                        color: active ? AppColors.adminSurface2 : AppColors.adminSurface,
+                        color: active
+                            ? AppColors.adminSurface2
+                            : AppColors.adminSurface,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.adminBorder),
+                        border:
+                            Border.all(color: AppColors.adminBorder),
                       ),
                       child: Text(labels[f]!,
-                          style: GoogleFonts.dmSans(fontSize: 12, fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                              color: active ? AppColors.adminText : AppColors.adminMuted)),
+                          style: GoogleFonts.dmSans(
+                              fontSize: 12,
+                              fontWeight: active
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                              color: active
+                                  ? AppColors.adminText
+                                  : AppColors.adminMuted)),
                     ),
                   ),
                 );
@@ -692,11 +820,13 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
             ],
           ),
           const SizedBox(height: 24),
-          // Clients grid
           alunosAsync.when(
             data: (alunos) => _buildGrid(alunos),
-            loading: () => const Center(child: CircularProgressIndicator(color: AppColors.adminLime)),
-            error: (_, __) => Text('Erro', style: GoogleFonts.dmSans(color: AppColors.adminMuted)),
+            loading: () => const Center(
+                child: CircularProgressIndicator(
+                    color: AppColors.adminLime)),
+            error: (_, __) => Text('Erro',
+                style: GoogleFonts.dmSans(color: AppColors.adminMuted)),
           ),
         ],
       ),
@@ -705,13 +835,37 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
 
   Widget _buildGrid(List<UserModel> alunos) {
     final filtered = alunos.where((a) {
-      if (_filter == 'active') return a.ultimaAtividade != null;
-      if (_filter == 'inactive') return a.ultimaAtividade == null;
+      if (_filter == 'active') {
+        return a.ultimaAtividade != null &&
+            DateTime.now().difference(a.ultimaAtividade!).inDays < 30;
+      }
+      if (_filter == 'inactive') {
+        return a.ultimaAtividade == null ||
+            DateTime.now().difference(a.ultimaAtividade!).inDays >= 30;
+      }
       return true;
     }).toList();
 
+    if (filtered.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 60),
+        child: Center(
+          child: Column(
+            children: [
+              const Icon(Icons.person_search, size: 48, color: AppColors.adminMuted),
+              const SizedBox(height: 12),
+              Text('Nenhum cliente encontrado',
+                  style: GoogleFonts.dmSans(color: AppColors.adminMuted)),
+            ],
+          ),
+        ),
+      );
+    }
+
     return LayoutBuilder(builder: (_, constraints) {
-      final cols = constraints.maxWidth > 900 ? 3 : (constraints.maxWidth > 500 ? 2 : 1);
+      final cols = constraints.maxWidth > 900
+          ? 3
+          : (constraints.maxWidth > 500 ? 2 : 1);
       return Wrap(
         spacing: 16,
         runSpacing: 16,
@@ -745,8 +899,13 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                     radius: 22,
                     backgroundColor: AppColors.adminSurface2,
                     child: Text(
-                      aluno.nome.isNotEmpty ? aluno.nome[0].toUpperCase() : '?',
-                      style: GoogleFonts.barlowCondensed(color: AppColors.adminLime, fontWeight: FontWeight.w700, fontSize: 15),
+                      aluno.nome.isNotEmpty
+                          ? aluno.nome[0].toUpperCase()
+                          : '?',
+                      style: GoogleFonts.barlowCondensed(
+                          color: AppColors.adminLime,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -754,37 +913,48 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(aluno.nome, style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.adminText)),
-                        Text('${aluno.pesoAtual ?? '--'} kg', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.adminMuted)),
+                        Text(aluno.nome,
+                            style: GoogleFonts.dmSans(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.adminText)),
+                        Text(
+                            '${aluno.pesoAtual?.toStringAsFixed(1) ?? '--'} kg',
+                            style: GoogleFonts.dmSans(
+                                fontSize: 12,
+                                color: AppColors.adminMuted)),
                       ],
                     ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.adminLime.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text('ATIVO', style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.adminLime, letterSpacing: 0.06)),
                   ),
                 ],
               ),
               const SizedBox(height: 14),
               Row(
                 children: [
-                  _miniStat('OBJETIVO', 'Hipertrofia'),
+                  _miniStat(
+                      'PESO', '${aluno.pesoAtual?.toStringAsFixed(0) ?? '--'}kg'),
                   const SizedBox(width: 8),
-                  _miniStat('PESO', '${aluno.pesoAtual ?? '--'}kg'),
+                  _miniStat(
+                      'ALTURA', '${aluno.altura?.toStringAsFixed(0) ?? '--'}cm'),
                   const SizedBox(width: 8),
-                  _miniStat('SESSÕES', '${aluno.ultimaAtividade != null ? 12 : 0}'),
+                  _miniStat('IMC',
+                      '${aluno.imc?.toStringAsFixed(1) ?? '--'}'),
                 ].map((e) => Expanded(child: e)).toList(),
               ),
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Text('Desde Jan 2024', style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.adminMuted)),
-                  const Spacer(),
-                  const Icon(Icons.chevron_right, size: 14, color: AppColors.adminMuted),
+                  const Icon(Icons.email_outlined,
+                      size: 12, color: AppColors.adminMuted),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(aluno.email,
+                        style: GoogleFonts.dmSans(
+                            fontSize: 11, color: AppColors.adminMuted),
+                        overflow: TextOverflow.ellipsis),
+                  ),
+                  const Icon(Icons.chevron_right,
+                      size: 14, color: AppColors.adminMuted),
                 ],
               ),
             ],
@@ -804,11 +974,145 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.adminMuted, letterSpacing: 0.06)),
-          Text(value, style: GoogleFonts.dmMono(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.adminText)),
+          Text(label,
+              style: GoogleFonts.dmSans(
+                  fontSize: 10,
+                  color: AppColors.adminMuted,
+                  letterSpacing: 0.06)),
+          Text(value,
+              style: GoogleFonts.dmMono(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.adminText)),
         ],
       ),
     );
+  }
+
+  // ─── Create Student Dialog ──────────────────────────────────────
+
+  Future<void> _showCreateStudentDialog() async {
+    final nomeCtrl = TextEditingController();
+    final emailCtrl = TextEditingController();
+    bool loading = false;
+
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.adminSurface,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: const BorderSide(color: AppColors.adminBorder)),
+          title: Text('Novo Cliente',
+              style: GoogleFonts.dmSans(
+                  fontWeight: FontWeight.w700, color: AppColors.adminText)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nomeCtrl,
+                style: GoogleFonts.dmSans(color: AppColors.adminText),
+                decoration: InputDecoration(
+                  labelText: 'Nome completo',
+                  labelStyle: GoogleFonts.dmSans(color: AppColors.adminMuted),
+                  filled: true,
+                  fillColor: AppColors.adminBg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: AppColors.adminBorder),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                style: GoogleFonts.dmSans(color: AppColors.adminText),
+                decoration: InputDecoration(
+                  labelText: 'Email',
+                  labelStyle: GoogleFonts.dmSans(color: AppColors.adminMuted),
+                  filled: true,
+                  fillColor: AppColors.adminBg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: AppColors.adminBorder),
+                  ),
+                ),
+              ),
+              if (loading) ...[
+                const SizedBox(height: 16),
+                const LinearProgressIndicator(color: AppColors.adminLime),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: loading ? null : () => Navigator.pop(ctx),
+              child: Text('Cancelar',
+                  style: GoogleFonts.dmSans(color: AppColors.adminMuted)),
+            ),
+            ElevatedButton(
+              onPressed: loading
+                  ? null
+                  : () async {
+                      if (nomeCtrl.text.trim().isEmpty ||
+                          emailCtrl.text.trim().isEmpty) return;
+                      setDialogState(() => loading = true);
+                      try {
+                        final functions =
+                            FirebaseFunctions.instanceFor(region: 'europe-west1');
+                        final callable =
+                            functions.httpsCallable('createStudent');
+                        final response = await callable.call(<String, dynamic>{
+                          'nome': nomeCtrl.text.trim(),
+                          'email': emailCtrl.text.trim(),
+                        });
+                        final data = response.data as Map<String, dynamic>;
+                        setDialogState(() => loading = false);
+                        Navigator.pop(ctx, {
+                          'uid': data['uid'] as String,
+                          'email': data['email'] as String,
+                          'password': data['temporaryPassword'] as String?,
+                        });
+                      } catch (e) {
+                        setDialogState(() => loading = false);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Erro: ${e.toString()}'),
+                            backgroundColor: AppColors.adminDanger,
+                          ),
+                        );
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.adminLime,
+                foregroundColor: AppColors.adminBg,
+              ),
+              child: Text('Criar',
+                  style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result != null) {
+      ref.invalidate(alunosListProvider);
+      if (mounted) {
+        final hasPassword = result['password'] != null;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(hasPassword
+                ? 'Aluno criado! Password temporária: ${result['password']}'
+                : 'Aluno "${result['email']}" já existia. Documento atualizado.'),
+            backgroundColor: AppColors.adminLime,
+            duration: const Duration(seconds: 8),
+          ),
+        );
+      }
+    }
   }
 }
 
@@ -834,19 +1138,21 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Back
           GestureDetector(
             onTap: widget.onBack,
             child: Row(
               children: [
-                const Icon(Icons.arrow_back, size: 14, color: AppColors.adminMuted),
+                const Icon(Icons.arrow_back,
+                    size: 14, color: AppColors.adminMuted),
                 const SizedBox(width: 6),
-                Text('Clientes', style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.adminMuted)),
+                Text('Clientes',
+                    style: GoogleFonts.dmSans(
+                        fontSize: 13, color: AppColors.adminMuted)),
               ],
             ),
           ),
           const SizedBox(height: 24),
-          // Header card
+          // Header
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
@@ -860,8 +1166,14 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                   radius: 30,
                   backgroundColor: AppColors.adminSurface2,
                   child: Text(
-                    c.nome.isNotEmpty ? c.nome.substring(0, 2).toUpperCase() : '?',
-                    style: GoogleFonts.barlowCondensed(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.adminLime),
+                    c.nome.isNotEmpty
+                        ? c.nome.substring(
+                            0, c.nome.length >= 2 ? 2 : 1).toUpperCase()
+                        : '?',
+                    style: GoogleFonts.barlowCondensed(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.adminLime),
                   ),
                 ),
                 const SizedBox(width: 18),
@@ -870,22 +1182,17 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(c.nome.toUpperCase(),
-                          style: GoogleFonts.barlowCondensed(fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: -0.01, color: AppColors.adminText)),
-                      Text('${c.pesoAtual ?? '-'}kg · ${c.altura ?? '-'}cm · Objetivo: Hipertrofia',
-                          style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.adminMuted)),
+                          style: GoogleFonts.barlowCondensed(
+                              fontSize: 32,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.01,
+                              color: AppColors.adminText)),
+                      Text(
+                          '${c.pesoAtual?.toStringAsFixed(1) ?? '-'}kg · ${c.altura?.toStringAsFixed(0) ?? '-'}cm · IMC: ${c.imc?.toStringAsFixed(1) ?? '-'}',
+                          style: GoogleFonts.dmSans(
+                              fontSize: 13, color: AppColors.adminMuted)),
                     ],
                   ),
-                ),
-                Row(
-                  children: [
-                    _headerStat('PESO ATUAL', '${c.pesoAtual ?? '--'}kg', AppColors.adminText),
-                    const SizedBox(width: 16),
-                    _headerStat('GORDURA', '14%', AppColors.adminOrange),
-                    const SizedBox(width: 16),
-                    _headerStat('SESSÕES', '48', AppColors.adminBlue),
-                    const SizedBox(width: 16),
-                    _headerStat('VARIAÇÃO', '+2.0kg', AppColors.adminLime),
-                  ],
                 ),
               ],
             ),
@@ -902,22 +1209,19 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
             ],
           ),
           const SizedBox(height: 20),
-          // Content
           if (_tab == 'overview') _buildOverview(),
-          if (_tab == 'workout') _buildWorkout(),
-          if (_tab == 'nutrition') _buildNutrition(),
+          if (_tab == 'workout')
+            SizedBox(
+              height: 600,
+              child: WorkoutEditor(aluno: widget.client),
+            ),
+          if (_tab == 'nutrition')
+            SizedBox(
+              height: 600,
+              child: NutritionEditor(aluno: widget.client),
+            ),
         ],
       ),
-    );
-  }
-
-  Widget _headerStat(String label, String value, Color color) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(label, style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.adminMuted, letterSpacing: 0.08)),
-        Text(value, style: GoogleFonts.dmMono(fontSize: 18, fontWeight: FontWeight.w700, color: color)),
-      ],
     );
   }
 
@@ -926,17 +1230,32 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
     return GestureDetector(
       onTap: () => setState(() => _tab = id),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: active ? AppColors.adminLimeDim : AppColors.adminSurface,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: active ? AppColors.adminLime : AppColors.adminBorder),
+          border: Border.all(
+              color: active
+                  ? AppColors.adminLime
+                  : AppColors.adminBorder),
         ),
         child: Row(
           children: [
-            Icon(icon, size: 14, color: active ? AppColors.adminLime : AppColors.adminMuted),
+            Icon(icon,
+                size: 14,
+                color: active
+                    ? AppColors.adminLime
+                    : AppColors.adminMuted),
             const SizedBox(width: 8),
-            Text(label, style: GoogleFonts.dmSans(fontSize: 13, fontWeight: active ? FontWeight.w600 : FontWeight.w400, color: active ? AppColors.adminLime : AppColors.adminMuted)),
+            Text(label,
+                style: GoogleFonts.dmSans(
+                    fontSize: 13,
+                    fontWeight:
+                        active ? FontWeight.w600 : FontWeight.w400,
+                    color: active
+                        ? AppColors.adminLime
+                        : AppColors.adminMuted)),
           ],
         ),
       ),
@@ -944,62 +1263,29 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
   }
 
   Widget _buildOverview() {
+    final c = widget.client;
     return Column(
       children: [
-        // Chart + info cards
         LayoutBuilder(builder: (_, constraints) {
           final wide = constraints.maxWidth > 700;
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: wide ? 3 : 1,
-                child: Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: AppColors.adminSurface,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.adminBorder),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('EVOLUÇÃO DE PESO (7 DIAS)',
-                          style: GoogleFonts.barlowCondensed(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: 0.03, color: AppColors.adminText)),
-                      const SizedBox(height: 16),
-                      SizedBox(
-                        height: 180,
-                        child: LineChart(
-                          LineChartData(
-                            gridData: const FlGridData(show: false),
-                            titlesData: const FlTitlesData(show: false),
-                            borderData: FlBorderData(show: false),
-                            lineBarsData: [
-                              LineChartBarData(
-                                spots: [0, 1, 2, 3, 4, 5, 6].asMap().entries.map((e) => FlSpot(e.key.toDouble(), [80.0, 80.5, 81.0, 81.8, 82.0, 82.3, 82.0][e.key])).toList(),
-                                isCurved: true,
-                                color: AppColors.adminLime,
-                                barWidth: 2,
-                                dotData: FlDotData(show: true, getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(radius: 3, color: AppColors.adminLime, strokeWidth: 0)),
-                                belowBarData: BarAreaData(show: true, color: AppColors.adminLime.withValues(alpha: 0.08)),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+          if (wide) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: _buildWeightChart(),
                 ),
-              ),
-              if (wide) ...[
                 const SizedBox(width: 20),
-                SizedBox(
-                  width: 280,
-                  child: Column(
-                    children: [_workoutSummary(), const SizedBox(height: 16), _nutritionSummary()],
-                  ),
-                ),
+                SizedBox(width: 280, child: _buildInfoCards(c)),
               ],
+            );
+          }
+          return Column(
+            children: [
+              _buildWeightChart(),
+              const SizedBox(height: 16),
+              _buildInfoCards(c),
             ],
           );
         }),
@@ -1007,112 +1293,116 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
     );
   }
 
-  Widget _workoutSummary() {
+  Widget _buildWeightChart() {
+    // Show a placeholder line chart for the client
     return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(color: AppColors.adminSurface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.adminBorder)),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.adminSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.adminBorder),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('PLANO DE TREINO', style: GoogleFonts.barlowCondensed(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 0.05, color: AppColors.adminMuted)),
-          const SizedBox(height: 10),
-          Text('Hipertrofia ABC', style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.adminText)),
-          Text('3 dias por semana', style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.adminMuted)),
-          const SizedBox(height: 10),
-          ...['Segunda - Peito + Tríceps', 'Quarta - Costas + Bíceps', 'Sexta - Pernas + Ombros'].map((d) => Padding(
+          Text('EVOLUÇÃO DE PESO (7 DIAS)',
+              style: GoogleFonts.barlowCondensed(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.03,
+                  color: AppColors.adminText)),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 180,
+            child: LineChart(
+              LineChartData(
+                gridData: const FlGridData(show: false),
+                titlesData: const FlTitlesData(show: false),
+                borderData: FlBorderData(show: false),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: [0, 1, 2, 3, 4, 5, 6]
+                        .asMap()
+                        .entries
+                        .map((e) => FlSpot(
+                            e.key.toDouble(),
+                            [
+                              widget.client.pesoAtual ?? 80.0,
+                              (widget.client.pesoAtual ?? 80.0) + 0.5,
+                              (widget.client.pesoAtual ?? 80.0) + 0.3,
+                              (widget.client.pesoAtual ?? 80.0) + 1.0,
+                              (widget.client.pesoAtual ?? 80.0) + 1.2,
+                              (widget.client.pesoAtual ?? 80.0) + 0.8,
+                              (widget.client.pesoAtual ?? 80.0) + 1.5,
+                            ][e.key]))
+                        .toList(),
+                    isCurved: true,
+                    color: AppColors.adminLime,
+                    barWidth: 2,
+                    dotData: const FlDotData(show: true),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: AppColors.adminLime.withValues(alpha: 0.08),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoCards(UserModel c) {
+    return Column(
+      children: [
+        _infoCard('Dados do Aluno', [
+          ('Peso', '${c.pesoAtual?.toStringAsFixed(1) ?? '--'} kg'),
+          ('Altura', '${c.altura?.toStringAsFixed(0) ?? '--'} cm'),
+          ('IMC', '${c.imc?.toStringAsFixed(1) ?? '--'}'),
+          ('Categoria', '${c.imcCategory ?? '--'}'),
+        ]),
+        const SizedBox(height: 16),
+        _infoCard('Contacto', [
+          ('Email', c.email),
+          ('ID', '${c.uid.substring(0, 8)}...'),
+        ]),
+      ],
+    );
+  }
+
+  Widget _infoCard(String title, List<(String, String)> rows) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.adminSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.adminBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title.toUpperCase(),
+              style: GoogleFonts.barlowCondensed(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.05,
+                  color: AppColors.adminMuted)),
+          const SizedBox(height: 12),
+          ...rows.map((r) => Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: d.split(' - ').map((t) => Text(t, style: GoogleFonts.dmSans(fontSize: 12, color: t.contains('-') ? AppColors.adminText : AppColors.adminMuted))).toList(),
-                ),
-              )),
-        ],
-      ),
-    );
-  }
-
-  Widget _nutritionSummary() {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(color: AppColors.adminSurface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.adminBorder)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('NUTRIÇÃO DIÁRIA', style: GoogleFonts.barlowCondensed(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 0.05, color: AppColors.adminMuted)),
-          const SizedBox(height: 10),
-          LayoutBuilder(builder: (_, __) {
-            final macros = [
-              ('Calorias', '2800 kcal', AppColors.adminOrange),
-              ('Proteína', '180g', AppColors.adminBlue),
-              ('Carboidrato', '320g', AppColors.adminLime),
-              ('Gordura', '75g', AppColors.adminPurple),
-            ];
-            return Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: macros.map((m) => SizedBox(
-                    width: 120,
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(color: AppColors.adminBg, borderRadius: BorderRadius.circular(8)),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(m.$1.toUpperCase(), style: GoogleFonts.dmSans(fontSize: 10, color: AppColors.adminMuted)),
-                          Text(m.$2, style: GoogleFonts.dmMono(fontSize: 14, fontWeight: FontWeight.w600, color: m.$3)),
-                        ],
-                      ),
-                    ),
-                  )).toList(),
-            );
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildWorkout() {
-    return Container(
-      decoration: BoxDecoration(color: AppColors.adminSurface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.adminBorder)),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: AppColors.adminLimeDim, border: const Border(bottom: BorderSide(color: AppColors.adminBorder))),
-            child: Row(
-              children: [
-                Text('SEGUNDA — PEITO + TRÍCEPS',
-                    style: GoogleFonts.barlowCondensed(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: 0.04, color: AppColors.adminLime)),
-              ],
-            ),
-          ),
-          ...[
-            ('01', 'Supino Reto', 'Peito · Barra', '4x', '8-10', '90s'),
-            ('02', 'Crucifixo', 'Peito · Halter', '3x', '12-15', '60s'),
-            ('03', 'Tríceps Corda', 'Tríceps · Polia', '4x', '10-12', '60s'),
-          ].map((e) => Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.adminBorder))),
-                child: Row(
                   children: [
-                    SizedBox(
-                      width: 60,
-                      child: Text(e.$1, style: GoogleFonts.barlowCondensed(fontSize: 28, fontWeight: FontWeight.w900, color: AppColors.adminLime.withValues(alpha: 0.2))),
-                    ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(e.$2, style: GoogleFonts.dmSans(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.adminText)),
-                          Text(e.$3, style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.adminMuted)),
-                        ],
-                      ),
-                    ),
-                    _exStat('SÉRIES', e.$4),
-                    const SizedBox(width: 16),
-                    _exStat('REPS', e.$5),
-                    const SizedBox(width: 16),
-                    _exStat('DESCANSO', e.$6),
+                    Text(r.$1,
+                        style: GoogleFonts.dmSans(
+                            fontSize: 12, color: AppColors.adminMuted)),
+                    Text(r.$2,
+                        style: GoogleFonts.dmMono(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.adminText)),
                   ],
                 ),
               )),
@@ -1120,120 +1410,69 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
       ),
     );
   }
-
-  Widget _exStat(String label, String value) {
-    return Column(
-      children: [
-        Text(label, style: GoogleFonts.dmSans(fontSize: 9, color: AppColors.adminMuted, letterSpacing: 0.08)),
-        Text(value, style: GoogleFonts.dmMono(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.adminText)),
-      ],
-    );
-  }
-
-  Widget _buildNutrition() {
-    return Column(
-      children: [
-        // Macro cards
-        LayoutBuilder(builder: (_, constraints) {
-          final macros = [
-            ('Calorias Totais', '2800', 'kcal', AppColors.adminOrange, 100),
-            ('Proteína', '180', 'g/dia', AppColors.adminBlue, 26.0),
-            ('Carboidrato', '320', 'g/dia', AppColors.adminLime, 46.0),
-            ('Gordura', '75', 'g/dia', AppColors.adminPurple, 24.0),
-          ];
-          return Wrap(
-            spacing: 14,
-            runSpacing: 14,
-            children: macros.map((m) {
-              final w = constraints.maxWidth > 800 ? (constraints.maxWidth - 42) / 4 : (constraints.maxWidth - 14) / 2;
-              return SizedBox(
-                width: w,
-                child: Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(color: AppColors.adminSurface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.adminBorder)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(m.$1.toUpperCase(), style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.adminMuted, letterSpacing: 0.06)),
-                      const SizedBox(height: 4),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(m.$2, style: GoogleFonts.barlowCondensed(fontSize: 36, fontWeight: FontWeight.w900, color: m.$4, height: 1)),
-                          const SizedBox(width: 6),
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Text(m.$3, style: GoogleFonts.dmSans(fontSize: 12, color: AppColors.adminMuted)),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(2),
-                        child: LinearProgressIndicator(
-                          value: m.$5 / 100,
-                          backgroundColor: AppColors.adminSurface2,
-                          valueColor: AlwaysStoppedAnimation(m.$4),
-                          minHeight: 4,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text('${m.$5}% das calorias', style: GoogleFonts.dmSans(fontSize: 11, color: AppColors.adminMuted)),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-          );
-        }),
-      ],
-    );
-  }
 }
 
 // ─── Exercise Library View ────────────────────────────────────────
 
-class _AdminExerciseLibrary extends StatefulWidget {
+class _AdminExerciseLibrary extends ConsumerStatefulWidget {
+  const _AdminExerciseLibrary();
+
   @override
-  State<_AdminExerciseLibrary> createState() => _AdminExerciseLibraryState();
+  ConsumerState<_AdminExerciseLibrary> createState() =>
+      _AdminExerciseLibraryState();
 }
 
-class _AdminExerciseLibraryState extends State<_AdminExerciseLibrary> {
+class _AdminExerciseLibraryState
+    extends ConsumerState<_AdminExerciseLibrary> {
   String _search = '';
   String _muscle = 'Todos';
 
-  static const _exercises = [
-    ('Supino Reto', 'Peito', 'Barra', 'intermediate'),
-    ('Agachamento Livre', 'Quadríceps', 'Barra', 'advanced'),
-    ('Levantamento Terra', 'Posterior', 'Barra', 'advanced'),
-    ('Puxada Frontal', 'Costas', 'Polia', 'beginner'),
-    ('Desenvolvimento', 'Ombros', 'Halter', 'intermediate'),
-    ('Rosca Direta', 'Bíceps', 'Barra', 'beginner'),
-    ('Tríceps Corda', 'Tríceps', 'Polia', 'beginner'),
-    ('Leg Press 45°', 'Quadríceps', 'Máquina', 'beginner'),
-    ('Remada Curvada', 'Costas', 'Barra', 'intermediate'),
-    ('Crucifixo', 'Peito', 'Halter', 'beginner'),
+  static const _muscles = [
+    'Todos', 'Peito', 'Costas', 'Quadríceps', 'Posterior',
+    'Ombros', 'Bíceps', 'Tríceps', 'Core', 'Glúteos'
   ];
-
-  static const _muscles = ['Todos', 'Peito', 'Costas', 'Quadríceps', 'Posterior', 'Ombros', 'Bíceps', 'Tríceps', 'Core'];
-  static const _diffLabels = {'beginner': 'Iniciante', 'intermediate': 'Intermediário', 'advanced': 'Avançado'};
-  static const _diffColors = {'beginner': AppColors.adminLime, 'intermediate': AppColors.adminOrange, 'advanced': AppColors.adminDanger};
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _exercises.where((e) {
-      final matchSearch = e.$1.toLowerCase().contains(_search.toLowerCase()) || e.$3.toLowerCase().contains(_search.toLowerCase());
-      final matchMuscle = _muscle == 'Todos' || e.$2 == _muscle;
-      return matchSearch && matchMuscle;
-    }).toList();
+    final exercisesAsync = ref.watch(adminExercisesProvider);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(36),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('BIBLIOTECA DE EXERCÍCIOS', style: _adminDisplay(40)),
-          Text('${_exercises.length} exercícios cadastrados', style: GoogleFonts.dmSans(fontSize: 14, color: AppColors.adminMuted)),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('BIBLIOTECA DE EXERCÍCIOS',
+                        style: _adminDisplay(40)),
+                    Text(
+                        '${exercisesAsync.valueOrNull?.length ?? 0} exercícios',
+                        style: GoogleFonts.dmSans(
+                            fontSize: 14, color: AppColors.adminMuted)),
+                  ],
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: _showAddExerciseDialog,
+                icon: const Icon(Icons.add, size: 16),
+                label: Text('NOVO EXERCÍCIO',
+                    style: GoogleFonts.dmSans(
+                        fontSize: 13, fontWeight: FontWeight.w700)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.adminLime,
+                  foregroundColor: AppColors.adminBg,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 24),
           // Search
           SizedBox(
@@ -1241,20 +1480,30 @@ class _AdminExerciseLibraryState extends State<_AdminExerciseLibrary> {
             height: 40,
             child: TextField(
               onChanged: (v) => setState(() => _search = v),
-              style: GoogleFonts.dmSans(fontSize: 13, color: AppColors.adminText),
+              style: GoogleFonts.dmSans(
+                  fontSize: 13, color: AppColors.adminText),
               decoration: InputDecoration(
-                hintText: 'Buscar exercício ou equipamento...',
-                hintStyle: GoogleFonts.dmSans(fontSize: 13, color: AppColors.adminMuted),
-                prefixIcon: const Icon(Icons.search, size: 16, color: AppColors.adminMuted),
-                filled: true, fillColor: AppColors.adminSurface,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.adminBorder)),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.adminBorder)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                hintText: 'Buscar exercício...',
+                hintStyle: GoogleFonts.dmSans(
+                    fontSize: 13, color: AppColors.adminMuted),
+                prefixIcon: const Icon(Icons.search,
+                    size: 16, color: AppColors.adminMuted),
+                filled: true,
+                fillColor: AppColors.adminSurface,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                        color: AppColors.adminBorder)),
+                enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                        color: AppColors.adminBorder)),
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 10),
               ),
             ),
           ),
           const SizedBox(height: 14),
-          // Muscle filters
           Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -1263,69 +1512,135 @@ class _AdminExerciseLibraryState extends State<_AdminExerciseLibrary> {
               return GestureDetector(
                 onTap: () => setState(() => _muscle = m),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: active ? AppColors.adminLimeDim : Colors.transparent,
+                    color: active
+                        ? AppColors.adminLimeDim
+                        : Colors.transparent,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: active ? AppColors.adminLime : AppColors.adminBorder),
+                    border: Border.all(
+                        color: active
+                            ? AppColors.adminLime
+                            : AppColors.adminBorder),
                   ),
-                  child: Text(m, style: GoogleFonts.dmSans(fontSize: 12, color: active ? AppColors.adminLime : AppColors.adminMuted)),
+                  child: Text(m,
+                      style: GoogleFonts.dmSans(
+                          fontSize: 12,
+                          color: active
+                              ? AppColors.adminLime
+                              : AppColors.adminMuted)),
                 ),
               );
             }).toList(),
           ),
           const SizedBox(height: 24),
-          // Grid
-          LayoutBuilder(builder: (_, constraints) {
-            final cols = constraints.maxWidth > 700 ? 3 : (constraints.maxWidth > 400 ? 2 : 1);
-            return Wrap(
-              spacing: 14,
-              runSpacing: 14,
-              children: filtered.asMap().entries.map((entry) {
-                final i = entry.key;
-                final e = entry.value;
-                final w = (constraints.maxWidth - 14 * (cols - 1)) / cols;
-                return SizedBox(
-                  width: w,
-                  child: Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(color: AppColors.adminSurface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.adminBorder)),
+          exercisesAsync.when(
+            data: (exercises) {
+              final filtered = exercises.where((e) {
+                final name = (e['nome'] as String? ?? '').toLowerCase();
+                final muscle = e['grupoMuscular'] as String? ?? '';
+                final matchSearch = name.contains(_search.toLowerCase());
+                final matchMuscle =
+                    _muscle == 'Todos' || muscle == _muscle;
+                return matchSearch && matchMuscle;
+              }).toList();
+
+              if (filtered.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(60),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('${(i + 1).toString().padLeft(2, '0')}',
-                                style: GoogleFonts.barlowCondensed(fontSize: 48, fontWeight: FontWeight.w900, color: AppColors.adminText.withValues(alpha: 0.04), height: 1)),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: _diffColors[e.$4]!.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(_diffLabels[e.$4]!.toUpperCase(),
-                                  style: GoogleFonts.dmSans(fontSize: 10, fontWeight: FontWeight.w700, color: _diffColors[e.$4], letterSpacing: 0.06)),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(e.$1, style: GoogleFonts.dmSans(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.adminText)),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            _exChip(e.$2, AppColors.adminBlue),
-                            const SizedBox(width: 6),
-                            _exChip(e.$3, AppColors.adminMuted),
-                          ],
-                        ),
+                        const Icon(Icons.fitness_center,
+                            size: 48, color: AppColors.adminMuted),
+                        const SizedBox(height: 12),
+                        Text('Nenhum exercício encontrado',
+                            style: GoogleFonts.dmSans(
+                                color: AppColors.adminMuted)),
                       ],
                     ),
                   ),
                 );
-              }).toList(),
-            );
-          }),
+              }
+
+              return LayoutBuilder(builder: (_, constraints) {
+                final cols = constraints.maxWidth > 700
+                    ? 3
+                    : (constraints.maxWidth > 400 ? 2 : 1);
+                return Wrap(
+                  spacing: 14,
+                  runSpacing: 14,
+                  children: filtered.asMap().entries.map((entry) {
+                    final i = entry.key;
+                    final e = entry.value;
+                    final w = (constraints.maxWidth - 14 * (cols - 1)) / cols;
+                    final nome = e['nome'] as String? ?? '';
+                    final grupo =
+                        e['grupoMuscular'] as String? ?? 'Geral';
+                    final equipamento =
+                        e['equipamento'] as String? ?? 'Corpo';
+                    return SizedBox(
+                      width: w,
+                      child: Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: AppColors.adminSurface,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                              color: AppColors.adminBorder),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                                '${(i + 1).toString().padLeft(2, '0')}',
+                                style: GoogleFonts.barlowCondensed(
+                                    fontSize: 48,
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.adminText
+                                        .withValues(alpha: 0.04),
+                                    height: 1)),
+                            const SizedBox(height: 8),
+                            Text(nome,
+                                style: GoogleFonts.dmSans(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.adminText)),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                _exChip(
+                                    grupo, AppColors.adminBlue),
+                                const SizedBox(width: 6),
+                                _exChip(equipamento,
+                                    AppColors.adminMuted),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                );
+              });
+            },
+            loading: () => const Center(
+                child: CircularProgressIndicator(
+                    color: AppColors.adminLime)),
+            error: (_, __) => Center(
+              child: Column(
+                children: [
+                  const Icon(Icons.error_outline,
+                      size: 32, color: AppColors.adminMuted),
+                  const SizedBox(height: 8),
+                  Text('Erro ao carregar exercícios',
+                      style: GoogleFonts.dmSans(
+                          color: AppColors.adminMuted)),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1334,8 +1649,565 @@ class _AdminExerciseLibraryState extends State<_AdminExerciseLibrary> {
   Widget _exChip(String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
-      child: Text(label, style: GoogleFonts.dmSans(fontSize: 11, color: color)),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(label,
+          style: GoogleFonts.dmSans(fontSize: 11, color: color)),
+    );
+  }
+
+  Future<void> _showAddExerciseDialog() async {
+    final nomeCtrl = TextEditingController();
+    final grupoCtrl = TextEditingController();
+    final equipCtrl = TextEditingController();
+    String selectedGrupo = 'Peito';
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.adminSurface,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: const BorderSide(color: AppColors.adminBorder)),
+          title: Text('Novo Exercício',
+              style: GoogleFonts.dmSans(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.adminText)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nomeCtrl,
+                  style: GoogleFonts.dmSans(color: AppColors.adminText),
+                  decoration: InputDecoration(
+                    labelText: 'Nome do exercício',
+                    labelStyle: GoogleFonts.dmSans(
+                        color: AppColors.adminMuted),
+                    filled: true,
+                    fillColor: AppColors.adminBg,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: selectedGrupo,
+                  dropdownColor: AppColors.adminSurface,
+                  style: GoogleFonts.dmSans(color: AppColors.adminText),
+                  decoration: InputDecoration(
+                    labelText: 'Grupo Muscular',
+                    labelStyle: GoogleFonts.dmSans(
+                        color: AppColors.adminMuted),
+                    filled: true,
+                    fillColor: AppColors.adminBg,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  items: _muscles
+                      .where((m) => m != 'Todos')
+                      .map((m) => DropdownMenuItem(
+                          value: m,
+                          child: Text(m,
+                              style: GoogleFonts.dmSans(
+                                  color: AppColors.adminText))))
+                      .toList(),
+                  onChanged: (v) => setDialogState(
+                      () => selectedGrupo = v ?? 'Peito'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: equipCtrl,
+                  style: GoogleFonts.dmSans(color: AppColors.adminText),
+                  decoration: InputDecoration(
+                    hintText: 'Ex: Barra, Halter, Máquina, Polia...',
+                    labelText: 'Equipamento',
+                    labelStyle: GoogleFonts.dmSans(
+                        color: AppColors.adminMuted),
+                    filled: true,
+                    fillColor: AppColors.adminBg,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancelar',
+                  style:
+                      GoogleFonts.dmSans(color: AppColors.adminMuted)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (nomeCtrl.text.trim().isEmpty) return;
+                try {
+                  final firestore = FirebaseFirestore.instance;
+                  await firestore.collection('exercicios').add({
+                    'nome': nomeCtrl.text.trim(),
+                    'grupoMuscular': selectedGrupo,
+                    'equipamento': equipCtrl.text.trim().isNotEmpty
+                        ? equipCtrl.text.trim()
+                        : 'Corpo',
+                  });
+                  ref.invalidate(adminExercisesProvider);
+                  if (mounted) Navigator.pop(ctx);
+                } catch (_) {}
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.adminLime,
+                foregroundColor: AppColors.adminBg,
+              ),
+              child: Text('Adicionar',
+                  style: GoogleFonts.dmSans(
+                      fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Food Library View ────────────────────────────────────────────
+
+class _AdminFoodLibrary extends ConsumerStatefulWidget {
+  const _AdminFoodLibrary();
+
+  @override
+  ConsumerState<_AdminFoodLibrary> createState() =>
+      _AdminFoodLibraryState();
+}
+
+class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
+  String _search = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final foodsAsync = ref.watch(adminFoodsSearchProvider(_search));
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(36),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('BIBLIOTECA DE ALIMENTOS',
+                        style: _adminDisplay(40)),
+                    Text(
+                        '${foodsAsync.valueOrNull?.length ?? 0} alimentos',
+                        style: GoogleFonts.dmSans(
+                            fontSize: 14, color: AppColors.adminMuted)),
+                  ],
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: _showAddFoodDialog,
+                icon: const Icon(Icons.add, size: 16),
+                label: Text('NOVO ALIMENTO',
+                    style: GoogleFonts.dmSans(
+                        fontSize: 13, fontWeight: FontWeight.w700)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.adminLime,
+                  foregroundColor: AppColors.adminBg,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: 360,
+            height: 40,
+            child: TextField(
+              onChanged: (v) => setState(() => _search = v),
+              style: GoogleFonts.dmSans(
+                  fontSize: 13, color: AppColors.adminText),
+              decoration: InputDecoration(
+                hintText: 'Buscar alimento...',
+                hintStyle: GoogleFonts.dmSans(
+                    fontSize: 13, color: AppColors.adminMuted),
+                prefixIcon: const Icon(Icons.search,
+                    size: 16, color: AppColors.adminMuted),
+                filled: true,
+                fillColor: AppColors.adminSurface,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                        color: AppColors.adminBorder)),
+                enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                        color: AppColors.adminBorder)),
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 10),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          foodsAsync.when(
+            data: (foods) {
+              if (foods.isEmpty) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(60),
+                    child: Column(
+                      children: [
+                        const Icon(Icons.restaurant,
+                            size: 48, color: AppColors.adminMuted),
+                        const SizedBox(height: 12),
+                        Text('Nenhum alimento encontrado',
+                            style: GoogleFonts.dmSans(
+                                color: AppColors.adminMuted)),
+                        const SizedBox(height: 8),
+                        Text(
+                            'Adiciona os primeiros alimentos à biblioteca.',
+                            style: GoogleFonts.dmSans(
+                                fontSize: 12,
+                                color: AppColors.adminMuted)),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              return LayoutBuilder(builder: (_, constraints) {
+                final cols = constraints.maxWidth > 900
+                    ? 4
+                    : (constraints.maxWidth > 600
+                        ? 3
+                        : (constraints.maxWidth > 400 ? 2 : 1));
+                return Wrap(
+                  spacing: 14,
+                  runSpacing: 14,
+                  children: foods.map((food) {
+                    final w =
+                        (constraints.maxWidth - 14 * (cols - 1)) / cols;
+                    return SizedBox(
+                      width: w,
+                      child: _foodCard(food),
+                    );
+                  }).toList(),
+                );
+              });
+            },
+            loading: () => const Center(
+                child: CircularProgressIndicator(
+                    color: AppColors.adminLime)),
+            error: (_, __) => Center(
+              child: Text('Erro',
+                  style: GoogleFonts.dmSans(
+                      color: AppColors.adminMuted)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _foodCard(FoodModel food) {
+    final categoryColors = {
+      'proteina': AppColors.adminBlue,
+      'hidrato': AppColors.adminOrange,
+      'gordura': AppColors.adminPurple,
+      'vegetal': AppColors.adminLime,
+      'laticinio': AppColors.adminBlue,
+      'fruta': AppColors.adminLime,
+      'bebida': AppColors.adminText,
+    };
+    final catColor =
+        categoryColors[food.categoria] ?? AppColors.adminMuted;
+    final catLabel = food.categoria ?? 'Geral';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.adminSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.adminBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(food.nome,
+                    style: GoogleFonts.dmSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.adminText)),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: catColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(catLabel.toUpperCase(),
+                    style: GoogleFonts.dmSans(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: catColor,
+                        letterSpacing: 0.06)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+              '${food.caloriasPor100g.toStringAsFixed(0)} kcal / 100g',
+              style: GoogleFonts.dmMono(
+                  fontSize: 13, color: AppColors.adminLime)),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              if (food.proteinasPor100g != null)
+                _macroChip(
+                    'P: ${food.proteinasPor100g!.toStringAsFixed(1)}g',
+                    AppColors.adminBlue),
+              if (food.hidratosPor100g != null) ...[
+                const SizedBox(width: 4),
+                _macroChip(
+                    'C: ${food.hidratosPor100g!.toStringAsFixed(1)}g',
+                    AppColors.adminOrange),
+              ],
+              if (food.gordurasPor100g != null) ...[
+                const SizedBox(width: 4),
+                _macroChip(
+                    'G: ${food.gordurasPor100g!.toStringAsFixed(1)}g',
+                    AppColors.adminPurple),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _macroChip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(label,
+          style: GoogleFonts.dmSans(
+              fontSize: 10, color: color, fontWeight: FontWeight.w500)),
+    );
+  }
+
+  Future<void> _showAddFoodDialog() async {
+    final nomeCtrl = TextEditingController();
+    final calCtrl = TextEditingController();
+    final protCtrl = TextEditingController();
+    final carbCtrl = TextEditingController();
+    final gordCtrl = TextEditingController();
+    String selectedCat = 'proteina';
+
+    final categories = [
+      'proteina', 'hidrato', 'gordura', 'vegetal',
+      'laticinio', 'fruta', 'bebida', 'outro'
+    ];
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.adminSurface,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: const BorderSide(color: AppColors.adminBorder)),
+          title: Text('Novo Alimento',
+              style: GoogleFonts.dmSans(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.adminText)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nomeCtrl,
+                  style: GoogleFonts.dmSans(color: AppColors.adminText),
+                  decoration: InputDecoration(
+                    labelText: 'Nome do alimento',
+                    labelStyle: GoogleFonts.dmSans(
+                        color: AppColors.adminMuted),
+                    filled: true,
+                    fillColor: AppColors.adminBg,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: calCtrl,
+                  keyboardType: TextInputType.number,
+                  style: GoogleFonts.dmSans(color: AppColors.adminText),
+                  decoration: InputDecoration(
+                    labelText: 'Calorias (por 100g/ml)',
+                    labelStyle: GoogleFonts.dmSans(
+                        color: AppColors.adminMuted),
+                    filled: true,
+                    fillColor: AppColors.adminBg,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: protCtrl,
+                        keyboardType: TextInputType.number,
+                        style: GoogleFonts.dmSans(
+                            color: AppColors.adminText),
+                        decoration: InputDecoration(
+                          labelText: 'Proteína (g)',
+                          labelStyle: GoogleFonts.dmSans(
+                              color: AppColors.adminMuted,
+                              fontSize: 12),
+                          filled: true,
+                          fillColor: AppColors.adminBg,
+                          border: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(10)),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 8),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: carbCtrl,
+                        keyboardType: TextInputType.number,
+                        style: GoogleFonts.dmSans(
+                            color: AppColors.adminText),
+                        decoration: InputDecoration(
+                          labelText: 'Hidratos (g)',
+                          labelStyle: GoogleFonts.dmSans(
+                              color: AppColors.adminMuted,
+                              fontSize: 12),
+                          filled: true,
+                          fillColor: AppColors.adminBg,
+                          border: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(10)),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 8),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: gordCtrl,
+                        keyboardType: TextInputType.number,
+                        style: GoogleFonts.dmSans(
+                            color: AppColors.adminText),
+                        decoration: InputDecoration(
+                          labelText: 'Gordura (g)',
+                          labelStyle: GoogleFonts.dmSans(
+                              color: AppColors.adminMuted,
+                              fontSize: 12),
+                          filled: true,
+                          fillColor: AppColors.adminBg,
+                          border: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(10)),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 8),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: selectedCat,
+                  dropdownColor: AppColors.adminSurface,
+                  style:
+                      GoogleFonts.dmSans(color: AppColors.adminText),
+                  decoration: InputDecoration(
+                    labelText: 'Categoria',
+                    labelStyle: GoogleFonts.dmSans(
+                        color: AppColors.adminMuted),
+                    filled: true,
+                    fillColor: AppColors.adminBg,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  items: categories
+                      .map((c) => DropdownMenuItem(
+                          value: c,
+                          child: Text(c,
+                              style: GoogleFonts.dmSans(
+                                  color:
+                                      AppColors.adminText))))
+                      .toList(),
+                  onChanged: (v) => setDialogState(
+                      () => selectedCat = v ?? 'proteina'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancelar',
+                  style: GoogleFonts.dmSans(
+                      color: AppColors.adminMuted)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (nomeCtrl.text.trim().isEmpty) return;
+                try {
+                  await ref
+                      .read(nutritionRepositoryProvider)
+                      .addFood({
+                    'nome': nomeCtrl.text.trim(),
+                    'caloriasPor100g':
+                        double.tryParse(calCtrl.text.replaceAll(',', '.')) ?? 0,
+                    'proteinasPor100g':
+                        double.tryParse(protCtrl.text.replaceAll(',', '.')),
+                    'hidratosPor100g':
+                        double.tryParse(carbCtrl.text.replaceAll(',', '.')),
+                    'gordurasPor100g':
+                        double.tryParse(gordCtrl.text.replaceAll(',', '.')),
+                    'categoria': selectedCat,
+                  });
+                  ref.invalidate(adminFoodsProvider);
+                  if (mounted) Navigator.pop(ctx);
+                } catch (_) {}
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.adminLime,
+                foregroundColor: AppColors.adminBg,
+              ),
+              child: Text('Adicionar',
+                  style: GoogleFonts.dmSans(
+                      fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1344,6 +2216,9 @@ class _AdminExerciseLibraryState extends State<_AdminExerciseLibrary> {
 
 TextStyle _adminDisplay(double size) {
   return GoogleFonts.barlowCondensed(
-    fontSize: size, fontWeight: FontWeight.w900, letterSpacing: -0.01, color: AppColors.adminText,
+    fontSize: size,
+    fontWeight: FontWeight.w900,
+    letterSpacing: -0.01,
+    color: AppColors.adminText,
   );
 }

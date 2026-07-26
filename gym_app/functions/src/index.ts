@@ -4,6 +4,7 @@ import * as admin from 'firebase-admin';
 admin.initializeApp();
 
 const db = admin.firestore();
+const auth = admin.auth();
 const messaging = admin.messaging();
 
 // ────────────────────────────────────────────────
@@ -29,6 +30,181 @@ export const onUserCreated = functions.auth.user().onCreate(async (user) => {
 });
 
 // ────────────────────────────────────────────────
+// CALLABLE: Criar aluno (admin)
+// ────────────────────────────────────────────────
+
+interface CreateStudentResult {
+  uid: string;
+  email: string;
+  temporaryPassword?: string;
+}
+
+/**
+ * Callable function que permite ao admin criar um novo aluno.
+ * Cria a conta Firebase Auth + documento Firestore.
+ * O admin que invoca deve estar autenticado e ter role='admin'.
+ */
+export const createStudent = functions.https.onCall(
+  async (request): Promise<CreateStudentResult> => {
+    // Verifica autenticação
+    if (!request.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Tens de iniciar sessão para criar alunos.'
+      );
+    }
+
+    // Verifica se quem chama é admin
+    const callerDoc = await db.collection('users').doc(request.auth.uid).get();
+    const callerRole = callerDoc.data()?.role;
+    if (callerRole !== 'admin') {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Apenas administradores podem criar alunos.'
+      );
+    }
+
+    const { nome, email } = request.data;
+
+    if (!nome || !email) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Nome e email são obrigatórios.'
+      );
+    }
+
+    // Verifica se já existe
+    try {
+      const existingUser = await auth.getUserByEmail(email);
+      if (existingUser) {
+        // Já existe — apenas garante que o documento Firestore tem os dados
+        await db.collection('users').doc(existingUser.uid).set(
+          {
+            nome: nome,
+            email: email,
+            role: 'aluno',
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+        return {
+          uid: existingUser.uid,
+          email: email,
+        };
+      }
+    } catch (_) {
+      // Não existe — continua para criar
+    }
+
+    // Gera password aleatória
+    const temporaryPassword = Math.random().toString(36).slice(-10) + 'A1!';
+
+    // Cria utilizador Firebase Auth
+    const userRecord = await auth.createUser({
+      email: email,
+      password: temporaryPassword,
+      displayName: nome,
+    });
+
+    // Cria documento Firestore
+    await db.collection('users').doc(userRecord.uid).set({
+      nome: nome,
+      email: email,
+      role: 'aluno',
+      pesoAtual: null,
+      altura: null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    console.log(
+      `Admin ${request.auth.uid} created student ${userRecord.uid} (${email})`
+    );
+
+    return {
+      uid: userRecord.uid,
+      email: email,
+      temporaryPassword: temporaryPassword,
+    };
+  }
+);
+
+// ────────────────────────────────────────────────
+// CALLABLE: Seed de alimentos (admin)
+// ────────────────────────────────────────────────
+
+interface SeedFoodsResult {
+  added: number;
+  skipped: number;
+}
+
+export const seedFoods = functions.https.onCall(
+  async (request): Promise<SeedFoodsResult> => {
+    // Verifica autenticação
+    if (!request.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Tens de iniciar sessão.'
+      );
+    }
+
+    // Verifica se quem chama é admin
+    const callerDoc = await db.collection('users').doc(request.auth.uid).get();
+    const callerRole = callerDoc.data()?.role;
+    if (callerRole !== 'admin') {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Apenas administradores podem gerir alimentos.'
+      );
+    }
+
+    const { alimentos } = request.data;
+
+    if (!alimentos || !Array.isArray(alimentos)) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Array de alimentos obrigatório.'
+      );
+    }
+
+    let added = 0;
+    let skipped = 0;
+
+    for (const alimento of alimentos) {
+      const nome = alimento.nome as string;
+      if (!nome) {
+        skipped++;
+        continue;
+      }
+
+      // Verifica duplicado
+      const existing = await db
+        .collection('alimentos')
+        .where('nome', '==', nome)
+        .limit(1)
+        .get();
+
+      if (!existing.empty) {
+        skipped++;
+        continue;
+      }
+
+      await db.collection('alimentos').add({
+        nome: nome,
+        caloriasPor100g: alimento.caloriasPor100g ?? 0,
+        proteinasPor100g: alimento.proteinasPor100g ?? null,
+        hidratosPor100g: alimento.hidratosPor100g ?? null,
+        gordurasPor100g: alimento.gordurasPor100g ?? null,
+        categoria: alimento.categoria ?? null,
+      });
+      added++;
+    }
+
+    console.log(`Seed complete: ${added} added, ${skipped} skipped`);
+    return { added, skipped };
+  }
+);
+
+// ────────────────────────────────────────────────
 // NOTIFICAÇÕES PUSH
 // ────────────────────────────────────────────────
 
@@ -43,7 +219,6 @@ export const onNewChatMessage = functions.firestore
     if (!data || !data.remetenteId) return null;
 
     const salaId = context.params.salaId;
-    // Extrai UIDs do ID da sala: formato "chat_uid1_uid2"
     const parts = salaId.split('_');
     if (parts.length < 3) return null;
 
@@ -53,7 +228,6 @@ export const onNewChatMessage = functions.firestore
       data.remetenteId === uid1 ? uid2 : uid1;
 
     try {
-      // Obtém o token FCM do destinatário
       const userDoc = await db.collection('users').doc(destinatarioId).get();
       const fcmToken = userDoc.data()?.fcmToken;
 
@@ -62,7 +236,6 @@ export const onNewChatMessage = functions.firestore
         return null;
       }
 
-      // Obtém nome do remetente
       const senderDoc = await db
         .collection('users')
         .doc(data.remetenteId)
@@ -91,7 +264,6 @@ export const onNewChatMessage = functions.firestore
 
 /**
  * Gatilho agendado: lembrete de água a cada 2 horas (8h-22h).
- * Usar Cloud Scheduler para publicar no tópico 'water-reminder'.
  */
 export const sendWaterReminder = functions.pubsub
   .schedule('every 2 hours from 08:00 to 22:00')
@@ -108,7 +280,6 @@ export const sendWaterReminder = functions.pubsub
         const fcmToken = userDoc.data().fcmToken;
         if (!fcmToken) return;
 
-        // Verifica se já atingiu a meta de água
         const diaryDoc = await db
           .collection('users')
           .doc(userDoc.id)
@@ -117,7 +288,7 @@ export const sendWaterReminder = functions.pubsub
           .get();
 
         const agua = diaryDoc.data()?.agua ?? 0;
-        if (agua >= 2500) return; // Já atingiu a meta
+        if (agua >= 2500) return;
 
         await messaging.send({
           token: fcmToken,
@@ -144,9 +315,6 @@ export const sendWaterReminder = functions.pubsub
 // BACKUP DIÁRIO DO FIRESTORE
 // ────────────────────────────────────────────────
 
-/**
- * Exporta os dados do Firestore para Cloud Storage diariamente.
- */
 export const dailyFirestoreBackup = functions.pubsub
   .schedule('every day 03:00')
   .timeZone('Europe/Lisbon')
@@ -156,7 +324,6 @@ export const dailyFirestoreBackup = functions.pubsub
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const fileName = `backups/firestore-${timestamp}.json`;
 
-      // Exporta todas as coleções principais
       const collections = ['users', 'chat', 'alimentos', 'exercicios'];
       const backup: Record<string, unknown> = {};
 
@@ -185,9 +352,6 @@ export const dailyFirestoreBackup = functions.pubsub
 // LIMPEZA DE TOKENS FCM INVÁLIDOS
 // ────────────────────────────────────────────────
 
-/**
- * Remove tokens FCM inválidos quando o envio falha.
- */
 export const cleanupInvalidFcmTokens = functions.pubsub
   .schedule('every day 04:00')
   .timeZone('Europe/Lisbon')
@@ -202,14 +366,18 @@ export const cleanupInvalidFcmTokens = functions.pubsub
         if (!fcmToken) continue;
 
         try {
-          // Tenta enviar uma mensagem silenciosa para verificar
-          await messaging.send({
-            token: fcmToken,
-            data: { type: 'token_check' },
-          }, { dryRun: true });
+          await messaging.send(
+            {
+              token: fcmToken,
+              data: { type: 'token_check' },
+            },
+            true // dryRun
+          );
         } catch (error: any) {
           if (error.code === 'messaging/registration-token-not-registered') {
-            batch.update(userDoc.ref, { fcmToken: admin.firestore.FieldValue.delete() });
+            batch.update(userDoc.ref, {
+              fcmToken: admin.firestore.FieldValue.delete(),
+            });
             cleanupCount++;
             console.log(`Removed invalid token for user ${userDoc.id}`);
           }

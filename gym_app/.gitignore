@@ -26,13 +26,13 @@ migrate_working_dir/
 # Flutter/Dart/Pub related
 **/doc/api/
 **/ios/Flutter/.last_build_id
-.dart_tool/*
-!.dart_tool/package_config.json
+.dart_tool/
 !.dart_tool/package_graph.json
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
 /build/
+node_modules/
 /coverage/
 
 # Symbolication related
