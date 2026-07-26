@@ -1,0 +1,2 @@
+.dart_tool/package_config.json filter=pathfix
+.dart_tool/package_graph.json filter=pathfix
