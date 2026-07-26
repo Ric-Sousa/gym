@@ -106,19 +106,76 @@ class AppColors {
   static const Color adminPrimary = Color(0xFF37474F);
   static const Color adminAccent = Color(0xFF00BCD4);
 
-  // ── Admin Design System (Figma: "GYMBT") ────────────────────────
-  static const Color adminBg = Color(0xFF0B0B0E);
-  static const Color adminSurface = Color(0xFF131318);
-  static const Color adminSurface2 = Color(0xFF1C1C24);
-  static const Color adminBorder = Color(0x12FFFFFF);
-  static const Color adminLime = Color(0xFFC8F20D);
-  static const Color adminLimeDim = Color(0x1EC8F20D);
-  static const Color adminText = Color(0xFFF0F0F5);
-  static const Color adminMuted = Color(0xFF6B6B7A);
-  static const Color adminDanger = Color(0xFFF25C5C);
-  static const Color adminBlue = Color(0xFF4D9CFF);
-  static const Color adminOrange = Color(0xFFFF8C42);
-  static const Color adminPurple = Color(0xFFB97CFF);
+  // ── Admin Light Palette ─────────────────────────────────────
+  static const Color adminLightBg = Color(0xFFF5F6FA);
+  static const Color adminLightSurface = Color(0xFFFFFFFF);
+  static const Color adminLightSurface2 = Color(0xFFF0F1F5);
+  static const Color adminLightBorder = Color(0xFFE2E5ED);
+  static const Color adminLightLime = Color(0xFF7F9C00);
+  static const Color adminLightLimeDim = Color(0xFFF2F7D4);
+  static const Color adminLightText = Color(0xFF191A2E);
+  static const Color adminLightMuted = Color(0xFF9495A6);
+  static const Color adminLightDanger = Color(0xFFF43F5E);
+  static const Color adminLightBlue = Color(0xFF4F8CFF);
+  static const Color adminLightOrange = Color(0xFFFF784B);
+  static const Color adminLightPurple = Color(0xFF9B6FFF);
+  static const Color adminLightGreen = Color(0xFF22C55E);
+
+  // ── Admin Design System ("Kinetic Admin Dark") ──────────────
+  /// Fundo principal — preto profundo mas respirável.
+  static const Color adminBg = Color(0xFF0A0A10);
+
+  /// Cartões / superfícies elevadas.
+  static const Color adminSurface = Color(0xFF14141C);
+
+  /// Superfície alternativa (hover, chips, etc.).
+  static const Color adminSurface2 = Color(0xFF1E1E2A);
+
+  /// Contorno visível mas subtil.
+  static const Color adminBorder = Color(0xFF2A2A3A);
+
+  /// Accent principal — lime néon vibrante.
+  static const Color adminLime = Color(0xFFC5F015);
+
+  /// Accent dim — fundo lime escuro para destaques.
+  static const Color adminLimeDim = Color(0xFF1A2B00);
+
+  /// Texto principal.
+  static const Color adminText = Color(0xFFEEEEF5);
+
+  /// Texto muted / secundário.
+  static const Color adminMuted = Color(0xFF8888A5);
+
+  /// Perigo / erro.
+  static const Color adminDanger = Color(0xFFF43F5E);
+
+  /// Azul de métrica.
+  static const Color adminBlue = Color(0xFF5E9EFF);
+
+  /// Laranja de métrica.
+  static const Color adminOrange = Color(0xFFFF784B);
+
+  /// Roxo de métrica.
+  static const Color adminPurple = Color(0xFFA78BFA);
+
+  /// Verde sucesso.
+  static const Color adminGreen = Color(0xFF34D399);
+
+  /// Sombra de cartão (modo escuro — glow subtil).
+  static Color adminShadowDark = Colors.white.withValues(alpha: 0.03);
+
+  /// Sombra elevada (modo escuro).
+  static Color adminShadowElevatedDark = Colors.white.withValues(alpha: 0.06);
+
+  /// Sombra de cartão (modo claro).
+  static Color adminLightShadow = const Color(0xFF1A1B2E).withValues(alpha: 0.05);
+
+  /// Sombra elevada (modo claro).
+  static Color adminLightShadowElevated = const Color(0xFF1A1B2E).withValues(alpha: 0.10);
+
+  // Alias compat (deprecated)
+  static Color get adminShadow => adminShadowDark;
+  static Color get adminShadowElevated => adminShadowElevatedDark;
 
   // ── Glassmorphism ──────────────────────────────────────────────
   /// Cor para overlays com efeito de vidro (60% opacidade).

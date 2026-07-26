@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'core/config/app_colors.dart';
 import 'core/config/app_strings.dart';
+import 'core/config/admin_theme.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/aluno/home/screens/aluno_home_screen.dart';
@@ -11,6 +12,7 @@ import 'features/aluno/treino/screens/workout_screen.dart';
 import 'features/aluno/chat/screens/chat_screen.dart';
 import 'features/aluno/perfil/screens/profile_screen.dart';
 import 'features/admin/screens/admin_panel_screen.dart';
+import 'shared/providers/admin_providers.dart';
 
 /// App root widget.
 class PersonalFitApp extends ConsumerWidget {
@@ -19,11 +21,27 @@ class PersonalFitApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
+    final adminThemeMode = ref.watch(adminThemeModeProvider);
 
     return MaterialApp(
       title: AppStrings.appName,
       debugShowCheckedModeBanner: false,
-      theme: _buildKineticDarkTheme(),
+      theme: _buildKineticDarkTheme().copyWith(
+        brightness: Brightness.light,
+        colorScheme: ColorScheme.light(
+          primary: AppColors.primary,
+          onPrimary: AppColors.textOnPrimary,
+          surface: AppColors.adminLightSurface,
+          onSurface: AppColors.adminLightText,
+          outline: AppColors.adminLightBorder,
+        ),
+        scaffoldBackgroundColor: AppColors.adminLightBg,
+        extensions: [AdminThemeColors.light],
+      ),
+      darkTheme: _buildKineticDarkTheme().copyWith(
+        extensions: [AdminThemeColors.dark],
+      ),
+      themeMode: adminThemeMode,
       home: _buildHome(authState),
     );
   }
