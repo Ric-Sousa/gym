@@ -101,8 +101,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
 
     try {
-      final userModel =
-          await _authRepository.fetchUserModel(firebaseUser.uid);
+      final userModel = await _authRepository.getUserModel();
       state = state.copyWith(
         user: userModel,
         status: AuthStatus.authenticated,
@@ -174,7 +173,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final fbUser = state.firebaseUser;
     if (fbUser == null) return;
     try {
-      final userModel = await _authRepository.fetchUserModel(fbUser.uid);
+      final userModel = await _authRepository.getUserModel();
       state = state.copyWith(
         user: userModel,
         status: AuthStatus.authenticated,
