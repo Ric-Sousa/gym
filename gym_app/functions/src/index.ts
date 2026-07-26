@@ -1,5 +1,6 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 
 admin.initializeApp();
 
@@ -44,7 +45,7 @@ interface CreateStudentResult {
  * Cria a conta Firebase Auth + documento Firestore.
  * O admin que invoca deve estar autenticado e ter role='admin'.
  */
-export const createStudent = functions.https.onCall(
+export const createStudent = functions.region('europe-west1').https.onCall(
   async (request): Promise<CreateStudentResult> => {
     // Verifica autenticação
     if (!request.auth) {
@@ -137,7 +138,7 @@ interface SeedFoodsResult {
   skipped: number;
 }
 
-export const seedFoods = functions.https.onCall(
+export const seedFoods = functions.region('europe-west1').https.onCall(
   async (request): Promise<SeedFoodsResult> => {
     // Verifica autenticação
     if (!request.auth) {
@@ -211,16 +212,17 @@ export const seedFoods = functions.https.onCall(
 /**
  * Envia notificação quando uma nova mensagem de chat é criada.
  * Gatilho: documento criado em chat/{salaId}/mensagens/{msgId}
+ * Usa Cloud Functions 2nd Gen para compatibilidade com Firestore eur3.
  */
-export const onNewChatMessage = functions.region('europe-west1').firestore
-  .document('chat/{salaId}/mensagens/{msgId}')
-  .onCreate(async (snap, context) => {
-    const data = snap.data();
-    if (!data || !data.remetenteId) return null;
+export const onNewChatMessage = onDocumentCreated(
+  { document: 'chat/{salaId}/mensagens/{msgId}', region: 'europe-west1' },
+  async (event) => {
+    const data = event.data?.data();
+    if (!data || !data.remetenteId) return;
 
-    const salaId = context.params.salaId;
+    const salaId = event.params.salaId;
     const parts = salaId.split('_');
-    if (parts.length < 3) return null;
+    if (parts.length < 3) return;
 
     const uid1 = parts[1];
     const uid2 = parts[2];
@@ -233,7 +235,7 @@ export const onNewChatMessage = functions.region('europe-west1').firestore
 
       if (!fcmToken) {
         console.log(`No FCM token for user ${destinatarioId}`);
-        return null;
+        return;
       }
 
       const senderDoc = await db
@@ -258,9 +260,8 @@ export const onNewChatMessage = functions.region('europe-west1').firestore
     } catch (error) {
       console.error('Error sending notification:', error);
     }
-
-    return null;
-  });
+  }
+);
 
 /**
  * Gatilho agendado: lembrete de água a cada 2 horas (8h-22h).

@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.cleanupInvalidFcmTokens = exports.dailyFirestoreBackup = exports.sendWaterReminder = exports.onNewChatMessage = exports.seedFoods = exports.createStudent = exports.onUserCreated = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
+const firestore_1 = require("firebase-functions/v2/firestore");
 admin.initializeApp();
 const db = admin.firestore();
 const auth = admin.auth();
@@ -64,7 +65,7 @@ exports.onUserCreated = functions.auth.user().onCreate(async (user) => {
  * Cria a conta Firebase Auth + documento Firestore.
  * O admin que invoca deve estar autenticado e ter role='admin'.
  */
-exports.createStudent = functions.https.onCall(async (request) => {
+exports.createStudent = functions.region('europe-west1').https.onCall(async (request) => {
     // Verifica autenticação
     if (!request.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'Tens de iniciar sessão para criar alunos.');
@@ -123,7 +124,7 @@ exports.createStudent = functions.https.onCall(async (request) => {
         temporaryPassword: temporaryPassword,
     };
 });
-exports.seedFoods = functions.https.onCall(async (request) => {
+exports.seedFoods = functions.region('europe-west1').https.onCall(async (request) => {
     // Verifica autenticação
     if (!request.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'Tens de iniciar sessão.');
@@ -175,17 +176,16 @@ exports.seedFoods = functions.https.onCall(async (request) => {
 /**
  * Envia notificação quando uma nova mensagem de chat é criada.
  * Gatilho: documento criado em chat/{salaId}/mensagens/{msgId}
+ * Usa Cloud Functions 2nd Gen para compatibilidade com Firestore eur3.
  */
-exports.onNewChatMessage = functions.region('europe-west1').firestore
-    .document('chat/{salaId}/mensagens/{msgId}')
-    .onCreate(async (snap, context) => {
-    const data = snap.data();
+exports.onNewChatMessage = (0, firestore_1.onDocumentCreated)({ document: 'chat/{salaId}/mensagens/{msgId}', region: 'europe-west1' }, async (event) => {
+    const data = event.data?.data();
     if (!data || !data.remetenteId)
-        return null;
-    const salaId = context.params.salaId;
+        return;
+    const salaId = event.params.salaId;
     const parts = salaId.split('_');
     if (parts.length < 3)
-        return null;
+        return;
     const uid1 = parts[1];
     const uid2 = parts[2];
     const destinatarioId = data.remetenteId === uid1 ? uid2 : uid1;
@@ -194,7 +194,7 @@ exports.onNewChatMessage = functions.region('europe-west1').firestore
         const fcmToken = userDoc.data()?.fcmToken;
         if (!fcmToken) {
             console.log(`No FCM token for user ${destinatarioId}`);
-            return null;
+            return;
         }
         const senderDoc = await db
             .collection('users')
@@ -217,7 +217,6 @@ exports.onNewChatMessage = functions.region('europe-west1').firestore
     catch (error) {
         console.error('Error sending notification:', error);
     }
-    return null;
 });
 /**
  * Gatilho agendado: lembrete de água a cada 2 horas (8h-22h).
