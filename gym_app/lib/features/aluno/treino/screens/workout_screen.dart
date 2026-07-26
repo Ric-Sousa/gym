@@ -10,6 +10,7 @@ import '../../../../data/models/diary_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
+import '../../../../shared/widgets/app_notification.dart';
 
 final workoutPlansProvider =
     FutureProvider.family<List<WorkoutPlanModel>, String>((ref, userId) {
@@ -351,21 +352,11 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen> {
         'exercisesDone': true,
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(AppStrings.workoutCompleted),
-            backgroundColor: AppColors.success,
-          ),
-        );
+        showAppNotification(context, AppStrings.workoutCompleted, type: NotificationType.success);
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(AppStrings.networkError),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        showAppNotification(context, AppStrings.networkError, type: NotificationType.error);
       }
     }
   }

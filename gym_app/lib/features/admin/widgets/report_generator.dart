@@ -8,6 +8,7 @@ import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../data/models/user_model.dart';
 import '../../../../shared/providers/global_providers.dart';
+import '../../../shared/widgets/app_notification.dart';
 
 /// Gerador de relatório PDF — GYMBT Lime+Dark.
 class ReportGenerator {
@@ -65,9 +66,13 @@ class ReportGenerator {
       );
     } catch (e) {
       if (context.mounted) {
+<<<<<<< Updated upstream
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Erro ao gerar relatório PDF.'), backgroundColor: AppColors.adminDanger),
         );
+=======
+        showAppNotification(context, 'Erro ao gerar relatório PDF.', type: NotificationType.error);
+>>>>>>> Stashed changes
       }
     }
   }
