@@ -395,3 +395,105 @@ export const cleanupInvalidFcmTokens = functions.pubsub
 
     return null;
   });
+
+// ────────────────────────────────────────────────
+// PEDIDO DE PROGRESSO (Admin → Aluno)
+// ────────────────────────────────────────────────
+
+interface RequestProgressResult {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Callable function que permite ao admin solicitar progresso a um aluno.
+ * Marca o documento do aluno com hasPendingProgress = true
+ * e envia uma notificação push ao aluno.
+ */
+export const requestProgress = functions.region('europe-west1').https.onCall(
+  async (request): Promise<RequestProgressResult> => {
+    console.log('requestProgress called', JSON.stringify({
+      hasAuth: !!request.auth,
+      hasAuthToken: !!request.data?.authToken,
+      userId: request.data?.userId,
+    }));
+
+    let callerUid: string | undefined = request.auth?.uid;
+
+    // Fallback para Flutter web: verificar authToken do payload
+    if (!callerUid && request.data?.authToken) {
+      try {
+        console.log('Verifying authToken from data payload...');
+        const decoded = await auth.verifyIdToken(request.data.authToken as string);
+        callerUid = decoded.uid;
+        console.log('authToken verified, callerUid:', callerUid);
+      } catch (err: any) {
+        console.error('verifyIdToken failed:', err?.message ?? err);
+      }
+    }
+
+    if (!callerUid) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Tens de iniciar sessão.'
+      );
+    }
+
+    // Verifica se quem chama é admin
+    const callerDoc = await db.collection('users').doc(callerUid).get();
+    const callerData = callerDoc.data();
+    const callerRole = callerData?.role;
+    console.log('callerRole:', callerRole);
+
+    if (callerRole !== 'admin') {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Apenas administradores podem solicitar progresso.'
+      );
+    }
+
+    const { userId } = request.data ?? {};
+    if (!userId) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'ID do aluno é obrigatório.'
+      );
+    }
+
+    console.log('Marking hasPendingProgress for userId:', userId);
+
+    // Usar set com merge em vez de update (mais robusto)
+    await db.collection('users').doc(userId).set({
+      hasPendingProgress: true,
+      progressRequestedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    // Enviar notificação push ao aluno
+    const userDoc = await db.collection('users').doc(userId).get();
+    const fcmToken = userDoc.data()?.fcmToken;
+    const adminName = callerData?.nome ?? 'Personal Trainer';
+
+    if (fcmToken) {
+      try {
+        await messaging.send({
+          token: fcmToken,
+          notification: {
+            title: 'Avaliação de Progresso 📊',
+            body: `${adminName} pediu a tua avaliação mensal. Envia as tuas fotos e peso!`,
+          },
+          data: {
+            type: 'progress_request',
+            requestedBy: callerUid,
+          },
+        });
+        console.log(`Notification sent to ${userId}`);
+      } catch (notifError: any) {
+        console.error('Error sending notification:', notifError?.message ?? notifError);
+      }
+    } else {
+      console.log('No FCM token for user', userId);
+    }
+
+    return { success: true, message: 'Pedido de progresso enviado.' };
+  }
+);

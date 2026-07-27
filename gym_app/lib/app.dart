@@ -13,6 +13,7 @@ import 'features/aluno/chat/screens/chat_screen.dart';
 import 'features/aluno/perfil/screens/profile_screen.dart';
 import 'features/admin/screens/admin_panel_screen.dart';
 import 'shared/providers/admin_providers.dart';
+import 'shared/providers/global_providers.dart';
 
 /// App root widget.
 class PersonalFitApp extends ConsumerWidget {
@@ -417,6 +418,7 @@ class _AlunoShell extends ConsumerStatefulWidget {
 
 class _AlunoShellState extends ConsumerState<_AlunoShell> {
   int _currentIndex = 0;
+  bool _fcmInitialized = false;
 
   final _screens = const [
     AlunoHomeScreen(),
@@ -425,6 +427,23 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
     ChatScreen(),
     ProfileScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _initFCMIfNeeded();
+  }
+
+  void _initFCMIfNeeded() {
+    if (_fcmInitialized) return;
+    final authState = ref.read(authProvider);
+    final userId = authState.user?.uid;
+    if (userId != null && userId.isNotEmpty) {
+      _fcmInitialized = true;
+      final fcmService = ref.read(fcmServiceProvider);
+      fcmService.initialize(userId);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/config/app_colors.dart';
@@ -15,10 +16,12 @@ import '../../../shared/providers/admin_providers.dart';
 import '../../../shared/widgets/app_notification.dart';
 import '../../admin/widgets/workout_editor.dart';
 import '../../admin/widgets/nutrition_editor.dart';
+import '../../admin/widgets/admin_messages_view.dart';
+import '../../../features/aluno/chat/screens/chat_screen.dart';
 
 // ─── Enums & Local Providers ──────────────────────────────────────
 
-enum AdminView { dashboard, clients, exercises, foods }
+enum AdminView { dashboard, clients, exercises, foods, messages }
 
 final alunosListProvider = FutureProvider<List<UserModel>>((ref) {
   return ref.read(userRepositoryProvider).getAllAlunos();
@@ -42,6 +45,24 @@ class AdminPanelScreen extends ConsumerStatefulWidget {
 class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
   AdminView _view = AdminView.dashboard;
   UserModel? _selectedClient;
+  bool _fcmInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initFCMIfNeeded();
+  }
+
+  void _initFCMIfNeeded() {
+    if (_fcmInitialized) return;
+    final authState = ref.read(authProvider);
+    final userId = authState.user?.uid;
+    if (userId != null && userId.isNotEmpty) {
+      _fcmInitialized = true;
+      final fcmService = ref.read(fcmServiceProvider);
+      fcmService.initialize(userId);
+    }
+  }
 
   void _navigate(AdminView v) {
     setState(() {
@@ -95,6 +116,10 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
         return const _AdminExerciseLibrary();
       case AdminView.foods:
         return const _AdminFoodLibrary();
+      case AdminView.messages:
+        {
+          return AdminMessagesView(onSelect: (c) => setState(() => _selectedClient = c));
+        }
     }
   }
 }
@@ -207,6 +232,14 @@ class _AdminSidebar extends StatelessWidget {
             label: 'Alimentos',
             active: currentView == AdminView.foods,
             onTap: () => onNavigate(AdminView.foods),
+          ),
+          _NavCategory(label: 'COMUNICAÇÃO'),
+          _NavItem(
+            icon: Icons.chat_outlined,
+            activeIcon: Icons.chat,
+            label: 'Mensagens',
+            active: currentView == AdminView.messages && !isClientDetail,
+            onTap: () => onNavigate(AdminView.messages),
           ),
           const Spacer(),
           // Logout
@@ -1193,6 +1226,78 @@ class _ClientDetailView extends ConsumerStatefulWidget {
 
 class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
   String _tab = 'overview';
+  bool _requestingProgress = false;
+
+  Widget _requestProgressButton(UserModel client) {
+    return ElevatedButton.icon(
+      onPressed: _requestingProgress ? null : () => _requestProgress(client),
+      icon: _requestingProgress
+          ? const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : const Icon(Icons.add_chart, size: 14),
+      label: Text(
+        _requestingProgress ? 'A enviar...' : 'SOLICITAR PROGRESSO',
+        style: GoogleFonts.dmSans(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.04,
+        ),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AdminThemeColors.of(context).lime,
+        foregroundColor: AdminThemeColors.of(context).bg,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      ),
+    );
+  }
+
+  Future<void> _requestProgress(UserModel client) async {
+    setState(() => _requestingProgress = true);
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        if (mounted) {
+          showAppNotification(context, 'Sessão expirada. Faz login novamente.',
+              type: NotificationType.error);
+        }
+        return;
+      }
+      final idToken = await user.getIdToken();
+      final functions =
+          FirebaseFunctions.instanceFor(region: 'europe-west1');
+      final callable = functions.httpsCallable('requestProgress');
+      await callable.call(<String, dynamic>{
+        'userId': client.uid,
+        'authToken': idToken,
+      });
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Pedido de progresso enviado para ${client.nome}',
+          type: NotificationType.success,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Erro ao solicitar progresso. Tenta novamente.',
+          type: NotificationType.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _requestingProgress = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1265,6 +1370,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                     ],
                   ),
                 ),
+                _requestProgressButton(c),
               ],
             ),
           ),
@@ -1277,6 +1383,8 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
               _tabBtn('workout', 'Plano de Treino', Icons.fitness_center),
               const SizedBox(width: 4),
               _tabBtn('nutrition', 'Nutrição', Icons.restaurant),
+              const SizedBox(width: 4),
+              _tabBtn('chat', 'Chat', Icons.chat),
             ],
           ),
           const SizedBox(height: 20),
@@ -1290,6 +1398,14 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
             SizedBox(
               height: 600,
               child: NutritionEditor(aluno: widget.client),
+            ),
+          if (_tab == 'chat')
+            SizedBox(
+              height: 600,
+              child: ChatScreen(
+                chatPartnerId: widget.client.uid,
+                key: ValueKey('admin_chat_${widget.client.uid}'),
+              ),
             ),
         ],
       ),

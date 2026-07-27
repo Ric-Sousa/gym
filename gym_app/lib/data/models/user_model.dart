@@ -9,6 +9,8 @@ class UserModel {
   final String? fotoPerfil;
   final String? personalId; // UID do personal trainer associado
   final DateTime? ultimaAtividade;
+  final bool hasPendingProgress; // Tem pedido de progresso pendente
+  final DateTime? progressRequestedAt; // Quando o pedido foi feito
 
   const UserModel({
     required this.uid,
@@ -20,6 +22,8 @@ class UserModel {
     this.fotoPerfil,
     this.personalId,
     this.ultimaAtividade,
+    this.hasPendingProgress = false,
+    this.progressRequestedAt,
   });
 
   /// Cria a partir do documento Firestore.
@@ -36,6 +40,10 @@ class UserModel {
       ultimaAtividade: map['ultimaAtividade'] != null
           ? (map['ultimaAtividade'] as dynamic).toDate() as DateTime
           : null,
+      hasPendingProgress: map['hasPendingProgress'] as bool? ?? false,
+      progressRequestedAt: map['progressRequestedAt'] != null
+          ? (map['progressRequestedAt'] as dynamic).toDate() as DateTime
+          : null,
     );
   }
 
@@ -50,6 +58,9 @@ class UserModel {
       if (fotoPerfil != null) 'fotoPerfil': fotoPerfil,
       if (personalId != null) 'personalId': personalId,
       if (ultimaAtividade != null) 'ultimaAtividade': ultimaAtividade,
+      'hasPendingProgress': hasPendingProgress,
+      if (progressRequestedAt != null)
+        'progressRequestedAt': progressRequestedAt,
     };
   }
 

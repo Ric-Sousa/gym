@@ -1,6 +1,6 @@
-import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/utils/connectivity_service.dart';
+import '../../core/services/fcm_service.dart';
 import '../../data/datasources/auth_datasource.dart';
 import '../../data/datasources/firestore_datasource.dart';
 import '../../data/datasources/storage_datasource.dart';
@@ -17,6 +17,14 @@ import '../../data/repositories/workout_repository.dart';
 /// Provider para ConnectivityService (singleton).
 final connectivityServiceProvider = Provider<ConnectivityService>((ref) {
   final service = ConnectivityService();
+  ref.onDispose(() => service.dispose());
+  return service;
+});
+
+/// Provider para FCMService (singleton).
+final fcmServiceProvider = Provider<FCMService>((ref) {
+  final userRepo = ref.watch(userRepositoryProvider);
+  final service = FCMService(userRepository: userRepo);
   ref.onDispose(() => service.dispose());
   return service;
 });
