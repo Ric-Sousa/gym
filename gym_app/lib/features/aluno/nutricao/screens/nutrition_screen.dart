@@ -55,22 +55,50 @@ class NutritionScreen extends ConsumerStatefulWidget {
 }
 
 class _NutritionScreenState extends ConsumerState<NutritionScreen> {
-  int _selectedDayIndex = DateTime.now().weekday - 1;
+  DateTime _selectedDate = DateTime.now();
+  late DateTime _weekStart;
+  double _slideDirection = 1.0;
   String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _weekStart = _mondayOfWeek(DateTime.now());
+  }
+
+  /// Segunda-feira da semana que contém [date].
+  DateTime _mondayOfWeek(DateTime date) {
+    final weekday = date.weekday;
+    return date.subtract(Duration(days: weekday - 1));
+  }
+
+  /// Dia da semana correspondente à data selecionada.
+  String get _diaSemana => AppStrings.daysOfWeek[_selectedDate.weekday - 1];
 
   /// Gramas consumidas por alimento (chave: "${diaSemana}_${tipoRefeicao}_${nomeAlimento}").
   final Map<String, double> _consumoPorAlimento = {};
   /// Modo de medição por alimento: 'g' (gramas) ou 'un' (unidades).
   final Map<String, String> _modoPorAlimento = {};
-  /// Contador para forçar recriação dos TextFormField apenas
-  /// quando o valor muda programaticamente (ex: "Porção completa").
-  int _formRebuildCounter = 0;
+
+  /// Controllers dos inputs de gramas (chave: "${diaSemana}_${tipoRefeicao}_${nomeAlimento}").
+  final Map<String, TextEditingController> _gramasControllers = {};
+
+  /// Refeições colapsadas (chave: "${diaSemana}_${tipoRefeicao}").
+  final Set<String> _collapsedMeals = {};
+
+  @override
+  void dispose() {
+    for (final c in _gramasControllers.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final userId = authState.user?.uid ?? '';
-    final diaSemana = AppStrings.daysOfWeek[_selectedDayIndex];
+    final diaSemana = _diaSemana;
     final planAsync = ref.watch(nutritionPlanProvider((userId, diaSemana)));
 
     return Scaffold(
@@ -117,40 +145,200 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
   }
 
   Widget _buildDaySelector() {
-    return Container(
-      height: 52,
-      color: AppColors.surfaceLow,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: 7,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        itemBuilder: (context, index) {
-          final isSelected = index == _selectedDayIndex;
-          return GestureDetector(
-            onTap: () => setState(() => _selectedDayIndex = index),
-            child: Container(
-              alignment: Alignment.center,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? AppColors.primary
-                    : AppColors.surfaceHigh,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                AppStrings.daysOfWeekShort[index],
-                style: GoogleFonts.inter(
-                  color: isSelected
-                      ? AppColors.textOnPrimary
-                      : AppColors.textSecondary,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  fontSize: 13,
-                ),
+    final today = DateTime.now();
+    final monthYear = DateFormat('MMMM yyyy', 'pt').format(_weekStart);
+    final days = List.generate(7, (i) => _weekStart.add(Duration(days: i)));
+    final canGoBack = _weekStart.isAfter(_mondayOfWeek(today).subtract(const Duration(days: 60)));
+    final canGoForward = _weekStart.isBefore(_mondayOfWeek(today).add(const Duration(days: 60)));
+
+    Future<void> _openMonthPicker() async {
+      final picked = await showDatePicker(
+        context: context,
+        initialDate: _weekStart,
+        firstDate: DateTime(2020),
+        lastDate: DateTime(2035),
+        initialDatePickerMode: DatePickerMode.day,
+        builder: (ctx, child) => Theme(
+          data: Theme.of(ctx).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: AppColors.primary,
+              onPrimary: AppColors.textOnPrimary,
+              surface: AppColors.surfaceLowest,
+              onSurface: AppColors.onSurface,
+            ),
+          ),
+          child: child!,
+        ),
+      );
+      if (picked != null) {
+        _slideDirection = 1.0;
+        setState(() {
+          _weekStart = _mondayOfWeek(picked);
+          _selectedDate = _weekStart;
+        });
+      }
+    }
+
+    void _navigateWeek(int offset) {
+      _slideDirection = offset.toDouble();
+      setState(() {
+        _weekStart = _weekStart.add(Duration(days: offset * 7));
+        _selectedDate = _weekStart;
+      });
+    }
+
+    return GestureDetector(
+      onHorizontalDragEnd: (details) {
+        if (details.primaryVelocity == null) return;
+        final velocity = details.primaryVelocity!;
+        if (velocity < -400 && canGoForward) {
+          _navigateWeek(1);
+        } else if (velocity > 400 && canGoBack) {
+          _navigateWeek(-1);
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        color: AppColors.surfaceLow,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Mês Ano (tocável) ────────────────────────
+            GestureDetector(
+              onTap: _openMonthPicker,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    monthYear,
+                    style: GoogleFonts.montserrat(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_drop_down,
+                    size: 16,
+                    color: AppColors.onSurfaceVariant.withValues(alpha: 0.6),
+                  ),
+                ],
               ),
             ),
-          );
-        },
+            const SizedBox(height: 4),
+            // ── Setas + dias (com AnimatedSwitcher) ───────
+            Row(
+              children: [
+                // Seta esquerda
+                GestureDetector(
+                  onTap: canGoBack ? () => _navigateWeek(-1) : null,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 2, right: 1),
+                    child: Icon(
+                      Icons.chevron_left,
+                      size: 20,
+                      color: canGoBack
+                          ? AppColors.onSurfaceVariant
+                          : AppColors.outlineVariant.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ),
+                // 7 dias (animados)
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    transitionBuilder: (child, animation) {
+                      return SlideTransition(
+                        position: Tween<Offset>(
+                          begin: Offset(_slideDirection * 0.3, 0.0),
+                          end: Offset.zero,
+                        ).animate(CurvedAnimation(
+                          parent: animation,
+                          curve: Curves.easeOutCubic,
+                        )),
+                        child: FadeTransition(
+                          opacity: animation,
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: Row(
+                      key: ValueKey(_weekStart),
+                      children: days.map((date) {
+                        final isSelected = date.day == _selectedDate.day &&
+                            date.month == _selectedDate.month &&
+                            date.year == _selectedDate.year;
+                        final isToday = date.day == today.day &&
+                            date.month == today.month &&
+                            date.year == today.year;
+                        return Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => _selectedDate = date),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              curve: Curves.easeOutCubic,
+                              height: 32,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? AppColors.primary
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(6),
+                                border: isToday && !isSelected
+                                    ? Border.all(color: AppColors.primary.withValues(alpha: 0.5))
+                                    : null,
+                              ),
+                              child: TweenAnimationBuilder<double>(
+                                duration: const Duration(milliseconds: 150),
+                                tween: Tween<double>(
+                                  begin: 1.0,
+                                  end: isSelected ? 1.1 : 1.0,
+                                ),
+                                builder: (_, scale, child) => Transform.scale(
+                                  scale: scale,
+                                  child: child,
+                                ),
+                                child: Text(
+                                  '${date.day}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    fontWeight: isSelected || isToday ? FontWeight.w700 : FontWeight.w500,
+                                    color: isSelected
+                                        ? AppColors.textOnPrimary
+                                        : isToday
+                                            ? AppColors.onSurface
+                                            : AppColors.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+                // Seta direita
+                GestureDetector(
+                  onTap: canGoForward ? () => _navigateWeek(1) : null,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 2, left: 1),
+                    child: Icon(
+                      Icons.chevron_right,
+                      size: 20,
+                      color: canGoForward
+                          ? AppColors.onSurfaceVariant
+                          : AppColors.outlineVariant.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -167,7 +355,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
     return RefreshIndicator(
       onRefresh: () async {
         ref.invalidate(nutritionPlanProvider(
-            (plan.userId, AppStrings.daysOfWeek[_selectedDayIndex])));
+            (plan.userId, _diaSemana)));
         ref.invalidate(todayConsumedCaloriesProvider(plan.userId));
         ref.invalidate(todayCompletedMealTypesProvider(plan.userId));
       },
@@ -231,6 +419,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
     final progress = goal > 0 ? (consumed / goal).clamp(0.0, 1.0) : 0.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           label,
@@ -410,6 +599,9 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
       }
     }
 
+    final collapseKey = '${diaSemana}_${meal.tipo}';
+    final isCollapsed = _collapsedMeals.contains(collapseKey);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
@@ -421,161 +613,198 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Cabeçalho ──────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: isCompleted
-                        ? AppColors.success.withValues(alpha: 0.15)
-                        : AppColors.caloriesLight,
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                  child: Icon(
-                    isCompleted ? Icons.check_circle : Icons.restaurant,
-                    color: isCompleted ? AppColors.success : AppColors.calories,
-                    size: 16,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    meal.tipo,
-                    style: GoogleFonts.montserrat(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color: AppColors.onSurface,
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => setState(() {
+                if (isCollapsed) {
+                  _collapsedMeals.remove(collapseKey);
+                } else {
+                  _collapsedMeals.add(collapseKey);
+                }
+              }),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: isCompleted
+                          ? AppColors.success.withValues(alpha: 0.15)
+                          : AppColors.caloriesLight,
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: Icon(
+                      isCompleted ? Icons.check_circle : Icons.restaurant,
+                      color: isCompleted ? AppColors.success : AppColors.calories,
+                      size: 16,
                     ),
                   ),
-                ),
-                Text(
-                  '${meal.totalCalorias.toStringAsFixed(0)} kcal',
-                  style: GoogleFonts.montserrat(
-                    fontWeight: FontWeight.w400,
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      meal.tipo,
+                      style: GoogleFonts.montserrat(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: AppColors.onSurface,
+                      ),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: AppColors.outline),
-
-          // ── Instruções ─────────────────────────────────────
-          if (meal.instrucoes != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),
-              child: Text(
-                meal.instrucoes!,
-                style: GoogleFonts.inter(
-                  fontStyle: FontStyle.italic,
-                  color: AppColors.textSecondary,
-                  fontSize: 11,
-                ),
-              ),
-            ),
-
-          // ── Alimentos ──────────────────────────────────────
-          ...meal.alimentos.map(
-            (alimento) => _buildAlimentoRow(diaSemana, meal.tipo, alimento),
-          ),
-
-          const SizedBox(height: 4),
-          // ── Botão Adicionar alimento ───────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: null,
-                icon: const Icon(Icons.add, size: 15),
-                label: const Text('Adicionar alimento'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.textSecondary,
-                  side: BorderSide(
-                      color: AppColors.outline.withValues(alpha: 0.5)),
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
+                  Text(
+                    '${meal.totalCalorias.toStringAsFixed(0)} kcal',
+                    style: GoogleFonts.montserrat(
+                      fontWeight: FontWeight.w400,
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                  textStyle: GoogleFonts.inter(fontSize: 12),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-
-          // ── Botão Registar ─────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () =>
-                    _markMealDone(plan.userId, meal, diaSemana),
-                icon: const Icon(Icons.check, size: 16),
-                label: const Text('Registar Refeição'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.success,
-                  foregroundColor: AppColors.textOnPrimary,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  textStyle: GoogleFonts.inter(fontSize: 13),
-                ),
-              ),
-            ),
-          ),
-
-          // ── Totais de macros ───────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceLowest,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                    color: AppColors.outline.withValues(alpha: 0.6)),
-              ),
-              child: Column(
-                children: [
-                  // Labels
-                  Row(
-                    children: [
-                      _macroColHeader('Calorias'),
-                      _macroColHeader('Proteínas'),
-                      _macroColHeader('H. Carbonos'),
-                      _macroColHeader('Gorduras'),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  // Valores
-                  Row(
-                    children: [
-                      _macroColValue(
-                          totalKcalConsumidas > 0
-                              ? '${totalKcalConsumidas.toStringAsFixed(0)}kcal'
-                              : '0',
-                          AppColors.textSecondary),
-                      _macroColValue(
-                          '${totalProteinas.toStringAsFixed(0)}g',
-                          AppColors.protein),
-                      _macroColValue(
-                          '${totalHidratos.toStringAsFixed(0)}g',
-                          AppColors.carbs),
-                      _macroColValue(
-                          '${totalGorduras.toStringAsFixed(0)}g',
-                          AppColors.fat),
-                    ],
+                  const SizedBox(width: 6),
+                  AnimatedRotation(
+                    duration: const Duration(milliseconds: 250),
+                    turns: isCollapsed ? 0.0 : 0.5,
+                    child: Icon(
+                      Icons.expand_more,
+                      size: 20,
+                      color: AppColors.onSurfaceVariant.withValues(alpha: 0.6),
+                    ),
                   ),
                 ],
               ),
             ),
+          ),
+          ),
+
+          // ── Conteúdo colapsável ───────────────────────────
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            switchInCurve: Curves.easeInOutCubic,
+            switchOutCurve: Curves.easeInOutCubic,
+            transitionBuilder: (child, animation) => SizeTransition(
+              sizeFactor: animation,
+              axisAlignment: -1.0,
+              child: child,
+            ),
+            child: isCollapsed
+                ? const SizedBox.shrink(key: ValueKey('collapsed'))
+                : Column(
+                    key: const ValueKey('expanded'),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Divider(height: 1, color: AppColors.outline),
+                      // ── Instruções ─────────────────────────
+                      if (meal.instrucoes != null)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),
+                          child: Text(
+                            meal.instrucoes!,
+                            style: GoogleFonts.inter(
+                              fontStyle: FontStyle.italic,
+                              color: AppColors.textSecondary,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      // ── Alimentos ──────────────────────────
+                      ...meal.alimentos.map(
+                        (alimento) => _buildAlimentoRow(diaSemana, meal.tipo, alimento),
+                      ),
+                      const SizedBox(height: 4),
+                      // ── Botão Adicionar alimento ───────────
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: null,
+                            icon: const Icon(Icons.add, size: 15),
+                            label: const Text('Adicionar alimento'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.textSecondary,
+                              side: BorderSide(
+                                  color: AppColors.outline.withValues(alpha: 0.5)),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              textStyle: GoogleFonts.inter(fontSize: 12),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      // ── Botão Registar ─────────────────────
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () =>
+                                _markMealDone(plan.userId, meal, diaSemana),
+                            icon: const Icon(Icons.check, size: 16),
+                            label: const Text('Registar Refeição'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.success,
+                              foregroundColor: AppColors.textOnPrimary,
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              textStyle: GoogleFonts.inter(fontSize: 13),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // ── Totais de macros ───────────────────
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceLowest,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                                color: AppColors.outline.withValues(alpha: 0.6)),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  _macroColHeader('Calorias'),
+                                  _macroColHeader('Proteínas'),
+                                  _macroColHeader('H. Carbonos'),
+                                  _macroColHeader('Gorduras'),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  _macroColValue(
+                                      totalKcalConsumidas > 0
+                                          ? '${totalKcalConsumidas.toStringAsFixed(0)}kcal'
+                                          : '0',
+                                      AppColors.textSecondary),
+                                  _macroColValue(
+                                      '${totalProteinas.toStringAsFixed(0)}g',
+                                      AppColors.protein),
+                                  _macroColValue(
+                                      '${totalHidratos.toStringAsFixed(0)}g',
+                                      AppColors.carbs),
+                                  _macroColValue(
+                                      '${totalGorduras.toStringAsFixed(0)}g',
+                                      AppColors.fat),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -618,6 +847,13 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
     final key = '${diaSemana}_${mealTipo}_${alimento.nome}';
     final gramas = _consumoPorAlimento[key] ?? 0.0;
 
+    // Obtém ou cria o controller para este alimento
+    final controller = _gramasControllers.putIfAbsent(key, () {
+      return TextEditingController(
+        text: gramas > 0 ? gramas.toStringAsFixed(0) : '',
+      );
+    });
+
     final caloriasConsumidas = alimento.caloriasParaGramas(gramas);
     final prots = alimento.proteinasParaGramas(gramas);
     final carbs = alimento.hidratosParaGramas(gramas);
@@ -625,10 +861,9 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
             // Nome + macronutrientes à esquerda
             Expanded(
               child: Column(
@@ -720,9 +955,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
             SizedBox(
               width: 62,
               child: TextFormField(
-                key: ValueKey('gramas_${key}_$_formRebuildCounter'),
-                initialValue:
-                    gramas > 0 ? gramas.toStringAsFixed(0) : '',
+                controller: controller,
                 keyboardType: TextInputType.number,
                 style: GoogleFonts.montserrat(
                   color: AppColors.onSurface,
@@ -814,7 +1047,6 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
             const SizedBox(width: 35),
           ],
         ),
-      ),
     );
   }
 
@@ -856,11 +1088,12 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
           'consumoPorAlimento': consumoPorAlimento,
       });
 
-      // Limpa o estado de consumo para esta refeição
+      // Limpa o estado de consumo e os inputs para esta refeição
       setState(() {
         for (final alimento in meal.alimentos) {
           final key = '${diaSemana}_${meal.tipo}_${alimento.nome}';
           _consumoPorAlimento.remove(key);
+          _gramasControllers[key]?.clear();
         }
       });
 

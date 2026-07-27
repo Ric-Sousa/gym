@@ -139,24 +139,27 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
             return Container(
               margin: const EdgeInsets.only(bottom: 8),
               decoration: BoxDecoration(
-                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppColors.outline),
               ),
-              child: ListTile(
-                title: Text(
-                  DateFormat(AppConstants.displayDateFormat).format(p.data),
-                  style: GoogleFonts.inter(color: AppColors.onSurface),
+              child: Material(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(8),
+                child: ListTile(
+                  title: Text(
+                    DateFormat(AppConstants.displayDateFormat).format(p.data),
+                    style: GoogleFonts.inter(color: AppColors.onSurface),
+                  ),
+                  subtitle: p.peso != null
+                      ? Text(
+                          '${p.peso} kg',
+                          style: GoogleFonts.inter(color: AppColors.textSecondary),
+                        )
+                      : null,
+                  trailing: p.fotos.isNotEmpty
+                      ? const Icon(Icons.photo, color: AppColors.primary)
+                      : null,
                 ),
-                subtitle: p.peso != null
-                    ? Text(
-                        '${p.peso} kg',
-                        style: GoogleFonts.inter(color: AppColors.textSecondary),
-                      )
-                    : null,
-                trailing: p.fotos.isNotEmpty
-                    ? const Icon(Icons.photo, color: AppColors.primary)
-                    : null,
               ),
             );
           },

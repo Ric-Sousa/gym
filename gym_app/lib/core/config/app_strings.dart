@@ -43,7 +43,7 @@ class AppStrings {
   static const String noDiaryEntry = 'Nenhum registo diário encontrado';
 
   // Nutrition
-  static const String nutritionPlan = 'Plano Nutricional';
+  static const String nutritionPlan = 'Nutrição';
   static const String noPlanAssigned = 'Nenhum plano nutricional atribuído.\nContacta o teu personal trainer.';
   static const String addExtraMeal = 'Adicionar refeição extra';
   static const String searchFood = 'Pesquisar alimento...';

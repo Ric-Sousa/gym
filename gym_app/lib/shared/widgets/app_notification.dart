@@ -19,28 +19,27 @@ void showAppNotification(
     builder: (ctx) => _ToastWidget(
       message: message,
       type: type,
-      onDismiss: () {
+      duration: duration,
+      onRemove: () {
         if (entry.mounted) entry.remove();
       },
     ),
   );
 
   overlay.insert(entry);
-
-  Future.delayed(duration, () {
-    if (entry.mounted) entry.remove();
-  });
 }
 
 class _ToastWidget extends StatefulWidget {
   final String message;
   final NotificationType type;
-  final VoidCallback onDismiss;
+  final Duration duration;
+  final VoidCallback onRemove;
 
   const _ToastWidget({
     required this.message,
     required this.type,
-    required this.onDismiss,
+    required this.duration,
+    required this.onRemove,
   });
 
   @override
@@ -52,6 +51,7 @@ class _ToastWidgetState extends State<_ToastWidget>
   late final AnimationController _controller;
   late final Animation<Offset> _slideAnimation;
   late final Animation<double> _fadeAnimation;
+  bool _isDismissing = false;
 
   @override
   void initState() {
@@ -76,6 +76,18 @@ class _ToastWidgetState extends State<_ToastWidget>
     ));
 
     _controller.forward();
+
+    // Auto-dismiss com fade out após a duração.
+    Future.delayed(widget.duration, () {
+      if (mounted && !_isDismissing) _dismiss();
+    });
+  }
+
+  /// Inicia a animação de fade-out e remove o widget após.
+  void _dismiss() {
+    if (_isDismissing) return;
+    _isDismissing = true;
+    _controller.reverse().then((_) => widget.onRemove());
   }
 
   @override
@@ -84,25 +96,14 @@ class _ToastWidgetState extends State<_ToastWidget>
     super.dispose();
   }
 
-  Color _backgroundColor() {
+  Color _iconColor() {
     switch (widget.type) {
       case NotificationType.success:
-        return AppColors.success.withValues(alpha: 0.95);
+        return AppColors.success;
       case NotificationType.error:
-        return AppColors.errorContainer.withValues(alpha: 0.95);
+        return AppColors.adminDanger;
       case NotificationType.info:
-        return AppColors.surfaceHighest.withValues(alpha: 0.98);
-    }
-  }
-
-  Color _foregroundColor() {
-    switch (widget.type) {
-      case NotificationType.success:
-        return Colors.white;
-      case NotificationType.error:
-        return AppColors.error;
-      case NotificationType.info:
-        return AppColors.onSurface;
+        return AppColors.warning;
     }
   }
 
@@ -113,7 +114,7 @@ class _ToastWidgetState extends State<_ToastWidget>
       case NotificationType.error:
         return Icons.error_outline;
       case NotificationType.info:
-        return Icons.info_outline;
+        return Icons.warning_amber_rounded;
     }
   }
 
@@ -134,20 +135,21 @@ class _ToastWidgetState extends State<_ToastWidget>
               constraints: const BoxConstraints(maxWidth: 320),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: _backgroundColor(),
+                color: AppColors.surfaceHighest,
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.outline),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+                    color: Colors.black.withValues(alpha: 0.4),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
                   ),
                 ],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(_icon(), color: _foregroundColor(), size: 18),
+                  Icon(_icon(), color: _iconColor(), size: 18),
                   const SizedBox(width: 10),
                   Flexible(
                     child: Text(
@@ -155,16 +157,16 @@ class _ToastWidgetState extends State<_ToastWidget>
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: _foregroundColor(),
+                        color: AppColors.onSurface,
                       ),
                     ),
                   ),
                   const SizedBox(width: 12),
                   GestureDetector(
-                    onTap: widget.onDismiss,
+                    onTap: _dismiss,
                     child: Icon(
                       Icons.close,
-                      color: _foregroundColor().withValues(alpha: 0.6),
+                      color: AppColors.onSurfaceVariant.withValues(alpha: 0.6),
                       size: 16,
                     ),
                   ),
