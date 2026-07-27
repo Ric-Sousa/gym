@@ -139,12 +139,11 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
             return Container(
               margin: const EdgeInsets.only(bottom: 8),
               decoration: BoxDecoration(
-                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppColors.outline),
               ),
               child: Material(
-                color: Colors.transparent,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(8),
                 child: ListTile(
                   title: Text(

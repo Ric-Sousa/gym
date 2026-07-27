@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -246,18 +245,16 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
 
         return ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.surfaceHigh.withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.outline.withValues(alpha: 0.5)),
+              boxShadow: [
+                BoxShadow(color: AppColors.primary.withValues(alpha: 0.15), blurRadius: 20),
+              ],
+            ),
             child: Container(
-              decoration: BoxDecoration(
-                color: AppColors.surfaceHigh.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.outline.withValues(alpha: 0.5)),
-                boxShadow: [
-                  BoxShadow(color: AppColors.primary.withValues(alpha: 0.15), blurRadius: 20),
-                ],
-              ),
-              child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   border: Border(
@@ -346,7 +343,6 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                 ),
               ),
             ),
-          ),
         );
       },
       loading: () => _buildHeroCardSkeleton(),
@@ -357,18 +353,15 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
   Widget _buildHeroCardSkeleton() {
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          height: 180,
-          decoration: BoxDecoration(
-            color: AppColors.surfaceHigh.withValues(alpha: 0.6),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.outline.withValues(alpha: 0.5)),
-          ),
-          child: const Center(
-            child: CircularProgressIndicator(color: AppColors.primary),
-          ),
+      child: Container(
+        height: 180,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceHigh.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.outline.withValues(alpha: 0.5)),
+        ),
+        child: const Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
         ),
       ),
     );
@@ -445,17 +438,15 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
   }) {
     final card = ClipRRect(
       borderRadius: BorderRadius.circular(12),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          width: width,
-          height: height,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceHigh.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
-          ),
+      child: Container(
+        width: width,
+        height: height,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceHigh.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
+        ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -498,7 +489,6 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
             ],
           ),
         ),
-      ),
     );
     if (onTap != null) {
       return GestureDetector(onTap: onTap, child: card);
@@ -517,21 +507,19 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceHigh.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text('Atividade Semanal',
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceHigh.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('Atividade Semanal',
                       style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white)),
                   const Spacer(),
                   const Icon(Icons.bar_chart, color: AppColors.onSurfaceVariant, size: 20),
@@ -632,7 +620,6 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
             ],
           ),
         ),
-      ),
     );
   }
 
@@ -711,58 +698,55 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
   }) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceHigh.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceHighest,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: AppColors.primaryFixed, size: 18),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceHigh.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceHighest,
+                borderRadius: BorderRadius.circular(8),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              child: Icon(icon, color: AppColors.primaryFixed, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant)),
+                ],
+              ),
+            ),
+            if (progress != null)
+              SizedBox(
+                width: 40,
+                height: 40,
+                child: Stack(
+                  alignment: Alignment.center,
                   children: [
-                    Text(title, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
-                    const SizedBox(height: 2),
-                    Text(subtitle, style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant)),
+                    SizedBox(
+                      width: 40, height: 40,
+                      child: CircularProgressIndicator(
+                        value: progress,
+                        strokeWidth: 3,
+                        backgroundColor: AppColors.surfaceHighest,
+                        valueColor: const AlwaysStoppedAnimation(AppColors.primaryFixed),
+                      ),
+                    ),
+                    Text('${(progress * 100).toStringAsFixed(0)}%', style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.primaryFixed)),
                   ],
                 ),
               ),
-              if (progress != null)
-                SizedBox(
-                  width: 40,
-                  height: 40,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      SizedBox(
-                        width: 40, height: 40,
-                        child: CircularProgressIndicator(
-                          value: progress,
-                          strokeWidth: 3,
-                          backgroundColor: AppColors.surfaceHighest,
-                          valueColor: const AlwaysStoppedAnimation(AppColors.primaryFixed),
-                        ),
-                      ),
-                      Text('${(progress * 100).toStringAsFixed(0)}%', style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.primaryFixed)),
-                    ],
-                  ),
-                ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -788,17 +772,14 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
   Widget _glassSection({required EdgeInsets padding, required Widget child}) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: padding,
-          decoration: BoxDecoration(
-            color: AppColors.surfaceHigh.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
-          ),
-          child: child,
+      child: Container(
+        padding: padding,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceHigh.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
         ),
+        child: child,
       ),
     );
   }
