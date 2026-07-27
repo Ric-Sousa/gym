@@ -6,8 +6,6 @@ import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/app_constants.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../data/models/user_model.dart';
-import '../../../../features/auth/providers/auth_provider.dart';
-import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/providers/admin_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 import '../widgets/nutrition_editor.dart';

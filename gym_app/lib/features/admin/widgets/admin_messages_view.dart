@@ -9,9 +9,7 @@ import '../../../core/config/app_constants.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/models/message_model.dart';
 import '../../../features/auth/providers/auth_provider.dart';
-import '../../../shared/providers/global_providers.dart';
 import '../../../shared/widgets/empty_state.dart';
-import '../../aluno/chat/screens/chat_screen.dart';
 
 /// Provider que obtém a última mensagem de cada conversa do admin com alunos.
 final adminConversationsProvider =
@@ -122,7 +120,7 @@ class AdminMessagesView extends ConsumerWidget {
       error: (_, __) => Center(
         child: Text(
           'Erro ao carregar conversas',
-          style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted),
+          style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
         ),
       ),
     );
@@ -228,7 +226,7 @@ class _ConversationTile extends StatelessWidget {
                         Expanded(
                           child: Text(
                             aluno.nome,
-                            style: GoogleFonts.dmSans(
+                            style: GoogleFonts.inter(
                               fontSize: 15,
                               fontWeight:
                                   hasUnread ? FontWeight.w700 : FontWeight.w600,
@@ -239,7 +237,7 @@ class _ConversationTile extends StatelessWidget {
                         if (lastMsg != null)
                           Text(
                             _formatTime(lastMsg.timestamp),
-                            style: GoogleFonts.dmSans(
+                            style: GoogleFonts.inter(
                               fontSize: 11,
                               color: AdminThemeColors.of(context).muted,
                             ),
@@ -251,7 +249,7 @@ class _ConversationTile extends StatelessWidget {
                       lastMsg?.texto ?? 'Inicia a conversa',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.dmSans(
+                      style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight:
                             hasUnread ? FontWeight.w500 : FontWeight.w400,

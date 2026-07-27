@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:typed_data';
 import '../../../../core/config/app_colors.dart';
@@ -552,6 +551,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       context: context,
       builder: (ctx) => SimpleDialog(
         backgroundColor: AppColors.surfaceHigh,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Text(
           'Alterar foto',
           style: GoogleFonts.montserrat(
@@ -650,6 +650,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceHigh,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: Text(
           AppStrings.editProfile,
           style: GoogleFonts.montserrat(
@@ -663,19 +665,72 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             children: [
               TextField(
                 controller: nomeController,
-                decoration: const InputDecoration(labelText: 'Nome'),
+                decoration: InputDecoration(
+                  labelText: 'Nome',
+                  labelStyle: GoogleFonts.inter(color: AppColors.onSurfaceVariant),
+                  filled: true,
+                  fillColor: AppColors.surfaceHighest,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.outline),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.outline),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                  ),
+                ),
                 style: GoogleFonts.inter(color: AppColors.onSurface),
               ),
+              const SizedBox(height: 12),
               TextField(
                 controller: pesoController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Peso (kg)'),
+                decoration: InputDecoration(
+                  labelText: 'Peso (kg)',
+                  labelStyle: GoogleFonts.inter(color: AppColors.onSurfaceVariant),
+                  filled: true,
+                  fillColor: AppColors.surfaceHighest,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.outline),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.outline),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                  ),
+                ),
                 style: GoogleFonts.inter(color: AppColors.onSurface),
               ),
+              const SizedBox(height: 12),
               TextField(
                 controller: alturaController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Altura (cm)'),
+                decoration: InputDecoration(
+                  labelText: 'Altura (cm)',
+                  labelStyle: GoogleFonts.inter(color: AppColors.onSurfaceVariant),
+                  filled: true,
+                  fillColor: AppColors.surfaceHighest,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.outline),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.outline),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                  ),
+                ),
                 style: GoogleFonts.inter(color: AppColors.onSurface),
               ),
             ],
@@ -684,11 +739,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text(AppStrings.cancel),
+            style: TextButton.styleFrom(foregroundColor: AppColors.onSurfaceVariant),
+            child: Text(AppStrings.cancel, style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text(AppStrings.save),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.textOnPrimary,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(AppStrings.save, style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -717,6 +778,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
       if (updates.isNotEmpty) {
         await ref.read(userRepositoryProvider).updateUser(user.uid, updates);
+        if (mounted) {
+          showAppNotification(context, 'Perfil atualizado!', type: NotificationType.success);
+        }
       }
     }
   }

@@ -1,14 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../data/models/user_model.dart';
 import '../../data/models/nutrition_plan_model.dart';
 import '../../data/models/workout_plan_model.dart';
 import '../../data/models/food_model.dart';
 import '../../data/models/progress_model.dart';
-import '../../data/repositories/nutrition_repository.dart';
-import '../../data/repositories/workout_repository.dart';
-import '../../data/repositories/progress_repository.dart';
 import '../../core/config/app_constants.dart';
 import '../../core/config/admin_theme.dart';
 import 'global_providers.dart';

@@ -57,6 +57,14 @@ final todayDiaryProvider = StreamProvider.family<DiaryModel?, String>(
   },
 );
 
+/// Provider de todos os planos de treino (para cruzar com o grafico semanal).
+final weeklyWorkoutPlansProvider = FutureProvider.family<List<WorkoutPlanModel>, String>(
+  (ref, userId) async {
+    final workoutRepo = ref.watch(workoutRepositoryProvider);
+    return await workoutRepo.getAllPlans(userId);
+  },
+);
+
 final ensureDiaryProvider = FutureProvider.family<void, String>(
   (ref, userId) async {
     final today = DateFormat(AppConstants.dateFormat).format(DateTime.now());
@@ -194,6 +202,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
         ref.invalidate(todayDiaryProvider(userId));
         ref.invalidate(weeklyHistoryProvider(userId));
         ref.invalidate(todayWorkoutPlanProvider(userId));
+        ref.invalidate(weeklyWorkoutPlansProvider(userId));
       },
       color: AppColors.primary,
       child: SingleChildScrollView(
@@ -237,11 +246,11 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
       data: (todayWorkout) {
         final hasWorkout = todayWorkout != null && todayWorkout.exercicios.isNotEmpty;
         final workoutName = hasWorkout
-            ? todayWorkout!.foco.isNotEmpty
+            ? todayWorkout.foco.isNotEmpty
                 ? todayWorkout.foco.toUpperCase()
                 : 'TREINO DE HOJE'
             : null;
-        final exerciseCount = hasWorkout ? todayWorkout!.exercicios.length : 0;
+        final exerciseCount = hasWorkout ? todayWorkout.exercicios.length : 0;
 
         return ClipRRect(
           borderRadius: BorderRadius.circular(12),
@@ -311,7 +320,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                     const SizedBox(height: 4),
                     Text(
                       hasWorkout
-                          ? '$exerciseCount exercícios • Foco em ${todayWorkout!.foco.isNotEmpty ? todayWorkout.foco.toLowerCase() : 'força'}.'
+                          ? '$exerciseCount exercícios • Foco em ${todayWorkout.foco.isNotEmpty ? todayWorkout.foco.toLowerCase() : 'força'}.'
                           : 'Aproveita para alongar e recuperar.',
                       style: GoogleFonts.inter(fontSize: 14, color: AppColors.onSurfaceVariant),
                     ),
@@ -334,9 +343,9 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                             ),
                           ),
                           const SizedBox(width: 10),
-                          _muscleChip('${todayWorkout!.exercicios.length} ex.'),
+                          _muscleChip('${todayWorkout.exercicios.length} ex.'),
                           const SizedBox(width: 6),
-                          _muscleChip('${todayWorkout.diaSemana}'),
+                          _muscleChip(todayWorkout.diaSemana),
                         ],
                       ),
                   ],
@@ -394,7 +403,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
             icon: Icons.local_fire_department,
             iconColor: AppColors.primaryFixed,
             label: 'CALORIAS',
-            value: '${diary.totalCalorias.toStringAsFixed(0)}',
+            value: diary.totalCalorias.toStringAsFixed(0),
             unit: 'kcal',
             height: 140,
           ),
@@ -403,7 +412,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
             icon: Icons.water_drop,
             iconColor: AppColors.primaryFixed,
             label: 'HIDRATAÇÃO',
-            value: '${(diary.agua / 1000).toStringAsFixed(1)}',
+            value: (diary.agua / 1000).toStringAsFixed(1),
             unit: '/ ${(AppConstants.dailyWaterGoalMl / 1000).toStringAsFixed(0)}L',
             progress: waterPct,
             height: 140,
@@ -502,6 +511,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
 
   Widget _buildWeeklyActivity(String userId) {
     final historyAsync = ref.watch(weeklyHistoryProvider(userId));
+    final workoutPlansAsync = ref.watch(weeklyWorkoutPlansProvider(userId));
     final labels = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
     final today = DateTime.now().weekday - 1;
 
@@ -528,10 +538,13 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
               const SizedBox(height: 20),
               historyAsync.when(
                 data: (history) {
+                  final plans = workoutPlansAsync.valueOrNull ?? [];
+
                   // Map diary entries to day buckets (0=Mon..6=Sun)
                   final calPerDay = List.filled(7, 0.0);
+                  final diaryPerDay = List<DiaryModel?>.filled(7, null);
                   final now = DateTime.now();
-                  final weekStart = now.subtract(Duration(days: now.weekday - 1));
+                  final weekStart = DateTime(now.year, now.month, now.day - (now.weekday - 1));
 
                   for (final entry in history) {
                     try {
@@ -539,8 +552,20 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                       final diff = date.difference(weekStart).inDays;
                       if (diff >= 0 && diff < 7) {
                         calPerDay[diff] += entry.totalCalorias;
+                        diaryPerDay[diff] = entry;
                       }
                     } catch (_) {}
+                  }
+
+                  // Find workout for each day of the week
+                  final workoutPerDay = List<WorkoutDay?>.filled(7, null);
+                  for (final plan in plans) {
+                    for (int i = 0; i < 7; i++) {
+                      if (workoutPerDay[i] == null) {
+                        final diaSemana = AppStrings.daysOfWeek[i];
+                        workoutPerDay[i] = plan.getWorkoutForDay(diaSemana);
+                      }
+                    }
                   }
 
                   final maxCal = calPerDay.isEmpty
@@ -548,54 +573,73 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                       : calPerDay.reduce((a, b) => a > b ? a : b).clamp(1.0, 5000.0);
 
                   return SizedBox(
-                    height: 140,
+                    height: 160,
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: List.generate(7, (i) {
                         final isToday = i == today;
                         final h = (calPerDay[i] / maxCal).clamp(0.04, 1.0);
                         final cals = calPerDay[i];
+                        final dayDate = weekStart.add(Duration(days: i));
                         return Expanded(
                           child: Padding(
                             padding: EdgeInsets.only(right: i < 6 ? 4 : 0),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                if (cals > 0)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 4),
-                                    child: Text(
-                                      '${cals.toStringAsFixed(0)}',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 9,
-                                        fontWeight: isToday ? FontWeight.w700 : FontWeight.w400,
-                                        color: isToday ? AppColors.primaryFixed : AppColors.onSurfaceVariant,
+                            child: GestureDetector(
+                              onTap: () => _showDayDetails(
+                                context,
+                                dayIndex: i,
+                                dayDate: dayDate,
+                                diary: diaryPerDay[i],
+                                workout: workoutPerDay[i],
+                              ),
+                              child: Column(
+                                children: [
+                                  // Calorias no topo
+                                  if (cals > 0)
+                                    SizedBox(
+                                      height: 16,
+                                      child: Center(
+                                        child: Text(
+                                          cals.toStringAsFixed(0),
+                                          style: GoogleFonts.inter(
+                                            fontSize: 9,
+                                            fontWeight: isToday ? FontWeight.w700 : FontWeight.w400,
+                                            color: isToday ? AppColors.primaryFixed : AppColors.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  const SizedBox(height: 4),
+                                  // Barra com altura proporcional
+                                  Expanded(
+                                    child: Align(
+                                      alignment: Alignment.bottomCenter,
+                                      child: FractionallySizedBox(
+                                        heightFactor: h,
+                                        child: AnimatedContainer(
+                                          duration: const Duration(milliseconds: 600),
+                                          decoration: BoxDecoration(
+                                            color: isToday ? AppColors.primaryFixed : AppColors.surfaceHighest,
+                                            borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
+                                            boxShadow: isToday
+                                                ? [BoxShadow(color: AppColors.primaryFixed.withValues(alpha: 0.4), blurRadius: 12)]
+                                                : null,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                FractionallySizedBox(
-                                  heightFactor: h,
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 600),
-                                    decoration: BoxDecoration(
-                                      color: isToday ? AppColors.primaryFixed : AppColors.surfaceHighest,
-                                      borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
-                                      boxShadow: isToday
-                                          ? [BoxShadow(color: AppColors.primaryFixed.withValues(alpha: 0.4), blurRadius: 12)]
-                                          : null,
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    labels[i],
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: isToday ? FontWeight.w700 : FontWeight.w400,
+                                      color: isToday ? AppColors.primaryFixed : AppColors.secondaryFixedDim,
                                     ),
                                   ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  labels[i],
-                                  style: GoogleFonts.inter(
-                                    fontSize: 10,
-                                    fontWeight: isToday ? FontWeight.w700 : FontWeight.w400,
-                                    color: isToday ? AppColors.primaryFixed : AppColors.secondaryFixedDim,
-                                  ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         );
@@ -620,6 +664,270 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
             ],
           ),
         ),
+    );
+  }
+
+  /// Exibe um bottom sheet com detalhes do dia (refeições + treino).
+  void _showDayDetails(
+    BuildContext context, {
+    required int dayIndex,
+    required DateTime dayDate,
+    DiaryModel? diary,
+    WorkoutDay? workout,
+  }) {
+    final diaNome = AppStrings.daysOfWeek[dayIndex];
+    final dateStr = DateFormat("dd 'de' MMMM", 'pt').format(dayDate);
+    final isToday = dayIndex == DateTime.now().weekday - 1;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.75),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceHigh,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            border: Border.all(color: AppColors.outline.withValues(alpha: 0.5), width: 1),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.outline,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // Scrollable content
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ── Header ─────────────────────────
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  diaNome,
+                                  style: GoogleFonts.montserrat(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w800,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '$dateStr${isToday ? ' • Hoje' : ''}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    color: AppColors.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            icon: const Icon(Icons.close, color: AppColors.onSurfaceVariant, size: 22),
+                          ),
+                        ],
+                      ),
+
+                      if (diary == null && workout == null) ...[
+                        const SizedBox(height: 32),
+                        Center(
+                          child: Column(
+                            children: [
+                              Icon(Icons.inbox_outlined, size: 48, color: AppColors.onSurfaceVariant.withValues(alpha: 0.4)),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Sem registos neste dia',
+                                style: GoogleFonts.inter(fontSize: 15, color: AppColors.onSurfaceVariant),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                      ],
+
+                      // ── Stats Row ───────────────────────
+                      if (diary != null) ...[
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            _detailStatChip(Icons.local_fire_department, AppColors.calories, '${diary.totalCalorias.toStringAsFixed(0)} kcal'),
+                            const SizedBox(width: 8),
+                            _detailStatChip(Icons.water_drop, AppColors.primaryFixed, '${(diary.agua / 1000).toStringAsFixed(1)}L'),
+                            const SizedBox(width: 8),
+                            if (diary.avaliacao > 0)
+                              _detailStatChip(Icons.star, AppColors.starFilled, '${diary.avaliacao}/5'),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      // ── Refeições ───────────────────────
+                      if (diary != null && diary.refeicoes.isNotEmpty) ...[
+                        _detailSectionHeader(Icons.restaurant, 'Refeições'),
+                        const SizedBox(height: 8),
+                        ...diary.refeicoes.map((meal) => _detailMealTile(meal)),
+                        const SizedBox(height: 8),
+                      ],
+
+                      // ── Treino ──────────────────────────
+                      if (workout != null && workout.exercicios.isNotEmpty) ...[
+                        _detailSectionHeader(Icons.fitness_center, 'Treino${workout.foco.isNotEmpty ? ' • ${workout.foco.toUpperCase()}' : ''}'),
+                        const SizedBox(height: 8),
+                        ...workout.exercicios.map((ex) => _detailExerciseTile(ex)),
+                      ] else if (workout != null && workout.exercicios.isEmpty) ...[
+                        _detailSectionHeader(Icons.fitness_center, 'Treino'),
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 12),
+                          child: Text(
+                            'Dia de descanso',
+                            style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant),
+                          ),
+                        ),
+                      ],
+
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _detailStatChip(IconData icon, Color color, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 5),
+          Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailSectionHeader(IconData icon, String title) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: AppColors.primaryFixed),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primaryFixed),
+        ),
+      ],
+    );
+  }
+
+  Widget _detailMealTile(MealEntry meal) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6, left: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceHighest,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              meal.tipo,
+              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.onSurface),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  meal.descricao,
+                  style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
+                ),
+                if (meal.alimentos.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      meal.alimentos.join(', '),
+                      style: GoogleFonts.inter(fontSize: 11, color: AppColors.onSurfaceVariant),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${meal.calorias.toStringAsFixed(0)} kcal',
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.calories),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _detailExerciseTile(Exercise ex) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4, left: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 4,
+            decoration: const BoxDecoration(
+              color: AppColors.primaryFixed,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              ex.nome,
+              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white),
+            ),
+          ),
+          Text(
+            '${ex.series}x${ex.repeticoes}',
+            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.secondaryFixedDim),
+          ),
+          if (ex.cargaSugerida != null) ...[
+            const SizedBox(width: 8),
+            Text(
+              '${ex.cargaSugerida!.toStringAsFixed(0)}kg',
+              style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
+            ),
+          ],
+        ],
+      ),
     );
   }
 

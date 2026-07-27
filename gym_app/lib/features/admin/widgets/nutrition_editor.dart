@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/admin_theme.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../data/models/user_model.dart';
 import '../../../../data/models/nutrition_plan_model.dart';
-import '../../../../data/models/food_model.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/providers/admin_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
@@ -53,7 +51,7 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
                   padding: const EdgeInsets.symmetric(horizontal: 2),
                   child: ChoiceChip(
                     label: Text(AppStrings.daysOfWeekShort[index],
-                        style: GoogleFonts.dmSans(fontSize: 12, color: selected ? AdminThemeColors.of(context).bg : AdminThemeColors.of(context).muted)),
+                        style: GoogleFonts.inter(fontSize: 12, color: selected ? AdminThemeColors.of(context).bg : AdminThemeColors.of(context).muted)),
                     selected: selected,
                     onSelected: (_) => setState(() => _selectedDayIndex = index),
                     selectedColor: AdminThemeColors.of(context).lime,
@@ -89,7 +87,7 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
             ElevatedButton.icon(
               onPressed: _createEmptyPlan,
               icon: const Icon(Icons.add, size: 16),
-              label: Text('Criar plano', style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w700)),
+              label: Text('Criar plano', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AdminThemeColors.of(context).lime,
                 foregroundColor: AdminThemeColors.of(context).bg,
@@ -108,14 +106,14 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
         children: [
           Row(
             children: [
-              Text('Meta calórica:', style: GoogleFonts.dmSans(fontSize: 14, fontWeight: FontWeight.w600, color: AdminThemeColors.of(context).text)),
+              Text('Meta calórica:', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AdminThemeColors.of(context).text)),
               const SizedBox(width: 8),
-              Text('${plan.metaCalorias} kcal', style: GoogleFonts.dmMono(fontSize: 14, color: AdminThemeColors.of(context).orange)),
+              Text('${plan.metaCalorias} kcal', style: GoogleFonts.montserrat(fontSize: 14, color: AdminThemeColors.of(context).orange)),
               const Spacer(),
               TextButton.icon(
                 onPressed: () => _editMetaCalorias(plan),
                 icon: Icon(Icons.edit, size: 14, color: AdminThemeColors.of(context).lime),
-                label: Text('Editar meta', style: GoogleFonts.dmSans(fontSize: 12, color: AdminThemeColors.of(context).lime)),
+                label: Text('Editar meta', style: GoogleFonts.inter(fontSize: 12, color: AdminThemeColors.of(context).lime)),
               ),
             ],
           ),
@@ -143,16 +141,16 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
                     ),
                     child: Icon(Icons.restaurant, color: AdminThemeColors.of(context).lime, size: 16),
                   ),
-                  title: Text(meal.tipo, style: GoogleFonts.dmSans(fontWeight: FontWeight.w600, color: AdminThemeColors.of(context).text)),
+                  title: Text(meal.tipo, style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: AdminThemeColors.of(context).text)),
                   subtitle: Text('${meal.totalCalorias.toStringAsFixed(0)} kcal',
-                      style: GoogleFonts.dmSans(fontSize: 12, color: AdminThemeColors.of(context).muted)),
+                      style: GoogleFonts.inter(fontSize: 12, color: AdminThemeColors.of(context).muted)),
                   children: [
                     ...meal.alimentos.map((a) => ListTile(
                           dense: true,
-                          title: Text(a.nome, style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text, fontSize: 14)),
-                          subtitle: Text(a.quantidade, style: GoogleFonts.dmSans(fontSize: 12, color: AdminThemeColors.of(context).muted)),
+                          title: Text(a.nome, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text, fontSize: 14)),
+                          subtitle: Text(a.quantidade, style: GoogleFonts.inter(fontSize: 12, color: AdminThemeColors.of(context).muted)),
                           trailing: Text('${a.calorias.toStringAsFixed(0)} kcal',
-                              style: GoogleFonts.dmMono(fontSize: 13, color: AdminThemeColors.of(context).muted)),
+                              style: GoogleFonts.montserrat(fontSize: 13, color: AdminThemeColors.of(context).muted)),
                         )),
                     Divider(color: AdminThemeColors.of(context).border, height: 1),
                     Padding(
@@ -160,7 +158,7 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
                       child: TextButton.icon(
                         onPressed: () => _addAlimentoToMeal(plan, meal.tipo),
                         icon: Icon(Icons.add, size: 14, color: AdminThemeColors.of(context).lime),
-                        label: Text('Adicionar alimento', style: GoogleFonts.dmSans(fontSize: 12, color: AdminThemeColors.of(context).lime)),
+                        label: Text('Adicionar alimento', style: GoogleFonts.inter(fontSize: 12, color: AdminThemeColors.of(context).lime)),
                       ),
                     ),
                   ],
@@ -172,7 +170,7 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
             child: OutlinedButton.icon(
               onPressed: () => _addMeal(plan),
               icon: const Icon(Icons.add, size: 14),
-              label: Text('Adicionar refeição', style: GoogleFonts.dmSans(fontSize: 12)),
+              label: Text('Adicionar refeição', style: GoogleFonts.inter(fontSize: 12)),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AdminThemeColors.of(context).lime,
                 side: BorderSide(color: AdminThemeColors.of(context).lime),
@@ -198,19 +196,19 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AdminThemeColors.of(context).surface,
-        title: Text('Meta calórica', style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
+        title: Text('Meta calórica', style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
-          style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text),
+          style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
           decoration: const InputDecoration(labelText: 'Calorias', suffixText: 'kcal'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.cancel, style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.cancel, style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted))),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, double.tryParse(controller.text.replaceAll(',', '.'))),
             style: ElevatedButton.styleFrom(backgroundColor: AdminThemeColors.of(context).lime, foregroundColor: AdminThemeColors.of(context).bg),
-            child: Text(AppStrings.save, style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
+            child: Text(AppStrings.save, style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -229,21 +227,21 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AdminThemeColors.of(context).surface,
-        title: Text('Adicionar alimento', style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
+        title: Text('Adicionar alimento', style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: nome, style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Nome do alimento')),
-            TextField(controller: qtd, style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Quantidade')),
-            TextField(controller: kcal, keyboardType: TextInputType.number, style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Calorias')),
+            TextField(controller: nome, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Nome do alimento')),
+            TextField(controller: qtd, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Quantidade')),
+            TextField(controller: kcal, keyboardType: TextInputType.number, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Calorias')),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.cancel, style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.cancel, style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted))),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, {'nome': nome.text.trim(), 'quantidade': qtd.text.trim(), 'calorias': kcal.text.replaceAll(',', '.')}),
             style: ElevatedButton.styleFrom(backgroundColor: AdminThemeColors.of(context).lime, foregroundColor: AdminThemeColors.of(context).bg),
-            child: Text(AppStrings.save, style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
+            child: Text(AppStrings.save, style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -262,14 +260,14 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AdminThemeColors.of(context).surface,
-        title: Text('Nova refeição', style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
-        content: TextField(controller: tipo, style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Tipo', hintText: 'Almoço')),
+        title: Text('Nova refeição', style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
+        content: TextField(controller: tipo, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Tipo', hintText: 'Almoço')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.cancel, style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.cancel, style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted))),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, tipo.text.trim()),
             style: ElevatedButton.styleFrom(backgroundColor: AdminThemeColors.of(context).lime, foregroundColor: AdminThemeColors.of(context).bg),
-            child: Text(AppStrings.save, style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
+            child: Text(AppStrings.save, style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
