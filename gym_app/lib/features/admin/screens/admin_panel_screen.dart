@@ -10,6 +10,7 @@ import '../../../core/config/app_colors.dart';
 import '../../../core/config/admin_theme.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/models/food_model.dart';
+import '../../../data/models/progress_model.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../shared/providers/global_providers.dart';
 import '../../../shared/providers/admin_providers.dart';
@@ -1380,6 +1381,8 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
             children: [
               _tabBtn('overview', 'Visão Geral', Icons.person),
               const SizedBox(width: 4),
+              _tabBtn('progresso', 'Progresso', Icons.trending_up),
+              const SizedBox(width: 4),
               _tabBtn('workout', 'Plano de Treino', Icons.fitness_center),
               const SizedBox(width: 4),
               _tabBtn('nutrition', 'Nutrição', Icons.restaurant),
@@ -1389,6 +1392,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
           ),
           const SizedBox(height: 20),
           if (_tab == 'overview') _buildOverview(),
+          if (_tab == 'progresso') _buildProgressTab(),
           if (_tab == 'workout')
             SizedBox(
               height: 600,
@@ -1481,7 +1485,8 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
   }
 
   Widget _buildWeightChart() {
-    // Show a placeholder line chart for the client
+    final progressAsync = ref.watch(adminProgressProvider(widget.client.uid));
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1499,50 +1504,262 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('EVOLUÇÃO DE PESO (7 DIAS)',
+          Text('EVOLUÇÃO DE PESO',
               style: GoogleFonts.barlowCondensed(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.03,
                   color: AdminThemeColors.of(context).text)),
           const SizedBox(height: 16),
-          SizedBox(
-            height: 180,
-            child: LineChart(
-              LineChartData(
-                gridData: const FlGridData(show: false),
-                titlesData: const FlTitlesData(show: false),
-                borderData: FlBorderData(show: false),
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: [0, 1, 2, 3, 4, 5, 6]
-                        .asMap()
-                        .entries
-                        .map((e) => FlSpot(
-                            e.key.toDouble(),
-                            [
-                              widget.client.pesoAtual ?? 80.0,
-                              (widget.client.pesoAtual ?? 80.0) + 0.5,
-                              (widget.client.pesoAtual ?? 80.0) + 0.3,
-                              (widget.client.pesoAtual ?? 80.0) + 1.0,
-                              (widget.client.pesoAtual ?? 80.0) + 1.2,
-                              (widget.client.pesoAtual ?? 80.0) + 0.8,
-                              (widget.client.pesoAtual ?? 80.0) + 1.5,
-                            ][e.key]))
-                        .toList(),
-                    isCurved: true,
-                    color: AdminThemeColors.of(context).lime,
-                    barWidth: 2,
-                    dotData: const FlDotData(show: true),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      color: AdminThemeColors.of(context).lime.withValues(alpha: 0.08),
+          progressAsync.when(
+            data: (progressList) {
+              final weightEntries = progressList
+                  .where((p) => p.peso != null)
+                  .toList()
+                ..sort((a, b) => a.data.compareTo(b.data));
+
+              if (weightEntries.isEmpty) {
+                return SizedBox(
+                  height: 180,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.show_chart,
+                            size: 40, color: AdminThemeColors.of(context).muted),
+                        const SizedBox(height: 8),
+                        Text('Sem dados de peso registados',
+                            style: GoogleFonts.dmSans(
+                                fontSize: 13,
+                                color: AdminThemeColors.of(context).muted)),
+                      ],
                     ),
+                  ),
+                );
+              }
+
+              return SizedBox(
+                height: 180,
+                child: LineChart(
+                  LineChartData(
+                    gridData: const FlGridData(show: false),
+                    titlesData: const FlTitlesData(show: false),
+                    borderData: FlBorderData(show: false),
+                    lineBarsData: [
+                      LineChartBarData(
+                        spots: weightEntries
+                            .asMap()
+                            .entries
+                            .map((e) => FlSpot(
+                                e.key.toDouble(), e.value.peso!))
+                            .toList(),
+                        isCurved: true,
+                        color: AdminThemeColors.of(context).lime,
+                        barWidth: 2,
+                        dotData: const FlDotData(show: true),
+                        belowBarData: BarAreaData(
+                          show: true,
+                          color: AdminThemeColors.of(context).lime
+                              .withValues(alpha: 0.08),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+            loading: () => SizedBox(
+              height: 180,
+              child: Center(
+                child: CircularProgressIndicator(
+                    color: AdminThemeColors.of(context).lime),
+              ),
+            ),
+            error: (_, __) => SizedBox(
+              height: 180,
+              child: Center(
+                child: Text('Erro ao carregar dados',
+                    style: GoogleFonts.dmSans(
+                        color: AdminThemeColors.of(context).muted)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressTab() {
+    final progressAsync = ref.watch(adminProgressProvider(widget.client.uid));
+
+    return progressAsync.when(
+      data: (progressList) {
+        if (progressList.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(60),
+            decoration: BoxDecoration(
+              color: AdminThemeColors.of(context).surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AdminThemeColors.of(context).border),
+            ),
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(Icons.trending_up,
+                      size: 48, color: AdminThemeColors.of(context).muted),
+                  const SizedBox(height: 12),
+                  Text('Nenhum registo de progresso',
+                      style: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          color: AdminThemeColors.of(context).muted)),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Solicita uma avaliação ao aluno',
+                    style: GoogleFonts.dmSans(
+                        fontSize: 12,
+                        color: AdminThemeColors.of(context).muted),
                   ),
                 ],
               ),
             ),
+          );
+        }
+
+        final sorted = List<ProgressModel>.from(progressList)
+          ..sort((a, b) => b.data.compareTo(a.data)); // mais recente primeiro
+
+        return Column(
+          children: [
+            // ── Gráfico de Peso ──
+            _buildWeightChart(),
+            const SizedBox(height: 20),
+            // ── Timeline de avaliações ──
+            ...sorted.map((p) => _buildProgressCard(p)),
+          ],
+        );
+      },
+      loading: () => Center(
+        child:
+            CircularProgressIndicator(color: AdminThemeColors.of(context).lime),
+      ),
+      error: (_, __) => Center(
+        child: Text('Erro ao carregar progresso',
+            style:
+                GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted)),
+      ),
+    );
+  }
+
+  Widget _buildProgressCard(ProgressModel progress) {
+    final dateFormatted =
+        DateFormat('d MMM yyyy', 'pt').format(progress.data);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AdminThemeColors.of(context).surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AdminThemeColors.of(context).border),
+        boxShadow: [
+          BoxShadow(
+            color: AdminThemeColors.of(context).shadow,
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Data + Peso
+          Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AdminThemeColors.of(context).limeDim,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  dateFormatted.toUpperCase(),
+                  style: GoogleFonts.barlowCondensed(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AdminThemeColors.of(context).lime,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              if (progress.peso != null)
+                Text(
+                  '${progress.peso!.toStringAsFixed(1)} kg',
+                  style: GoogleFonts.dmMono(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: AdminThemeColors.of(context).text,
+                  ),
+                ),
+            ],
+          ),
+          // Medidas
+          if (progress.medidas.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 16,
+              runSpacing: 8,
+              children: progress.medidas.entries.map((e) {
+                return Text(
+                  '${e.key}: ${e.value.toStringAsFixed(1)} cm',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 12,
+                    color: AdminThemeColors.of(context).muted,
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+          // Fotos
+          if (progress.fotos.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: progress.fotos.map((foto) {
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    foto,
+                    width: 120,
+                    height: 150,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (_, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        width: 120,
+                        height: 150,
+                        color: AdminThemeColors.of(context).surface2,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AdminThemeColors.of(context).lime,
+                          ),
+                        ),
+                      );
+                    },
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 120,
+                      height: 150,
+                      color: AdminThemeColors.of(context).surface2,
+                      child: Icon(Icons.broken_image,
+                          color: AdminThemeColors.of(context).muted),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
         ],
       ),
     );
