@@ -916,63 +916,139 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
           ),
           const SizedBox(height: 28),
           // Search + filters
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              SizedBox(
-                width: isMobile ? double.infinity : 280,
-                height: 40,
-                child: TextField(
-                    onChanged: (v) => setState(() => _search = v),
-                    style: GoogleFonts.inter(
-                        fontSize: 13, color: AdminThemeColors.of(context).text),
-                    decoration: InputDecoration(
-                      hintText: 'Buscar cliente...',
-                      hintStyle: GoogleFonts.inter(
-                          fontSize: 13, color: AdminThemeColors.of(context).muted),
-                      prefixIcon: Icon(Icons.search,
-                          size: 16, color: AdminThemeColors.of(context).muted),
-                      filled: true,
-                      fillColor: AdminThemeColors.of(context).surface,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide:
-                            BorderSide(color: AdminThemeColors.of(context).border),
+          if (isMobile)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  height: 40,
+                  child: TextField(
+                      onChanged: (v) => setState(() => _search = v),
+                      style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: AdminThemeColors.of(context).text),
+                      decoration: InputDecoration(
+                        hintText: 'Buscar cliente...',
+                        hintStyle: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: AdminThemeColors.of(context).muted),
+                        prefixIcon: Icon(Icons.search,
+                            size: 16,
+                            color: AdminThemeColors.of(context).muted),
+                        filled: true,
+                        fillColor: AdminThemeColors.of(context).surface,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(
+                              color: AdminThemeColors.of(context).border),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(
+                              color: AdminThemeColors.of(context).border),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
                       ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide:
-                            BorderSide(color: AdminThemeColors.of(context).border),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
                     ),
-                  ),
                 ),
-              ),
-              ...['all', 'active', 'inactive'].map((f) {
-                final active = _filter == f;
-                final labels = {
-                  'all': 'Todos',
-                  'active': 'Ativo',
-                  'inactive': 'Inativo'
-                };
-                return Padding(
-                  padding: EdgeInsets.only(left: 6, top: isMobile ? 6 : 0),
-                  child: GestureDetector(
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: ['all', 'active', 'inactive'].map((f) {
+                    final active = _filter == f;
+                    final labels = {
+                      'all': 'Todos',
+                      'active': 'Ativo',
+                      'inactive': 'Inativo'
+                    };
+                    return GestureDetector(
+                      onTap: () => setState(() => _filter = f),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: active
+                              ? AdminThemeColors.of(context).surface2
+                              : AdminThemeColors.of(context).surface,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                              color: AdminThemeColors.of(context).border),
+                        ),
+                        child: Text(labels[f]!,
+                            style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: active
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                                color: active
+                                    ? AdminThemeColors.of(context).text
+                                    : AdminThemeColors.of(context).muted)),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                SizedBox(
+                  width: 280,
+                  height: 40,
+                  child: TextField(
+                      onChanged: (v) => setState(() => _search = v),
+                      style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: AdminThemeColors.of(context).text),
+                      decoration: InputDecoration(
+                        hintText: 'Buscar cliente...',
+                        hintStyle: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: AdminThemeColors.of(context).muted),
+                        prefixIcon: Icon(Icons.search,
+                            size: 16,
+                            color: AdminThemeColors.of(context).muted),
+                        filled: true,
+                        fillColor: AdminThemeColors.of(context).surface,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(
+                              color: AdminThemeColors.of(context).border),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(
+                              color: AdminThemeColors.of(context).border),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                      ),
+                    ),
+                ),
+                ...['all', 'active', 'inactive'].map((f) {
+                  final active = _filter == f;
+                  final labels = {
+                    'all': 'Todos',
+                    'active': 'Ativo',
+                    'inactive': 'Inativo'
+                  };
+                  return GestureDetector(
                     onTap: () => setState(() => _filter = f),
                     child: Container(
-                      padding: EdgeInsets.symmetric(
-                          horizontal: isMobile ? 10 : 14, vertical: isMobile ? 7 : 10),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
                         color: active
                             ? AdminThemeColors.of(context).surface2
                             : AdminThemeColors.of(context).surface,
                         borderRadius: BorderRadius.circular(10),
-                        border:
-                            Border.all(color: AdminThemeColors.of(context).border),
+                        border: Border.all(
+                            color: AdminThemeColors.of(context).border),
                       ),
                       child: Text(labels[f]!,
                           style: GoogleFonts.inter(
@@ -984,11 +1060,10 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                                   ? AdminThemeColors.of(context).text
                                   : AdminThemeColors.of(context).muted)),
                     ),
-                  ),
-                );
-              }),
-            ],
-          ),
+                  );
+                }),
+              ],
+            ),
           const SizedBox(height: 24),
           alunosAsync.when(
             data: (alunos) => _buildGrid(alunos),
@@ -1606,7 +1681,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
   Widget _tabBtn(String id, String label, IconData icon) {
     final active = _tab == id;
     final isMobile = widget.isMobile;
-    return GestureDetector(
+    final widget = GestureDetector(
       onTap: () {
         setState(() => _tab = id);
         if (id == 'chat') _ensurePersonalId();
@@ -1647,6 +1722,17 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
         ),
       ),
     );
+    if (label.isEmpty) {
+      final tooltipLabels = {
+        'overview': 'Visão Geral',
+        'progresso': 'Progresso',
+        'workout': 'Treino',
+        'nutrition': 'Nutrição',
+        'chat': 'Chat',
+      };
+      return Tooltip(message: tooltipLabels[id] ?? id, child: widget);
+    }
+    return widget;
   }
 
   Widget _buildOverview() {
