@@ -402,119 +402,95 @@ export const cleanupInvalidFcmTokens = functions.pubsub
 // ────────────────────────────────────────────────
 
 /**
- * Callable function que permite ao admin solicitar progresso a um aluno.
- * Marca o documento do aluno com hasPendingProgress = true
- * e envia uma notificação push ao aluno.
+ * HTTP function (onRequest) que permite ao admin solicitar progresso.
+ * Usa onRequest em vez de onCall para controlo total de CORS e auth —
+ * essencial para compatibilidade com Flutter web.
  */
-export const requestProgress = functions.region('europe-west1').https.onCall(
-  async (request) => {
-    // ════════════════════════════════════════════
-    // 1. Autenticação
-    // ════════════════════════════════════════════
+export const requestProgress = functions
+  .region('europe-west1')
+  .https.onRequest(async (req, res) => {
+    // ── CORS ──
+    res.set('Access-Control-Allow-Origin', '*');
 
-    let callerUid: string | undefined = request.auth?.uid;
-
-    // Fallback para Flutter web: verificar authToken do payload
-    if (!callerUid) {
-      const authToken = request.data?.authToken as string | undefined;
-      if (authToken) {
-        try {
-          console.log('Verifying authToken from data payload...');
-          const decoded = await auth.verifyIdToken(authToken);
-          callerUid = decoded.uid;
-          console.log('authToken verified, callerUid:', callerUid);
-        } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.error('verifyIdToken failed:', msg);
-        }
-      }
+    if (req.method === 'OPTIONS') {
+      res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+      res.set('Access-Control-Max-Age', '3600');
+      res.status(204).send('');
+      return;
     }
 
-    if (!callerUid) {
-      throw new functions.https.HttpsError(
-        'unauthenticated',
-        'Tens de iniciar sessão.'
-      );
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Método não permitido.' });
+      return;
     }
 
-    // ════════════════════════════════════════════
-    // 2. Autorização (apenas admin)
-    // ════════════════════════════════════════════
-
-    let callerRole: string | undefined;
-    let callerName: string | undefined;
     try {
+      // ═══ 1. Autenticação via Authorization header ═══
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        res.status(401).json({ error: 'Token de autenticação em falta.' });
+        return;
+      }
+
+      const idToken = authHeader.split('Bearer ')[1];
+      let decoded: admin.auth.DecodedIdToken;
+      try {
+        decoded = await auth.verifyIdToken(idToken);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error('verifyIdToken failed:', msg);
+        res.status(401).json({ error: 'Token inválido ou expirado.' });
+        return;
+      }
+
+      const callerUid = decoded.uid;
+      console.log('Authenticated callerUid:', callerUid);
+
+      // ═══ 2. Autorização (apenas admin) ═══
       const callerDoc = await db.collection('users').doc(callerUid).get();
       const callerData = callerDoc.data();
-      callerRole = callerData?.role;
-      callerName = callerData?.nome;
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error('Failed to fetch caller doc:', msg);
-      throw new functions.https.HttpsError(
-        'internal',
-        'Erro ao verificar permissões.'
-      );
-    }
+      const callerRole = callerData?.role;
+      const adminName = callerData?.nome ?? 'Personal Trainer';
 
-    console.log('callerRole:', callerRole);
+      console.log('callerRole:', callerRole);
 
-    if (callerRole !== 'admin') {
-      throw new functions.https.HttpsError(
-        'permission-denied',
-        'Apenas administradores podem solicitar progresso.'
-      );
-    }
+      if (callerRole !== 'admin') {
+        res
+          .status(403)
+          .json({ error: 'Apenas administradores podem solicitar progresso.' });
+        return;
+      }
 
-    const adminName = callerName ?? 'Personal Trainer';
+      // ═══ 3. Validar dados ═══
+      const { userId } = req.body as { userId?: string };
+      if (!userId) {
+        res.status(400).json({ error: 'ID do aluno é obrigatório.' });
+        return;
+      }
 
-    // ════════════════════════════════════════════
-    // 3. Validar dados
-    // ════════════════════════════════════════════
+      console.log('Marking hasPendingProgress for userId:', userId);
 
-    const userId = request.data?.userId as string | undefined;
-    if (!userId) {
-      throw new functions.https.HttpsError(
-        'invalid-argument',
-        'ID do aluno é obrigatório.'
-      );
-    }
-
-    console.log('Marking hasPendingProgress for userId:', userId);
-
-    // ════════════════════════════════════════════
-    // 4. Marcar progresso pendente no aluno
-    // ════════════════════════════════════════════
-
-    try {
-      await db.collection('users').doc(userId).set(
-        {
-          hasPendingProgress: true,
-          progressRequestedAt:
-            admin.firestore.FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
+      // ═══ 4. Marcar progresso pendente ═══
+      await db
+        .collection('users')
+        .doc(userId)
+        .set(
+          {
+            hasPendingProgress: true,
+            progressRequestedAt:
+              admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
       console.log('hasPendingProgress set on user', userId);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error('Failed to set hasPendingProgress:', msg);
-      throw new functions.https.HttpsError(
-        'internal',
-        'Erro ao registar pedido de progresso.'
-      );
-    }
 
-    // ════════════════════════════════════════════
-    // 5. Enviar notificação push (best-effort)
-    // ════════════════════════════════════════════
+      // ═══ 5. Enviar notificação push (best-effort) ═══
+      try {
+        const userDoc = await db.collection('users').doc(userId).get();
+        const fcmToken = userDoc.data()?.fcmToken;
 
-    try {
-      const userDoc = await db.collection('users').doc(userId).get();
-      const fcmToken = userDoc.data()?.fcmToken;
-
-      if (fcmToken) {
-        try {
+        if (fcmToken) {
           await messaging.send({
             token: fcmToken,
             notification: {
@@ -527,21 +503,22 @@ export const requestProgress = functions.region('europe-west1').https.onCall(
             },
           });
           console.log(`Notification sent to ${userId}`);
-        } catch (notifError: unknown) {
-          const msg =
-            notifError instanceof Error
-              ? notifError.message
-              : String(notifError);
-          console.error('Error sending notification:', msg);
+        } else {
+          console.log('No FCM token for user', userId);
         }
-      } else {
-        console.log('No FCM token for user', userId);
+      } catch (notifErr: unknown) {
+        const msg =
+          notifErr instanceof Error ? notifErr.message : String(notifErr);
+        console.error('Error sending notification:', msg);
       }
+
+      // ═══ Sucesso ═══
+      res
+        .status(200)
+        .json({ success: true, message: 'Pedido de progresso enviado.' });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('Error fetching user for notification:', msg);
+      console.error('requestProgress unexpected error:', msg);
+      res.status(500).json({ error: 'Erro interno do servidor.' });
     }
-
-    return { success: true, message: 'Pedido de progresso enviado.' };
-  }
-);
+  });

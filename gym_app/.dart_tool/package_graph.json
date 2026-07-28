@@ -24,6 +24,7 @@
         "flutter_localizations",
         "flutter_riverpod",
         "google_fonts",
+        "http",
         "image_picker",
         "image_picker_for_web",
         "intl",
@@ -182,6 +183,16 @@
         "path_provider_linux",
         "path_provider_platform_interface",
         "path_provider_windows"
+      ]
+    },
+    {
+      "name": "http",
+      "version": "1.6.0",
+      "dependencies": [
+        "async",
+        "http_parser",
+        "meta",
+        "web"
       ]
     },
     {
@@ -669,16 +680,6 @@
       ]
     },
     {
-      "name": "http",
-      "version": "1.6.0",
-      "dependencies": [
-        "async",
-        "http_parser",
-        "meta",
-        "web"
-      ]
-    },
-    {
       "name": "graphs",
       "version": "2.3.2",
       "dependencies": [
@@ -1033,6 +1034,16 @@
         "jni",
         "jni_flutter",
         "path_provider_platform_interface"
+      ]
+    },
+    {
+      "name": "http_parser",
+      "version": "4.1.2",
+      "dependencies": [
+        "collection",
+        "source_span",
+        "string_scanner",
+        "typed_data"
       ]
     },
     {
@@ -1562,16 +1573,6 @@
       "version": "4.12.0",
       "dependencies": [
         "meta"
-      ]
-    },
-    {
-      "name": "http_parser",
-      "version": "4.1.2",
-      "dependencies": [
-        "collection",
-        "source_span",
-        "string_scanner",
-        "typed_data"
       ]
     },
     {

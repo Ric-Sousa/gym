@@ -4,6 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/config/app_colors.dart';
@@ -1273,19 +1275,43 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
         return;
       }
       final idToken = await user.getIdToken();
-      final functions =
-          FirebaseFunctions.instanceFor(region: 'europe-west1');
-      final callable = functions.httpsCallable('requestProgress');
-      await callable.call(<String, dynamic>{
-        'userId': client.uid,
-        'authToken': idToken,
-      });
-      if (mounted) {
-        showAppNotification(
-          context,
-          'Pedido de progresso enviado para ${client.nome}',
-          type: NotificationType.success,
-        );
+
+      // Usar HTTP POST direto (onRequest function)
+      // Envia token no Authorization header, body simples sem wrapper
+      final uri = Uri.parse(
+        'https://europe-west1-gymbt-4ef87.cloudfunctions.net/requestProgress',
+      );
+      final response = await http.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $idToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'userId': client.uid,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final result = jsonDecode(response.body) as Map<String, dynamic>;
+        if (mounted) {
+          showAppNotification(
+            context,
+            result['message'] ?? 'Pedido de progresso enviado para ${client.nome}',
+            type: NotificationType.success,
+          );
+        }
+      } else {
+        final errorBody = jsonDecode(response.body);
+        final errorMsg =
+            (errorBody['error'] as String?) ?? 'Erro do servidor';
+        if (mounted) {
+          showAppNotification(
+            context,
+            'Erro: $errorMsg',
+            type: NotificationType.error,
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
