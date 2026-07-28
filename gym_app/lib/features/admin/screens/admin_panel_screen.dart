@@ -482,7 +482,9 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
       ('Sessões Totais', stats.sessoesTotal, Icons.emoji_events, AdminThemeColors.of(context).purple),
     ];
     return LayoutBuilder(builder: (_, constraints) {
-      final cols = constraints.maxWidth > 800 ? 4 : 2;
+      final cols = constraints.maxWidth > 800
+          ? 4
+          : (constraints.maxWidth > 450 ? 2 : 1);
       return Wrap(
         spacing: 14,
         runSpacing: 14,
@@ -502,7 +504,9 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
       ('Sessões Totais', '...', Icons.emoji_events, AdminThemeColors.of(context).purple),
     ];
     return LayoutBuilder(builder: (_, constraints) {
-      final cols = constraints.maxWidth > 800 ? 4 : 2;
+      final cols = constraints.maxWidth > 800
+          ? 4
+          : (constraints.maxWidth > 450 ? 2 : 1);
       return Wrap(
         spacing: 14,
         runSpacing: 14,
@@ -881,21 +885,17 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('CLIENTES', style: _adminDisplay(context, isMobile ? 28 : 40)),
-                    Text(
-                        '${alunosAsync.valueOrNull?.length ?? 0} clientes cadastrados',
-                        style: GoogleFonts.inter(
-                            fontSize: 14, color: AdminThemeColors.of(context).muted)),
-                  ],
-                ),
-              ),
-              ElevatedButton.icon(
+          if (isMobile) ...[
+            Text('CLIENTES', style: _adminDisplay(context, 28)),
+            Text(
+                '${alunosAsync.valueOrNull?.length ?? 0} clientes cadastrados',
+                style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: AdminThemeColors.of(context).muted)),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
                 onPressed: _showCreateStudentDialog,
                 icon: const Icon(Icons.add, size: 16),
                 label: Text('NOVO CLIENTE',
@@ -912,8 +912,43 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                       horizontal: 16, vertical: 10),
                 ),
               ),
-            ],
-          ),
+            ),
+          ] else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('CLIENTES', style: _adminDisplay(context, 40)),
+                      Text(
+                          '${alunosAsync.valueOrNull?.length ?? 0} clientes cadastrados',
+                          style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: AdminThemeColors.of(context).muted)),
+                    ],
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _showCreateStudentDialog,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: Text('NOVO CLIENTE',
+                      style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.02)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AdminThemeColors.of(context).lime,
+                    foregroundColor: AdminThemeColors.of(context).bg,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 28),
           // Search + filters
           if (isMobile)
