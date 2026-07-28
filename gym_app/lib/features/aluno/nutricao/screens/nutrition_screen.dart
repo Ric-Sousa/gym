@@ -82,6 +82,9 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
   /// Controllers dos inputs de gramas (chave: "${diaSemana}_${tipoRefeicao}_${nomeAlimento}").
   final Map<String, TextEditingController> _gramasControllers = {};
 
+  /// Alimentos adicionados pelo aluno (chave: "${diaSemana}_${tipoRefeicao}").
+  final Map<String, List<Alimento>> _addedAlimentos = {};
+
   /// Refeições colapsadas (chave: "${diaSemana}_${tipoRefeicao}").
   final Set<String> _collapsedMeals = {};
 
@@ -597,6 +600,18 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
         totalKcalConsumidas += alimento.caloriasParaGramas(gramas);
       }
     }
+    // Inclui alimentos adicionados pelo aluno nos totais
+    final mealKeyMacro = '${diaSemana}_${meal.tipo}';
+    for (final alimento in _addedAlimentos[mealKeyMacro] ?? []) {
+      final key = '${diaSemana}_${meal.tipo}_${alimento.nome}';
+      final gramas = _consumoPorAlimento[key] ?? 0.0;
+      if (gramas > 0) {
+        totalProteinas += alimento.proteinasParaGramas(gramas);
+        totalHidratos += alimento.hidratosParaGramas(gramas);
+        totalGorduras += alimento.gordurasParaGramas(gramas);
+        totalKcalConsumidas += alimento.caloriasParaGramas(gramas);
+      }
+    }
 
     final collapseKey = '${diaSemana}_${meal.tipo}';
     final isCollapsed = _collapsedMeals.contains(collapseKey);
@@ -683,7 +698,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
             switchOutCurve: Curves.easeInOutCubic,
             transitionBuilder: (child, animation) => SizeTransition(
               sizeFactor: animation,
-              axisAlignment: -1.0,
+              alignment: Alignment.topCenter,
               child: child,
             ),
             child: isCollapsed
@@ -711,6 +726,10 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
                       ...meal.alimentos.map(
                         (alimento) => _buildAlimentoRow(diaSemana, meal.tipo, alimento),
                       ),
+                      // ── Alimentos adicionados pelo aluno ────
+                      ...(_addedAlimentos['${diaSemana}_${meal.tipo}'] ?? []).map(
+                        (alimento) => _buildAlimentoRow(diaSemana, meal.tipo, alimento),
+                      ),
                       const SizedBox(height: 4),
                       // ── Botão Adicionar alimento ───────────
                       Padding(
@@ -718,7 +737,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
                         child: SizedBox(
                           width: double.infinity,
                           child: OutlinedButton.icon(
-                            onPressed: null,
+                            onPressed: () => _showFoodSearch(diaSemana: diaSemana, mealTipo: meal.tipo),
                             icon: const Icon(Icons.add, size: 15),
                             label: const Text('Adicionar alimento'),
                             style: OutlinedButton.styleFrom(
@@ -1064,7 +1083,17 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
       if (gramas != null && gramas > 0) {
         consumoPorAlimento[alimento.nome] = gramas;
         alimentosConsumidos.add(alimento.nome);
-
+        totalCaloriasConsumidas += alimento.caloriasParaGramas(gramas);
+      }
+    }
+    // Inclui alimentos adicionados pelo aluno
+    final mealKey = '${diaSemana}_${meal.tipo}';
+    for (final alimento in _addedAlimentos[mealKey] ?? []) {
+      final key = '${diaSemana}_${meal.tipo}_${alimento.nome}';
+      final gramas = _consumoPorAlimento[key];
+      if (gramas != null && gramas > 0) {
+        consumoPorAlimento[alimento.nome] = gramas;
+        alimentosConsumidos.add(alimento.nome);
         totalCaloriasConsumidas += alimento.caloriasParaGramas(gramas);
       }
     }
@@ -1094,6 +1123,14 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
           _consumoPorAlimento.remove(key);
           _gramasControllers[key]?.clear();
         }
+        // Limpa também os alimentos adicionados
+        final mealKey = '${diaSemana}_${meal.tipo}';
+        for (final alimento in _addedAlimentos[mealKey] ?? []) {
+          final key = '${diaSemana}_${meal.tipo}_${alimento.nome}';
+          _consumoPorAlimento.remove(key);
+          _gramasControllers[key]?.clear();
+        }
+        _addedAlimentos.remove(mealKey);
       });
 
       if (mounted) {
@@ -1123,19 +1160,35 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
         initialChildSize: 0.7,
         builder: (_, scrollController) => _FoodSearchSheet(
           onFoodSelected: (food) {
-            if (alimentoToReplace != null &&
-                diaSemana != null &&
-                mealTipo != null) {
-              final oldKey =
-                  '${diaSemana}_${mealTipo}_${alimentoToReplace.nome}';
-              final gramas = _consumoPorAlimento[oldKey] ?? 0.0;
-              setState(() {
-                _consumoPorAlimento.remove(oldKey);
+            if (diaSemana != null && mealTipo != null) {
+              if (alimentoToReplace != null) {
+                final oldKey =
+                    '${diaSemana}_${mealTipo}_${alimentoToReplace.nome}';
+                final gramas = _consumoPorAlimento[oldKey] ?? 0.0;
+                setState(() {
+                  _consumoPorAlimento.remove(oldKey);
+                  final newKey = '${diaSemana}_${mealTipo}_${food.nome}';
+                  if (gramas > 0) {
+                    _consumoPorAlimento[newKey] = gramas;
+                  }
+                });
+              } else {
+                // Adicionar novo alimento (sem substituir)
+                final mealKey = '${diaSemana}_${mealTipo}';
+                final newAlimento = Alimento(
+                  nome: food.nome,
+                  quantidade: '100g',
+                  calorias: food.caloriasPor100g,
+                  proteinas: food.proteinasPor100g ?? 0,
+                  hidratos: food.hidratosPor100g ?? 0,
+                  gorduras: food.gordurasPor100g ?? 0,
+                );
                 final newKey = '${diaSemana}_${mealTipo}_${food.nome}';
-                if (gramas > 0) {
-                  _consumoPorAlimento[newKey] = gramas;
-                }
-              });
+                setState(() {
+                  _addedAlimentos.putIfAbsent(mealKey, () => []).add(newAlimento);
+                  _consumoPorAlimento[newKey] = 100.0; // default 100g
+                });
+              }
             }
             Navigator.pop(ctx);
           },

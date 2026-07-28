@@ -66,13 +66,24 @@ export const createStudent = functions.region('europe-west1').https.onCall(
       );
     }
 
-    const { nome, email } = request.data;
+    const { nome, email, personalId } = request.data;
 
     if (!nome || !email) {
       throw new functions.https.HttpsError(
         'invalid-argument',
         'Nome e email são obrigatórios.'
       );
+    }
+
+    const userData: Record<string, unknown> = {
+      nome: nome,
+      email: email,
+      role: 'aluno',
+    };
+    // Define o personal trainer associado (UID do admin que criou)
+    if (personalId) {
+      userData.personalId = personalId;
+    }
     }
 
     // Verifica se já existe
@@ -85,6 +96,7 @@ export const createStudent = functions.region('europe-west1').https.onCall(
             nome: nome,
             email: email,
             role: 'aluno',
+            ...(personalId ? { personalId } : {}),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           },
           { merge: true }
@@ -113,6 +125,7 @@ export const createStudent = functions.region('europe-west1').https.onCall(
       nome: nome,
       email: email,
       role: 'aluno',
+      personalId: personalId || null,
       pesoAtual: null,
       altura: null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
