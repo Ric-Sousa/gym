@@ -441,12 +441,13 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
     final statsAsync = ref.watch(adminDashboardStatsProvider);
     final alunosAsync = ref.watch(alunosListProvider);
 
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(36),
+      padding: EdgeInsets.all(isMobile ? 16 : 36),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('DASHBOARD', style: _adminDisplay(context, 40)),
+          Text('DASHBOARD', style: _adminDisplay(context, isMobile ? 28 : 40)),
           const SizedBox(height: 4),
           Text(
             DateFormat('EEEE, d MMMM yyyy', 'pt').format(DateTime.now()),
@@ -874,8 +875,9 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
   Widget build(BuildContext context) {
     final alunosAsync = ref.watch(alunosSearchProvider(_search));
 
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(36),
+      padding: EdgeInsets.all(isMobile ? 16 : 36),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -885,7 +887,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('CLIENTES', style: _adminDisplay(context, 40)),
+                    Text('CLIENTES', style: _adminDisplay(context, isMobile ? 28 : 40)),
                     Text(
                         '${alunosAsync.valueOrNull?.length ?? 0} clientes cadastrados',
                         style: GoogleFonts.inter(
@@ -914,7 +916,10 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
           ),
           const SizedBox(height: 28),
           // Search + filters
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Expanded(
                 child: SizedBox(
@@ -947,7 +952,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              if (!isMobile) const SizedBox(width: 8),
               ...['all', 'active', 'inactive'].map((f) {
                 final active = _filter == f;
                 final labels = {
@@ -956,12 +961,12 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                   'inactive': 'Inativo'
                 };
                 return Padding(
-                  padding: const EdgeInsets.only(left: 6),
+                  padding: EdgeInsets.only(left: 6, top: isMobile ? 6 : 0),
                   child: GestureDetector(
                     onTap: () => setState(() => _filter = f),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
+                      padding: EdgeInsets.symmetric(
+                          horizontal: isMobile ? 10 : 14, vertical: isMobile ? 7 : 10),
                       decoration: BoxDecoration(
                         color: active
                             ? AdminThemeColors.of(context).surface2
