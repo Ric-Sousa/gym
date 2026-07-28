@@ -441,7 +441,7 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
     final statsAsync = ref.watch(adminDashboardStatsProvider);
     final alunosAsync = ref.watch(alunosListProvider);
 
-    final isMobile = MediaQuery.of(context).size.width < 600;
+    final isMobile = MediaQuery.of(context).size.width < 900;
     return SingleChildScrollView(
       padding: EdgeInsets.all(isMobile ? 16 : 36),
       child: Column(
@@ -875,7 +875,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
   Widget build(BuildContext context) {
     final alunosAsync = ref.watch(alunosSearchProvider(_search));
 
-    final isMobile = MediaQuery.of(context).size.width < 600;
+    final isMobile = MediaQuery.of(context).size.width < 900;
     return SingleChildScrollView(
       padding: EdgeInsets.all(isMobile ? 16 : 36),
       child: Column(
@@ -2143,7 +2143,7 @@ class _AdminExerciseLibraryState
   Widget build(BuildContext context) {
     final exercisesAsync = ref.watch(adminExercisesProvider);
 
-    final isMobile = MediaQuery.of(context).size.width < 600;
+    final isMobile = MediaQuery.of(context).size.width < 900;
     return SingleChildScrollView(
       padding: EdgeInsets.all(isMobile ? 16 : 36),
       child: Column(
@@ -2504,7 +2504,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
   @override
   Widget build(BuildContext context) {
     final foodsAsync = ref.watch(adminFoodsSearchProvider(_search));
-    final isMobile = MediaQuery.of(context).size.width < 600;
+    final isMobile = MediaQuery.of(context).size.width < 900;
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(isMobile ? 16 : 36),
