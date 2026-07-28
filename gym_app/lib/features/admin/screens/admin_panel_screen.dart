@@ -2504,9 +2504,10 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
   @override
   Widget build(BuildContext context) {
     final foodsAsync = ref.watch(adminFoodsSearchProvider(_search));
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(36),
+      padding: EdgeInsets.all(isMobile ? 16 : 36),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2517,7 +2518,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('BIBLIOTECA DE ALIMENTOS',
-                        style: _adminDisplay(context, 40)),
+                        style: _adminDisplay(context, isMobile ? 28 : 40)),
                     Text(
                         '${foodsAsync.valueOrNull?.length ?? 0} alimentos',
                         style: GoogleFonts.inter(
