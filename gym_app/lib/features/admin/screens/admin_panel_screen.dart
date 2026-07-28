@@ -48,6 +48,7 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
   AdminView _view = AdminView.dashboard;
   UserModel? _selectedClient;
   bool _fcmInitialized = false;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
@@ -71,31 +72,90 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
       _view = v;
       _selectedClient = null;
     });
+    // Fecha drawer em mobile
+    if (_isMobile && _scaffoldKey.currentState?.isDrawerOpen == true) {
+      Navigator.pop(context);
+    }
+  }
+
+  bool get _isMobile => MediaQuery.of(context).size.width < 900;
+
+  Widget _buildSidebar() {
+    return _AdminSidebar(
+      currentView: _view,
+      isClientDetail: _selectedClient != null,
+      isMobile: _isMobile,
+      onNavigate: _navigate,
+      onLogout: () => ref.read(authProvider.notifier).signOut(),
+      onToggleTheme: () {
+        ref.read(adminThemeModeProvider.notifier).state =
+            ref.read(adminThemeModeProvider) == ThemeMode.dark
+                ? ThemeMode.light
+                : ThemeMode.dark;
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isMobile) {
+      return Scaffold(
+        key: _scaffoldKey,
+        backgroundColor: AdminThemeColors.of(context).bg,
+        appBar: AppBar(
+          backgroundColor: AdminThemeColors.of(context).surface,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.menu, color: AdminThemeColors.of(context).text),
+            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+          ),
+          title: Text('GYMBT',
+              style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  color: AdminThemeColors.of(context).text)),
+          actions: [
+            IconButton(
+              icon: Icon(
+                Theme.of(context).brightness == Brightness.dark
+                    ? Icons.light_mode_outlined
+                    : Icons.dark_mode_outlined,
+                color: AdminThemeColors.of(context).muted,
+              ),
+              onPressed: () {
+                ref.read(adminThemeModeProvider.notifier).state =
+                    ref.read(adminThemeModeProvider) == ThemeMode.dark
+                        ? ThemeMode.light
+                        : ThemeMode.dark;
+              },
+            ),
+          ],
+        ),
+        drawer: Drawer(
+          backgroundColor: AdminThemeColors.of(context).surface,
+          child: SafeArea(child: _buildSidebar()),
+        ),
+        body: _selectedClient != null
+            ? _ClientDetailView(
+                client: _selectedClient!,
+                isMobile: true,
+                onBack: () => setState(() => _selectedClient = null),
+              )
+            : _buildView(),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AdminThemeColors.of(context).bg,
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _AdminSidebar(
-            currentView: _view,
-            isClientDetail: _selectedClient != null,
-            onNavigate: _navigate,
-            onLogout: () => ref.read(authProvider.notifier).signOut(),
-            onToggleTheme: () {
-              ref.read(adminThemeModeProvider.notifier).state =
-                  ref.read(adminThemeModeProvider) == ThemeMode.dark
-                      ? ThemeMode.light
-                      : ThemeMode.dark;
-            },
-          ),
+          _buildSidebar(),
           Expanded(
             child: _selectedClient != null
                 ? _ClientDetailView(
                     client: _selectedClient!,
+                    isMobile: false,
                     onBack: () => setState(() => _selectedClient = null),
                   )
                 : _buildView(),
@@ -131,12 +191,14 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
 class _AdminSidebar extends StatelessWidget {
   final AdminView currentView;
   final bool isClientDetail;
+  final bool isMobile;
   final Function(AdminView) onNavigate;
   final VoidCallback onLogout;
 
   const _AdminSidebar({
     required this.currentView,
     required this.isClientDetail,
+    required this.isMobile,
     required this.onNavigate,
     required this.onLogout,
     required this.onToggleTheme,
@@ -146,51 +208,39 @@ class _AdminSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 220,
-      decoration: BoxDecoration(
-        color: AdminThemeColors.of(context).surface,
-        boxShadow: [
-          BoxShadow(
-            color: AdminThemeColors.of(context).shadow,
-            blurRadius: 12,
-            offset: const Offset(2, 0),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          const SizedBox(height: 28),
-          // Logo
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: AdminThemeColors.of(context).limeDim,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                        color: AdminThemeColors.of(context).lime.withValues(alpha: 0.3)),
-                  ),
-                  child: Icon(Icons.fitness_center,
-                      color: AdminThemeColors.of(context).lime, size: 16),
+    final logoSection = Column(
+      children: [
+        const SizedBox(height: 28),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: AdminThemeColors.of(context).limeDim,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: AdminThemeColors.of(context).lime.withValues(alpha: 0.3)),
                 ),
-                const SizedBox(width: 10),
-                Text(
-                  'GYMBT',
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: AdminThemeColors.of(context).text,
-                    letterSpacing: -0.3,
-                  ),
+                child: Icon(Icons.fitness_center,
+                    color: AdminThemeColors.of(context).lime, size: 16),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'GYMBT',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AdminThemeColors.of(context).text,
+                  letterSpacing: -0.3,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+        ),
+        if (!isMobile)
           IconButton(
             icon: Icon(
               Theme.of(context).brightness == Brightness.dark
@@ -204,7 +254,25 @@ class _AdminSidebar extends StatelessWidget {
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
           ),
-          const SizedBox(height: 16),
+        const SizedBox(height: 16),
+      ],
+    );
+
+    return Container(
+      width: isMobile ? 260 : 220,
+      decoration: BoxDecoration(
+        color: AdminThemeColors.of(context).surface,
+        boxShadow: [
+          BoxShadow(
+            color: AdminThemeColors.of(context).shadow,
+            blurRadius: 12,
+            offset: const Offset(2, 0),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          logoSection,
           // Nav items
           _NavItem(
             icon: Icons.dashboard_outlined,
@@ -1222,7 +1290,8 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
 class _ClientDetailView extends ConsumerStatefulWidget {
   final UserModel client;
   final VoidCallback onBack;
-  const _ClientDetailView({required this.client, required this.onBack});
+  final bool isMobile;
+  const _ClientDetailView({required this.client, required this.onBack, this.isMobile = false});
 
   @override
   ConsumerState<_ClientDetailView> createState() => _ClientDetailViewState();
@@ -1251,7 +1320,10 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
     } catch (_) {}
   }
 
+  EdgeInsets get _pad => EdgeInsets.all(widget.isMobile ? 16 : 36);
+
   Widget _requestProgressButton(UserModel client) {
+    final isMobile = widget.isMobile;
     return ElevatedButton.icon(
       onPressed: _requestingProgress ? null : () => _requestProgress(client),
       icon: _requestingProgress
@@ -1267,7 +1339,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
       label: Text(
         _requestingProgress ? 'A enviar...' : 'SOLICITAR PROGRESSO',
         style: GoogleFonts.inter(
-          fontSize: 11,
+          fontSize: isMobile ? 9 : 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.04,
         ),
@@ -1278,7 +1350,8 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 8 : 12, vertical: isMobile ? 6 : 8),
       ),
     );
   }
@@ -1350,7 +1423,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
   Widget build(BuildContext context) {
     final c = widget.client;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(36),
+      padding: _pad,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1369,73 +1442,10 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
           ),
           const SizedBox(height: 24),
           // Header
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AdminThemeColors.of(context).surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AdminThemeColors.of(context).border),
-              boxShadow: [
-                BoxShadow(
-                  color: AdminThemeColors.of(context).shadow,
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 30,
-                  backgroundColor: AdminThemeColors.of(context).surface2,
-                  child: Text(
-                    c.nome.isNotEmpty
-                        ? c.nome.substring(
-                            0, c.nome.length >= 2 ? 2 : 1).toUpperCase()
-                        : '?',
-                    style: GoogleFonts.barlowCondensed(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: AdminThemeColors.of(context).lime),
-                  ),
-                ),
-                const SizedBox(width: 18),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(c.nome.toUpperCase(),
-                          style: GoogleFonts.barlowCondensed(
-                              fontSize: 32,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.01,
-                              color: AdminThemeColors.of(context).text)),
-                      Text(
-                          '${c.pesoAtual?.toStringAsFixed(1) ?? '-'}kg · ${c.altura?.toStringAsFixed(0) ?? '-'}cm · IMC: ${c.imc?.toStringAsFixed(1) ?? '-'}',
-                          style: GoogleFonts.inter(
-                              fontSize: 13, color: AdminThemeColors.of(context).muted)),
-                    ],
-                  ),
-                ),
-                _requestProgressButton(c),
-              ],
-            ),
-          ),
+          _buildClientHeader(c),
           const SizedBox(height: 20),
-          // Tabs
-          Row(
-            children: [
-              _tabBtn('overview', 'Visão Geral', Icons.person),
-              const SizedBox(width: 4),
-              _tabBtn('progresso', 'Progresso', Icons.trending_up),
-              const SizedBox(width: 4),
-              _tabBtn('workout', 'Plano de Treino', Icons.fitness_center),
-              const SizedBox(width: 4),
-              _tabBtn('nutrition', 'Nutrição', Icons.restaurant),
-              const SizedBox(width: 4),
-              _tabBtn('chat', 'Chat', Icons.chat),
-            ],
-          ),
+          // Tabs — scrollable on mobile
+          _buildTabs(),
           const SizedBox(height: 20),
           if (_tab == 'overview') _buildOverview(),
           if (_tab == 'progresso') _buildProgressTab(),
@@ -1462,7 +1472,132 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
     );
   }
 
-  Widget _tabBtn(String id, String label, IconData icon) {
+  Widget _buildClientHeader(UserModel c) {
+    final isMobile = widget.isMobile;
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
+      decoration: BoxDecoration(
+        color: AdminThemeColors.of(context).surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AdminThemeColors.of(context).border),
+        boxShadow: [
+          BoxShadow(
+            color: AdminThemeColors.of(context).shadow,
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: isMobile
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: AdminThemeColors.of(context).surface2,
+                      child: Text(
+                        c.nome.isNotEmpty
+                            ? c.nome
+                                .substring(0, c.nome.length >= 2 ? 2 : 1)
+                                .toUpperCase()
+                            : '?',
+                        style: GoogleFonts.barlowCondensed(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AdminThemeColors.of(context).lime),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(c.nome.toUpperCase(),
+                          style: GoogleFonts.barlowCondensed(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.01,
+                              color: AdminThemeColors.of(context).text)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                          '${c.pesoAtual?.toStringAsFixed(1) ?? '-'}kg · ${c.altura?.toStringAsFixed(0) ?? '-'}cm · IMC: ${c.imc?.toStringAsFixed(1) ?? '-'}',
+                          style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: AdminThemeColors.of(context).muted)),
+                    ),
+                    _requestProgressButton(c),
+                  ],
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                CircleAvatar(
+                  radius: 30,
+                  backgroundColor: AdminThemeColors.of(context).surface2,
+                  child: Text(
+                    c.nome.isNotEmpty
+                        ? c.nome
+                            .substring(0, c.nome.length >= 2 ? 2 : 1)
+                            .toUpperCase()
+                        : '?',
+                    style: GoogleFonts.barlowCondensed(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: AdminThemeColors.of(context).lime),
+                  ),
+                ),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(c.nome.toUpperCase(),
+                          style: GoogleFonts.barlowCondensed(
+                              fontSize: 32,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.01,
+                              color: AdminThemeColors.of(context).text)),
+                      Text(
+                          '${c.pesoAtual?.toStringAsFixed(1) ?? '-'}kg · ${c.altura?.toStringAsFixed(0) ?? '-'}cm · IMC: ${c.imc?.toStringAsFixed(1) ?? '-'}',
+                          style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: AdminThemeColors.of(context).muted)),
+                    ],
+                  ),
+                ),
+                _requestProgressButton(c),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildTabs() {
+    final tabs = [
+      ('overview', 'Visão Geral', Icons.person),
+      ('progresso', 'Progresso', Icons.trending_up),
+      ('workout', 'Treino', Icons.fitness_center),
+      ('nutrition', 'Nutrição', Icons.restaurant),
+      ('chat', 'Chat', Icons.chat),
+    ];
+    final row = Row(
+      children: [
+        for (final t in tabs) ...[
+          _tabBtn(t.$1, widget.isMobile && t.$2 != 'Visão Geral' ? '' : t.$2, t.$3),
+          const SizedBox(width: 4),
+        ],
+      ],
+    );
+    if (widget.isMobile) {
+      return SingleChildScrollView(scrollDirection: Axis.horizontal, child: row);
+    }
+    return row;
+  }
     final active = _tab == id;
     return GestureDetector(
       onTap: () {
