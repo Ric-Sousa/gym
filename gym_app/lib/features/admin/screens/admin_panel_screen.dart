@@ -133,7 +133,23 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
         ),
         drawer: Drawer(
           backgroundColor: AdminThemeColors.of(context).surface,
-          child: SafeArea(child: _buildSidebar()),
+          child: SafeArea(
+            child: Column(
+              children: [
+                Align(
+                  alignment: Alignment.topRight,
+                  child: IconButton(
+                    icon: Icon(Icons.close,
+                        color: AdminThemeColors.of(context).muted,
+                        size: 20),
+                    onPressed: () => Navigator.pop(context),
+                    padding: const EdgeInsets.all(16),
+                  ),
+                ),
+                Expanded(child: _buildSidebar()),
+              ],
+            ),
+          ),
         ),
         body: _selectedClient != null
             ? _ClientDetailView(
@@ -2184,22 +2200,18 @@ class _AdminExerciseLibraryState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('BIBLIOTECA DE EXERCÍCIOS',
-                        style: _adminDisplay(context, isMobile ? 28 : 40)),
-                    Text(
-                        '${exercisesAsync.valueOrNull?.length ?? 0} exercícios',
-                        style: GoogleFonts.inter(
-                            fontSize: 14, color: AdminThemeColors.of(context).muted)),
-                  ],
-                ),
-              ),
-              ElevatedButton.icon(
+          if (isMobile) ...[
+            Text('BIBLIOTECA DE EXERCÍCIOS',
+                style: _adminDisplay(context, 28)),
+            Text(
+                '${exercisesAsync.valueOrNull?.length ?? 0} exercícios',
+                style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: AdminThemeColors.of(context).muted)),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
                 onPressed: _showAddExerciseDialog,
                 icon: const Icon(Icons.add, size: 16),
                 label: Text('NOVO EXERCÍCIO',
@@ -2214,8 +2226,42 @@ class _AdminExerciseLibraryState
                       horizontal: 16, vertical: 10),
                 ),
               ),
-            ],
-          ),
+            ),
+          ] else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('BIBLIOTECA DE EXERCÍCIOS',
+                          style: _adminDisplay(context, 40)),
+                      Text(
+                          '${exercisesAsync.valueOrNull?.length ?? 0} exercícios',
+                          style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: AdminThemeColors.of(context).muted)),
+                    ],
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _showAddExerciseDialog,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: Text('NOVO EXERCÍCIO',
+                      style: GoogleFonts.inter(
+                          fontSize: 13, fontWeight: FontWeight.w700)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AdminThemeColors.of(context).lime,
+                    foregroundColor: AdminThemeColors.of(context).bg,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 24),
           // Search
           SizedBox(
@@ -2546,22 +2592,18 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('BIBLIOTECA DE ALIMENTOS',
-                        style: _adminDisplay(context, isMobile ? 28 : 40)),
-                    Text(
-                        '${foodsAsync.valueOrNull?.length ?? 0} alimentos',
-                        style: GoogleFonts.inter(
-                            fontSize: 14, color: AdminThemeColors.of(context).muted)),
-                  ],
-                ),
-              ),
-              ElevatedButton.icon(
+          if (isMobile) ...[
+            Text('BIBLIOTECA DE ALIMENTOS',
+                style: _adminDisplay(context, 28)),
+            Text(
+                '${foodsAsync.valueOrNull?.length ?? 0} alimentos',
+                style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: AdminThemeColors.of(context).muted)),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
                 onPressed: _showAddFoodDialog,
                 icon: const Icon(Icons.add, size: 16),
                 label: Text('NOVO ALIMENTO',
@@ -2576,8 +2618,42 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                       horizontal: 16, vertical: 10),
                 ),
               ),
-            ],
-          ),
+            ),
+          ] else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('BIBLIOTECA DE ALIMENTOS',
+                          style: _adminDisplay(context, 40)),
+                      Text(
+                          '${foodsAsync.valueOrNull?.length ?? 0} alimentos',
+                          style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: AdminThemeColors.of(context).muted)),
+                    ],
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _showAddFoodDialog,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: Text('NOVO ALIMENTO',
+                      style: GoogleFonts.inter(
+                          fontSize: 13, fontWeight: FontWeight.w700)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AdminThemeColors.of(context).lime,
+                    foregroundColor: AdminThemeColors.of(context).bg,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 24),
           SizedBox(
             width: 360,
