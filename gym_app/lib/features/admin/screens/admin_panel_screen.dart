@@ -1381,6 +1381,13 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
   bool _requestingProgress = false;
   bool _personalIdSet = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // Garante que o personalId é definido assim que o admin abre o perfil do aluno.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _ensurePersonalId());
+  }
+
   /// Garante que o aluno tem o personalId definido para o chat funcionar.
   Future<void> _ensurePersonalId() async {
     if (_personalIdSet) return;
