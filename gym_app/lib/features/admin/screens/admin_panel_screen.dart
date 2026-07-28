@@ -8,7 +8,6 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../core/config/app_colors.dart';
 import '../../../core/config/admin_theme.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/models/food_model.dart';
@@ -182,7 +181,7 @@ class _AdminSidebar extends StatelessWidget {
                 const SizedBox(width: 10),
                 Text(
                   'GYMBT',
-                  style: GoogleFonts.dmSans(
+                  style: GoogleFonts.inter(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                     color: AdminThemeColors.of(context).text,
@@ -260,7 +259,7 @@ class _AdminSidebar extends StatelessWidget {
                     const SizedBox(width: 10),
                     Text(
                       'Sair',
-                      style: GoogleFonts.dmSans(
+                      style: GoogleFonts.inter(
                           color: AdminThemeColors.of(context).muted, fontSize: 13),
                     ),
                   ],
@@ -333,7 +332,7 @@ class _NavItem extends StatelessWidget {
                 const SizedBox(width: 10),
                 Text(
                   label,
-                  style: GoogleFonts.dmSans(
+                  style: GoogleFonts.inter(
                     fontSize: 13,
                     fontWeight: active ? FontWeight.w600 : FontWeight.w400,
                     color: active ? AdminThemeColors.of(context).text : AdminThemeColors.of(context).muted,
@@ -384,7 +383,7 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
           Text(
             DateFormat('EEEE, d MMMM yyyy', 'pt').format(DateTime.now()),
             style:
-                GoogleFonts.dmSans(fontSize: 14, color: AdminThemeColors.of(context).muted),
+                GoogleFonts.inter(fontSize: 14, color: AdminThemeColors.of(context).muted),
           ),
           const SizedBox(height: 32),
           statsAsync.when(
@@ -399,7 +398,7 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
                 child:
                     CircularProgressIndicator(color: AdminThemeColors.of(context).lime)),
             error: (_, __) => Text('Erro',
-                style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted)),
+                style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted)),
           ),
         ],
       ),
@@ -468,7 +467,7 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(label.toUpperCase(),
-                  style: GoogleFonts.dmSans(
+                  style: GoogleFonts.inter(
                       fontSize: 11,
                       color: AdminThemeColors.of(context).muted,
                       letterSpacing: 0.04)),
@@ -558,7 +557,7 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
                 TextButton(
                   onPressed: () {},
                   child: Text('Ver todos',
-                      style: GoogleFonts.dmSans(
+                      style: GoogleFonts.inter(
                           fontSize: 12, color: AdminThemeColors.of(context).lime)),
                 ),
               ],
@@ -574,11 +573,11 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
                       size: 48, color: AdminThemeColors.of(context).muted),
                   const SizedBox(height: 12),
                   Text('Nenhum aluno cadastrado',
-                      style: GoogleFonts.dmSans(
+                      style: GoogleFonts.inter(
                           color: AdminThemeColors.of(context).muted, fontSize: 14)),
                   const SizedBox(height: 4),
                   Text('Clique em "Clientes" para adicionar o primeiro.',
-                      style: GoogleFonts.dmSans(
+                      style: GoogleFonts.inter(
                           color: AdminThemeColors.of(context).muted, fontSize: 12)),
                 ],
               ),
@@ -619,19 +618,19 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(aluno.nome,
-                      style: GoogleFonts.dmSans(
+                      style: GoogleFonts.inter(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: AdminThemeColors.of(context).text)),
                   Text('${aluno.email}',
-                      style: GoogleFonts.dmSans(
+                      style: GoogleFonts.inter(
                           fontSize: 11, color: AdminThemeColors.of(context).muted)),
                 ],
               ),
             ),
             if (weight != null) ...[
               Text('${weight.toStringAsFixed(0)}kg',
-                  style: GoogleFonts.dmMono(
+                  style: GoogleFonts.montserrat(
                       fontSize: 13, color: AdminThemeColors.of(context).text)),
               const SizedBox(width: 8),
             ],
@@ -678,7 +677,7 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
                   Row(
                     children: [
                       Text(day.toUpperCase(),
-                          style: GoogleFonts.dmSans(
+                          style: GoogleFonts.inter(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.08,
@@ -694,7 +693,7 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
                               color: AdminThemeColors.of(context).lime,
                               borderRadius: BorderRadius.circular(20)),
                           child: Text('HOJE',
-                              style: GoogleFonts.dmSans(
+                              style: GoogleFonts.inter(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w700,
                                   color: AdminThemeColors.of(context).bg)),
@@ -704,7 +703,7 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
                   ),
                   const SizedBox(height: 4),
                   Text('Consulta os planos dos alunos',
-                      style: GoogleFonts.dmSans(
+                      style: GoogleFonts.inter(
                           fontSize: 12, color: AdminThemeColors.of(context).muted)),
                 ],
               ),
@@ -754,10 +753,10 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(g.$1,
-                            style: GoogleFonts.dmSans(
+                            style: GoogleFonts.inter(
                                 fontSize: 12, color: AdminThemeColors.of(context).muted)),
                         Text('${g.$2}',
-                            style: GoogleFonts.dmMono(
+                            style: GoogleFonts.montserrat(
                                 fontSize: 12, color: AdminThemeColors.of(context).text)),
                       ],
                     ),
@@ -821,7 +820,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                     Text('CLIENTES', style: _adminDisplay(context, 40)),
                     Text(
                         '${alunosAsync.valueOrNull?.length ?? 0} clientes cadastrados',
-                        style: GoogleFonts.dmSans(
+                        style: GoogleFonts.inter(
                             fontSize: 14, color: AdminThemeColors.of(context).muted)),
                   ],
                 ),
@@ -830,7 +829,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                 onPressed: _showCreateStudentDialog,
                 icon: const Icon(Icons.add, size: 16),
                 label: Text('NOVO CLIENTE',
-                    style: GoogleFonts.dmSans(
+                    style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.02)),
@@ -854,11 +853,11 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                   height: 40,
                   child: TextField(
                     onChanged: (v) => setState(() => _search = v),
-                    style: GoogleFonts.dmSans(
+                    style: GoogleFonts.inter(
                         fontSize: 13, color: AdminThemeColors.of(context).text),
                     decoration: InputDecoration(
                       hintText: 'Buscar cliente...',
-                      hintStyle: GoogleFonts.dmSans(
+                      hintStyle: GoogleFonts.inter(
                           fontSize: 13, color: AdminThemeColors.of(context).muted),
                       prefixIcon: Icon(Icons.search,
                           size: 16, color: AdminThemeColors.of(context).muted),
@@ -904,7 +903,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                             Border.all(color: AdminThemeColors.of(context).border),
                       ),
                       child: Text(labels[f]!,
-                          style: GoogleFonts.dmSans(
+                          style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight: active
                                   ? FontWeight.w600
@@ -925,7 +924,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                 child: CircularProgressIndicator(
                     color: AdminThemeColors.of(context).lime)),
             error: (_, __) => Text('Erro',
-                style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted)),
+                style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted)),
           ),
         ],
       ),
@@ -954,7 +953,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
               Icon(Icons.person_search, size: 48, color: AdminThemeColors.of(context).muted),
               const SizedBox(height: 12),
               Text('Nenhum cliente encontrado',
-                  style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted)),
+                  style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted)),
             ],
           ),
         ),
@@ -1020,13 +1019,13 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(aluno.nome,
-                            style: GoogleFonts.dmSans(
+                            style: GoogleFonts.inter(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
                                 color: AdminThemeColors.of(context).text)),
                         Text(
                             '${aluno.pesoAtual?.toStringAsFixed(1) ?? '--'} kg',
-                            style: GoogleFonts.dmSans(
+                            style: GoogleFonts.inter(
                                 fontSize: 12,
                                 color: AdminThemeColors.of(context).muted)),
                       ],
@@ -1055,7 +1054,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(aluno.email,
-                        style: GoogleFonts.dmSans(
+                        style: GoogleFonts.inter(
                             fontSize: 11, color: AdminThemeColors.of(context).muted),
                         overflow: TextOverflow.ellipsis),
                   ),
@@ -1081,12 +1080,12 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
-              style: GoogleFonts.dmSans(
+              style: GoogleFonts.inter(
                   fontSize: 10,
                   color: AdminThemeColors.of(context).muted,
                   letterSpacing: 0.06)),
           Text(value,
-              style: GoogleFonts.dmMono(
+              style: GoogleFonts.montserrat(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                   color: AdminThemeColors.of(context).text)),
@@ -1112,17 +1111,17 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
               borderRadius: BorderRadius.circular(14),
               side: BorderSide(color: AdminThemeColors.of(context).border)),
           title: Text('Novo Cliente',
-              style: GoogleFonts.dmSans(
+              style: GoogleFonts.inter(
                   fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nomeCtrl,
-                style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text),
+                style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
                 decoration: InputDecoration(
                   labelText: 'Nome completo',
-                  labelStyle: GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted),
+                  labelStyle: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
                   filled: true,
                   fillColor: AdminThemeColors.of(context).bg,
                   border: OutlineInputBorder(
@@ -1135,10 +1134,10 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
               TextField(
                 controller: emailCtrl,
                 keyboardType: TextInputType.emailAddress,
-                style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text),
+                style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
                 decoration: InputDecoration(
                   labelText: 'Email',
-                  labelStyle: GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted),
+                  labelStyle: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
                   filled: true,
                   fillColor: AdminThemeColors.of(context).bg,
                   border: OutlineInputBorder(
@@ -1157,7 +1156,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
             TextButton(
               onPressed: loading ? null : () => Navigator.pop(ctx),
               child: Text('Cancelar',
-                  style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted)),
+                  style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted)),
             ),
             ElevatedButton(
               onPressed: loading
@@ -1192,7 +1191,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                 foregroundColor: AdminThemeColors.of(context).bg,
               ),
               child: Text('Criar',
-                  style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
+                  style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
             ),
           ],
         ),
@@ -1246,7 +1245,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
           : const Icon(Icons.add_chart, size: 14),
       label: Text(
         _requestingProgress ? 'A enviar...' : 'SOLICITAR PROGRESSO',
-        style: GoogleFonts.dmSans(
+        style: GoogleFonts.inter(
           fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.04,
@@ -1342,7 +1341,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                     size: 14, color: AdminThemeColors.of(context).muted),
                 const SizedBox(width: 6),
                 Text('Clientes',
-                    style: GoogleFonts.dmSans(
+                    style: GoogleFonts.inter(
                         fontSize: 13, color: AdminThemeColors.of(context).muted)),
               ],
             ),
@@ -1392,7 +1391,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                               color: AdminThemeColors.of(context).text)),
                       Text(
                           '${c.pesoAtual?.toStringAsFixed(1) ?? '-'}kg · ${c.altura?.toStringAsFixed(0) ?? '-'}cm · IMC: ${c.imc?.toStringAsFixed(1) ?? '-'}',
-                          style: GoogleFonts.dmSans(
+                          style: GoogleFonts.inter(
                               fontSize: 13, color: AdminThemeColors.of(context).muted)),
                     ],
                   ),
@@ -1466,7 +1465,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                     : AdminThemeColors.of(context).muted),
             const SizedBox(width: 8),
             Text(label,
-                style: GoogleFonts.dmSans(
+                style: GoogleFonts.inter(
                     fontSize: 13,
                     fontWeight:
                         active ? FontWeight.w600 : FontWeight.w400,
@@ -1555,7 +1554,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                             size: 40, color: AdminThemeColors.of(context).muted),
                         const SizedBox(height: 8),
                         Text('Sem dados de peso registados',
-                            style: GoogleFonts.dmSans(
+                            style: GoogleFonts.inter(
                                 fontSize: 13,
                                 color: AdminThemeColors.of(context).muted)),
                       ],
@@ -1605,7 +1604,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
               height: 180,
               child: Center(
                 child: Text('Erro ao carregar dados',
-                    style: GoogleFonts.dmSans(
+                    style: GoogleFonts.inter(
                         color: AdminThemeColors.of(context).muted)),
               ),
             ),
@@ -1635,13 +1634,13 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                       size: 48, color: AdminThemeColors.of(context).muted),
                   const SizedBox(height: 12),
                   Text('Nenhum registo de progresso',
-                      style: GoogleFonts.dmSans(
+                      style: GoogleFonts.inter(
                           fontSize: 14,
                           color: AdminThemeColors.of(context).muted)),
                   const SizedBox(height: 4),
                   Text(
                     'Solicita uma avaliação ao aluno',
-                    style: GoogleFonts.dmSans(
+                    style: GoogleFonts.inter(
                         fontSize: 12,
                         color: AdminThemeColors.of(context).muted),
                   ),
@@ -1671,7 +1670,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
       error: (_, __) => Center(
         child: Text('Erro ao carregar progresso',
             style:
-                GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted)),
+                GoogleFonts.inter(color: AdminThemeColors.of(context).muted)),
       ),
     );
   }
@@ -1721,7 +1720,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
               if (progress.peso != null)
                 Text(
                   '${progress.peso!.toStringAsFixed(1)} kg',
-                  style: GoogleFonts.dmMono(
+                  style: GoogleFonts.montserrat(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
                     color: AdminThemeColors.of(context).text,
@@ -1738,7 +1737,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
               children: progress.medidas.entries.map((e) {
                 return Text(
                   '${e.key}: ${e.value.toStringAsFixed(1)} cm',
-                  style: GoogleFonts.dmSans(
+                  style: GoogleFonts.inter(
                     fontSize: 12,
                     color: AdminThemeColors.of(context).muted,
                   ),
@@ -1840,10 +1839,10 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(r.$1,
-                        style: GoogleFonts.dmSans(
+                        style: GoogleFonts.inter(
                             fontSize: 12, color: AdminThemeColors.of(context).muted)),
                     Text(r.$2,
-                        style: GoogleFonts.dmMono(
+                        style: GoogleFonts.montserrat(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                             color: AdminThemeColors.of(context).text)),
@@ -1895,7 +1894,7 @@ class _AdminExerciseLibraryState
                         style: _adminDisplay(context, 40)),
                     Text(
                         '${exercisesAsync.valueOrNull?.length ?? 0} exercícios',
-                        style: GoogleFonts.dmSans(
+                        style: GoogleFonts.inter(
                             fontSize: 14, color: AdminThemeColors.of(context).muted)),
                   ],
                 ),
@@ -1904,7 +1903,7 @@ class _AdminExerciseLibraryState
                 onPressed: _showAddExerciseDialog,
                 icon: const Icon(Icons.add, size: 16),
                 label: Text('NOVO EXERCÍCIO',
-                    style: GoogleFonts.dmSans(
+                    style: GoogleFonts.inter(
                         fontSize: 13, fontWeight: FontWeight.w700)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AdminThemeColors.of(context).lime,
@@ -1924,11 +1923,11 @@ class _AdminExerciseLibraryState
             height: 40,
             child: TextField(
               onChanged: (v) => setState(() => _search = v),
-              style: GoogleFonts.dmSans(
+              style: GoogleFonts.inter(
                   fontSize: 13, color: AdminThemeColors.of(context).text),
               decoration: InputDecoration(
                 hintText: 'Buscar exercício...',
-                hintStyle: GoogleFonts.dmSans(
+                hintStyle: GoogleFonts.inter(
                     fontSize: 13, color: AdminThemeColors.of(context).muted),
                 prefixIcon: Icon(Icons.search,
                     size: 16, color: AdminThemeColors.of(context).muted),
@@ -1969,7 +1968,7 @@ class _AdminExerciseLibraryState
                             : AdminThemeColors.of(context).border),
                   ),
                   child: Text(m,
-                      style: GoogleFonts.dmSans(
+                      style: GoogleFonts.inter(
                           fontSize: 12,
                           color: active
                               ? AdminThemeColors.of(context).lime
@@ -2000,7 +1999,7 @@ class _AdminExerciseLibraryState
                             size: 48, color: AdminThemeColors.of(context).muted),
                         const SizedBox(height: 12),
                         Text('Nenhum exercício encontrado',
-                            style: GoogleFonts.dmSans(
+                            style: GoogleFonts.inter(
                                 color: AdminThemeColors.of(context).muted)),
                       ],
                     ),
@@ -2054,7 +2053,7 @@ class _AdminExerciseLibraryState
                                     height: 1)),
                             const SizedBox(height: 8),
                             Text(nome,
-                                style: GoogleFonts.dmSans(
+                                style: GoogleFonts.inter(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w700,
                                     color: AdminThemeColors.of(context).text)),
@@ -2086,7 +2085,7 @@ class _AdminExerciseLibraryState
                       size: 32, color: AdminThemeColors.of(context).muted),
                   const SizedBox(height: 8),
                   Text('Erro ao carregar exercícios',
-                      style: GoogleFonts.dmSans(
+                      style: GoogleFonts.inter(
                           color: AdminThemeColors.of(context).muted)),
                 ],
               ),
@@ -2105,13 +2104,12 @@ class _AdminExerciseLibraryState
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(label,
-          style: GoogleFonts.dmSans(fontSize: 11, color: color)),
+          style: GoogleFonts.inter(fontSize: 11, color: color)),
     );
   }
 
   Future<void> _showAddExerciseDialog() async {
     final nomeCtrl = TextEditingController();
-    final grupoCtrl = TextEditingController();
     final equipCtrl = TextEditingController();
     String selectedGrupo = 'Peito';
 
@@ -2124,7 +2122,7 @@ class _AdminExerciseLibraryState
               borderRadius: BorderRadius.circular(14),
               side: BorderSide(color: AdminThemeColors.of(context).border)),
           title: Text('Novo Exercício',
-              style: GoogleFonts.dmSans(
+              style: GoogleFonts.inter(
                   fontWeight: FontWeight.w700,
                   color: AdminThemeColors.of(context).text)),
           content: SingleChildScrollView(
@@ -2133,10 +2131,10 @@ class _AdminExerciseLibraryState
               children: [
                 TextField(
                   controller: nomeCtrl,
-                  style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text),
+                  style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
                   decoration: InputDecoration(
                     labelText: 'Nome do exercício',
-                    labelStyle: GoogleFonts.dmSans(
+                    labelStyle: GoogleFonts.inter(
                         color: AdminThemeColors.of(context).muted),
                     filled: true,
                     fillColor: AdminThemeColors.of(context).bg,
@@ -2148,10 +2146,10 @@ class _AdminExerciseLibraryState
                 DropdownButtonFormField<String>(
                   value: selectedGrupo,
                   dropdownColor: AdminThemeColors.of(context).surface,
-                  style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text),
+                  style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
                   decoration: InputDecoration(
                     labelText: 'Grupo Muscular',
-                    labelStyle: GoogleFonts.dmSans(
+                    labelStyle: GoogleFonts.inter(
                         color: AdminThemeColors.of(context).muted),
                     filled: true,
                     fillColor: AdminThemeColors.of(context).bg,
@@ -2163,7 +2161,7 @@ class _AdminExerciseLibraryState
                       .map((m) => DropdownMenuItem(
                           value: m,
                           child: Text(m,
-                              style: GoogleFonts.dmSans(
+                              style: GoogleFonts.inter(
                                   color: AdminThemeColors.of(context).text))))
                       .toList(),
                   onChanged: (v) => setDialogState(
@@ -2172,11 +2170,11 @@ class _AdminExerciseLibraryState
                 const SizedBox(height: 12),
                 TextField(
                   controller: equipCtrl,
-                  style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text),
+                  style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
                   decoration: InputDecoration(
                     hintText: 'Ex: Barra, Halter, Máquina, Polia...',
                     labelText: 'Equipamento',
-                    labelStyle: GoogleFonts.dmSans(
+                    labelStyle: GoogleFonts.inter(
                         color: AdminThemeColors.of(context).muted),
                     filled: true,
                     fillColor: AdminThemeColors.of(context).bg,
@@ -2192,7 +2190,7 @@ class _AdminExerciseLibraryState
               onPressed: () => Navigator.pop(ctx),
               child: Text('Cancelar',
                   style:
-                      GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted)),
+                      GoogleFonts.inter(color: AdminThemeColors.of(context).muted)),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -2215,7 +2213,7 @@ class _AdminExerciseLibraryState
                 foregroundColor: AdminThemeColors.of(context).bg,
               ),
               child: Text('Adicionar',
-                  style: GoogleFonts.dmSans(
+                  style: GoogleFonts.inter(
                       fontWeight: FontWeight.w700)),
             ),
           ],
@@ -2257,7 +2255,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                         style: _adminDisplay(context, 40)),
                     Text(
                         '${foodsAsync.valueOrNull?.length ?? 0} alimentos',
-                        style: GoogleFonts.dmSans(
+                        style: GoogleFonts.inter(
                             fontSize: 14, color: AdminThemeColors.of(context).muted)),
                   ],
                 ),
@@ -2266,7 +2264,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                 onPressed: _showAddFoodDialog,
                 icon: const Icon(Icons.add, size: 16),
                 label: Text('NOVO ALIMENTO',
-                    style: GoogleFonts.dmSans(
+                    style: GoogleFonts.inter(
                         fontSize: 13, fontWeight: FontWeight.w700)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AdminThemeColors.of(context).lime,
@@ -2285,11 +2283,11 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
             height: 40,
             child: TextField(
               onChanged: (v) => setState(() => _search = v),
-              style: GoogleFonts.dmSans(
+              style: GoogleFonts.inter(
                   fontSize: 13, color: AdminThemeColors.of(context).text),
               decoration: InputDecoration(
                 hintText: 'Buscar alimento...',
-                hintStyle: GoogleFonts.dmSans(
+                hintStyle: GoogleFonts.inter(
                     fontSize: 13, color: AdminThemeColors.of(context).muted),
                 prefixIcon: Icon(Icons.search,
                     size: 16, color: AdminThemeColors.of(context).muted),
@@ -2321,12 +2319,12 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                             size: 48, color: AdminThemeColors.of(context).muted),
                         const SizedBox(height: 12),
                         Text('Nenhum alimento encontrado',
-                            style: GoogleFonts.dmSans(
+                            style: GoogleFonts.inter(
                                 color: AdminThemeColors.of(context).muted)),
                         const SizedBox(height: 8),
                         Text(
                             'Adiciona os primeiros alimentos à biblioteca.',
-                            style: GoogleFonts.dmSans(
+                            style: GoogleFonts.inter(
                                 fontSize: 12,
                                 color: AdminThemeColors.of(context).muted)),
                       ],
@@ -2360,7 +2358,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                     color: AdminThemeColors.of(context).lime)),
             error: (_, __) => Center(
               child: Text('Erro',
-                  style: GoogleFonts.dmSans(
+                  style: GoogleFonts.inter(
                       color: AdminThemeColors.of(context).muted)),
             ),
           ),
@@ -2405,7 +2403,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
             children: [
               Expanded(
                 child: Text(food.nome,
-                    style: GoogleFonts.dmSans(
+                    style: GoogleFonts.inter(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                         color: AdminThemeColors.of(context).text)),
@@ -2418,7 +2416,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(catLabel.toUpperCase(),
-                    style: GoogleFonts.dmSans(
+                    style: GoogleFonts.inter(
                         fontSize: 9,
                         fontWeight: FontWeight.w700,
                         color: catColor,
@@ -2429,7 +2427,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
           const SizedBox(height: 8),
           Text(
               '${food.caloriasPor100g.toStringAsFixed(0)} kcal / 100g',
-              style: GoogleFonts.dmMono(
+              style: GoogleFonts.montserrat(
                   fontSize: 13, color: AdminThemeColors.of(context).lime)),
           const SizedBox(height: 6),
           Row(
@@ -2465,7 +2463,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(label,
-          style: GoogleFonts.dmSans(
+          style: GoogleFonts.inter(
               fontSize: 10, color: color, fontWeight: FontWeight.w500)),
     );
   }
@@ -2492,7 +2490,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
               borderRadius: BorderRadius.circular(14),
               side: BorderSide(color: AdminThemeColors.of(context).border)),
           title: Text('Novo Alimento',
-              style: GoogleFonts.dmSans(
+              style: GoogleFonts.inter(
                   fontWeight: FontWeight.w700,
                   color: AdminThemeColors.of(context).text)),
           content: SingleChildScrollView(
@@ -2501,10 +2499,10 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
               children: [
                 TextField(
                   controller: nomeCtrl,
-                  style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text),
+                  style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
                   decoration: InputDecoration(
                     labelText: 'Nome do alimento',
-                    labelStyle: GoogleFonts.dmSans(
+                    labelStyle: GoogleFonts.inter(
                         color: AdminThemeColors.of(context).muted),
                     filled: true,
                     fillColor: AdminThemeColors.of(context).bg,
@@ -2516,10 +2514,10 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                 TextField(
                   controller: calCtrl,
                   keyboardType: TextInputType.number,
-                  style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text),
+                  style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
                   decoration: InputDecoration(
                     labelText: 'Calorias (por 100g/ml)',
-                    labelStyle: GoogleFonts.dmSans(
+                    labelStyle: GoogleFonts.inter(
                         color: AdminThemeColors.of(context).muted),
                     filled: true,
                     fillColor: AdminThemeColors.of(context).bg,
@@ -2534,11 +2532,11 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                       child: TextField(
                         controller: protCtrl,
                         keyboardType: TextInputType.number,
-                        style: GoogleFonts.dmSans(
+                        style: GoogleFonts.inter(
                             color: AdminThemeColors.of(context).text),
                         decoration: InputDecoration(
                           labelText: 'Proteína (g)',
-                          labelStyle: GoogleFonts.dmSans(
+                          labelStyle: GoogleFonts.inter(
                               color: AdminThemeColors.of(context).muted,
                               fontSize: 12),
                           filled: true,
@@ -2556,11 +2554,11 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                       child: TextField(
                         controller: carbCtrl,
                         keyboardType: TextInputType.number,
-                        style: GoogleFonts.dmSans(
+                        style: GoogleFonts.inter(
                             color: AdminThemeColors.of(context).text),
                         decoration: InputDecoration(
                           labelText: 'Hidratos (g)',
-                          labelStyle: GoogleFonts.dmSans(
+                          labelStyle: GoogleFonts.inter(
                               color: AdminThemeColors.of(context).muted,
                               fontSize: 12),
                           filled: true,
@@ -2578,11 +2576,11 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                       child: TextField(
                         controller: gordCtrl,
                         keyboardType: TextInputType.number,
-                        style: GoogleFonts.dmSans(
+                        style: GoogleFonts.inter(
                             color: AdminThemeColors.of(context).text),
                         decoration: InputDecoration(
                           labelText: 'Gordura (g)',
-                          labelStyle: GoogleFonts.dmSans(
+                          labelStyle: GoogleFonts.inter(
                               color: AdminThemeColors.of(context).muted,
                               fontSize: 12),
                           filled: true,
@@ -2602,10 +2600,10 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                   value: selectedCat,
                   dropdownColor: AdminThemeColors.of(context).surface,
                   style:
-                      GoogleFonts.dmSans(color: AdminThemeColors.of(context).text),
+                      GoogleFonts.inter(color: AdminThemeColors.of(context).text),
                   decoration: InputDecoration(
                     labelText: 'Categoria',
-                    labelStyle: GoogleFonts.dmSans(
+                    labelStyle: GoogleFonts.inter(
                         color: AdminThemeColors.of(context).muted),
                     filled: true,
                     fillColor: AdminThemeColors.of(context).bg,
@@ -2616,7 +2614,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                       .map((c) => DropdownMenuItem(
                           value: c,
                           child: Text(c,
-                              style: GoogleFonts.dmSans(
+                              style: GoogleFonts.inter(
                                   color:
                                       AdminThemeColors.of(context).text))))
                       .toList(),
@@ -2630,7 +2628,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
             TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: Text('Cancelar',
-                  style: GoogleFonts.dmSans(
+                  style: GoogleFonts.inter(
                       color: AdminThemeColors.of(context).muted)),
             ),
             ElevatedButton(
@@ -2660,7 +2658,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                 foregroundColor: AdminThemeColors.of(context).bg,
               ),
               child: Text('Adicionar',
-                  style: GoogleFonts.dmSans(
+                  style: GoogleFonts.inter(
                       fontWeight: FontWeight.w700)),
             ),
           ],

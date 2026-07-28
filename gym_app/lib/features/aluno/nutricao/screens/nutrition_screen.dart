@@ -58,7 +58,6 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
   DateTime _selectedDate = DateTime.now();
   late DateTime _weekStart;
   double _slideDirection = 1.0;
-  String _searchQuery = '';
 
   @override
   void initState() {

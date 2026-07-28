@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/config/app_colors.dart';
-import '../../../../core/config/app_constants.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../data/models/message_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/admin_theme.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../data/models/user_model.dart';
@@ -38,7 +37,7 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                 ElevatedButton.icon(
                   onPressed: _createEmptyPlan,
                   icon: const Icon(Icons.add, size: 16),
-                  label: Text('Criar plano de treino', style: GoogleFonts.dmSans(fontSize: 13, fontWeight: FontWeight.w700)),
+                  label: Text('Criar plano de treino', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AdminThemeColors.of(context).lime,
                     foregroundColor: AdminThemeColors.of(context).bg,
@@ -53,7 +52,7 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
         return _buildPlanEditor(plans);
       },
       loading: () => Center(child: CircularProgressIndicator(color: AdminThemeColors.of(context).lime)),
-      error: (_, __) => Center(child: Text('Erro ao carregar planos', style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted))),
+      error: (_, __) => Center(child: Text('Erro ao carregar planos', style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted))),
     );
   }
 
@@ -73,7 +72,7 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: ChoiceChip(
-                      label: Text(entry.value.nome, style: GoogleFonts.dmSans(fontSize: 13, color: selected ? AdminThemeColors.of(context).bg : AdminThemeColors.of(context).muted)),
+                      label: Text(entry.value.nome, style: GoogleFonts.inter(fontSize: 13, color: selected ? AdminThemeColors.of(context).bg : AdminThemeColors.of(context).muted)),
                       selected: selected,
                       onSelected: (_) => setState(() => _selectedPlanIndex = entry.key),
                       selectedColor: AdminThemeColors.of(context).lime,
@@ -113,18 +112,18 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                     backgroundColor: AdminThemeColors.of(context).limeDim,
                     child: Icon(Icons.fitness_center, color: AdminThemeColors.of(context).lime, size: 16),
                   ),
-                  title: Text(day.diaSemana, style: GoogleFonts.dmSans(fontWeight: FontWeight.w600, color: AdminThemeColors.of(context).text)),
+                  title: Text(day.diaSemana, style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: AdminThemeColors.of(context).text)),
                   subtitle: day.foco.isNotEmpty
-                      ? Text('Foco: ${day.foco}', style: GoogleFonts.dmSans(fontSize: 12, color: AdminThemeColors.of(context).muted))
+                      ? Text('Foco: ${day.foco}', style: GoogleFonts.inter(fontSize: 12, color: AdminThemeColors.of(context).muted))
                       : null,
                   children: [
                     ...day.exercicios.map((ex) => ListTile(
                           dense: true,
-                          title: Text(ex.nome, style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text, fontSize: 14)),
+                          title: Text(ex.nome, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text, fontSize: 14)),
                           subtitle: Text('${ex.series}x${ex.repeticoes} • ${ex.descanso}s descanso',
-                              style: GoogleFonts.dmMono(fontSize: 12, color: AdminThemeColors.of(context).muted)),
+                              style: GoogleFonts.montserrat(fontSize: 12, color: AdminThemeColors.of(context).muted)),
                           trailing: ex.cargaSugerida != null
-                              ? Text('${ex.cargaSugerida}kg', style: GoogleFonts.dmMono(fontSize: 13, color: AdminThemeColors.of(context).orange))
+                              ? Text('${ex.cargaSugerida}kg', style: GoogleFonts.montserrat(fontSize: 13, color: AdminThemeColors.of(context).orange))
                               : null,
                         )),
                     Divider(color: AdminThemeColors.of(context).border, height: 1),
@@ -133,7 +132,7 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                       child: TextButton.icon(
                         onPressed: () => _addExercise(plan, day.diaSemana),
                         icon: Icon(Icons.add, size: 14, color: AdminThemeColors.of(context).lime),
-                        label: Text('Adicionar exercício', style: GoogleFonts.dmSans(fontSize: 12, color: AdminThemeColors.of(context).lime)),
+                        label: Text('Adicionar exercício', style: GoogleFonts.inter(fontSize: 12, color: AdminThemeColors.of(context).lime)),
                       ),
                     ),
                   ],
@@ -152,14 +151,14 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AdminThemeColors.of(context).surface,
-        title: Text('Novo plano de treino', style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
-        content: TextField(controller: nameCtrl, style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Nome do plano')),
+        title: Text('Novo plano de treino', style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
+        content: TextField(controller: nameCtrl, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Nome do plano')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.cancel, style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.cancel, style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted))),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, nameCtrl.text.trim()),
             style: ElevatedButton.styleFrom(backgroundColor: AdminThemeColors.of(context).lime, foregroundColor: AdminThemeColors.of(context).bg),
-            child: Text(AppStrings.save, style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
+            child: Text(AppStrings.save, style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -183,25 +182,25 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AdminThemeColors.of(context).surface,
-        title: Text('Adicionar exercício', style: GoogleFonts.dmSans(fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
+        title: Text('Adicionar exercício', style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: nome, style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Nome')),
+              TextField(controller: nome, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Nome')),
               Row(children: [
-                Expanded(child: TextField(controller: series, keyboardType: TextInputType.number, style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Séries'))),
+                Expanded(child: TextField(controller: series, keyboardType: TextInputType.number, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Séries'))),
                 const SizedBox(width: 12),
-                Expanded(child: TextField(controller: reps, keyboardType: TextInputType.number, style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Reps'))),
+                Expanded(child: TextField(controller: reps, keyboardType: TextInputType.number, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Reps'))),
               ]),
-              TextField(controller: carga, keyboardType: TextInputType.number, style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Carga (kg)')),
-              TextField(controller: descanso, keyboardType: TextInputType.number, style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Descanso (s)')),
-              TextField(controller: obs, style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Observações')),
+              TextField(controller: carga, keyboardType: TextInputType.number, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Carga (kg)')),
+              TextField(controller: descanso, keyboardType: TextInputType.number, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Descanso (s)')),
+              TextField(controller: obs, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Observações')),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.cancel, style: GoogleFonts.dmSans(color: AdminThemeColors.of(context).muted))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.cancel, style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted))),
           ElevatedButton(
             onPressed: () {
               if (nome.text.trim().isEmpty) return;
@@ -215,7 +214,7 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
               ));
             },
             style: ElevatedButton.styleFrom(backgroundColor: AdminThemeColors.of(context).lime, foregroundColor: AdminThemeColors.of(context).bg),
-            child: Text(AppStrings.save, style: GoogleFonts.dmSans(fontWeight: FontWeight.w700)),
+            child: Text(AppStrings.save, style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
