@@ -520,29 +520,43 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               );
             }
             final photo = photos[index];
-            return ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                photo.foto,
-                fit: BoxFit.cover,
-                loadingBuilder: (_, child, progress) {
-                  if (progress == null) return child;
-                  return Container(
+            return GestureDetector(
+              onTap: () => _openPhotoViewer(photos, index),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  photo.foto,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (_, child, progress) {
+                    if (progress == null) return child;
+                    return Container(
+                      color: AppColors.surfaceHigh,
+                      child: const Center(
+                        child: CircularProgressIndicator(color: AppColors.primary),
+                      ),
+                    );
+                  },
+                  errorBuilder: (_, __, ___) => Container(
                     color: AppColors.surfaceHigh,
-                    child: const Center(
-                      child: CircularProgressIndicator(color: AppColors.primary),
-                    ),
-                  );
-                },
-                errorBuilder: (_, __, ___) => Container(
-                  color: AppColors.surfaceHigh,
-                  child: const Icon(Icons.broken_image, color: AppColors.error),
+                    child: const Icon(Icons.broken_image, color: AppColors.error),
+                  ),
                 ),
               ),
             );
           },
         ),
       ],
+    );
+  }
+
+  /// Abre o visualizador de fotos em full-screen com zoom e navegação.
+  void _openPhotoViewer(
+      List<({String foto, DateTime data})> photos, int initialIndex) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _PhotoViewer(photos: photos, initialIndex: initialIndex),
+      ),
     );
   }
 
@@ -783,5 +797,166 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         }
       }
     }
+  }
+}
+
+/// Visualizador de fotos full-screen com zoom (pinch) e navegação (swipe).
+class _PhotoViewer extends StatefulWidget {
+  final List<({String foto, DateTime data})> photos;
+  final int initialIndex;
+
+  const _PhotoViewer({required this.photos, required this.initialIndex});
+
+  @override
+  State<_PhotoViewer> createState() => _PhotoViewerState();
+}
+
+class _PhotoViewerState extends State<_PhotoViewer> {
+  late final PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          '${_currentIndex + 1} / ${widget.photos.length}',
+          style: GoogleFonts.montserrat(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
+        centerTitle: true,
+        actions: [
+          if (widget.photos.length > 1) ...[
+            IconButton(
+              icon: const Icon(Icons.arrow_back_ios, size: 18),
+              onPressed: _currentIndex > 0 ? _goToPrevious : null,
+              color: _currentIndex > 0 ? Colors.white : Colors.white24,
+            ),
+            IconButton(
+              icon: const Icon(Icons.arrow_forward_ios, size: 18),
+              onPressed: _currentIndex < widget.photos.length - 1 ? _goToNext : null,
+              color: _currentIndex < widget.photos.length - 1 ? Colors.white : Colors.white24,
+            ),
+          ],
+        ],
+      ),
+      body: GestureDetector(
+        onTap: () => Navigator.pop(context),
+        child: Column(
+          children: [
+            Expanded(
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: widget.photos.length,
+                onPageChanged: (index) {
+                  setState(() => _currentIndex = index);
+                },
+                itemBuilder: (_, index) {
+                  final photo = widget.photos[index];
+                  return InteractiveViewer(
+                    minScale: 1.0,
+                    maxScale: 4.0,
+                    boundaryMargin: const EdgeInsets.all(60),
+                    child: Center(
+                      child: Image.network(
+                        photo.foto,
+                        fit: BoxFit.contain,
+                        loadingBuilder: (_, child, progress) {
+                          if (progress == null) return child;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              value: progress.expectedTotalBytes != null
+                                  ? progress.cumulativeBytesLoaded /
+                                      progress.expectedTotalBytes!
+                                  : null,
+                              color: AppColors.primary,
+                            ),
+                          );
+                        },
+                        errorBuilder: (_, __, ___) => const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.broken_image, color: Colors.white38, size: 48),
+                              SizedBox(height: 8),
+                              Text('Erro ao carregar imagem',
+                                  style: TextStyle(color: Colors.white38)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            // Data da foto
+            Padding(
+              padding: const EdgeInsets.only(bottom: 32, top: 8),
+              child: Text(
+                _formatPhotoDate(widget.photos[_currentIndex].data),
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: Colors.white54,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _goToPrevious() {
+    if (_currentIndex > 0) {
+      _pageController.animateToPage(
+        _currentIndex - 1,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  void _goToNext() {
+    if (_currentIndex < widget.photos.length - 1) {
+      _pageController.animateToPage(
+        _currentIndex + 1,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  String _formatPhotoDate(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inDays == 0) return 'Hoje';
+    if (diff.inDays == 1) return 'Ontem';
+    if (diff.inDays < 7) return 'Há ${diff.inDays} dias';
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 }

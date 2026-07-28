@@ -53,10 +53,47 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (otherId.isEmpty || otherId == userId) {
       return Scaffold(
         backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: Text(
+            AppStrings.chatTitle,
+            style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, fontSize: 18),
+          ),
+        ),
         body: Center(
-          child: Text(
-            'Nenhum participante associado ao chat.',
-            style: GoogleFonts.inter(color: AppColors.textSecondary),
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.chat_outlined, size: 48, color: AppColors.primary),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Chat indisponivel',
+                  style: GoogleFonts.montserrat(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Pede ao teu personal trainer para te associar.\nAssim que ele aceder ao teu perfil, o chat fica disponivel.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );

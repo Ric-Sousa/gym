@@ -1170,9 +1170,11 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                             FirebaseFunctions.instanceFor(region: 'europe-west1');
                         final callable =
                             functions.httpsCallable('createStudent');
+                        final adminId = FirebaseAuth.instance.currentUser?.uid ?? '';
                         final response = await callable.call(<String, dynamic>{
                           'nome': nomeCtrl.text.trim(),
                           'email': emailCtrl.text.trim(),
+                          'personalId': adminId,
                         });
                         final data = response.data as Map<String, dynamic>;
                         setDialogState(() => loading = false);
@@ -1229,6 +1231,25 @@ class _ClientDetailView extends ConsumerStatefulWidget {
 class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
   String _tab = 'overview';
   bool _requestingProgress = false;
+  bool _personalIdSet = false;
+
+  /// Garante que o aluno tem o personalId definido para o chat funcionar.
+  Future<void> _ensurePersonalId() async {
+    if (_personalIdSet) return;
+    if (widget.client.personalId != null && widget.client.personalId!.isNotEmpty) {
+      _personalIdSet = true;
+      return;
+    }
+    final adminId = FirebaseAuth.instance.currentUser?.uid;
+    if (adminId == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.client.uid)
+          .set({'personalId': adminId}, SetOptions(merge: true));
+      _personalIdSet = true;
+    } catch (_) {}
+  }
 
   Widget _requestProgressButton(UserModel client) {
     return ElevatedButton.icon(
@@ -1444,7 +1465,10 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
   Widget _tabBtn(String id, String label, IconData icon) {
     final active = _tab == id;
     return GestureDetector(
-      onTap: () => setState(() => _tab = id),
+      onTap: () {
+        setState(() => _tab = id);
+        if (id == 'chat') _ensurePersonalId();
+      },
       child: Container(
         padding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 10),

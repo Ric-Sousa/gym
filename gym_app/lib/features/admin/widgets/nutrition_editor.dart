@@ -19,52 +19,14 @@ class NutritionEditor extends ConsumerStatefulWidget {
 }
 
 class _NutritionEditorState extends ConsumerState<NutritionEditor> {
-  int _selectedDayIndex = 0;
+  static const _readDay = 'Segunda-feira';
 
   @override
   Widget build(BuildContext context) {
-    final diaSemana = AppStrings.daysOfWeek[_selectedDayIndex];
-    final planAsync = ref.watch(adminNutritionPlanProvider((widget.aluno.uid, diaSemana)));
+    final planAsync = ref.watch(adminNutritionPlanProvider((widget.aluno.uid, _readDay)));
 
     return Column(
       children: [
-        Container(
-          height: 44,
-          decoration: BoxDecoration(
-            color: AdminThemeColors.of(context).surface,
-            boxShadow: [
-              BoxShadow(
-                color: AdminThemeColors.of(context).shadow,
-                blurRadius: 4,
-                offset: const Offset(0, 1),
-              ),
-            ],
-          ),
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            itemCount: 7,
-            itemBuilder: (context, index) {
-              final selected = index == _selectedDayIndex;
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: ChoiceChip(
-                    label: Text(AppStrings.daysOfWeekShort[index],
-                        style: GoogleFonts.inter(fontSize: 12, color: selected ? AdminThemeColors.of(context).bg : AdminThemeColors.of(context).muted)),
-                    selected: selected,
-                    onSelected: (_) => setState(() => _selectedDayIndex = index),
-                    selectedColor: AdminThemeColors.of(context).lime,
-                    backgroundColor: AdminThemeColors.of(context).surface2,
-                    side: BorderSide(color: selected ? AdminThemeColors.of(context).lime : AdminThemeColors.of(context).border),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        Divider(height: 1, color: AdminThemeColors.of(context).border),
         Expanded(
           child: planAsync.when(
             data: (plan) => _buildEditor(plan),
@@ -179,15 +141,22 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
               ),
             ),
           ),
+
         ],
       ),
     );
   }
 
+  /// Guarda os mesmos dados em todos os 7 dias da semana.
+  Future<void> _saveToAllDays(Map<String, dynamic> data) async {
+    for (final dia in AppStrings.daysOfWeek) {
+      await ref.read(nutritionRepositoryProvider).savePlan(widget.aluno.uid, dia, data);
+      ref.invalidate(adminNutritionPlanProvider((widget.aluno.uid, dia)));
+    }
+  }
+
   Future<void> _createEmptyPlan() async {
-    final diaSemana = AppStrings.daysOfWeek[_selectedDayIndex];
-    await ref.read(nutritionRepositoryProvider).savePlan(widget.aluno.uid, diaSemana, {'metaCalorias': 2000, 'refeicoes': []});
-    ref.invalidate(adminNutritionPlanProvider((widget.aluno.uid, diaSemana)));
+    await _saveToAllDays({'metaCalorias': 2000, 'refeicoes': []});
   }
 
   Future<void> _editMetaCalorias(NutritionPlanModel plan) async {
@@ -214,8 +183,7 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
       ),
     );
     if (result != null && result > 0) {
-      await ref.read(nutritionRepositoryProvider).savePlan(widget.aluno.uid, plan.dia, {'metaCalorias': result});
-      ref.invalidate(adminNutritionPlanProvider((widget.aluno.uid, plan.dia)));
+      await _saveToAllDays({'metaCalorias': result});
     }
   }
 
@@ -249,8 +217,7 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
     if (result != null && result['nome']!.isNotEmpty) {
       final alimento = Alimento(nome: result['nome']!, quantidade: result['quantidade']!, calorias: double.tryParse(result['calorias']!) ?? 0.0);
       final updated = plan.refeicoes.map((m) => m.tipo == mealTipo ? PlannedMeal(tipo: m.tipo, alimentos: [...m.alimentos, alimento], instrucoes: m.instrucoes) : m).toList();
-      await ref.read(nutritionRepositoryProvider).savePlan(widget.aluno.uid, plan.dia, {'refeicoes': updated.map((m) => m.toMap()).toList()});
-      ref.invalidate(adminNutritionPlanProvider((widget.aluno.uid, plan.dia)));
+      await _saveToAllDays({'refeicoes': updated.map((m) => m.toMap()).toList()});
     }
   }
 
@@ -274,8 +241,7 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
     );
     if (result != null && result.isNotEmpty) {
       final updated = [...plan.refeicoes.map((m) => m.toMap()), PlannedMeal(tipo: result).toMap()];
-      await ref.read(nutritionRepositoryProvider).savePlan(widget.aluno.uid, plan.dia, {'refeicoes': updated});
-      ref.invalidate(adminNutritionPlanProvider((widget.aluno.uid, plan.dia)));
+      await _saveToAllDays({'refeicoes': updated});
     }
   }
 }
