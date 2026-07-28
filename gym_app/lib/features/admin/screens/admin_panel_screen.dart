@@ -133,7 +133,23 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
         ),
         drawer: Drawer(
           backgroundColor: AdminThemeColors.of(context).surface,
-          child: SafeArea(child: _buildSidebar()),
+          child: SafeArea(
+            child: Column(
+              children: [
+                Align(
+                  alignment: Alignment.topRight,
+                  child: IconButton(
+                    icon: Icon(Icons.close,
+                        color: AdminThemeColors.of(context).muted,
+                        size: 20),
+                    onPressed: () => Navigator.pop(context),
+                    padding: const EdgeInsets.all(16),
+                  ),
+                ),
+                Expanded(child: _buildSidebar()),
+              ],
+            ),
+          ),
         ),
         body: _selectedClient != null
             ? _ClientDetailView(
@@ -441,7 +457,7 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
     final statsAsync = ref.watch(adminDashboardStatsProvider);
     final alunosAsync = ref.watch(alunosListProvider);
 
-    final isMobile = MediaQuery.of(context).size.width < 600;
+    final isMobile = MediaQuery.of(context).size.width < 900;
     return SingleChildScrollView(
       padding: EdgeInsets.all(isMobile ? 16 : 36),
       child: Column(
@@ -482,7 +498,9 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
       ('Sessões Totais', stats.sessoesTotal, Icons.emoji_events, AdminThemeColors.of(context).purple),
     ];
     return LayoutBuilder(builder: (_, constraints) {
-      final cols = constraints.maxWidth > 800 ? 4 : 2;
+      final cols = constraints.maxWidth > 800
+          ? 4
+          : (constraints.maxWidth > 450 ? 2 : 1);
       return Wrap(
         spacing: 14,
         runSpacing: 14,
@@ -502,7 +520,9 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
       ('Sessões Totais', '...', Icons.emoji_events, AdminThemeColors.of(context).purple),
     ];
     return LayoutBuilder(builder: (_, constraints) {
-      final cols = constraints.maxWidth > 800 ? 4 : 2;
+      final cols = constraints.maxWidth > 800
+          ? 4
+          : (constraints.maxWidth > 450 ? 2 : 1);
       return Wrap(
         spacing: 14,
         runSpacing: 14,
@@ -875,27 +895,23 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
   Widget build(BuildContext context) {
     final alunosAsync = ref.watch(alunosSearchProvider(_search));
 
-    final isMobile = MediaQuery.of(context).size.width < 600;
+    final isMobile = MediaQuery.of(context).size.width < 900;
     return SingleChildScrollView(
       padding: EdgeInsets.all(isMobile ? 16 : 36),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('CLIENTES', style: _adminDisplay(context, isMobile ? 28 : 40)),
-                    Text(
-                        '${alunosAsync.valueOrNull?.length ?? 0} clientes cadastrados',
-                        style: GoogleFonts.inter(
-                            fontSize: 14, color: AdminThemeColors.of(context).muted)),
-                  ],
-                ),
-              ),
-              ElevatedButton.icon(
+          if (isMobile) ...[
+            Text('CLIENTES', style: _adminDisplay(context, 28)),
+            Text(
+                '${alunosAsync.valueOrNull?.length ?? 0} clientes cadastrados',
+                style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: AdminThemeColors.of(context).muted)),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
                 onPressed: _showCreateStudentDialog,
                 icon: const Icon(Icons.add, size: 16),
                 label: Text('NOVO CLIENTE',
@@ -912,8 +928,43 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                       horizontal: 16, vertical: 10),
                 ),
               ),
-            ],
-          ),
+            ),
+          ] else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('CLIENTES', style: _adminDisplay(context, 40)),
+                      Text(
+                          '${alunosAsync.valueOrNull?.length ?? 0} clientes cadastrados',
+                          style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: AdminThemeColors.of(context).muted)),
+                    ],
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _showCreateStudentDialog,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: Text('NOVO CLIENTE',
+                      style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.02)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AdminThemeColors.of(context).lime,
+                    foregroundColor: AdminThemeColors.of(context).bg,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 28),
           // Search + filters
           if (isMobile)
@@ -2144,28 +2195,24 @@ class _AdminExerciseLibraryState
   Widget build(BuildContext context) {
     final exercisesAsync = ref.watch(adminExercisesProvider);
 
-    final isMobile = MediaQuery.of(context).size.width < 600;
+    final isMobile = MediaQuery.of(context).size.width < 900;
     return SingleChildScrollView(
       padding: EdgeInsets.all(isMobile ? 16 : 36),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('BIBLIOTECA DE EXERCÍCIOS',
-                        style: _adminDisplay(context, isMobile ? 28 : 40)),
-                    Text(
-                        '${exercisesAsync.valueOrNull?.length ?? 0} exercícios',
-                        style: GoogleFonts.inter(
-                            fontSize: 14, color: AdminThemeColors.of(context).muted)),
-                  ],
-                ),
-              ),
-              ElevatedButton.icon(
+          if (isMobile) ...[
+            Text('BIBLIOTECA DE EXERCÍCIOS',
+                style: _adminDisplay(context, 28)),
+            Text(
+                '${exercisesAsync.valueOrNull?.length ?? 0} exercícios',
+                style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: AdminThemeColors.of(context).muted)),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
                 onPressed: _showAddExerciseDialog,
                 icon: const Icon(Icons.add, size: 16),
                 label: Text('NOVO EXERCÍCIO',
@@ -2180,8 +2227,42 @@ class _AdminExerciseLibraryState
                       horizontal: 16, vertical: 10),
                 ),
               ),
-            ],
-          ),
+            ),
+          ] else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('BIBLIOTECA DE EXERCÍCIOS',
+                          style: _adminDisplay(context, 40)),
+                      Text(
+                          '${exercisesAsync.valueOrNull?.length ?? 0} exercícios',
+                          style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: AdminThemeColors.of(context).muted)),
+                    ],
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _showAddExerciseDialog,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: Text('NOVO EXERCÍCIO',
+                      style: GoogleFonts.inter(
+                          fontSize: 13, fontWeight: FontWeight.w700)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AdminThemeColors.of(context).lime,
+                    foregroundColor: AdminThemeColors.of(context).bg,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 24),
           // Search
           SizedBox(
@@ -2505,28 +2586,25 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
   @override
   Widget build(BuildContext context) {
     final foodsAsync = ref.watch(adminFoodsSearchProvider(_search));
+    final isMobile = MediaQuery.of(context).size.width < 900;
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(36),
+      padding: EdgeInsets.all(isMobile ? 16 : 36),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('BIBLIOTECA DE ALIMENTOS',
-                        style: _adminDisplay(context, 40)),
-                    Text(
-                        '${foodsAsync.valueOrNull?.length ?? 0} alimentos',
-                        style: GoogleFonts.inter(
-                            fontSize: 14, color: AdminThemeColors.of(context).muted)),
-                  ],
-                ),
-              ),
-              ElevatedButton.icon(
+          if (isMobile) ...[
+            Text('BIBLIOTECA DE ALIMENTOS',
+                style: _adminDisplay(context, 28)),
+            Text(
+                '${foodsAsync.valueOrNull?.length ?? 0} alimentos',
+                style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: AdminThemeColors.of(context).muted)),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
                 onPressed: _showAddFoodDialog,
                 icon: const Icon(Icons.add, size: 16),
                 label: Text('NOVO ALIMENTO',
@@ -2541,8 +2619,42 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                       horizontal: 16, vertical: 10),
                 ),
               ),
-            ],
-          ),
+            ),
+          ] else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('BIBLIOTECA DE ALIMENTOS',
+                          style: _adminDisplay(context, 40)),
+                      Text(
+                          '${foodsAsync.valueOrNull?.length ?? 0} alimentos',
+                          style: GoogleFonts.inter(
+                              fontSize: 14,
+                              color: AdminThemeColors.of(context).muted)),
+                    ],
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _showAddFoodDialog,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: Text('NOVO ALIMENTO',
+                      style: GoogleFonts.inter(
+                          fontSize: 13, fontWeight: FontWeight.w700)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AdminThemeColors.of(context).lime,
+                    foregroundColor: AdminThemeColors.of(context).bg,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 10),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 24),
           SizedBox(
             width: 360,
