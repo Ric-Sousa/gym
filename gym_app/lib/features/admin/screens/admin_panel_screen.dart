@@ -1288,7 +1288,8 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
 class _ClientDetailView extends ConsumerStatefulWidget {
   final UserModel client;
   final VoidCallback onBack;
-  const _ClientDetailView({required this.client, required this.onBack});
+  final bool isMobile;
+  const _ClientDetailView({required this.client, required this.onBack, this.isMobile = false});
 
   @override
   ConsumerState<_ClientDetailView> createState() => _ClientDetailViewState();
@@ -1298,7 +1299,10 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
   String _tab = 'overview';
   bool _requestingProgress = false;
 
+  EdgeInsets get _pad => EdgeInsets.all(widget.isMobile ? 16 : 36);
+
   Widget _requestProgressButton(UserModel client) {
+    final isMobile = widget.isMobile;
     return ElevatedButton.icon(
       onPressed: _requestingProgress ? null : () => _requestProgress(client),
       icon: _requestingProgress
@@ -1314,7 +1318,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
       label: Text(
         _requestingProgress ? 'A enviar...' : 'SOLICITAR PROGRESSO',
         style: GoogleFonts.inter(
-          fontSize: 11,
+          fontSize: isMobile ? 9 : 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.04,
         ),
@@ -1325,7 +1329,8 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 8 : 12, vertical: isMobile ? 6 : 8),
       ),
     );
   }
@@ -1397,7 +1402,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
   Widget build(BuildContext context) {
     final c = widget.client;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(36),
+      padding: _pad,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1416,73 +1421,10 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
           ),
           const SizedBox(height: 24),
           // Header
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AdminThemeColors.of(context).surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AdminThemeColors.of(context).border),
-              boxShadow: [
-                BoxShadow(
-                  color: AdminThemeColors.of(context).shadow,
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 30,
-                  backgroundColor: AdminThemeColors.of(context).surface2,
-                  child: Text(
-                    c.nome.isNotEmpty
-                        ? c.nome.substring(
-                            0, c.nome.length >= 2 ? 2 : 1).toUpperCase()
-                        : '?',
-                    style: GoogleFonts.barlowCondensed(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: AdminThemeColors.of(context).lime),
-                  ),
-                ),
-                const SizedBox(width: 18),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(c.nome.toUpperCase(),
-                          style: GoogleFonts.barlowCondensed(
-                              fontSize: 32,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.01,
-                              color: AdminThemeColors.of(context).text)),
-                      Text(
-                          '${c.pesoAtual?.toStringAsFixed(1) ?? '-'}kg · ${c.altura?.toStringAsFixed(0) ?? '-'}cm · IMC: ${c.imc?.toStringAsFixed(1) ?? '-'}',
-                          style: GoogleFonts.inter(
-                              fontSize: 13, color: AdminThemeColors.of(context).muted)),
-                    ],
-                  ),
-                ),
-                _requestProgressButton(c),
-              ],
-            ),
-          ),
+          _buildClientHeader(c),
           const SizedBox(height: 20),
-          // Tabs
-          Row(
-            children: [
-              _tabBtn('overview', 'Visão Geral', Icons.person),
-              const SizedBox(width: 4),
-              _tabBtn('progresso', 'Progresso', Icons.trending_up),
-              const SizedBox(width: 4),
-              _tabBtn('workout', 'Plano de Treino', Icons.fitness_center),
-              const SizedBox(width: 4),
-              _tabBtn('nutrition', 'Nutrição', Icons.restaurant),
-              const SizedBox(width: 4),
-              _tabBtn('chat', 'Chat', Icons.chat),
-            ],
-          ),
+          // Tabs — scrollable on mobile
+          _buildTabs(),
           const SizedBox(height: 20),
           if (_tab == 'overview') _buildOverview(),
           if (_tab == 'progresso') _buildProgressTab(),
@@ -1509,7 +1451,132 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
     );
   }
 
-  Widget _tabBtn(String id, String label, IconData icon) {
+  Widget _buildClientHeader(UserModel c) {
+    final isMobile = widget.isMobile;
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
+      decoration: BoxDecoration(
+        color: AdminThemeColors.of(context).surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AdminThemeColors.of(context).border),
+        boxShadow: [
+          BoxShadow(
+            color: AdminThemeColors.of(context).shadow,
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: isMobile
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: AdminThemeColors.of(context).surface2,
+                      child: Text(
+                        c.nome.isNotEmpty
+                            ? c.nome
+                                .substring(0, c.nome.length >= 2 ? 2 : 1)
+                                .toUpperCase()
+                            : '?',
+                        style: GoogleFonts.barlowCondensed(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AdminThemeColors.of(context).lime),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(c.nome.toUpperCase(),
+                          style: GoogleFonts.barlowCondensed(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.01,
+                              color: AdminThemeColors.of(context).text)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                          '${c.pesoAtual?.toStringAsFixed(1) ?? '-'}kg · ${c.altura?.toStringAsFixed(0) ?? '-'}cm · IMC: ${c.imc?.toStringAsFixed(1) ?? '-'}',
+                          style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: AdminThemeColors.of(context).muted)),
+                    ),
+                    _requestProgressButton(c),
+                  ],
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                CircleAvatar(
+                  radius: 30,
+                  backgroundColor: AdminThemeColors.of(context).surface2,
+                  child: Text(
+                    c.nome.isNotEmpty
+                        ? c.nome
+                            .substring(0, c.nome.length >= 2 ? 2 : 1)
+                            .toUpperCase()
+                        : '?',
+                    style: GoogleFonts.barlowCondensed(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: AdminThemeColors.of(context).lime),
+                  ),
+                ),
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(c.nome.toUpperCase(),
+                          style: GoogleFonts.barlowCondensed(
+                              fontSize: 32,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.01,
+                              color: AdminThemeColors.of(context).text)),
+                      Text(
+                          '${c.pesoAtual?.toStringAsFixed(1) ?? '-'}kg · ${c.altura?.toStringAsFixed(0) ?? '-'}cm · IMC: ${c.imc?.toStringAsFixed(1) ?? '-'}',
+                          style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: AdminThemeColors.of(context).muted)),
+                    ],
+                  ),
+                ),
+                _requestProgressButton(c),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildTabs() {
+    final tabs = [
+      ('overview', 'Visão Geral', Icons.person),
+      ('progresso', 'Progresso', Icons.trending_up),
+      ('workout', 'Treino', Icons.fitness_center),
+      ('nutrition', 'Nutrição', Icons.restaurant),
+      ('chat', 'Chat', Icons.chat),
+    ];
+    final row = Row(
+      children: [
+        for (final t in tabs) ...[
+          _tabBtn(t.$1, widget.isMobile && t.$2 != 'Visão Geral' ? '' : t.$2, t.$3),
+          const SizedBox(width: 4),
+        ],
+      ],
+    );
+    if (widget.isMobile) {
+      return SingleChildScrollView(scrollDirection: Axis.horizontal, child: row);
+    }
+    return row;
+  }
     final active = _tab == id;
     return GestureDetector(
       onTap: () => setState(() => _tab = id),
