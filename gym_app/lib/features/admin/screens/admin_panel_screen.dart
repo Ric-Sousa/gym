@@ -1577,14 +1577,19 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
     }
     return row;
   }
+
+  Widget _tabBtn(String id, String label, IconData icon) {
     final active = _tab == id;
+    final isMobile = widget.isMobile;
     return GestureDetector(
       onTap: () => setState(() => _tab = id),
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 10 : 16, vertical: isMobile ? 8 : 10),
         decoration: BoxDecoration(
-          color: active ? AdminThemeColors.of(context).limeDim : AdminThemeColors.of(context).surface,
+          color: active
+              ? AdminThemeColors.of(context).limeDim
+              : AdminThemeColors.of(context).surface,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
               color: active
@@ -1592,21 +1597,24 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                   : AdminThemeColors.of(context).border),
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon,
-                size: 14,
+                size: isMobile ? 18 : 14,
                 color: active
                     ? AdminThemeColors.of(context).lime
                     : AdminThemeColors.of(context).muted),
-            const SizedBox(width: 8),
-            Text(label,
-                style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight:
-                        active ? FontWeight.w600 : FontWeight.w400,
-                    color: active
-                        ? AdminThemeColors.of(context).lime
-                        : AdminThemeColors.of(context).muted)),
+            if (label.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Text(label,
+                  style: GoogleFonts.inter(
+                      fontSize: isMobile ? 11 : 13,
+                      fontWeight:
+                          active ? FontWeight.w600 : FontWeight.w400,
+                      color: active
+                          ? AdminThemeColors.of(context).lime
+                          : AdminThemeColors.of(context).muted)),
+            ],
           ],
         ),
       ),
