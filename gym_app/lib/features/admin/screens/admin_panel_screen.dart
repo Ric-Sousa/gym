@@ -1681,7 +1681,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
   Widget _tabBtn(String id, String label, IconData icon) {
     final active = _tab == id;
     final isMobile = widget.isMobile;
-    final widget = GestureDetector(
+    final btn = GestureDetector(
       onTap: () {
         setState(() => _tab = id);
         if (id == 'chat') _ensurePersonalId();
@@ -1730,9 +1730,9 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
         'nutrition': 'Nutrição',
         'chat': 'Chat',
       };
-      return Tooltip(message: tooltipLabels[id] ?? id, child: widget);
+      return Tooltip(message: tooltipLabels[id] ?? id, child: btn);
     }
-    return widget;
+    return btn;
   }
 
   Widget _buildOverview() {
