@@ -302,10 +302,29 @@ class FirestoreDataSource {
             .toList());
   }
 
-  /// Envia uma mensagem.
+  /// Envia uma mensagem e garante que o documento da sala existe.
   Future<void> sendMessage(
       String salaId, Map<String, dynamic> messageMap) async {
     try {
+      // 1. CRIA o documento pai PRIMEIRO (evita "documento fantasma" que
+      //    faria o merge falhar nas regras sem permissão 'update').
+      await _firestore
+          .collection(AppConstants.chatCollection)
+          .doc(salaId)
+          .set({
+        'lastMessage': messageMap['texto'] ?? '',
+        'lastTimestamp': FieldValue.serverTimestamp(),
+        'lastSenderId': messageMap['remetenteId'] ?? '',
+        'createdAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // 2. Limpa o indicador de digitação ao enviar
+      await _firestore
+          .collection(AppConstants.chatCollection)
+          .doc(salaId)
+          .update({'typing': FieldValue.delete()});
+
+      // 3. Só depois adiciona a mensagem à subcoleção.
       await _firestore
           .collection(AppConstants.chatCollection)
           .doc(salaId)
@@ -314,6 +333,53 @@ class FirestoreDataSource {
     } on FirebaseException catch (e) {
       throw ServerException(
           message: e.message ?? 'Erro ao enviar mensagem');
+    }
+  }
+
+  /// Stream que indica se o outro participante está a digitar.
+  /// Retorna o userId de quem está a digitar, ou null se ninguém.
+  Stream<String?> typingStream(String salaId, String myUserId) {
+    return _firestore
+        .collection(AppConstants.chatCollection)
+        .doc(salaId)
+        .snapshots()
+        .map((doc) {
+      if (!doc.exists) return null;
+      final data = doc.data();
+      if (data == null) return null;
+      final typing = data['typing'] as String?;
+      if (typing == null || typing.isEmpty || typing == myUserId) return null;
+      // Verifica se o timestamp de digitação ainda é recente (< 10 segundos)
+      final typingAt = data['typingAt'];
+      if (typingAt != null) {
+        try {
+          final ts = (typingAt as dynamic).toDate() as DateTime;
+          if (DateTime.now().difference(ts).inSeconds > 10) return null;
+        } catch (_) {}
+      }
+      return typing;
+    });
+  }
+
+  /// Define ou remove o estado de digitação do utilizador atual.
+  Future<void> setTypingStatus(String salaId, String userId, bool isTyping) async {
+    try {
+      if (isTyping) {
+        await _firestore
+            .collection(AppConstants.chatCollection)
+            .doc(salaId)
+            .set({
+          'typing': userId,
+          'typingAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } else {
+        await _firestore
+            .collection(AppConstants.chatCollection)
+            .doc(salaId)
+            .update({'typing': FieldValue.delete()});
+      }
+    } on FirebaseException catch (_) {
+      // Falha silenciosa — o indicador de digitação não é crítico
     }
   }
 

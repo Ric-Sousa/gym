@@ -37,4 +37,14 @@ class ChatRepository {
       throw ServerFailure(message: e.message);
     }
   }
+
+  /// Stream que indica se o outro participante está a digitar.
+  Stream<String?> typingStream(String salaId, String myUserId) {
+    return _firestoreDataSource.typingStream(salaId, myUserId);
+  }
+
+  /// Define ou remove o estado de digitação.
+  Future<void> setTypingStatus(String salaId, String userId, bool isTyping) async {
+    await _firestoreDataSource.setTypingStatus(salaId, userId, isTyping);
+  }
 }

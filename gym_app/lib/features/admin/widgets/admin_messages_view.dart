@@ -51,19 +51,39 @@ final adminConversationsProvider =
         final aluno =
             UserModel.fromMap(alunoId, alunoDoc.data()!);
 
-        // Obter última mensagem
-        final lastMsgSnap = await firestore
-            .collection(AppConstants.chatCollection)
-            .doc(roomId)
-            .collection(AppConstants.messagesSubcollection)
-            .orderBy('timestamp', descending: true)
-            .limit(1)
-            .get();
-
+        // Obter ultima mensagem da subcolecao
         MessageModel? lastMessage;
-        if (lastMsgSnap.docs.isNotEmpty) {
-          lastMessage = MessageModel.fromMap(
-              lastMsgSnap.docs.first.id, lastMsgSnap.docs.first.data());
+        try {
+          final lastMsgSnap = await firestore
+              .collection(AppConstants.chatCollection)
+              .doc(roomId)
+              .collection(AppConstants.messagesSubcollection)
+              .orderBy('timestamp', descending: true)
+              .limit(1)
+              .get();
+
+          if (lastMsgSnap.docs.isNotEmpty) {
+            lastMessage = MessageModel.fromMap(
+                lastMsgSnap.docs.first.id, lastMsgSnap.docs.first.data());
+          }
+        } catch (_) {
+          // Se falhar a query da subcolecao (ex: indice em falta),
+          // usa os metadados do documento pai como fallback.
+          final data = doc.data();
+          if (data['lastMessage'] != null) {
+            DateTime ts;
+            try {
+              ts = (data['lastTimestamp'] as dynamic).toDate() as DateTime;
+            } catch (_) {
+              ts = DateTime.now();
+            }
+            lastMessage = MessageModel(
+              id: roomId,
+              remetenteId: data['lastSenderId'] as String? ?? '',
+              texto: data['lastMessage'] as String? ?? '',
+              timestamp: ts,
+            );
+          }
         }
 
         conversations.add(_ConversationPreview(
@@ -71,7 +91,9 @@ final adminConversationsProvider =
           lastMessage: lastMessage,
           roomId: roomId,
         ));
-      } catch (_) {}
+      } catch (_) {
+        // Só ignora se o documento do aluno nao existir.
+      }
     }
 
     // Ordenar por última mensagem (mais recente primeiro)

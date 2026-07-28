@@ -54,12 +54,15 @@ service cloud.firestore {
     // CHAT collection
     // ══════════════════════════════════════════════════════
     match /chat/{salaId} {
-    	allow read: if isAuth();
-    	allow create: if isAuth();
+      // Qualquer utilizador autenticado pode ler, criar e atualizar salas de chat
+      allow read, create, update: if isAuth();
+      // Ninguém pode apagar salas de chat ou mensagens (persistência garantida)
+      allow delete: if false;
 
       match /mensagens/{msgId} {
-        allow read: if isAuth();
-        allow create: if isAuth();
+        allow read, create: if isAuth();
+        // Mensagens são imutáveis — não podem ser editadas nem apagadas
+        allow update, delete: if false;
       }
     }
 

@@ -95,6 +95,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
           _buildProgresso(aluno),
           ChatScreen(
               chatPartnerId: aluno.uid,
+              chatPartnerName: aluno.nome,
               key: ValueKey('chat_${aluno.uid}')),
         ],
       ),

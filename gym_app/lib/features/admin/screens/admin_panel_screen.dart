@@ -1550,6 +1550,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
               height: 600,
               child: ChatScreen(
                 chatPartnerId: widget.client.uid,
+                chatPartnerName: widget.client.nome,
                 key: ValueKey('admin_chat_${widget.client.uid}'),
               ),
             ),
@@ -1688,7 +1689,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
   Widget _tabBtn(String id, String label, IconData icon) {
     final active = _tab == id;
     final isMobile = widget.isMobile;
-    final widget = GestureDetector(
+    final tabWidget = GestureDetector(
       onTap: () {
         setState(() => _tab = id);
         if (id == 'chat') _ensurePersonalId();
@@ -1737,9 +1738,9 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
         'nutrition': 'Nutrição',
         'chat': 'Chat',
       };
-      return Tooltip(message: tooltipLabels[id] ?? id, child: widget);
+      return Tooltip(message: tooltipLabels[id] ?? id, child: tabWidget);
     }
-    return widget;
+    return tabWidget;
   }
 
   Widget _buildOverview() {
