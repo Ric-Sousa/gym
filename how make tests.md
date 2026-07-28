@@ -7,6 +7,9 @@ cd gym_app && flutter test test/unit/
 # Cloud Functions
 cd gym_app/functions && npm test
 
-
 # Run APP
 flutter run -d chrome
+
+# Deploy para web
+flutter build web
+firebase deploy --only hosting
