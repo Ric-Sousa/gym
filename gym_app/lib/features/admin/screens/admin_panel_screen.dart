@@ -921,10 +921,10 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Expanded(
-                child: SizedBox(
-                  height: 40,
-                  child: TextField(
+              SizedBox(
+                width: isMobile ? double.infinity : 280,
+                height: 40,
+                child: TextField(
                     onChanged: (v) => setState(() => _search = v),
                     style: GoogleFonts.inter(
                         fontSize: 13, color: AdminThemeColors.of(context).text),
@@ -952,7 +952,6 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                   ),
                 ),
               ),
-              if (!isMobile) const SizedBox(width: 8),
               ...['all', 'active', 'inactive'].map((f) {
                 final active = _filter == f;
                 final labels = {
@@ -2051,8 +2050,9 @@ class _AdminExerciseLibraryState
   Widget build(BuildContext context) {
     final exercisesAsync = ref.watch(adminExercisesProvider);
 
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(36),
+      padding: EdgeInsets.all(isMobile ? 16 : 36),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2063,7 +2063,7 @@ class _AdminExerciseLibraryState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('BIBLIOTECA DE EXERCÍCIOS',
-                        style: _adminDisplay(context, 40)),
+                        style: _adminDisplay(context, isMobile ? 28 : 40)),
                     Text(
                         '${exercisesAsync.valueOrNull?.length ?? 0} exercícios',
                         style: GoogleFonts.inter(
@@ -2091,7 +2091,7 @@ class _AdminExerciseLibraryState
           const SizedBox(height: 24),
           // Search
           SizedBox(
-            width: 360,
+            width: isMobile ? double.infinity : 360,
             height: 40,
             child: TextField(
               onChanged: (v) => setState(() => _search = v),
