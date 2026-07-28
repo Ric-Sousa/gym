@@ -48,6 +48,7 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
   AdminView _view = AdminView.dashboard;
   UserModel? _selectedClient;
   bool _fcmInitialized = false;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   void initState() {
@@ -71,31 +72,90 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
       _view = v;
       _selectedClient = null;
     });
+    // Fecha drawer em mobile
+    if (_isMobile && _scaffoldKey.currentState?.isDrawerOpen == true) {
+      Navigator.pop(context);
+    }
+  }
+
+  bool get _isMobile => MediaQuery.of(context).size.width < 900;
+
+  Widget _buildSidebar() {
+    return _AdminSidebar(
+      currentView: _view,
+      isClientDetail: _selectedClient != null,
+      isMobile: _isMobile,
+      onNavigate: _navigate,
+      onLogout: () => ref.read(authProvider.notifier).signOut(),
+      onToggleTheme: () {
+        ref.read(adminThemeModeProvider.notifier).state =
+            ref.read(adminThemeModeProvider) == ThemeMode.dark
+                ? ThemeMode.light
+                : ThemeMode.dark;
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isMobile) {
+      return Scaffold(
+        key: _scaffoldKey,
+        backgroundColor: AdminThemeColors.of(context).bg,
+        appBar: AppBar(
+          backgroundColor: AdminThemeColors.of(context).surface,
+          elevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.menu, color: AdminThemeColors.of(context).text),
+            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+          ),
+          title: Text('GYMBT',
+              style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  color: AdminThemeColors.of(context).text)),
+          actions: [
+            IconButton(
+              icon: Icon(
+                Theme.of(context).brightness == Brightness.dark
+                    ? Icons.light_mode_outlined
+                    : Icons.dark_mode_outlined,
+                color: AdminThemeColors.of(context).muted,
+              ),
+              onPressed: () {
+                ref.read(adminThemeModeProvider.notifier).state =
+                    ref.read(adminThemeModeProvider) == ThemeMode.dark
+                        ? ThemeMode.light
+                        : ThemeMode.dark;
+              },
+            ),
+          ],
+        ),
+        drawer: Drawer(
+          backgroundColor: AdminThemeColors.of(context).surface,
+          child: SafeArea(child: _buildSidebar()),
+        ),
+        body: _selectedClient != null
+            ? _ClientDetailView(
+                client: _selectedClient!,
+                isMobile: true,
+                onBack: () => setState(() => _selectedClient = null),
+              )
+            : _buildView(),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AdminThemeColors.of(context).bg,
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _AdminSidebar(
-            currentView: _view,
-            isClientDetail: _selectedClient != null,
-            onNavigate: _navigate,
-            onLogout: () => ref.read(authProvider.notifier).signOut(),
-            onToggleTheme: () {
-              ref.read(adminThemeModeProvider.notifier).state =
-                  ref.read(adminThemeModeProvider) == ThemeMode.dark
-                      ? ThemeMode.light
-                      : ThemeMode.dark;
-            },
-          ),
+          _buildSidebar(),
           Expanded(
             child: _selectedClient != null
                 ? _ClientDetailView(
                     client: _selectedClient!,
+                    isMobile: false,
                     onBack: () => setState(() => _selectedClient = null),
                   )
                 : _buildView(),
@@ -131,12 +191,14 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
 class _AdminSidebar extends StatelessWidget {
   final AdminView currentView;
   final bool isClientDetail;
+  final bool isMobile;
   final Function(AdminView) onNavigate;
   final VoidCallback onLogout;
 
   const _AdminSidebar({
     required this.currentView,
     required this.isClientDetail,
+    required this.isMobile,
     required this.onNavigate,
     required this.onLogout,
     required this.onToggleTheme,
@@ -146,51 +208,39 @@ class _AdminSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 220,
-      decoration: BoxDecoration(
-        color: AdminThemeColors.of(context).surface,
-        boxShadow: [
-          BoxShadow(
-            color: AdminThemeColors.of(context).shadow,
-            blurRadius: 12,
-            offset: const Offset(2, 0),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          const SizedBox(height: 28),
-          // Logo
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: AdminThemeColors.of(context).limeDim,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                        color: AdminThemeColors.of(context).lime.withValues(alpha: 0.3)),
-                  ),
-                  child: Icon(Icons.fitness_center,
-                      color: AdminThemeColors.of(context).lime, size: 16),
+    final logoSection = Column(
+      children: [
+        const SizedBox(height: 28),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: AdminThemeColors.of(context).limeDim,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: AdminThemeColors.of(context).lime.withValues(alpha: 0.3)),
                 ),
-                const SizedBox(width: 10),
-                Text(
-                  'GYMBT',
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: AdminThemeColors.of(context).text,
-                    letterSpacing: -0.3,
-                  ),
+                child: Icon(Icons.fitness_center,
+                    color: AdminThemeColors.of(context).lime, size: 16),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'GYMBT',
+                style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AdminThemeColors.of(context).text,
+                  letterSpacing: -0.3,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+        ),
+        if (!isMobile)
           IconButton(
             icon: Icon(
               Theme.of(context).brightness == Brightness.dark
@@ -204,7 +254,25 @@ class _AdminSidebar extends StatelessWidget {
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
           ),
-          const SizedBox(height: 16),
+        const SizedBox(height: 16),
+      ],
+    );
+
+    return Container(
+      width: isMobile ? 260 : 220,
+      decoration: BoxDecoration(
+        color: AdminThemeColors.of(context).surface,
+        boxShadow: [
+          BoxShadow(
+            color: AdminThemeColors.of(context).shadow,
+            blurRadius: 12,
+            offset: const Offset(2, 0),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          logoSection,
           // Nav items
           _NavItem(
             icon: Icons.dashboard_outlined,
