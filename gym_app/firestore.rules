@@ -1,0 +1,83 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper: is the user authenticated? ──────────
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // ── Helper: is the user an admin? ──────────────
+    function isAdmin() {
+      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ── Helper: does the user own this document? ───
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    // ══════════════════════════════════════════════════════
+    // USERS collection
+    // ══════════════════════════════════════════════════════
+    match /users/{uid} {
+
+      // Admins can read/write any user; owners can read/write their own
+      allow read, write: if isAdmin() || isOwner(uid);
+
+      // ── DIARY subcollection ──────────────────────
+      match /diario/{date} {
+        allow read, write: if isAdmin() || isOwner(uid);
+      }
+
+      // ── NUTRITION PLAN subcollection ─────────────
+      match /planoNutricao/{diaSemana} {
+        allow read: if isAdmin() || isOwner(uid);
+        allow write: if isAdmin(); // only admin writes nutrition plans
+      }
+
+      // ── WORKOUT PLAN subcollection ───────────────
+      match /planoTreino/{nome} {
+        allow read: if isAdmin() || isOwner(uid);
+        allow write: if isAdmin(); // only admin writes workout plans
+      }
+
+      // ── PROGRESS subcollection ───────────────────
+      match /progresso/{docId} {
+        allow read: if isAdmin() || isOwner(uid);
+        allow create: if isOwner(uid); // user can create progress entries
+        allow update: if isAdmin() || isOwner(uid);
+      }
+    }
+
+    // ══════════════════════════════════════════════════════
+    // CHAT collection
+    // ══════════════════════════════════════════════════════
+    match /chat/{salaId} {
+    	allow read: if isAuth();
+    	allow create: if isAuth();
+
+      match /mensagens/{msgId} {
+        allow read: if isAuth();
+        allow create: if isAuth();
+      }
+    }
+
+    // ══════════════════════════════════════════════════════
+    // FOODS collection (global, admin-only write)
+    // ══════════════════════════════════════════════════════
+    match /alimentos/{docId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ══════════════════════════════════════════════════════
+    // EXERCISES collection (global, admin-only write)
+    // ══════════════════════════════════════════════════════
+    match /exercicios/{docId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+  }
+}
