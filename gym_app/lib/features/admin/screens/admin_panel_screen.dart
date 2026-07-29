@@ -4403,7 +4403,7 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
   @override
   void initState() {
     super.initState();
-    _trainerId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    _trainerId = ref.read(authProvider).user?.uid ?? '';
   }
 
   @override

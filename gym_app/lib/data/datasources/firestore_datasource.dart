@@ -617,16 +617,18 @@ class FirestoreDataSource {
   // ─── Agenda / Bookings ───────────────────────────────────────
 
   /// Obtém marcações de um aluno.
+  /// Ordenação feita client-side para evitar necessidade de índice composto Firestore.
   Future<List<BookingModel>> getStudentBookings(String studentId) async {
     try {
       final snap = await _firestore
           .collection(AppConstants.agendaCollection)
           .where('studentId', isEqualTo: studentId)
-          .orderBy('data', descending: true)
           .get();
-      return snap.docs
+      final bookings = snap.docs
           .map((doc) => BookingModel.fromMap(doc.id, doc.data()))
           .toList();
+      bookings.sort((a, b) => b.data.compareTo(a.data));
+      return bookings;
     } on FirebaseException catch (e) {
       throw ServerException(
           message: e.message ?? 'Erro ao obter agenda');
@@ -634,16 +636,18 @@ class FirestoreDataSource {
   }
 
   /// Obtém marcações de um trainer (admin).
+  /// Ordenação feita client-side para evitar necessidade de índice composto Firestore.
   Future<List<BookingModel>> getTrainerBookings(String trainerId) async {
     try {
       final snap = await _firestore
           .collection(AppConstants.agendaCollection)
           .where('trainerId', isEqualTo: trainerId)
-          .orderBy('data', descending: true)
           .get();
-      return snap.docs
+      final bookings = snap.docs
           .map((doc) => BookingModel.fromMap(doc.id, doc.data()))
           .toList();
+      bookings.sort((a, b) => b.data.compareTo(a.data));
+      return bookings;
     } on FirebaseException catch (e) {
       throw ServerException(
           message: e.message ?? 'Erro ao obter agenda');
@@ -673,29 +677,35 @@ class FirestoreDataSource {
     }
   }
 
-  /// Stream de marcações de um aluno.
+  /// Stream de marcações de um aluno (ordenado client-side — sem índice composto).
   Stream<List<BookingModel>> watchStudentBookings(String studentId) {
     return _firestore
         .collection(AppConstants.agendaCollection)
         .where('studentId', isEqualTo: studentId)
-        .orderBy('data', descending: false)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((doc) => BookingModel.fromMap(doc.id, doc.data()))
-            .toList());
+        .map((snap) {
+          final list = snap.docs
+              .map((doc) => BookingModel.fromMap(doc.id, doc.data()))
+              .toList();
+          list.sort((a, b) => a.data.compareTo(b.data));
+          return list;
+        });
   }
 
-  /// Stream de marcações confirmadas/pending do trainer (para conflitos).
+  /// Stream de marcações confirmadas/pending do trainer (ordenado client-side — sem índice composto).
   Stream<List<BookingModel>> watchTrainerBookings(String trainerId) {
     return _firestore
         .collection(AppConstants.agendaCollection)
         .where('trainerId', isEqualTo: trainerId)
-        .orderBy('data', descending: false)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((doc) => BookingModel.fromMap(doc.id, doc.data()))
-            .where((b) => b.isConfirmed || b.isPending)
-            .toList());
+        .map((snap) {
+          final list = snap.docs
+              .map((doc) => BookingModel.fromMap(doc.id, doc.data()))
+              .where((b) => b.isConfirmed || b.isPending)
+              .toList();
+          list.sort((a, b) => a.data.compareTo(b.data));
+          return list;
+        });
   }
 
   // ─── Grupos ──────────────────────────────────────────────────
