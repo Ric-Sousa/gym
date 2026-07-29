@@ -319,7 +319,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
     if (trainerId.isEmpty) {
       if (mounted) {
-        showAppNotification(context, 'Ainda não tens um Personal Trainer associado.', type: NotificationType.warning);
+        showAppNotification(context, 'Ainda não tens um Personal Trainer associado.', type: NotificationType.info);
       }
       return;
     }
