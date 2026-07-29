@@ -1402,7 +1402,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
     bool _obscurePassword = true;
     bool loading = false;
 
-    final result = await showDialog<Map<String, String>>(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
@@ -1513,31 +1513,59 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                   : () async {
                       if (nomeCtrl.text.trim().isEmpty ||
                           emailCtrl.text.trim().isEmpty) return;
+                      final pw = passwordCtrl.text.trim();
+                      if (pw.isNotEmpty && pw.length < 6) {
+                        showAppNotification(context,
+                            'A password deve ter pelo menos 6 caracteres.',
+                            type: NotificationType.error);
+                        return;
+                      }
                       setDialogState(() => loading = true);
                       try {
-                        final functions =
-                            FirebaseFunctions.instanceFor(region: 'europe-west1');
-                        final callable =
-                            functions.httpsCallable('createStudent');
+                        // Obtém token fresco para verificação manual na Cloud Function
+                        final token = await FirebaseAuth.instance.currentUser?.getIdToken(true);
                         final adminId = FirebaseAuth.instance.currentUser?.uid ?? '';
-                      final pw = passwordCtrl.text.trim();
-                        final response = await callable.call(<String, dynamic>{
+                        final body = <String, dynamic>{
                           'nome': nomeCtrl.text.trim(),
                           'email': emailCtrl.text.trim(),
                           'personalId': adminId,
                           'genero': _genero,
-                          if (pw.isNotEmpty) 'password': pw,
-                        });
-                        final data = response.data as Map<String, dynamic>;
+                          'authToken': token ?? '',
+                        };
+                        if (pw.isNotEmpty) body['password'] = pw;
+
+                        final response = await http.post(
+                          Uri.parse('https://europe-west1-gymbt-4ef87.cloudfunctions.net/createStudentHttp'),
+                          headers: {'Content-Type': 'application/json'},
+                          body: json.encode(body),
+                        );
+                        if (!mounted) return;
+                        if (response.statusCode != 200) {
+                          final errData = json.decode(response.body) as Map<String, dynamic>;
+                          final err = errData['error'] as Map<String, dynamic>?;
+                          final msg = err?['message'] as String? ?? 'Erro desconhecido';
+                          setDialogState(() => loading = false);
+                          if (msg.contains('unauthenticated') || msg.contains('Login necessário') || msg.contains('Token inválido')) {
+                            showAppNotification(context, 'Erro de autenticação. Tenta sair e entrar novamente.', type: NotificationType.error);
+                          } else if (msg.contains('weak-password') || msg.contains('Password should be')) {
+                            showAppNotification(context, 'Password muito fraca. Usa pelo menos 6 caracteres.', type: NotificationType.error);
+                          } else {
+                            showAppNotification(context, 'Erro ao criar aluno: $msg', type: NotificationType.error);
+                          }
+                          return;
+                        }
+                        final data = json.decode(response.body) as Map<String, dynamic>;
                         setDialogState(() => loading = false);
                         Navigator.pop(ctx, {
                           'uid': data['uid'] as String,
                           'email': data['email'] as String,
                           'password': data['temporaryPassword'] as String?,
+                          'alreadyExists': data['alreadyExists'] == true,
+                          'created': data['created'] == true,
                         });
                       } catch (e) {
                         setDialogState(() => loading = false);
-                        showAppNotification(context, 'Erro: ${e.toString()}', type: NotificationType.error);
+                        showAppNotification(context, 'Erro ao criar aluno: $e', type: NotificationType.error);
                       }
                     },
               style: ElevatedButton.styleFrom(
@@ -1554,17 +1582,32 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
 
     if (result != null) {
       ref.invalidate(alunosListProvider);
-      if (mounted) {
+      // Espera o diálogo fechar antes de mostrar notificação
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final alreadyExists = result['alreadyExists'] == true;
         final hasPassword = result['password'] != null;
-        showAppNotification(
-          context,
-          hasPassword
-              ? 'Aluno criado! Password temporária: ${result['password']}'
-              : 'Aluno "${result['email']}" já existia. Documento atualizado.',
-          type: NotificationType.success,
-          duration: const Duration(seconds: 8),
-        );
-      }
+        if (alreadyExists) {
+          showAppNotification(
+            context,
+            'Aluno "${result['email']}" já existia. Documento atualizado.',
+            type: NotificationType.success,
+          );
+        } else if (hasPassword) {
+          showAppNotification(
+            context,
+            'Aluno criado! Password: ${result['password']}',
+            type: NotificationType.success,
+            duration: const Duration(seconds: 8),
+          );
+        } else {
+          showAppNotification(
+            context,
+            'Aluno "${result['email']}" criado com sucesso!',
+            type: NotificationType.success,
+          );
+        }
+      });
     }
   }
 }

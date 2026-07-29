@@ -36,27 +36,51 @@ export const onUserCreated = functions.auth.user().onCreate(async (user) => {
 
 // ──────────── CALLABLES ────────────
 
-export const createStudent = functions.region('europe-west1').https.onCall(async (request) => {
-  const { nome, email, personalId, genero, password, authToken } = request.data;
-  if (!nome || !email) throw new functions.https.HttpsError('invalid-argument', 'Nome e email obrigatórios.');
+// ═══ CREATE STUDENT (onRequest = HTTP puro, sem verificação automática de auth) ═══
+const createStudentApp = require('express')();
+createStudentApp.use(require('express').json());
 
-  // Verifica o token manualmente — mais fiável no Flutter Web
+// CORS para todas as rotas
+createStudentApp.use((_req: any, res: any, next: any) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  next();
+});
+
+createStudentApp.options('/', (_req: any, res: any) => { res.status(204).send(''); });
+
+createStudentApp.post('/', async (req: any, res: any) => {
+  // Aceita ambos os formatos: {data: {...}} (onCall antigo) ou fields diretos
+  const d = (req.body && req.body.data) ? req.body.data : (req.body || {});
+  const { nome, email, personalId, genero, password, authToken } = d;
+
+  console.log('createStudent body keys:', Object.keys(req.body || {}), 'nome:', nome, 'email:', email);
+
+  if (!nome || !email) {
+    res.status(400).json({ error: { message: 'Nome e email obrigatórios.' } });
+    return;
+  }
+
+  if (!authToken) {
+    res.status(401).json({ error: { message: 'Login necessário.' } });
+    return;
+  }
+
   let callerUid: string;
-  if (request.auth) {
-    callerUid = request.auth.uid;
-  } else if (authToken) {
-    try {
-      const decoded = await auth.verifyIdToken(authToken);
-      callerUid = decoded.uid;
-    } catch (_) {
-      throw new functions.https.HttpsError('unauthenticated', 'Token inválido. Tenta sair e entrar novamente.');
-    }
-  } else {
-    throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+  try {
+    const decoded = await auth.verifyIdToken(authToken);
+    callerUid = decoded.uid;
+  } catch (_) {
+    res.status(401).json({ error: { message: 'Token inválido. Tenta sair e entrar novamente.' } });
+    return;
   }
 
   const callerDoc = await db.collection('users').doc(callerUid).get();
-  if (callerDoc.data()?.role !== 'admin') throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
+  if (callerDoc.data()?.role !== 'admin') {
+    res.status(403).json({ error: { message: 'Apenas admin.' } });
+    return;
+  }
 
   try {
     const existingUser = await auth.getUserByEmail(email);
@@ -67,21 +91,28 @@ export const createStudent = functions.region('europe-west1').https.onCall(async
         ...(genero ? { genero } : {}),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
-      return { uid: existingUser.uid, email, alreadyExists: true };
+      res.json({ uid: existingUser.uid, email, alreadyExists: true });
+      return;
     }
   } catch (_) { /* não existe */ }
 
-  const temporaryPassword = password || (Math.random().toString(36).slice(-10) + 'A1!');
-  const userRecord = await auth.createUser({ email, password: temporaryPassword, displayName: nome });
-  await db.collection('users').doc(userRecord.uid).set({
-    nome, email, role: 'aluno',
-    personalId: personalId || null,
-    genero: genero || 'feminino',
-    pesoAtual: null, altura: null,
-    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
-  return { uid: userRecord.uid, email, created: true, temporaryPassword: password ? undefined : temporaryPassword };
+  try {
+    const temporaryPassword = password || (Math.random().toString(36).slice(-10) + 'A1!');
+    const userRecord = await auth.createUser({ email, password: temporaryPassword, displayName: nome });
+    await db.collection('users').doc(userRecord.uid).set({
+      nome, email, role: 'aluno',
+      personalId: personalId || null,
+      genero: genero || 'feminino',
+      pesoAtual: null, altura: null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    res.json({ uid: userRecord.uid, email, created: true, temporaryPassword: password ? undefined : temporaryPassword });
+  } catch (e: any) {
+    res.status(400).json({ error: { message: e.message || 'Erro ao criar utilizador.' } });
+  }
 });
+
+export const createStudentHttp = functions.region('europe-west1').https.onRequest(createStudentApp);
 
 export const seedFoods = functions.region('europe-west1').https.onCall(async (request) => {
   if (!request.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
