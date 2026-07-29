@@ -102,6 +102,8 @@ class PersonalFitApp extends ConsumerWidget {
       useMaterial3: true,
       brightness: Brightness.dark,
       scaffoldBackgroundColor: AppColors.background,
+      splashColor: AppColors.primary.withValues(alpha: 0.12),
+      highlightColor: AppColors.primary.withValues(alpha: 0.06),
       colorScheme: const ColorScheme.dark(
         primary: AppColors.primary,
         onPrimary: AppColors.textOnPrimary,
@@ -403,6 +405,21 @@ class PersonalFitApp extends ConsumerWidget {
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
         ),
+      ),
+
+      // ── ExpansionTile (evita warning "ink splashes invisíveis") ─
+      expansionTileTheme: const ExpansionTileThemeData(
+        backgroundColor: AppColors.surface,
+        collapsedBackgroundColor: AppColors.surface,
+        iconColor: AppColors.onSurface,
+        collapsedIconColor: AppColors.textSecondary,
+      ),
+
+      // ── ListTile (tileColor explícito para splash visível) ──
+      listTileTheme: const ListTileThemeData(
+        tileColor: AppColors.surface,
+        textColor: AppColors.onSurface,
+        iconColor: AppColors.onSurface,
       ),
     );
   }

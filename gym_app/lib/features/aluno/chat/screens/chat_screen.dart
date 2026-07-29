@@ -412,7 +412,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _clearTypingStatus();
       _textController.clear();
       _scrollToBottom();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('❌ Erro ao enviar mensagem: $e');
       if (mounted) {
         showAppNotification(context, AppStrings.messageSendError, type: NotificationType.error);
       }
