@@ -691,9 +691,20 @@ class FirestoreDataSource {
     }
   }
 
-  /// Envia mensagem para um grupo.
+  /// Envia mensagem para um grupo e atualiza o preview no documento pai.
   Future<void> sendGroupMessage(String groupId, Map<String, dynamic> data) async {
     try {
+      // Atualiza lastMessage no documento do grupo (preview)
+      await _firestore
+          .collection(AppConstants.groupsCollection)
+          .doc(groupId)
+          .set({
+        'lastMessage': data['texto'] ?? '',
+        'lastTimestamp': data['timestamp'] ?? FieldValue.serverTimestamp(),
+        'lastSenderId': data['remetenteId'] ?? '',
+      }, SetOptions(merge: true));
+
+      // Adiciona mensagem à subcoleção
       await _firestore
           .collection(AppConstants.groupsCollection)
           .doc(groupId)

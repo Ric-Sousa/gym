@@ -12,6 +12,7 @@ class UserModel {
   final bool hasPendingProgress; // Tem pedido de progresso pendente
   final DateTime? progressRequestedAt; // Quando o pedido foi feito
   final String? genero; // 'masculino', 'feminino' ou null
+  final String tipoCliente; // 'presencial' ou 'online'
 
   const UserModel({
     required this.uid,
@@ -26,6 +27,7 @@ class UserModel {
     this.hasPendingProgress = false,
     this.progressRequestedAt,
     this.genero,
+    this.tipoCliente = 'presencial',
   });
 
   /// Cria a partir do documento Firestore.
@@ -47,6 +49,7 @@ class UserModel {
           ? (map['progressRequestedAt'] as dynamic).toDate() as DateTime
           : null,
       genero: map['genero'] as String?,
+      tipoCliente: map['tipoCliente'] as String? ?? 'presencial',
     );
   }
 
@@ -65,6 +68,7 @@ class UserModel {
       if (progressRequestedAt != null)
         'progressRequestedAt': progressRequestedAt,
       if (genero != null) 'genero': genero,
+      'tipoCliente': tipoCliente,
     };
   }
 
@@ -84,6 +88,7 @@ class UserModel {
     bool clearPersonalId = false,
     String? genero,
     bool clearUltimaAtividade = false,
+    String? tipoCliente,
   }) {
     return UserModel(
       uid: uid,
@@ -97,6 +102,7 @@ class UserModel {
       ultimaAtividade:
           clearUltimaAtividade ? null : (ultimaAtividade ?? this.ultimaAtividade),
       genero: genero ?? this.genero,
+      tipoCliente: tipoCliente ?? this.tipoCliente,
     );
   }
 
@@ -127,6 +133,12 @@ class UserModel {
 
   bool get isAdmin => role == 'admin';
   bool get isAluno => role == 'aluno';
+  bool get isOnline => tipoCliente == 'online';
+
+  String get tipoClienteDisplay {
+    if (tipoCliente == 'online') return '💻 Online';
+    return '🏋️ Presencial';
+  }
 
   @override
   String toString() => 'UserModel(uid: $uid, nome: $nome, role: $role)';

@@ -4307,7 +4307,6 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
 
   @override
   Widget build(BuildContext context) {
-    final trainerId = FirebaseAuth.instance.currentUser?.uid ?? '';
     final bookingsAsync = ref.watch(adminTrainerBookingsProvider(_trainerId));
     final isMobile = MediaQuery.of(context).size.width < 900;
 

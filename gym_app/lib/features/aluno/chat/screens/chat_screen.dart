@@ -355,6 +355,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Widget _buildChatList(String userId) {
+    final authState = ref.watch(authProvider);
+    final personalId = authState.user?.personalId;
+    final hasPT = personalId != null && personalId.isNotEmpty;
+
     final groupsAsync = ref.watch(
       FutureProvider<List<GroupModel>>((ref) {
         if (userId.isEmpty) return [];
@@ -372,23 +376,42 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('GRUPOS', style: GoogleFonts.barlowCondensed(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.06, color: AppColors.textSecondary)),
+            // ── PT Chat ──
+            if (hasPT) ...[
+              Text('PERSONAL TRAINER', style: GoogleFonts.barlowCondensed(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.06, color: AppColors.textSecondary)),
+              const SizedBox(height: 8),
+              _buildPTChatTile(personalId!),
+              const SizedBox(height: 24),
+            ],
+            // ── Grupos ──
+            Row(
+              children: [
+                Expanded(
+                  child: Text('GRUPOS', style: GoogleFonts.barlowCondensed(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.06, color: AppColors.textSecondary)),
+                ),
+                if (groupsAsync.valueOrNull?.isNotEmpty == true)
+                  Text('${groupsAsync.value!.length} grupo(s)', style: GoogleFonts.inter(fontSize: 11, color: AppColors.textSecondary.withValues(alpha: 0.6))),
+              ],
+            ),
             const SizedBox(height: 8),
             groupsAsync.when(
               data: (groups) {
                 if (groups.isEmpty) {
                   return Container(
+                    width: double.infinity,
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: AppColors.surface,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: AppColors.outline),
                     ),
-                    child: Row(
+                    child: Column(
                       children: [
-                        Icon(Icons.group_outlined, size: 20, color: AppColors.textSecondary.withValues(alpha: 0.5)),
-                        const SizedBox(width: 8),
+                        Icon(Icons.group_outlined, size: 32, color: AppColors.textSecondary.withValues(alpha: 0.3)),
+                        const SizedBox(height: 8),
                         Text('Nenhum grupo disponível', style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary)),
+                        const SizedBox(height: 4),
+                        Text('O teu PT pode criar grupos para\ntroca de horários entre alunos.', textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 11, color: AppColors.textSecondary.withValues(alpha: 0.6))),
                       ],
                     ),
                   );
@@ -403,28 +426,92 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
               error: (_, __) => const SizedBox.shrink(),
             ),
-            const SizedBox(height: 24),
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
+            if (!hasPT) ...[
+              const SizedBox(height: 24),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.info.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.info.withValues(alpha: 0.15)),
+                ),
+                child: Row(
                   children: [
-                    Icon(Icons.chat_outlined, size: 36, color: AppColors.textSecondary.withValues(alpha: 0.4)),
-                    const SizedBox(height: 8),
-                    Text('Chat com PT indisponivel', style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary)),
-                    const SizedBox(height: 4),
-                    Text('Pede ao teu personal trainer para te associar.', textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 11, color: AppColors.textSecondary.withValues(alpha: 0.6))),
+                    Icon(Icons.info_outline, size: 18, color: AppColors.info.withValues(alpha: 0.6)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text('Ainda não tens um Personal Trainer associado.\nPede ao teu PT para te vincular.', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary)),
+                    ),
                   ],
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),
     );
   }
 
+  Widget _buildPTChatTile(String personalId) {
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: () {
+          // Navega para o chat 1:1 com o PT
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ChatScreen(chatPartnerId: personalId, chatPartnerName: 'Sara Gameiro'),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [AppColors.primary, Color(0xFFD81B60)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Center(
+                  child: Text('SG', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Sara Gameiro', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: AppColors.onSurface)),
+                    const SizedBox(height: 2),
+                    Text('Personal Trainer', style: GoogleFonts.inter(fontSize: 12, color: AppColors.primary.withValues(alpha: 0.7))),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppColors.primary, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _groupTile(GroupModel group) {
+    final hasPreview = group.lastMessage != null && group.lastMessage!.isNotEmpty;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
@@ -457,11 +544,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     children: [
                       Text(group.nome, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: AppColors.onSurface)),
                       const SizedBox(height: 2),
-                      Text('${group.membros.length} membros',
-                          style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary)),
+                      Text(
+                        hasPreview
+                            ? (group.lastMessage!.length > 40 ? '${group.lastMessage!.substring(0, 40)}...' : group.lastMessage!)
+                            : '${group.membros.length} membros \u2022 Troca de hor\u00e1rios',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(fontSize: 12, color: hasPreview ? AppColors.onSurface.withValues(alpha: 0.7) : AppColors.textSecondary),
+                      ),
                     ],
                   ),
                 ),
+                if (group.lastTimestamp != null)
+                  Text(
+                    _formatGroupTime(group.lastTimestamp!),
+                    style: GoogleFonts.inter(fontSize: 10, color: AppColors.textSecondary.withValues(alpha: 0.6)),
+                  ),
+                const SizedBox(width: 4),
                 const Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 20),
               ],
             ),
@@ -469,6 +568,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ),
       ),
     );
+  }
+
+  String _formatGroupTime(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'agora';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}min';
+    if (diff.inHours < 24) return DateFormat('HH:mm').format(dt);
+    if (diff.inDays < 7) return DateFormat('EEE', 'pt').format(dt);
+    return DateFormat('dd/MM').format(dt);
   }
 
   Future<void> _sendMessage(String salaId, String userId) async {

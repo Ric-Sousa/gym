@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import '../../../../core/config/app_colors.dart';
 import '../../../../data/models/group_model.dart';
 import '../../../../data/models/message_model.dart';
@@ -217,10 +218,23 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
         'lida': false,
       });
       _textCtrl.clear();
+      // Notificar membros do grupo (fire-and-forget)
+      _notifyGroup();
     } catch (_) {
       if (mounted) showAppNotification(context, 'Erro ao enviar.', type: NotificationType.error);
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  /// Envia notificação push aos membros do grupo (best-effort).
+  void _notifyGroup() {
+    FirebaseFunctions.instanceFor(region: 'europe-west1')
+        .httpsCallable('sendChatNotification')
+        .call({
+      'salaId': widget.group.id,
+      'remetenteId': _userId,
+      'texto': '[${widget.group.nome}] Nova mensagem de grupo',
+    }).catchError((_) {});
   }
 }
