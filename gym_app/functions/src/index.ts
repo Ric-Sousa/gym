@@ -41,7 +41,7 @@ export const createStudent = functions.region('europe-west1').https.onCall(async
   const callerDoc = await db.collection('users').doc(request.auth.uid).get();
   if (callerDoc.data()?.role !== 'admin') throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
 
-  const { nome, email, personalId, genero } = request.data;
+  const { nome, email, personalId, genero, password } = request.data;
   if (!nome || !email) throw new functions.https.HttpsError('invalid-argument', 'Nome e email obrigatórios.');
 
   try {
@@ -53,11 +53,11 @@ export const createStudent = functions.region('europe-west1').https.onCall(async
         ...(genero ? { genero } : {}),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
-      return { uid: existingUser.uid, email };
+      return { uid: existingUser.uid, email, alreadyExists: true };
     }
   } catch (_) { /* não existe */ }
 
-  const temporaryPassword = Math.random().toString(36).slice(-10) + 'A1!';
+  const temporaryPassword = password || (Math.random().toString(36).slice(-10) + 'A1!');
   const userRecord = await auth.createUser({ email, password: temporaryPassword, displayName: nome });
   await db.collection('users').doc(userRecord.uid).set({
     nome, email, role: 'aluno',
@@ -66,7 +66,7 @@ export const createStudent = functions.region('europe-west1').https.onCall(async
     pesoAtual: null, altura: null,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
-  return { uid: userRecord.uid, email, temporaryPassword };
+  return { uid: userRecord.uid, email, created: true, temporaryPassword: password ? undefined : temporaryPassword };
 });
 
 export const seedFoods = functions.region('europe-west1').https.onCall(async (request) => {
