@@ -264,16 +264,13 @@ class AdminMessagesView extends ConsumerWidget {
 /// Diálogo para criar um novo grupo.
 Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
   final nomeCtrl = TextEditingController();
-  final alunosAsync = ref.read(
-    FutureProvider<List<UserModel>>((ref) async {
-      final snap = await FirebaseFirestore.instance
-          .collection(AppConstants.usersCollection)
-          .where('role', isEqualTo: AppConstants.roleAluno)
-          .get();
-      return snap.docs.map((d) => UserModel.fromMap(d.id, d.data())).toList();
-    }),
-  );
-  final alunos = alunosAsync.valueOrNull ?? [];
+  // Aguarda os alunos do Firestore — o FutureProvider inline não bloqueava
+  List<UserModel> alunos;
+  try {
+    alunos = await ref.read(userRepositoryProvider).getAllAlunos();
+  } catch (_) {
+    alunos = []; // fallback se Firestore falhar
+  }
   final selectedIds = <String>{};
 
   await showDialog(

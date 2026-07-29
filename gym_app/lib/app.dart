@@ -29,6 +29,7 @@ class PersonalFitApp extends ConsumerWidget {
     final genero = generoAsync.valueOrNull;
 
     return MaterialApp(
+      key: ValueKey(genero ?? 'default'),
       title: AppStrings.appName,
       debugShowCheckedModeBanner: false,
       theme: _buildKineticDarkTheme(genero).copyWith(
