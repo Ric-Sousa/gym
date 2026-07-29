@@ -1401,7 +1401,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
     bool _obscurePassword = true;
     bool loading = false;
 
-    final result = await showDialog<Map<String, String>>(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
@@ -1527,25 +1527,39 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                       }
                       setDialogState(() => loading = true);
                       try {
-                        // Obtém token fresco e passa-o manualmente nos dados
+                        // Obtém token fresco para verificação manual na Cloud Function
                         final token = await FirebaseAuth.instance.currentUser?.getIdToken(true);
-                        final functions =
-                            FirebaseFunctions.instanceFor(region: 'europe-west1');
-                        final callable =
-                            functions.httpsCallable('createStudent');
                         final adminId = FirebaseAuth.instance.currentUser?.uid ?? '';
-                        final params = <String, dynamic>{
+                        final body = <String, dynamic>{
                           'nome': nomeCtrl.text.trim(),
                           'email': emailCtrl.text.trim(),
                           'personalId': adminId,
                           'genero': _genero,
                           'authToken': token ?? '',
                         };
-                        // Só envia password se foi preenchida
-                        if (pw.isNotEmpty) params['password'] = pw;
+                        if (pw.isNotEmpty) body['password'] = pw;
 
-                        final response = await callable.call(params);
-                        final data = response.data as Map<String, dynamic>;
+                        final response = await http.post(
+                          Uri.parse('https://europe-west1-gymbt-4ef87.cloudfunctions.net/createStudentHttp'),
+                          headers: {'Content-Type': 'application/json'},
+                          body: json.encode(body),
+                        );
+                        if (!mounted) return;
+                        if (response.statusCode != 200) {
+                          final errData = json.decode(response.body) as Map<String, dynamic>;
+                          final err = errData['error'] as Map<String, dynamic>?;
+                          final msg = err?['message'] as String? ?? 'Erro desconhecido';
+                          setDialogState(() => loading = false);
+                          if (msg.contains('unauthenticated') || msg.contains('Login necessário') || msg.contains('Token inválido')) {
+                            showAppNotification(context, 'Erro de autenticação. Tenta sair e entrar novamente.', type: NotificationType.error);
+                          } else if (msg.contains('weak-password') || msg.contains('Password should be')) {
+                            showAppNotification(context, 'Password muito fraca. Usa pelo menos 6 caracteres.', type: NotificationType.error);
+                          } else {
+                            showAppNotification(context, 'Erro ao criar aluno: $msg', type: NotificationType.error);
+                          }
+                          return;
+                        }
+                        final data = json.decode(response.body) as Map<String, dynamic>;
                         setDialogState(() => loading = false);
                         Navigator.pop(ctx, {
                           'uid': data['uid'] as String,
@@ -1556,14 +1570,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                         });
                       } catch (e) {
                         setDialogState(() => loading = false);
-                        final errMsg = e.toString();
-                        if (errMsg.contains('unauthenticated') || errMsg.contains('Login necessário')) {
-                          showAppNotification(context, 'Erro de autenticação. Tenta sair e entrar novamente.', type: NotificationType.error);
-                        } else if (errMsg.contains('weak-password') || errMsg.contains('Password should be')) {
-                          showAppNotification(context, 'Password muito fraca. Usa pelo menos 6 caracteres.', type: NotificationType.error);
-                        } else {
-                          showAppNotification(context, 'Erro ao criar aluno: $errMsg', type: NotificationType.error);
-                        }
+                        showAppNotification(context, 'Erro ao criar aluno: $e', type: NotificationType.error);
                       }
                     },
               style: ElevatedButton.styleFrom(
@@ -1580,7 +1587,9 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
 
     if (result != null) {
       ref.invalidate(alunosListProvider);
-      if (mounted) {
+      // Espera o diálogo fechar antes de mostrar notificação
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         final alreadyExists = result['alreadyExists'] == true;
         final hasPassword = result['password'] != null;
         if (alreadyExists) {
@@ -1603,7 +1612,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
             type: NotificationType.success,
           );
         }
-      }
+      });
     }
   }
 }
