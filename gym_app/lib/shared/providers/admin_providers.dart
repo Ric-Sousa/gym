@@ -3,8 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/models/nutrition_plan_model.dart';
 import '../../data/models/workout_plan_model.dart';
+import '../../data/models/workout_log_model.dart';
 import '../../data/models/food_model.dart';
 import '../../data/models/progress_model.dart';
+import '../../data/models/payment_model.dart';
+import '../../data/models/booking_model.dart';
+import '../../data/models/group_model.dart';
 import '../../core/config/app_constants.dart';
 import '../../core/config/admin_theme.dart';
 import 'global_providers.dart';
@@ -39,6 +43,12 @@ final adminWorkoutPlansProvider =
 final adminProgressProvider =
     FutureProvider.family<List<ProgressModel>, String>((ref, userId) {
   return ref.read(progressRepositoryProvider).getHistory(userId);
+});
+
+/// Provider de logs de treino para gráfico de progressão de cargas (admin).
+final adminWorkoutLogsProvider =
+    FutureProvider.family<List<WorkoutLogModel>, String>((ref, userId) {
+  return ref.read(workoutLogRepositoryProvider).getHistory(userId, limit: 30);
 });
 
 // ─── Dashboard Analytics ──────────────────────────────────────────
@@ -131,4 +141,29 @@ final adminFoodsSearchProvider =
     FutureProvider.family<List<FoodModel>, String>((ref, query) {
   if (query.isEmpty) return ref.read(nutritionRepositoryProvider).getAllFoods();
   return ref.read(nutritionRepositoryProvider).searchFoods(query);
+});
+
+// ─── Payments ─────────────────────────────────────────────────────
+
+/// Provider de todos os pagamentos (admin).
+final adminAllPaymentsProvider =
+    FutureProvider<List<PaymentModel>>((ref) {
+  return ref.read(paymentRepositoryProvider).getAllPayments();
+});
+
+/// Provider de pagamentos de um aluno específico (admin).
+final adminUserPaymentsProvider =
+    FutureProvider.family<List<PaymentModel>, String>((ref, userId) {
+  return ref.read(paymentRepositoryProvider).getPayments(userId);
+});
+
+/// Provider de agenda do trainer (admin).
+final adminTrainerBookingsProvider =
+    FutureProvider.family<List<BookingModel>, String>((ref, trainerId) {
+  return ref.read(bookingRepositoryProvider).getTrainerBookings(trainerId);
+});
+
+/// Provider de todos os grupos (admin).
+final adminGroupsProvider = FutureProvider<List<GroupModel>>((ref) {
+  return ref.read(groupRepositoryProvider).getAllGroups();
 });

@@ -3,12 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../data/models/message_model.dart';
+import '../../../../data/models/group_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/app_notification.dart';
+import 'group_chat_screen.dart';
 
 final chatMessagesProvider =
     StreamProvider.family<List<MessageModel>, String>((ref, salaId) {
@@ -108,52 +111,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final otherId = widget.chatPartnerId ?? authState.user?.personalId ?? '';
 
     if (otherId.isEmpty || otherId == userId) {
-      return Scaffold(
-        backgroundColor: AppColors.background,
-        appBar: AppBar(
-          title: Text(
-            AppStrings.chatTitle,
-            style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, fontSize: 18),
-          ),
-        ),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.chat_outlined, size: 48, color: AppColors.primary),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Chat indisponivel',
-                  style: GoogleFonts.montserrat(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Pede ao teu personal trainer para te associar.\nAssim que ele aceder ao teu perfil, o chat fica disponivel.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
-                    color: AppColors.textSecondary,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
+      return _buildChatList(userId);
     }
 
     final salaId = ref.read(chatRepositoryProvider).getChatRoomId(userId, otherId);
@@ -396,6 +354,232 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
+  Widget _buildChatList(String userId) {
+    final authState = ref.watch(authProvider);
+    final personalId = authState.user?.personalId;
+    final hasPT = personalId != null && personalId.isNotEmpty;
+
+    final groupsAsync = ref.watch(
+      FutureProvider<List<GroupModel>>((ref) {
+        if (userId.isEmpty) return [];
+        return ref.read(groupRepositoryProvider).getMyGroups(userId);
+      }),
+    );
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: Text('Chats', style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, fontSize: 18)),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── PT Chat ──
+            if (hasPT) ...[
+              Text('PERSONAL TRAINER', style: GoogleFonts.barlowCondensed(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.06, color: AppColors.textSecondary)),
+              const SizedBox(height: 8),
+              _buildPTChatTile(personalId!),
+              const SizedBox(height: 24),
+            ],
+            // ── Grupos ──
+            Row(
+              children: [
+                Expanded(
+                  child: Text('GRUPOS', style: GoogleFonts.barlowCondensed(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.06, color: AppColors.textSecondary)),
+                ),
+                if (groupsAsync.valueOrNull?.isNotEmpty == true)
+                  Text('${groupsAsync.value!.length} grupo(s)', style: GoogleFonts.inter(fontSize: 11, color: AppColors.textSecondary.withValues(alpha: 0.6))),
+              ],
+            ),
+            const SizedBox(height: 8),
+            groupsAsync.when(
+              data: (groups) {
+                if (groups.isEmpty) {
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.outline),
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(Icons.group_outlined, size: 32, color: AppColors.textSecondary.withValues(alpha: 0.3)),
+                        const SizedBox(height: 8),
+                        Text('Nenhum grupo disponível', style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary)),
+                        const SizedBox(height: 4),
+                        Text('O teu PT pode criar grupos para\ntroca de horários entre alunos.', textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 11, color: AppColors.textSecondary.withValues(alpha: 0.6))),
+                      ],
+                    ),
+                  );
+                }
+                return Column(
+                  children: groups.map((g) => _groupTile(g)).toList(),
+                );
+              },
+              loading: () => const Padding(
+                padding: EdgeInsets.all(20),
+                child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+              ),
+              error: (_, __) => const SizedBox.shrink(),
+            ),
+            if (!hasPT) ...[
+              const SizedBox(height: 24),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.info.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.info.withValues(alpha: 0.15)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 18, color: AppColors.info.withValues(alpha: 0.6)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text('Ainda não tens um Personal Trainer associado.\nPede ao teu PT para te vincular.', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPTChatTile(String personalId) {
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: () {
+          // Navega para o chat 1:1 com o PT
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ChatScreen(chatPartnerId: personalId, chatPartnerName: 'Sara Gameiro'),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [AppColors.primary, Color(0xFFD81B60)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Center(
+                  child: Text('SG', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Sara Gameiro', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: AppColors.onSurface)),
+                    const SizedBox(height: 2),
+                    Text('Personal Trainer', style: GoogleFonts.inter(fontSize: 12, color: AppColors.primary.withValues(alpha: 0.7))),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppColors.primary, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _groupTile(GroupModel group) {
+    final hasPreview = group.lastMessage != null && group.lastMessage!.isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => GroupChatScreen(group: group))),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.outline),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.group, color: AppColors.primary, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(group.nome, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: AppColors.onSurface)),
+                      const SizedBox(height: 2),
+                      Text(
+                        hasPreview
+                            ? (group.lastMessage!.length > 40 ? '${group.lastMessage!.substring(0, 40)}...' : group.lastMessage!)
+                            : '${group.membros.length} membros \u2022 Troca de hor\u00e1rios',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(fontSize: 12, color: hasPreview ? AppColors.onSurface.withValues(alpha: 0.7) : AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+                if (group.lastTimestamp != null)
+                  Text(
+                    _formatGroupTime(group.lastTimestamp!),
+                    style: GoogleFonts.inter(fontSize: 10, color: AppColors.textSecondary.withValues(alpha: 0.6)),
+                  ),
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 20),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatGroupTime(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'agora';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}min';
+    if (diff.inHours < 24) return DateFormat('HH:mm').format(dt);
+    if (diff.inDays < 7) return DateFormat('EEE', 'pt').format(dt);
+    return DateFormat('dd/MM').format(dt);
+  }
+
   Future<void> _sendMessage(String salaId, String userId) async {
     final texto = _textController.text.trim();
     if (texto.isEmpty) return;
@@ -412,12 +596,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _clearTypingStatus();
       _textController.clear();
       _scrollToBottom();
+      // Notificar o destinatário (fire-and-forget, sem bloquear)
+      _notifyChat(salaId, userId, texto);
     } catch (e) {
       debugPrint('❌ Erro ao enviar mensagem: $e');
       if (mounted) {
         showAppNotification(context, AppStrings.messageSendError, type: NotificationType.error);
       }
     }
+  }
+
+  /// Envia notificação push ao destinatário via Cloud Function (best-effort).
+  void _notifyChat(String salaId, String remetenteId, String texto) {
+    FirebaseFunctions.instanceFor(region: 'europe-west1')
+        .httpsCallable('sendChatNotification')
+        .call({
+      'salaId': salaId,
+      'remetenteId': remetenteId,
+      'texto': texto,
+    }).catchError((_) {}); // silencioso — a Cloud Function trata o envio
   }
 }
 

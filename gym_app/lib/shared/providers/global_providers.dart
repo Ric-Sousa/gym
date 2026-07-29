@@ -11,6 +11,11 @@ import '../../data/repositories/nutrition_repository.dart';
 import '../../data/repositories/progress_repository.dart';
 import '../../data/repositories/user_repository.dart';
 import '../../data/repositories/workout_repository.dart';
+import '../../data/repositories/workout_log_repository.dart';
+import '../../data/repositories/payment_repository.dart';
+import '../../data/repositories/booking_repository.dart';
+import '../../data/repositories/group_repository.dart';
+import '../../features/auth/providers/auth_provider.dart';
 
 // ──────────── SERVICES ────────────
 
@@ -95,4 +100,38 @@ final progressRepositoryProvider = Provider<ProgressRepository>((ref) {
     firestoreDataSource: ref.watch(firestoreDataSourceProvider),
     storageDataSource: ref.watch(storageDataSourceProvider),
   );
+});
+
+final workoutLogRepositoryProvider = Provider<WorkoutLogRepository>((ref) {
+  return WorkoutLogRepository(
+    firestoreDataSource: ref.watch(firestoreDataSourceProvider),
+  );
+});
+
+final paymentRepositoryProvider = Provider<PaymentRepository>((ref) {
+  return PaymentRepository(
+    firestoreDataSource: ref.watch(firestoreDataSourceProvider),
+  );
+});
+
+final bookingRepositoryProvider = Provider<BookingRepository>((ref) {
+  return BookingRepository(
+    firestoreDataSource: ref.watch(firestoreDataSourceProvider),
+  );
+});
+
+final groupRepositoryProvider = Provider<GroupRepository>((ref) {
+  return GroupRepository(
+    firestoreDataSource: ref.watch(firestoreDataSourceProvider),
+  );
+});
+
+/// Provider que observa o género do utilizador atual a partir do Firestore.
+/// Atualiza automaticamente quando o campo 'genero' muda, propagando
+/// a alteração para o tema sem necessidade de reiniciar a app.
+final currentUserGeneroProvider = StreamProvider<String?>((ref) {
+  final authState = ref.watch(authProvider);
+  final userId = authState.user?.uid;
+  if (userId == null) return const Stream.empty();
+  return ref.read(userRepositoryProvider).userStream(userId).map((u) => u.genero);
 });

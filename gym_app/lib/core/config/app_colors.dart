@@ -181,6 +181,30 @@ class AppColors {
   /// Cor para overlays com efeito de vidro (60% opacidade).
   static Color glassOverlay = surfaceHighest.withValues(alpha: 0.6);
 
+  // ── Paleta Masculina (Azul/Teal) ────────────────────────────
+  static const Color malePrimary = Color(0xFF0D7377);
+  static const Color malePrimaryDim = Color(0xFF0A5C5F);
+  static const Color malePrimaryContainer = Color(0xFFD2F0F2);
+  static const Color maleOnPrimaryContainer = Color(0xFF0D7377);
+
+  // ── Paleta Feminina (Magenta atual) ──────────────────────────
+  static const Color femalePrimary = primary;
+  static const Color femalePrimaryDim = Color(0xFF8A0060);
+  static const Color femalePrimaryContainer = primaryContainer;
+  static const Color femaleOnPrimaryContainer = onPrimaryContainer;
+
+  /// Cor primária baseada no género do utilizador.
+  static Color primaryFor(String? genero) {
+    if (genero == 'masculino') return malePrimary;
+    return femalePrimary;
+  }
+
+  /// Container primário baseado no género.
+  static Color primaryContainerFor(String? genero) {
+    if (genero == 'masculino') return malePrimaryContainer;
+    return femalePrimaryContainer;
+  }
+
   // ── Legacy aliases (compatibilidade) ───────────────────────────
   static const Color primaryLight = primary;
   static const Color primaryDark = Color(0xFF8A0060);

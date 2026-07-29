@@ -112,18 +112,49 @@ class PlannedMeal {
       alimentos.fold(0.0, (sum, a) => sum + a.calorias);
 }
 
+/// Suplemento no plano nutricional.
+class Suplemento {
+  final String nome;
+  final String dosagem;
+  final String horario; // 'pré-treino', 'pós-treino', 'manhã', 'noite', 'qualquer'
+
+  const Suplemento({
+    required this.nome,
+    required this.dosagem,
+    this.horario = 'qualquer',
+  });
+
+  factory Suplemento.fromMap(Map<String, dynamic> map) {
+    return Suplemento(
+      nome: map['nome'] as String? ?? '',
+      dosagem: map['dosagem'] as String? ?? '',
+      horario: map['horario'] as String? ?? 'qualquer',
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'nome': nome,
+      'dosagem': dosagem,
+      'horario': horario,
+    };
+  }
+}
+
 /// Plano nutricional (documento por dia da semana).
 class NutritionPlanModel {
   final String dia; // 'Segunda-feira', etc.
   final String userId;
   final double metaCalorias;
   final List<PlannedMeal> refeicoes;
+  final List<Suplemento> suplementos;
 
   const NutritionPlanModel({
     required this.dia,
     required this.userId,
     this.metaCalorias = 0.0,
     this.refeicoes = const [],
+    this.suplementos = const [],
   });
 
   factory NutritionPlanModel.fromMap(
@@ -136,6 +167,9 @@ class NutritionPlanModel {
       refeicoes: refeicoesList
           .map((r) => PlannedMeal.fromMap(r as Map<String, dynamic>))
           .toList(),
+      suplementos: (map['suplementos'] as List? ?? [])
+          .map((s) => Suplemento.fromMap(s as Map<String, dynamic>))
+          .toList(),
     );
   }
 
@@ -143,6 +177,7 @@ class NutritionPlanModel {
     return {
       'metaCalorias': metaCalorias,
       'refeicoes': refeicoes.map((r) => r.toMap()).toList(),
+      'suplementos': suplementos.map((s) => s.toMap()).toList(),
     };
   }
 

@@ -35,10 +35,15 @@ class AppConstants {
   static const String nutritionPlanSubcollection = 'planoNutricao';
   static const String workoutPlanSubcollection = 'planoTreino';
   static const String progressSubcollection = 'progresso';
+  static const String workoutLogSubcollection = 'workoutLogs';
   static const String chatCollection = 'chat';
   static const String messagesSubcollection = 'mensagens';
   static const String foodsCollection = 'alimentos';
   static const String exercisesCollection = 'exercicios';
+  static const String paymentsCollection = 'pagamentos';
+  static const String agendaCollection = 'agenda';
+  static const String groupsCollection = 'grupos';
+  static const String groupMessagesSubcollection = 'mensagens';
 
   // Storage paths
   static const String profilePhotoPath = 'users/{userId}/profile.jpg';
@@ -51,6 +56,9 @@ class AppConstants {
 
   // Chat room prefix
   static const String chatRoomPrefix = 'chat';
+
+  // Workout log
+  static const String workoutLogDateFormat = 'yyyy-MM-dd';
 
   // BMI categories
   static const Map<String, List<double>> bmiCategories = {

@@ -8,6 +8,10 @@ import '../../../core/config/admin_theme.dart';
 import '../../../core/config/app_constants.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/models/message_model.dart';
+import '../../../data/models/group_model.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../../shared/providers/global_providers.dart';
+import '../../../shared/providers/admin_providers.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../shared/widgets/empty_state.dart';
 
@@ -107,7 +111,7 @@ final adminConversationsProvider =
   });
 });
 
-/// View de mensagens do admin — lista de conversas.
+/// View de mensagens do admin — lista de conversas + gestão de grupos.
 class AdminMessagesView extends ConsumerWidget {
   final Function(UserModel) onSelect;
   const AdminMessagesView({required this.onSelect, super.key});
@@ -115,38 +119,243 @@ class AdminMessagesView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final conversationsAsync = ref.watch(adminConversationsProvider);
+    final groupsAsync = ref.watch(adminGroupsProvider);
+    final isMobile = MediaQuery.of(context).size.width < 900;
 
-    return conversationsAsync.when(
-      data: (conversations) {
-        if (conversations.isEmpty) {
-          return Center(
-            child: EmptyState(
-              icon: Icons.chat_outlined,
-              title: 'Nenhuma conversa',
-              subtitle: 'Quando um aluno enviar uma mensagem, aparece aqui.',
-            ),
-          );
-        }
-        return ListView.builder(
-          padding: const EdgeInsets.all(20),
-          itemCount: conversations.length,
-          itemBuilder: (_, i) => _ConversationTile(
-            preview: conversations[i],
-            onTap: () => onSelect(conversations[i].aluno),
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(isMobile ? 16 : 36),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Grupos ──
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('GRUPOS DE ALUNOS', style: GoogleFonts.barlowCondensed(fontSize: isMobile ? 18 : 24, fontWeight: FontWeight.w900, letterSpacing: -0.01, color: AdminThemeColors.of(context).text)),
+                    const SizedBox(height: 4),
+                    Text('Grupos para troca de horários e blocos',
+                        style: GoogleFonts.inter(fontSize: 13, color: AdminThemeColors.of(context).muted)),
+                  ],
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _showCreateGroupDialog(context, ref),
+                icon: const Icon(Icons.add, size: 16),
+                label: Text('CRIAR GRUPO', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.04)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AdminThemeColors.of(context).lime,
+                  foregroundColor: AdminThemeColors.of(context).bg,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+              ),
+            ],
           ),
-        );
-      },
-      loading: () => const Center(
-        child: CircularProgressIndicator(color: AppColors.primary),
-      ),
-      error: (_, __) => Center(
-        child: Text(
-          'Erro ao carregar conversas',
-          style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
-        ),
+          const SizedBox(height: 12),
+          groupsAsync.when(
+            data: (groups) {
+              if (groups.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AdminThemeColors.of(context).surface,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AdminThemeColors.of(context).border),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.group_outlined, size: 18, color: AdminThemeColors.of(context).muted),
+                        const SizedBox(width: 8),
+                        Text('Nenhum grupo criado', style: GoogleFonts.inter(fontSize: 13, color: AdminThemeColors.of(context).muted)),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              return Column(
+                children: [
+                  for (final g in groups)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AdminThemeColors.of(context).surface,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AdminThemeColors.of(context).border),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 36, height: 36,
+                              decoration: BoxDecoration(
+                                color: AdminThemeColors.of(context).limeDim,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(Icons.group, color: AdminThemeColors.of(context).lime, size: 18),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(g.nome, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13, color: AdminThemeColors.of(context).text)),
+                                  Text('${g.membros.length} membros',
+                                      style: GoogleFonts.inter(fontSize: 11, color: AdminThemeColors.of(context).muted)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                ],
+              );
+            },
+            loading: () => const Padding(
+              padding: EdgeInsets.only(bottom: 24),
+              child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+            ),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
+          // ── Conversas Individuais ──
+          Text('CONVERSAS', style: GoogleFonts.barlowCondensed(fontSize: isMobile ? 18 : 24, fontWeight: FontWeight.w900, letterSpacing: -0.01, color: AdminThemeColors.of(context).text)),
+          const SizedBox(height: 12),
+          conversationsAsync.when(
+            data: (conversations) {
+              if (conversations.isEmpty) {
+                return Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: AdminThemeColors.of(context).surface,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AdminThemeColors.of(context).border),
+                  ),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Icon(Icons.chat_outlined, size: 36, color: AdminThemeColors.of(context).muted),
+                        const SizedBox(height: 8),
+                        Text('Nenhuma conversa', style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted)),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              return Column(
+                children: conversations.map((c) => _ConversationTile(preview: c, onTap: () => onSelect(c.aluno))).toList(),
+              );
+            },
+            loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+            error: (_, __) => Center(child: Text('Erro', style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted))),
+          ),
+        ],
       ),
     );
   }
+}
+
+/// Diálogo para criar um novo grupo.
+Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
+  final nomeCtrl = TextEditingController();
+  final alunosAsync = ref.read(
+    FutureProvider<List<UserModel>>((ref) async {
+      final snap = await FirebaseFirestore.instance
+          .collection(AppConstants.usersCollection)
+          .where('role', isEqualTo: AppConstants.roleAluno)
+          .get();
+      return snap.docs.map((d) => UserModel.fromMap(d.id, d.data())).toList();
+    }),
+  );
+  final alunos = alunosAsync.valueOrNull ?? [];
+  final selectedIds = <String>{};
+
+  await showDialog(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setDialogState) => AlertDialog(
+        backgroundColor: AdminThemeColors.of(context).surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: AdminThemeColors.of(context).border)),
+        title: Text('Criar Grupo', style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
+        content: SizedBox(
+          width: 400,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nomeCtrl,
+                style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
+                decoration: InputDecoration(
+                  labelText: 'Nome do grupo',
+                  hintText: 'Ex: Turma Manhã',
+                  labelStyle: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
+                  filled: true,
+                  fillColor: AdminThemeColors.of(context).bg,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: AdminThemeColors.of(context).border)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text('Seleciona os membros:', style: GoogleFonts.inter(fontSize: 12, color: AdminThemeColors.of(context).muted)),
+              const SizedBox(height: 8),
+              if (alunos.isEmpty)
+                Text('Nenhum aluno disponível', style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted))
+              else
+                Flexible(
+                  child: SizedBox(
+                    height: 200,
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: alunos.map((a) => CheckboxListTile(
+                        dense: true,
+                        title: Text(a.nome, style: GoogleFonts.inter(fontSize: 13, color: AdminThemeColors.of(context).text)),
+                        subtitle: Text(a.email, style: GoogleFonts.inter(fontSize: 11, color: AdminThemeColors.of(context).muted)),
+                        value: selectedIds.contains(a.uid),
+                        activeColor: AdminThemeColors.of(context).lime,
+                        onChanged: (v) => setDialogState(() {
+                          if (v == true) { selectedIds.add(a.uid); } else { selectedIds.remove(a.uid); }
+                        }),
+                      )).toList(),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancelar', style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted))),
+          ElevatedButton(
+            onPressed: selectedIds.isEmpty || nomeCtrl.text.trim().isEmpty
+                ? null
+                : () async {
+                    try {
+                      await ref.read(groupRepositoryProvider).createGroup({
+                        'nome': nomeCtrl.text.trim(),
+                        'membros': selectedIds.toList(),
+                        'criadoPor': FirebaseAuth.instance.currentUser?.uid ?? '',
+                        'createdAt': DateTime.now(),
+                      });
+                      ref.invalidate(adminGroupsProvider);
+                      if (context.mounted) Navigator.pop(ctx);
+                    } catch (_) {}
+                  },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminThemeColors.of(context).lime,
+              foregroundColor: AdminThemeColors.of(context).bg,
+            ),
+            child: Text('Criar', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 /// Preview de uma conversa.

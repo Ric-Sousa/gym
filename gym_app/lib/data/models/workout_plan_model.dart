@@ -8,6 +8,10 @@ class Exercise {
   final String? videoURL;
   final String? observacoes;
   final String? grupoMuscular;
+  final String categoria; // 'musculação', 'funcional', 'cardio', 'pesos_livres'
+  final String equipamento; // 'barra', 'haltere', 'kettlebell', 'corda', 'peso_corporal', 'banda', 'outro'
+  final int? duracao; // segundos — exercícios cronometrados (corda, prancha)
+  final int? rounds; // rounds para circuito funcional
 
   const Exercise({
     required this.nome,
@@ -18,6 +22,10 @@ class Exercise {
     this.videoURL,
     this.observacoes,
     this.grupoMuscular,
+    this.categoria = 'musculação',
+    this.equipamento = 'outro',
+    this.duracao,
+    this.rounds,
   });
 
   factory Exercise.fromMap(Map<String, dynamic> map) {
@@ -30,6 +38,10 @@ class Exercise {
       videoURL: map['videoURL'] as String?,
       observacoes: map['observacoes'] as String?,
       grupoMuscular: map['grupoMuscular'] as String?,
+      categoria: map['categoria'] as String? ?? 'musculação',
+      equipamento: map['equipamento'] as String? ?? 'outro',
+      duracao: map['duracao'] as int?,
+      rounds: map['rounds'] as int?,
     );
   }
 
@@ -43,6 +55,10 @@ class Exercise {
       if (videoURL != null) 'videoURL': videoURL,
       if (observacoes != null) 'observacoes': observacoes,
       if (grupoMuscular != null) 'grupoMuscular': grupoMuscular,
+      'categoria': categoria,
+      'equipamento': equipamento,
+      if (duracao != null) 'duracao': duracao,
+      if (rounds != null) 'rounds': rounds,
     };
   }
 }
