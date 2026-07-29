@@ -114,6 +114,67 @@ createStudentApp.post('/', async (req: any, res: any) => {
 
 export const createStudentHttp = functions.region('europe-west1').https.onRequest(createStudentApp);
 
+// ═══ DELETE STUDENT (onRequest) ═══
+const deleteStudentApp = require('express')();
+deleteStudentApp.use(require('express').json());
+deleteStudentApp.use((_req: any, res: any, next: any) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  next();
+});
+deleteStudentApp.options('/', (_req: any, res: any) => { res.status(204).send(''); });
+deleteStudentApp.post('/', async (req: any, res: any) => {
+  const d = (req.body && req.body.data) ? req.body.data : (req.body || {});
+  const { userId, authToken } = d;
+
+  if (!userId) {
+    res.status(400).json({ error: { message: 'userId obrigatório.' } });
+    return;
+  }
+  if (!authToken) {
+    res.status(401).json({ error: { message: 'Login necessário.' } });
+    return;
+  }
+
+  let callerUid: string;
+  try {
+    const decoded = await auth.verifyIdToken(authToken);
+    callerUid = decoded.uid;
+  } catch (_) {
+    res.status(401).json({ error: { message: 'Token inválido.' } });
+    return;
+  }
+
+  const callerDoc = await db.collection('users').doc(callerUid).get();
+  if (callerDoc.data()?.role !== 'admin') {
+    res.status(403).json({ error: { message: 'Apenas admin.' } });
+    return;
+  }
+
+  // Não deixar o admin apagar-se a si próprio
+  if (userId === callerUid) {
+    res.status(400).json({ error: { message: 'Não podes apagar a tua própria conta.' } });
+    return;
+  }
+
+  try {
+    await auth.deleteUser(userId);
+  } catch (e: any) {
+    if (e.code === 'auth/user-not-found') {
+      // Utilizador já não existe no Auth — limpa só o Firestore
+    } else {
+      res.status(400).json({ error: { message: e.message || 'Erro ao apagar utilizador.' } });
+      return;
+    }
+  }
+
+  await db.collection('users').doc(userId).delete();
+  res.json({ success: true, message: 'Aluno eliminado com sucesso.' });
+});
+
+export const deleteStudentHttp = functions.region('europe-west1').https.onRequest(deleteStudentApp);
+
 export const seedFoods = functions.region('europe-west1').https.onCall(async (request) => {
   if (!request.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
   const callerDoc = await db.collection('users').doc(request.auth.uid).get();

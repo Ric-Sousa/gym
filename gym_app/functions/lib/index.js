@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.stripeWebhook = exports.cleanupInvalidFcmTokens = exports.dailyFirestoreBackup = exports.sendWeeklyCheckin = exports.sendWeighInReminder = exports.sendWorkoutReminder = exports.sendWaterReminder = exports.notifyBookingUpdate = exports.notifyNewBooking = exports.sendChatNotification = exports.createCheckoutSession = exports.requestProgress = exports.seedFoods = exports.createStudentHttp = exports.onUserCreated = void 0;
+exports.stripeWebhook = exports.cleanupInvalidFcmTokens = exports.dailyFirestoreBackup = exports.sendWeeklyCheckin = exports.sendWeighInReminder = exports.sendWorkoutReminder = exports.sendWaterReminder = exports.notifyBookingUpdate = exports.notifyNewBooking = exports.sendChatNotification = exports.createCheckoutSession = exports.requestProgress = exports.seedFoods = exports.deleteStudentHttp = exports.createStudentHttp = exports.onUserCreated = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const stripe_1 = __importDefault(require("stripe"));
@@ -135,6 +135,62 @@ createStudentApp.post('/', async (req, res) => {
     }
 });
 exports.createStudentHttp = functions.region('europe-west1').https.onRequest(createStudentApp);
+// ═══ DELETE STUDENT (onRequest) ═══
+const deleteStudentApp = require('express')();
+deleteStudentApp.use(require('express').json());
+deleteStudentApp.use((_req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    next();
+});
+deleteStudentApp.options('/', (_req, res) => { res.status(204).send(''); });
+deleteStudentApp.post('/', async (req, res) => {
+    const d = (req.body && req.body.data) ? req.body.data : (req.body || {});
+    const { userId, authToken } = d;
+    if (!userId) {
+        res.status(400).json({ error: { message: 'userId obrigatório.' } });
+        return;
+    }
+    if (!authToken) {
+        res.status(401).json({ error: { message: 'Login necessário.' } });
+        return;
+    }
+    let callerUid;
+    try {
+        const decoded = await auth.verifyIdToken(authToken);
+        callerUid = decoded.uid;
+    }
+    catch (_) {
+        res.status(401).json({ error: { message: 'Token inválido.' } });
+        return;
+    }
+    const callerDoc = await db.collection('users').doc(callerUid).get();
+    if (callerDoc.data()?.role !== 'admin') {
+        res.status(403).json({ error: { message: 'Apenas admin.' } });
+        return;
+    }
+    // Não deixar o admin apagar-se a si próprio
+    if (userId === callerUid) {
+        res.status(400).json({ error: { message: 'Não podes apagar a tua própria conta.' } });
+        return;
+    }
+    try {
+        await auth.deleteUser(userId);
+    }
+    catch (e) {
+        if (e.code === 'auth/user-not-found') {
+            // Utilizador já não existe no Auth — limpa só o Firestore
+        }
+        else {
+            res.status(400).json({ error: { message: e.message || 'Erro ao apagar utilizador.' } });
+            return;
+        }
+    }
+    await db.collection('users').doc(userId).delete();
+    res.json({ success: true, message: 'Aluno eliminado com sucesso.' });
+});
+exports.deleteStudentHttp = functions.region('europe-west1').https.onRequest(deleteStudentApp);
 exports.seedFoods = functions.region('europe-west1').https.onCall(async (request) => {
     if (!request.auth)
         throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
