@@ -1329,6 +1329,18 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                       ],
                     ),
                   ),
+                  // Botão de excluir
+                  GestureDetector(
+                    onTap: () => _confirmDeleteStudent(aluno),
+                    child: Container(
+                      width: 32, height: 32,
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 14),
@@ -1503,7 +1515,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
           ),
           actions: [
             TextButton(
-              onPressed: loading ? null : () => Navigator.pop(ctx),
+              onPressed: loading ? null : () => Future.microtask(() => Navigator.pop(ctx)),
               child: Text('Cancelar',
                   style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted)),
             ),
@@ -1556,13 +1568,13 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                         }
                         final data = json.decode(response.body) as Map<String, dynamic>;
                         setDialogState(() => loading = false);
-                        Navigator.pop(ctx, {
+                        Future.microtask(() => Navigator.pop(ctx, {
                           'uid': data['uid'] as String,
                           'email': data['email'] as String,
                           'password': data['temporaryPassword'] as String?,
                           'alreadyExists': data['alreadyExists'] == true,
                           'created': data['created'] == true,
-                        });
+                        }));
                       } catch (e) {
                         setDialogState(() => loading = false);
                         showAppNotification(context, 'Erro ao criar aluno: $e', type: NotificationType.error);
@@ -1608,6 +1620,61 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
           );
         }
       });
+    }
+  }
+
+  Future<void> _confirmDeleteStudent(UserModel aluno) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AdminThemeColors.of(context).surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Text('Eliminar aluno',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
+        content: Text('Tens a certeza que queres eliminar "${aluno.nome}"?\n\nEsta ação é irreversível e remove todos os dados do aluno.',
+            style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancelar', style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text('Eliminar', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true && mounted) {
+      await _deleteStudent(aluno);
+    }
+  }
+
+  Future<void> _deleteStudent(UserModel aluno) async {
+    try {
+      final token = await FirebaseAuth.instance.currentUser?.getIdToken(true);
+      final response = await http.post(
+        Uri.parse('https://europe-west1-gymbt-4ef87.cloudfunctions.net/deleteStudentHttp'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'userId': aluno.uid,
+          'authToken': token ?? '',
+        }),
+      );
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        ref.invalidate(alunosListProvider);
+        showAppNotification(context, 'Aluno "${aluno.nome}" eliminado.', type: NotificationType.success);
+      } else {
+        final errData = json.decode(response.body) as Map<String, dynamic>;
+        final err = errData['error'] as Map<String, dynamic>?;
+        showAppNotification(context, err?['message'] ?? 'Erro ao eliminar.', type: NotificationType.error);
+      }
+    } catch (e) {
+      if (mounted) {
+        showAppNotification(context, 'Erro ao eliminar: $e', type: NotificationType.error);
+      }
     }
   }
 }
