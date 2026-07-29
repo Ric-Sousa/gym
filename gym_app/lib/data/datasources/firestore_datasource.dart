@@ -685,6 +685,19 @@ class FirestoreDataSource {
             .toList());
   }
 
+  /// Stream de marcações confirmadas/pending do trainer (para conflitos).
+  Stream<List<BookingModel>> watchTrainerBookings(String trainerId) {
+    return _firestore
+        .collection(AppConstants.agendaCollection)
+        .where('trainerId', isEqualTo: trainerId)
+        .orderBy('data', descending: false)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => BookingModel.fromMap(doc.id, doc.data()))
+            .where((b) => b.isConfirmed || b.isPending)
+            .toList());
+  }
+
   // ─── Grupos ──────────────────────────────────────────────────
 
   /// Obtém grupos onde o utilizador é membro.

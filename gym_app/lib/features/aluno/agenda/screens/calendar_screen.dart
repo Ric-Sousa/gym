@@ -37,10 +37,21 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
+    final trainerId = authState.user?.personalId ?? '';
+
     final bookingsAsync = ref.watch(
       StreamProvider<List<BookingModel>>((ref) {
         if (_userId.isEmpty) return Stream.value([]);
         return ref.read(bookingRepositoryProvider).watchStudentBookings(_userId);
+      }),
+    );
+
+    // Também observa as marcações do PT para deteção de conflitos globais
+    final trainerBookingsAsync = ref.watch(
+      StreamProvider<List<BookingModel>>((ref) {
+        if (trainerId.isEmpty) return Stream.value([]);
+        return ref.read(bookingRepositoryProvider).watchTrainerBookings(trainerId);
       }),
     );
 
@@ -57,16 +68,16 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         ],
       ),
       body: bookingsAsync.when(
-        data: (bookings) => Column(
-          children: [
-            // ── Seletor de semana ──
-            _buildWeekSelector(),
-            // ── Painel de marcação ──
-            if (_booking) _buildBookingPanel(bookings),
-            // ── Lista de marcações do dia ──
-            Expanded(child: _buildDayBookings(bookings)),
-          ],
-        ),
+        data: (bookings) {
+          final trainerBookings = trainerBookingsAsync.valueOrNull ?? [];
+          return Column(
+            children: [
+              _buildWeekSelector(),
+              if (_booking) _buildBookingPanel(bookings, trainerBookings),
+              Expanded(child: _buildDayBookings(bookings)),
+            ],
+          );
+        },
         loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
         error: (_, __) => const Center(child: Text('Erro ao carregar agenda', style: TextStyle(color: AppColors.textSecondary))),
       ),
@@ -138,7 +149,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     );
   }
 
-  Widget _buildBookingPanel(List<BookingModel> existingBookings) {
+  Widget _buildBookingPanel(List<BookingModel> studentBookings, List<BookingModel> trainerBookings) {
     return Container(
       padding: const EdgeInsets.all(16),
       margin: const EdgeInsets.all(16),
@@ -257,7 +268,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: _selectedTime == null ? null : () => _submitBooking(existingBookings),
+              onPressed: _selectedTime == null ? null : () => _submitBooking(studentBookings, trainerBookings),
               icon: const Icon(Icons.check, size: 16),
               label: Text('Confirmar Marcação', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
               style: ElevatedButton.styleFrom(
@@ -273,7 +284,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     );
   }
 
-  Future<void> _submitBooking(List<BookingModel> existing) async {
+  Future<void> _submitBooking(List<BookingModel> studentBookings, List<BookingModel> trainerBookings) async {
     if (_selectedTime == null) return;
 
     final bookingDate = DateTime(
@@ -284,8 +295,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       _selectedTime!.minute,
     );
 
-    // Verifica conflito de horário
-    final conflito = existing.any((b) {
+    // Verifica conflito: as próprias marcações + as do PT (outros alunos)
+    final allRelevant = [
+      ...studentBookings,
+      ...trainerBookings.where((b) => b.studentId != _userId),
+    ];
+    final conflito = allRelevant.any((b) {
       if (b.isCancelled) return false;
       final bStart = b.data;
       final bEnd = b.data.add(Duration(minutes: b.duracaoMinutos));
@@ -294,13 +309,20 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     });
 
     if (conflito) {
-      showAppNotification(context, 'Já tens uma aula nesse horário.', type: NotificationType.error);
+      showAppNotification(context, 'Este horário já está ocupado.', type: NotificationType.error);
       return;
     }
 
     // Obtém o trainerId do perfil do aluno (personalId)
     final authState = ref.read(authProvider);
     final trainerId = authState.user?.personalId ?? '';
+
+    if (trainerId.isEmpty) {
+      if (mounted) {
+        showAppNotification(context, 'Ainda não tens um Personal Trainer associado.', type: NotificationType.warning);
+      }
+      return;
+    }
 
     try {
       await ref.read(bookingRepositoryProvider).addBooking({
