@@ -598,7 +598,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _scrollToBottom();
       // Notificar o destinatário (fire-and-forget, sem bloquear)
       _notifyChat(salaId, userId, texto);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('❌ Erro ao enviar mensagem: $e');
       if (mounted) {
         showAppNotification(context, AppStrings.messageSendError, type: NotificationType.error);
       }

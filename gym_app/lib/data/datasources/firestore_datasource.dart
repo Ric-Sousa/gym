@@ -309,34 +309,43 @@ class FirestoreDataSource {
   /// Envia uma mensagem e garante que o documento da sala existe.
   Future<void> sendMessage(
       String salaId, Map<String, dynamic> messageMap) async {
+    print('📤 [sendMessage] salaId=$salaId texto=${messageMap['texto']}');
+
+    // 1. Cria/atualiza o documento pai
     try {
-      // 1. CRIA o documento pai PRIMEIRO (evita "documento fantasma" que
-      //    faria o merge falhar nas regras sem permissão 'update').
+      print('📤 [sendMessage] Passo 1: set() no doc pai chat/$salaId');
+      // Usa DateTime.now() em vez de FieldValue.serverTimestamp()
+      // para evitar potenciais conflitos com as regras do Firestore.
+      final now = DateTime.now();
       await _firestore
           .collection(AppConstants.chatCollection)
           .doc(salaId)
           .set({
         'lastMessage': messageMap['texto'] ?? '',
-        'lastTimestamp': FieldValue.serverTimestamp(),
+        'lastTimestamp': now,
         'lastSenderId': messageMap['remetenteId'] ?? '',
-        'createdAt': FieldValue.serverTimestamp(),
+        'typing': '',
       }, SetOptions(merge: true));
+      print('✅ [sendMessage] Passo 1 OK');
+    } on FirebaseException catch (e) {
+      print('❌ [sendMessage] Passo 1 FALHOU: ${e.code} - ${e.message}');
+      throw ServerException(
+          message: e.message ?? 'Erro ao enviar mensagem (passo 1)');
+    }
 
-      // 2. Limpa o indicador de digitação ao enviar
-      await _firestore
-          .collection(AppConstants.chatCollection)
-          .doc(salaId)
-          .update({'typing': FieldValue.delete()});
-
-      // 3. Só depois adiciona a mensagem à subcoleção.
+    // 2. Adiciona a mensagem à subcoleção
+    try {
+      print('📤 [sendMessage] Passo 2: add() na subcoleção mensagens');
       await _firestore
           .collection(AppConstants.chatCollection)
           .doc(salaId)
           .collection(AppConstants.messagesSubcollection)
           .add(messageMap);
+      print('✅ [sendMessage] Passo 2 OK');
     } on FirebaseException catch (e) {
+      print('❌ [sendMessage] Passo 2 FALHOU: ${e.code} - ${e.message}');
       throw ServerException(
-          message: e.message ?? 'Erro ao enviar mensagem');
+          message: e.message ?? 'Erro ao enviar mensagem (passo 2)');
     }
   }
 
@@ -374,13 +383,15 @@ class FirestoreDataSource {
             .doc(salaId)
             .set({
           'typing': userId,
-          'typingAt': FieldValue.serverTimestamp(),
+          'typingAt': DateTime.now(),
         }, SetOptions(merge: true));
       } else {
+        // Usa set-merge com '' em vez de FieldValue.delete(),
+        // para evitar problemas de permissões no Firestore.
         await _firestore
             .collection(AppConstants.chatCollection)
             .doc(salaId)
-            .update({'typing': FieldValue.delete()});
+            .set({'typing': ''}, SetOptions(merge: true));
       }
     } on FirebaseException catch (_) {
       // Falha silenciosa — o indicador de digitação não é crítico
