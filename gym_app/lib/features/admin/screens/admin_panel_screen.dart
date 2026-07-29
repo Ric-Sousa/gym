@@ -16,6 +16,7 @@ import '../../../data/models/progress_model.dart';
 import '../../../data/models/payment_model.dart';
 import '../../../data/models/booking_model.dart';
 import '../../../features/auth/providers/auth_provider.dart';
+import '../../../data/repositories/workout_repository.dart';
 import '../../../shared/providers/global_providers.dart';
 import '../../../shared/providers/admin_providers.dart';
 import '../../../shared/widgets/app_notification.dart';
