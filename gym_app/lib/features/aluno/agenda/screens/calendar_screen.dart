@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import '../../../../shared/utils/booking_notifications.dart';
 import '../../../../core/config/app_colors.dart';
 import '../../../../data/models/booking_model.dart';
 import '../../../../shared/providers/global_providers.dart';
@@ -451,6 +452,16 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 tooltip: 'Cancelar',
               ),
             ],
+            if (booking.isConfirmed) ...[
+              const SizedBox(width: 4),
+              IconButton(
+                icon: const Icon(Icons.check_circle_outline, size: 16, color: AppColors.protein),
+                onPressed: () => _completeBooking(booking),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                tooltip: 'Concluir aula',
+              ),
+            ],
           ],
         ),
       ),
@@ -495,6 +506,38 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         if (mounted) showAppNotification(context, 'Aula cancelada.', type: NotificationType.success);
       } catch (_) {
         if (mounted) showAppNotification(context, 'Erro ao cancelar.', type: NotificationType.error);
+      }
+    }
+  }
+
+  Future<void> _completeBooking(BookingModel booking) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceHigh,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Text('Concluir aula?', style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, color: AppColors.onSurface)),
+        content: Text('Marcar aula de ${booking.horaFormatada} como concluída?',
+            style: GoogleFonts.inter(color: AppColors.textSecondary)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Voltar')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.protein, foregroundColor: Colors.white),
+            child: const Text('Concluir'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await ref.read(bookingRepositoryProvider).updateBooking(booking.id, {'status': 'completed'});
+        // Notificar o PT que a aula foi concluída (fire-and-forget)
+        fireBookingNotification(booking, 'completed');
+        if (mounted) showAppNotification(context, 'Aula concluída! 💪', type: NotificationType.success);
+      } catch (_) {
+        if (mounted) showAppNotification(context, 'Erro ao concluir.', type: NotificationType.error);
       }
     }
   }

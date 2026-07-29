@@ -11,6 +11,7 @@ import '../../data/models/booking_model.dart';
 import '../../data/models/group_model.dart';
 import '../../core/config/app_constants.dart';
 import '../../core/config/admin_theme.dart';
+import '../../data/repositories/workout_repository.dart';
 import 'global_providers.dart';
 
 // ─── Admin Theme Toggle ─────────────────────────────────────────
@@ -163,7 +164,23 @@ final adminTrainerBookingsProvider =
   return ref.read(bookingRepositoryProvider).getTrainerBookings(trainerId);
 });
 
+/// Provider de progressão de cargas para clientes online.
+final onlineProgressionProvider =
+    FutureProvider.family<List<ProgressionData>, String>((ref, userId) {
+  return ref.read(workoutRepositoryProvider).getProgression(userId);
+});
+
 /// Provider de todos os grupos (admin).
 final adminGroupsProvider = FutureProvider<List<GroupModel>>((ref) {
   return ref.read(groupRepositoryProvider).getAllGroups();
+});
+
+/// Provider de nomes de alunos para a agenda (batch fetch).
+final adminStudentNamesProvider =
+    FutureProvider.family<Map<String, String>, String>((ref, trainerId) async {
+  if (trainerId.isEmpty) return {};
+  final bookings = await ref.watch(adminTrainerBookingsProvider(trainerId).future);
+  final uids = bookings.map((b) => b.studentId).toSet().toList();
+  if (uids.isEmpty) return {};
+  return ref.read(userRepositoryProvider).getUserNames(uids);
 });

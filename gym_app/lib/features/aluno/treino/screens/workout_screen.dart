@@ -50,6 +50,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
   int _restSecondsRemaining = 0;
   bool _isResting = false;
   String? _restingExercise;
+  String _restMode = 'DESCANSO';
   bool _saving = false;
   bool _initialized = false;
 
@@ -162,12 +163,13 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     _saveLog();
   }
 
-  void _startRestTimer(int seconds, String exerciseName) {
+  void _startRestTimer(int seconds, String exerciseName, {String mode = 'DESCANSO'}) {
     _restTimer?.cancel();
     setState(() {
       _restSecondsRemaining = seconds;
       _isResting = true;
       _restingExercise = exerciseName;
+      _restMode = mode;
     });
     _restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_restSecondsRemaining <= 1) {
@@ -193,6 +195,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       _isResting = false;
       _restSecondsRemaining = 0;
       _restingExercise = null;
+      _restMode = 'DESCANSO';
     });
   }
 
@@ -628,6 +631,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                         () => _startRestTimer(
                           plannedExercise.duracao!,
                           plannedExercise.nome,
+                          mode: 'EXERCÍCIO',
                         ),
                       ),
                     ],
@@ -1003,7 +1007,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'DESCANSO',
+                    _restMode,
                     style: GoogleFonts.montserrat(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,

@@ -19,6 +19,7 @@ import '../../../features/auth/providers/auth_provider.dart';
 import '../../../data/repositories/workout_repository.dart';
 import '../../../shared/providers/global_providers.dart';
 import '../../../shared/providers/admin_providers.dart';
+import '../../../shared/utils/booking_notifications.dart';
 import '../../../shared/widgets/app_notification.dart';
 import '../../admin/widgets/workout_editor.dart';
 import '../../admin/widgets/nutrition_editor.dart';
@@ -1937,11 +1938,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
     final c = widget.client;
     if (!c.isOnline) return const SizedBox.shrink();
 
-    final progressionAsync = ref.watch(
-      FutureProvider<List<ProgressionData>>((ref) {
-        return ref.read(workoutRepositoryProvider).getProgression(c.uid);
-      }),
-    );
+    final progressionAsync = ref.watch(onlineProgressionProvider(c.uid));
 
     return progressionAsync.when(
       data: (prog) {
@@ -2783,9 +2780,13 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
     try {
       await ref.read(bookingRepositoryProvider).updateBooking(booking.id, {'status': status});
       ref.invalidate(adminTrainerBookingsProvider(FirebaseAuth.instance.currentUser?.uid ?? ''));
+      // Notificar o aluno (só para confirm/cancel)
+      if (status == 'confirmed' || status == 'cancelled') {
+        fireBookingNotification(booking, status);
+      }
       if (mounted) {
         showAppNotification(context,
-            status == 'confirmed' ? 'Aula confirmada!' : 'Aula cancelada.',
+            status == 'confirmed' ? 'Aula confirmada!' : status == 'cancelled' ? 'Aula cancelada.' : 'Aula atualizada.',
             type: NotificationType.success);
       }
     } catch (_) {
@@ -4268,6 +4269,7 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
   @override
   Widget build(BuildContext context) {
     final bookingsAsync = ref.watch(adminTrainerBookingsProvider(_trainerId));
+    final namesAsync = ref.watch(adminStudentNamesProvider(_trainerId));
     final isMobile = MediaQuery.of(context).size.width < 900;
 
     return SingleChildScrollView(
@@ -4320,7 +4322,10 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
           ),
           const SizedBox(height: 12),
           bookingsAsync.when(
-            data: (bookings) => _buildDayBookings(bookings),
+            data: (bookings) {
+              final names = namesAsync.valueOrNull ?? {};
+              return _buildDayBookings(bookings, names);
+            },
             loading: () => Center(
               child: CircularProgressIndicator(
                   color: AdminThemeColors.of(context).lime),
@@ -4437,7 +4442,7 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
     );
   }
 
-  Widget _buildDayBookings(List<BookingModel> bookings) {
+  Widget _buildDayBookings(List<BookingModel> bookings, Map<String, String> studentNames) {
     final dayBookings = bookings
         .where((b) =>
             b.data.year == _selectedDate.year &&
@@ -4526,7 +4531,7 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                          'Aluno: ${b.studentId.length > 8 ? '${b.studentId.substring(0, 8)}...' : b.studentId}',
+                          'Aluno: ${studentNames[b.studentId] ?? (b.studentId.length > 8 ? '${b.studentId.substring(0, 8)}...' : b.studentId)}',
                           style: GoogleFonts.inter(
                               fontSize: 11,
                               color: AdminThemeColors.of(context).muted)),
@@ -4611,6 +4616,10 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
           .read(bookingRepositoryProvider)
           .updateBooking(booking.id, {'status': status});
       ref.invalidate(adminTrainerBookingsProvider(_trainerId));
+      // Notificar o aluno (só para confirm/cancel)
+      if (status == 'confirmed' || status == 'cancelled') {
+        fireBookingNotification(booking, status);
+      }
       if (mounted) {
         final msgs = {
           'confirmed': 'confirmada',
@@ -4626,7 +4635,7 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
             type: NotificationType.error);
       }
     }
-  }
+    }
 }
 
 // ─── Shared Helpers ───────────────────────────────────────────────
