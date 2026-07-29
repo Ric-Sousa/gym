@@ -588,6 +588,32 @@ class FirestoreDataSource {
     }
   }
 
+  // ─── User Names (batch) ──────────────────────────────────────
+
+  /// Obtém nome + email para uma lista de UIDs (batch).
+  Future<Map<String, String>> getUserNames(List<String> uids) async {
+    try {
+      if (uids.isEmpty) return {};
+      final uniqueUids = uids.toSet().toList();
+      final result = <String, String>{};
+      // Firestore 'in' query supports até 30 itens; fazemos batches
+      for (int i = 0; i < uniqueUids.length; i += 30) {
+        final batch = uniqueUids.sublist(i, i + 30 > uniqueUids.length ? uniqueUids.length : i + 30);
+        final snap = await _firestore
+            .collection(AppConstants.usersCollection)
+            .where(FieldPath.documentId, whereIn: batch)
+            .get();
+        for (final doc in snap.docs) {
+          final data = doc.data();
+          result[doc.id] = (data['nome'] as String?) ?? 'Aluno';
+        }
+      }
+      return result;
+    } on FirebaseException catch (e) {
+      throw ServerException(message: e.message ?? 'Erro ao obter nomes');
+    }
+  }
+
   // ─── Agenda / Bookings ───────────────────────────────────────
 
   /// Obtém marcações de um aluno.

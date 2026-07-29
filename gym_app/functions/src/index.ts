@@ -275,6 +275,62 @@ export const notifyNewBooking = functions
     return { ok: true };
   });
 
+export const notifyBookingUpdate = functions
+  .region('europe-west1')
+  .https.onCall(async (request) => {
+    if (!request.auth)
+      throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+
+    const { bookingId, studentId, trainerId, newStatus, bookingDate, tipo } = request.data;
+    if (!bookingId || !studentId || !trainerId || !newStatus)
+      throw new functions.https.HttpsError('invalid-argument', 'bookingId, studentId, trainerId e newStatus obrigatórios.');
+
+    const callerUid = request.auth!.uid;
+    const callerDoc = await db.collection('users').doc(callerUid).get();
+    const callerName = callerDoc.data()?.nome ?? 'Utilizador';
+
+    const date = bookingDate ? new Date(bookingDate) : new Date();
+    const timeStr = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    const dateStr = date.toLocaleDateString('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' });
+    const tipoLabel = tipo === 'online' ? '💻 Online' : '🏋️ Presencial';
+
+    if (newStatus === 'confirmed' || newStatus === 'cancelled') {
+      // Admin updated status → notify student
+      const studentDoc = await db.collection('users').doc(studentId).get();
+      const fcmToken = studentDoc.data()?.fcmToken;
+      if (!fcmToken) return { ok: true };
+
+      const title = newStatus === 'confirmed' ? 'Aula Confirmada ✅' : 'Aula Cancelada ❌';
+      const body = newStatus === 'confirmed'
+        ? `${callerName} confirmou a tua aula de ${dateStr} às ${timeStr} (${tipoLabel})`
+        : `${callerName} cancelou a tua aula de ${dateStr} às ${timeStr}`;
+
+      await messaging.send({
+        token: fcmToken,
+        notification: { title, body },
+        data: { type: 'booking_update', bookingId, newStatus },
+      });
+    } else if (newStatus === 'completed') {
+      // Student completed → notify trainer
+      const trainerDoc = await db.collection('users').doc(trainerId).get();
+      const fcmToken = trainerDoc.data()?.fcmToken;
+      if (!fcmToken) return { ok: true };
+
+      const studentDoc = await db.collection('users').doc(studentId).get();
+      const studentName = studentDoc.data()?.nome ?? 'Aluno';
+
+      await messaging.send({
+        token: fcmToken,
+        notification: {
+          title: 'Aula Concluída 💪',
+          body: `${studentName} concluiu a aula de ${dateStr} às ${timeStr} (${tipoLabel})`,
+        },
+        data: { type: 'booking_update', bookingId, newStatus },
+      });
+    }
+    return { ok: true };
+  });
+
 // ──────────── SCHEDULED ────────────
 
 export const sendWaterReminder = functions.pubsub

@@ -19,6 +19,7 @@ import '../../../features/auth/providers/auth_provider.dart';
 import '../../../data/repositories/workout_repository.dart';
 import '../../../shared/providers/global_providers.dart';
 import '../../../shared/providers/admin_providers.dart';
+import '../../../shared/utils/booking_notifications.dart';
 import '../../../shared/widgets/app_notification.dart';
 import '../../admin/widgets/workout_editor.dart';
 import '../../admin/widgets/nutrition_editor.dart';
@@ -1416,95 +1417,89 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nomeCtrl,
-                  style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
-                  decoration: InputDecoration(
-                    labelText: 'Nome completo',
-                    labelStyle: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
-                    filled: true,
-                    fillColor: AdminThemeColors.of(context).bg,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide:
-                          BorderSide(color: AdminThemeColors.of(context).border),
-                    ),
+            children: [
+              TextField(
+                controller: nomeCtrl,
+                style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
+                decoration: InputDecoration(
+                  labelText: 'Nome completo',
+                  labelStyle: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
+                  filled: true,
+                  fillColor: AdminThemeColors.of(context).bg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),                        borderSide:
+                            BorderSide(color: AdminThemeColors.of(context).border),
                   ),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: emailCtrl,
-                  keyboardType: TextInputType.emailAddress,
-                  style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
-                  decoration: InputDecoration(
-                    labelText: 'Email',
-                    labelStyle: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
-                    filled: true,
-                    fillColor: AdminThemeColors.of(context).bg,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide:
-                          BorderSide(color: AdminThemeColors.of(context).border),
-                    ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
+                decoration: InputDecoration(
+                  labelText: 'Email',
+                  labelStyle: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
+                  filled: true,
+                  fillColor: AdminThemeColors.of(context).bg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),                        borderSide:
+                            BorderSide(color: AdminThemeColors.of(context).border),
                   ),
                 ),
-                const SizedBox(height: 12),
-                // Campo de password
-                TextField(
-                  controller: passwordCtrl,
-                  obscureText: _obscurePassword,
-                  style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
-                  decoration: InputDecoration(
-                    labelText: 'Password (opcional)',
-                    hintText: 'Deixa vazio para auto-gerar',
-                    labelStyle: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
-                    hintStyle: GoogleFonts.inter(fontSize: 11, color: AdminThemeColors.of(context).muted),
-                    filled: true,
-                    fillColor: AdminThemeColors.of(context).bg,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide:
-                          BorderSide(color: AdminThemeColors.of(context).border),
+              ),
+              const SizedBox(height: 12),
+              // Password
+              TextField(
+                controller: passwordCtrl,
+                obscureText: _obscurePassword,
+                style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
+                decoration: InputDecoration(
+                  labelText: 'Senha (opcional)',
+                  labelStyle: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
+                  filled: true,
+                  fillColor: AdminThemeColors.of(context).bg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: AdminThemeColors.of(context).border),
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                      size: 18,
+                      color: AdminThemeColors.of(context).muted,
                     ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                        size: 18,
-                        color: AdminThemeColors.of(context).muted,
-                      ),
-                      onPressed: () => setDialogState(() => _obscurePassword = !_obscurePassword),
-                    ),
+                    onPressed: () => setDialogState(() => _obscurePassword = !_obscurePassword),
                   ),
                 ),
-                const SizedBox(height: 12),
-                // Seletor de género
-                DropdownButtonFormField<String>(
-                  value: _genero,
-                  decoration: InputDecoration(
-                    labelText: 'Género',
-                    labelStyle: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
-                    filled: true,
-                    fillColor: AdminThemeColors.of(context).bg,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: AdminThemeColors.of(context).border),
-                    ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _genero,
+                decoration: InputDecoration(
+                  labelText: 'Género',
+                  labelStyle: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
+                  filled: true,
+                  fillColor: AdminThemeColors.of(context).bg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: AdminThemeColors.of(context).border),
                   ),
-                  dropdownColor: AdminThemeColors.of(context).surface,
-                  style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
-                  items: const [
-                    DropdownMenuItem(value: 'feminino', child: Text('🌸 Feminino')),
-                    DropdownMenuItem(value: 'masculino', child: Text('💪 Masculino')),
-                  ],
-                  onChanged: (v) => setDialogState(() => _genero = v ?? 'feminino'),
                 ),
-                if (loading) ...[
-                  const SizedBox(height: 16),
-                  LinearProgressIndicator(color: AdminThemeColors.of(context).lime),
+                dropdownColor: AdminThemeColors.of(context).surface,
+                style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
+                items: const [
+                  DropdownMenuItem(value: 'feminino', child: Text('🌸 Feminino')),
+                  DropdownMenuItem(value: 'masculino', child: Text('💪 Masculino')),
                 ],
-              ],
-            ),
+                onChanged: (v) => setDialogState(() => _genero = v ?? 'feminino'),
+              ),
+              if (loading) ...[
+                const SizedBox(height: 16),
+                LinearProgressIndicator(color: AdminThemeColors.of(context).lime),
+            ],
+            ],
+          ),
           ),
           actions: [
             TextButton(
@@ -1639,16 +1634,6 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
     super.initState();
     // Garante que o personalId é definido assim que o admin abre o perfil do aluno.
     WidgetsBinding.instance.addPostFrameCallback((_) => _ensurePersonalId());
-  }
-
-  @override
-  void didUpdateWidget(_ClientDetailView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Se o admin trocou de aluno, reseta o estado do personalId
-    if (widget.client.uid != oldWidget.client.uid) {
-      _personalIdSet = false;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _ensurePersonalId());
-    }
   }
 
   /// Garante que o aluno tem o personalId definido para o chat funcionar.
@@ -2023,182 +2008,93 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
   }
 
   Widget _buildLoadProgressionChart() {
-    final logsAsync = ref.watch(adminWorkoutLogsProvider(widget.client.uid));
+    final c = widget.client;
+    if (!c.isOnline) return const SizedBox.shrink();
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AdminThemeColors.of(context).surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AdminThemeColors.of(context).border),
-        boxShadow: [
-          BoxShadow(
-            color: AdminThemeColors.of(context).shadow,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+    final progressionAsync = ref.watch(onlineProgressionProvider(c.uid));
+
+    return progressionAsync.when(
+      data: (prog) {
+        if (prog.isEmpty) return const SizedBox.shrink();
+        return Container(
+          padding: const EdgeInsets.all(20),
+          margin: const EdgeInsets.only(bottom: 20),
+          decoration: BoxDecoration(
+            color: AdminThemeColors.of(context).surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AdminThemeColors.of(context).border),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('PROGRESSÃO DE CARGAS',
-              style: GoogleFonts.barlowCondensed(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.03,
-                  color: AdminThemeColors.of(context).text)),
-          const SizedBox(height: 4),
-          Text('Evolução da carga máxima por exercício ao longo do tempo',
-              style: GoogleFonts.inter(
-                  fontSize: 12, color: AdminThemeColors.of(context).muted)),
-          const SizedBox(height: 16),
-          logsAsync.when(
-            data: (logs) {
-              if (logs.isEmpty) {
-                return SizedBox(
-                  height: 140,
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.trending_up, size: 16, color: AdminThemeColors.of(context).blue),
+                  const SizedBox(width: 6),
+                  Text('PROGRESSÃO (ONLINE)',
+                      style: GoogleFonts.barlowCondensed(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.03,
+                          color: AdminThemeColors.of(context).text)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ...prog.map((p) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
                       children: [
-                        Icon(Icons.fitness_center,
-                            size: 36, color: AdminThemeColors.of(context).muted),
-                        const SizedBox(height: 8),
-                        Text('Sem treinos registados ainda',
-                            style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: AdminThemeColors.of(context).muted)),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Quando o aluno registar cargas nos treinos, aparecem aqui.',
-                          style: GoogleFonts.inter(
-                              fontSize: 11,
-                              color: AdminThemeColors.of(context).muted),
-                          textAlign: TextAlign.center,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(p.exerciseName,
+                                  style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: AdminThemeColors.of(context).text)),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${p.cargaAnterior?.toStringAsFixed(1) ?? '-'} → ${p.cargaAtual?.toStringAsFixed(1) ?? '-'} kg',
+                                style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    color: AdminThemeColors.of(context).muted),
+                              ),
+                            ],
+                          ),
                         ),
+                        if (p.progrediu)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AdminThemeColors.of(context).lime.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text('+${p.aumentoKg!.toStringAsFixed(1)}kg',
+                                style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: AdminThemeColors.of(context).lime)),
+                          )
+                        else if (p.manteve)
+                          Text('= manteve',
+                              style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: AdminThemeColors.of(context).muted))
+                        else
+                          Text('novo',
+                              style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: AdminThemeColors.of(context).blue)),
                       ],
                     ),
-                  ),
-                );
-              }
-
-              // Agrupa cargas máximas por exercício ao longo do tempo
-              final Map<String, List<(DateTime, double)>> progression = {};
-              for (final log in logs) {
-                for (final ex in log.exercicios) {
-                  final maxCarga = ex.cargaMaxima;
-                  if (maxCarga != null && maxCarga > 0) {
-                    progression.putIfAbsent(ex.nome, () => []);
-                    progression[ex.nome]!.add((log.data, maxCarga));
-                  }
-                }
-              }
-
-              // Ordena cada série por data
-              for (final key in progression.keys) {
-                progression[key]!.sort((a, b) => a.$1.compareTo(b.$1));
-              }
-
-              if (progression.isEmpty) {
-                return SizedBox(
-                  height: 140,
-                  child: Center(
-                    child: Text('Regista cargas nos treinos para ver a progressão.',
-                        style: GoogleFonts.inter(
-                            fontSize: 13,
-                            color: AdminThemeColors.of(context).muted)),
-                  ),
-                );
-              }
-
-              final colors = [
-                AdminThemeColors.of(context).lime,
-                AdminThemeColors.of(context).blue,
-                AdminThemeColors.of(context).orange,
-                AdminThemeColors.of(context).purple,
-              ];
-
-              return SizedBox(
-                height: 200,
-                child: LineChart(
-                  LineChartData(
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: false,
-                      horizontalInterval: 5,
-                      getDrawingHorizontalLine: (value) => FlLine(
-                        color: AdminThemeColors.of(context).border,
-                        strokeWidth: 0.5,
-                      ),
-                    ),
-                    titlesData: const FlTitlesData(
-                      leftTitles: AxisTitles(
-                        axisNameWidget: Text('kg', style: TextStyle(fontSize: 10)),
-                        sideTitles: SideTitles(showTitles: true, reservedSize: 30),
-                      ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      topTitles:
-                          AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      rightTitles:
-                          AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    ),
-                    borderData: FlBorderData(
-                      show: true,
-                      border: Border(
-                        bottom: BorderSide(
-                            color: AdminThemeColors.of(context).border),
-                        left: BorderSide(
-                            color: AdminThemeColors.of(context).border),
-                      ),
-                    ),
-                    lineBarsData: progression.entries.toList().asMap().entries.map((entry) {
-                      final colorIdx = entry.key % colors.length;
-                      final exName = entry.value.key;
-                      final points = entry.value.value;
-                      return LineChartBarData(
-                        spots: points
-                            .asMap()
-                            .entries
-                            .map((e) => FlSpot(
-                                e.key.toDouble(), e.value.$2))
-                            .toList(),
-                        isCurved: true,
-                        color: colors[colorIdx],
-                        barWidth: 2,
-                        dotData: FlDotData(
-                          show: points.length <= 6,
-                        ),
-                        belowBarData: BarAreaData(
-                          show: true,
-                          color: colors[colorIdx].withValues(alpha: 0.05),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              );
-            },
-            loading: () => SizedBox(
-              height: 140,
-              child: Center(
-                child: CircularProgressIndicator(
-                    color: AdminThemeColors.of(context).lime),
-              ),
-            ),
-            error: (_, __) => SizedBox(
-              height: 140,
-              child: Center(
-                child: Text('Erro ao carregar dados',
-                    style: GoogleFonts.inter(
-                        color: AdminThemeColors.of(context).muted)),
-              ),
-            ),
+                  )),
+            ],
           ),
-        ],
-      ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 
@@ -2957,9 +2853,13 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
     try {
       await ref.read(bookingRepositoryProvider).updateBooking(booking.id, {'status': status});
       ref.invalidate(adminTrainerBookingsProvider(FirebaseAuth.instance.currentUser?.uid ?? ''));
+      // Notificar o aluno (só para confirm/cancel)
+      if (status == 'confirmed' || status == 'cancelled') {
+        fireBookingNotification(booking, status);
+      }
       if (mounted) {
         showAppNotification(context,
-            status == 'confirmed' ? 'Aula confirmada!' : 'Aula cancelada.',
+            status == 'confirmed' ? 'Aula confirmada!' : status == 'cancelled' ? 'Aula cancelada.' : 'Aula atualizada.',
             type: NotificationType.success);
       }
     } catch (_) {
@@ -3030,6 +2930,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
       ),
     );
   }
+
 }
 
 // ─── Exercise Library View ────────────────────────────────────────
@@ -4441,6 +4342,7 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
   @override
   Widget build(BuildContext context) {
     final bookingsAsync = ref.watch(adminTrainerBookingsProvider(_trainerId));
+    final namesAsync = ref.watch(adminStudentNamesProvider(_trainerId));
     final isMobile = MediaQuery.of(context).size.width < 900;
 
     return SingleChildScrollView(
@@ -4493,7 +4395,10 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
           ),
           const SizedBox(height: 12),
           bookingsAsync.when(
-            data: (bookings) => _buildDayBookings(bookings),
+            data: (bookings) {
+              final names = namesAsync.valueOrNull ?? {};
+              return _buildDayBookings(bookings, names);
+            },
             loading: () => Center(
               child: CircularProgressIndicator(
                   color: AdminThemeColors.of(context).lime),
@@ -4610,7 +4515,7 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
     );
   }
 
-  Widget _buildDayBookings(List<BookingModel> bookings) {
+  Widget _buildDayBookings(List<BookingModel> bookings, Map<String, String> studentNames) {
     final dayBookings = bookings
         .where((b) =>
             b.data.year == _selectedDate.year &&
@@ -4699,7 +4604,7 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                          'Aluno: ${b.studentId.length > 8 ? '${b.studentId.substring(0, 8)}...' : b.studentId}',
+                          'Aluno: ${studentNames[b.studentId] ?? (b.studentId.length > 8 ? '${b.studentId.substring(0, 8)}...' : b.studentId)}',
                           style: GoogleFonts.inter(
                               fontSize: 11,
                               color: AdminThemeColors.of(context).muted)),
@@ -4784,6 +4689,10 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
           .read(bookingRepositoryProvider)
           .updateBooking(booking.id, {'status': status});
       ref.invalidate(adminTrainerBookingsProvider(_trainerId));
+      // Notificar o aluno (só para confirm/cancel)
+      if (status == 'confirmed' || status == 'cancelled') {
+        fireBookingNotification(booking, status);
+      }
       if (mounted) {
         final msgs = {
           'confirmed': 'confirmada',
@@ -4799,7 +4708,7 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
             type: NotificationType.error);
       }
     }
-  }
+    }
 }
 
 // ─── Shared Helpers ───────────────────────────────────────────────

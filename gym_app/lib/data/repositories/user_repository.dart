@@ -55,4 +55,13 @@ class UserRepository {
       throw ServerFailure(message: e.message);
     }
   }
+
+  /// Obtém nomes de utilizadores por lista de UIDs (batch).
+  Future<Map<String, String>> getUserNames(List<String> uids) async {
+    try {
+      return await _firestoreDataSource.getUserNames(uids);
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
+  }
 }
