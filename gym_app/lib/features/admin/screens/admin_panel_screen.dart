@@ -1497,8 +1497,9 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
               if (loading) ...[
                 const SizedBox(height: 16),
                 LinearProgressIndicator(color: AdminThemeColors.of(context).lime),
-              ],
             ],
+            ],
+          ),
           ),
           actions: [
             TextButton(
