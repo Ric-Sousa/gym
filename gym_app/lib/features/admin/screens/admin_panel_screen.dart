@@ -20,6 +20,7 @@ import '../../../data/repositories/workout_repository.dart';
 import '../../../shared/providers/global_providers.dart';
 import '../../../shared/providers/admin_providers.dart';
 import '../../../shared/utils/booking_notifications.dart';
+import '../../../shared/widgets/image_comparison_slider.dart';
 import '../../../shared/widgets/app_notification.dart';
 import '../../admin/widgets/workout_editor.dart';
 import '../../admin/widgets/nutrition_editor.dart';
@@ -2555,63 +2556,36 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                // Fotos lado-a-lado
+                // Slider Antes/Depois
+                ImageComparisonSlider(
+                  beforeImage: withPhotos[beforeIdx].fotos.first,
+                  afterImage: withPhotos[afterIdx].fotos.first,
+                  height: 280,
+                  dividerColor: AdminThemeColors.of(context).lime,
+                ),
+                const SizedBox(height: 8),
+                // Datas e pesos abaixo do slider
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: Column(
                         children: [
-                          _comparisonPhoto(
-                              withPhotos[beforeIdx].fotos.first,
-                              AdminThemeColors.of(context).muted),
-                          const SizedBox(height: 4),
-                          Text(
-                              DateFormat('d MMM yyyy', 'pt')
-                                  .format(withPhotos[beforeIdx].data),
-                              style: GoogleFonts.inter(
-                                  fontSize: 10,
-                                  color:
-                                      AdminThemeColors.of(context).muted)),
+                          Text(DateFormat('d MMM yyyy', 'pt').format(withPhotos[beforeIdx].data),
+                              style: GoogleFonts.inter(fontSize: 10, color: AdminThemeColors.of(context).muted)),
                           if (withPhotos[beforeIdx].peso != null)
-                            Text(
-                                '${withPhotos[beforeIdx].peso!.toStringAsFixed(1)} kg',
-                                style: GoogleFonts.montserrat(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: AdminThemeColors.of(context)
-                                        .muted)),
+                            Text('${withPhotos[beforeIdx].peso!.toStringAsFixed(1)} kg',
+                                style: GoogleFonts.montserrat(fontSize: 11, fontWeight: FontWeight.w600, color: AdminThemeColors.of(context).muted)),
                         ],
                       ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Icon(Icons.arrow_forward,
-                          size: 20,
-                          color: AdminThemeColors.of(context).lime),
                     ),
                     Expanded(
                       child: Column(
                         children: [
-                          _comparisonPhoto(
-                              withPhotos[afterIdx].fotos.first,
-                              AdminThemeColors.of(context).lime),
-                          const SizedBox(height: 4),
-                          Text(
-                              DateFormat('d MMM yyyy', 'pt')
-                                  .format(withPhotos[afterIdx].data),
-                              style: GoogleFonts.inter(
-                                  fontSize: 10,
-                                  color:
-                                      AdminThemeColors.of(context).lime)),
+                          Text(DateFormat('d MMM yyyy', 'pt').format(withPhotos[afterIdx].data),
+                              style: GoogleFonts.inter(fontSize: 10, color: AdminThemeColors.of(context).lime)),
                           if (withPhotos[afterIdx].peso != null)
-                            Text(
-                                '${withPhotos[afterIdx].peso!.toStringAsFixed(1)} kg',
-                                style: GoogleFonts.montserrat(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: AdminThemeColors.of(context)
-                                        .lime)),
+                            Text('${withPhotos[afterIdx].peso!.toStringAsFixed(1)} kg',
+                                style: GoogleFonts.montserrat(fontSize: 11, fontWeight: FontWeight.w600, color: AdminThemeColors.of(context).lime)),
                         ],
                       ),
                     ),
@@ -2700,38 +2674,6 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                       color: AdminThemeColors.of(context).muted)),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _comparisonPhoto(String url, Color borderColor) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        height: 200,
-        decoration: BoxDecoration(
-          border: Border.all(color: borderColor.withValues(alpha: 0.5), width: 2),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Image.network(
-          url,
-          fit: BoxFit.cover,
-          loadingBuilder: (_, child, progress) {
-            if (progress == null) return child;
-            return Container(
-              color: AdminThemeColors.of(context).surface2,
-              child: Center(
-                child: CircularProgressIndicator(
-                    color: AdminThemeColors.of(context).lime, strokeWidth: 2),
-              ),
-            );
-          },
-          errorBuilder: (_, __, ___) => Container(
-            color: AdminThemeColors.of(context).surface2,
-            child:
-                Icon(Icons.broken_image, color: AdminThemeColors.of(context).muted),
-          ),
         ),
       ),
     );

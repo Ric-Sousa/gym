@@ -16,6 +16,7 @@ import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/app_notification.dart';
+import '../../../../shared/widgets/image_comparison_slider.dart';
 import 'progress_submission_screen.dart';
 
 final userProfileProvider =
@@ -736,46 +737,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          withPhotos[beforeIdx].fotos.first,
-                          height: 180,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            height: 180,
-                            color: AppColors.surface,
-                            child: const Icon(Icons.broken_image,
-                                color: AppColors.textSecondary),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 4),
-                      child: Icon(Icons.arrow_forward, size: 20, color: AppColors.primary),
-                    ),
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          withPhotos[afterIdx].fotos.first,
-                          height: 180,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            height: 180,
-                            color: AppColors.surface,
-                            child: const Icon(Icons.broken_image,
-                                color: AppColors.textSecondary),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                ImageComparisonSlider(
+                  beforeImage: withPhotos[beforeIdx].fotos.first,
+                  afterImage: withPhotos[afterIdx].fotos.first,
+                  height: 280,
+                  dividerColor: AppColors.primary,
                 ),
                 if (withPhotos[beforeIdx].peso != null &&
                     withPhotos[afterIdx].peso != null) ...[
