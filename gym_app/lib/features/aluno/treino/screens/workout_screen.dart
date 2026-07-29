@@ -861,7 +861,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
 
   IconData _funcionalIcon(Exercise ex) {
     if (ex.categoria == 'cardio') return Icons.directions_run;
-    if (ex.equipamento == 'corda') return Icons.cable;
+    if (ex.equipamento == 'corda') return Icons.bolt;
     if (ex.equipamento == 'kettlebell') return Icons.fitness_center;
     return Icons.bolt;
   }
