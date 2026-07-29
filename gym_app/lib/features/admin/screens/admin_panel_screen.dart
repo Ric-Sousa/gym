@@ -1751,6 +1751,23 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: c.isOnline
+                        ? AdminThemeColors.of(context).blue.withValues(alpha: 0.12)
+                        : AdminThemeColors.of(context).limeDim,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(c.tipoClienteDisplay,
+                      style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: c.isOnline
+                              ? AdminThemeColors.of(context).blue
+                              : AdminThemeColors.of(context).lime)),
+                ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -1783,18 +1800,44 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                         color: AdminThemeColors.of(context).lime),
                   ),
                 ),
-                const SizedBox(width: 18),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(c.nome.toUpperCase(),
-                          style: GoogleFonts.barlowCondensed(
-                              fontSize: 32,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.01,
-                              color: AdminThemeColors.of(context).text)),
-                      Text(
+                const SizedBox(width: 18),                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(c.nome.toUpperCase(),
+                                  style: GoogleFonts.barlowCondensed(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -0.01,
+                                      color: AdminThemeColors.of(context).text)),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: c.isOnline
+                                    ? AdminThemeColors.of(context).blue.withValues(alpha: 0.12)
+                                    : AdminThemeColors.of(context).limeDim,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: c.isOnline
+                                      ? AdminThemeColors.of(context).blue.withValues(alpha: 0.3)
+                                      : AdminThemeColors.of(context).lime.withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: Text(c.tipoClienteDisplay,
+                                  style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: c.isOnline
+                                          ? AdminThemeColors.of(context).blue
+                                          : AdminThemeColors.of(context).lime)),
+                            ),
+                          ],
+                        ),
+                        Text(
                           '${c.pesoAtual?.toStringAsFixed(1) ?? '-'}kg · ${c.altura?.toStringAsFixed(0) ?? '-'}cm · IMC: ${c.imc?.toStringAsFixed(1) ?? '-'}',
                           style: GoogleFonts.inter(
                               fontSize: 13,
@@ -1887,6 +1930,101 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
       return Tooltip(message: tooltipLabels[id] ?? id, child: tabWidget);
     }
     return tabWidget;
+  }
+
+  Widget _buildLoadProgressionChart() {
+    final c = widget.client;
+    if (!c.isOnline) return const SizedBox.shrink();
+
+    final progressionAsync = ref.watch(
+      FutureProvider<List<ProgressionData>>((ref) {
+        return ref.read(workoutRepositoryProvider).getProgression(c.uid);
+      }),
+    );
+
+    return progressionAsync.when(
+      data: (prog) {
+        if (prog.isEmpty) return const SizedBox.shrink();
+        return Container(
+          padding: const EdgeInsets.all(20),
+          margin: const EdgeInsets.only(bottom: 20),
+          decoration: BoxDecoration(
+            color: AdminThemeColors.of(context).surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AdminThemeColors.of(context).border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.trending_up, size: 16, color: AdminThemeColors.of(context).blue),
+                  const SizedBox(width: 6),
+                  Text('PROGRESSÃO (ONLINE)',
+                      style: GoogleFonts.barlowCondensed(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.03,
+                          color: AdminThemeColors.of(context).text)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ...prog.map((p) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(p.exerciseName,
+                                  style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: AdminThemeColors.of(context).text)),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${p.cargaAnterior?.toStringAsFixed(1) ?? '-'} → ${p.cargaAtual?.toStringAsFixed(1) ?? '-'} kg',
+                                style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    color: AdminThemeColors.of(context).muted),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (p.progrediu)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AdminThemeColors.of(context).lime.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text('+${p.aumentoKg!.toStringAsFixed(1)}kg',
+                                style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: AdminThemeColors.of(context).lime)),
+                          )
+                        else if (p.manteve)
+                          Text('= manteve',
+                              style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: AdminThemeColors.of(context).muted))
+                        else
+                          Text('novo',
+                              style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: AdminThemeColors.of(context).blue)),
+                      ],
+                    ),
+                  )),
+            ],
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
   }
 
   Widget _buildOverview() {

@@ -547,6 +547,10 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
   Widget _buildExerciseCard(
       ExerciseLog exerciseLog, Exercise plannedExercise, bool isMobile) {
     final allDone = exerciseLog.todasConcluidas;
+    final isFuncional = plannedExercise.categoria == 'funcional' ||
+        plannedExercise.categoria == 'cardio' ||
+        plannedExercise.duracao != null;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -565,7 +569,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
               ? AppColors.success.withValues(alpha: 0.15)
               : AppColors.primary.withValues(alpha: 0.15),
           child: Icon(
-            allDone ? Icons.check_circle : Icons.fitness_center,
+            allDone ? Icons.check_circle : _funcionalIcon(plannedExercise),
             color: allDone ? AppColors.success : AppColors.primary,
             size: 18,
           ),
@@ -578,9 +582,11 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
           ),
         ),
         subtitle: Text(
-          '${exerciseLog.seriesConcluidas}/${exerciseLog.totalSeries} séries • '
-          '${plannedExercise.series}x${plannedExercise.repeticoes}'
-          '${plannedExercise.cargaSugerida != null ? ' • ${plannedExercise.cargaSugerida}kg' : ''}',
+          isFuncional
+              ? _funcionalSubtitle(plannedExercise, exerciseLog)
+              : '${exerciseLog.seriesConcluidas}/${exerciseLog.totalSeries} séries • '
+                '${plannedExercise.series}x${plannedExercise.repeticoes}'
+                '${plannedExercise.cargaSugerida != null ? ' • ${plannedExercise.cargaSugerida}kg' : ''}',
           style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary),
         ),
         children: [
@@ -613,191 +619,208 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                         plannedExercise.nome,
                       ),
                     ),
+                    if (isFuncional && plannedExercise.duracao != null) ...[
+                      const SizedBox(width: 8),
+                      _actionChip(
+                        Icons.play_arrow,
+                        'Timer ${plannedExercise.duracao}s',
+                        AppColors.success,
+                        () => _startRestTimer(
+                          plannedExercise.duracao!,
+                          plannedExercise.nome,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 14),
-                // Series table header
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceHigh,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: isMobile ? 36 : 44,
-                        child: Text('Série',
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textSecondary,
-                            )),
-                      ),
-                      Expanded(
-                        child: Text('Carga (kg)',
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textSecondary,
-                            )),
-                      ),
-                      Expanded(
-                        child: Text('Reps',
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textSecondary,
-                            )),
-                      ),
-                      const SizedBox(width: 40),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Series rows
-                ...exerciseLog.series.asMap().entries.map((entry) {
-                  final s = entry.value;
-                  final serieIdx = entry.key;
-                  final cargaCtrl =
-                      _getController(exerciseLog.nome, s.numero, 'carga',
-                          s.carga?.toString());
-                  final repCtrl = _getController(exerciseLog.nome, s.numero,
-                      'rep', s.repeticoes?.toString());
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 4),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 2),
+                // Funcional — card simplificado com rounds + toggle
+                if (isFuncional) ...[
+                  _buildFuncionalCard(exerciseLog, plannedExercise),
+                ] else ...[
+                  // Series table header
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
+                      color: AppColors.surfaceHigh,
                       borderRadius: BorderRadius.circular(4),
-                      color: s.concluida
-                          ? AppColors.success.withValues(alpha: 0.08)
-                          : Colors.transparent,
                     ),
                     child: Row(
                       children: [
                         SizedBox(
                           width: isMobile ? 36 : 44,
-                          child: Text(
-                            '#${s.numero}',
-                            style: GoogleFonts.inter(
-                              fontWeight: FontWeight.w600,
-                              color: s.concluida
-                                  ? AppColors.success
-                                  : AppColors.onSurface,
-                            ),
-                          ),
+                          child: Text('Série',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                              )),
                         ),
                         Expanded(
-                          child: SizedBox(
-                            height: 36,
-                            child: TextField(
-                              controller: cargaCtrl,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                      decimal: true),
-                              textAlign: TextAlign.center,
+                          child: Text('Carga (kg)',
                               style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: AppColors.onSurface,
-                              ),
-                              decoration: InputDecoration(
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 8),
-                                isDense: true,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                  borderSide: const BorderSide(
-                                      color: AppColors.outline),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                  borderSide: const BorderSide(
-                                      color: AppColors.outline),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                  borderSide: const BorderSide(
-                                      color: AppColors.primary, width: 2),
-                                ),
-                                filled: true,
-                                fillColor: AppColors.surfaceHigh,
-                              ),
-                              onChanged: (v) => _updateSerieData(
-                                  exerciseLog, serieIdx, 'carga', v),
-                            ),
-                          ),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                              )),
                         ),
-                        const SizedBox(width: 6),
                         Expanded(
-                          child: SizedBox(
-                            height: 36,
-                            child: TextField(
-                              controller: repCtrl,
-                              keyboardType: TextInputType.number,
-                              textAlign: TextAlign.center,
+                          child: Text('Reps',
                               style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: AppColors.onSurface,
-                              ),
-                              decoration: InputDecoration(
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 8),
-                                isDense: true,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                  borderSide: const BorderSide(
-                                      color: AppColors.outline),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                  borderSide: const BorderSide(
-                                      color: AppColors.outline),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                  borderSide: const BorderSide(
-                                      color: AppColors.primary, width: 2),
-                                ),
-                                filled: true,
-                                fillColor: AppColors.surfaceHigh,
-                              ),
-                              onChanged: (v) => _updateSerieData(
-                                  exerciseLog, serieIdx, 'rep', v),
-                            ),
-                          ),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                              )),
                         ),
-                        const SizedBox(width: 4),
-                        GestureDetector(
-                          onTap: () =>
-                              _toggleSerie(exerciseLog, serieIdx),
-                          child: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: s.concluida
-                                  ? AppColors.success
-                                  : AppColors.surfaceHigh,
-                              border: Border.all(
-                                color: s.concluida
-                                    ? AppColors.success
-                                    : AppColors.outline,
-                                width: 2,
-                              ),
-                            ),
-                            child: s.concluida
-                                ? const Icon(Icons.check,
-                                    size: 18, color: Colors.white)
-                                : const SizedBox(),
-                          ),
-                        ),
+                        const SizedBox(width: 40),
                       ],
                     ),
-                  );
-                }),
+                  ),
+                  const SizedBox(height: 4),
+                  // Series rows
+                  ...exerciseLog.series.asMap().entries.map((entry) {
+                    final s = entry.value;
+                    final serieIdx = entry.key;
+                    final cargaCtrl =
+                        _getController(exerciseLog.nome, s.numero, 'carga',
+                            s.carga?.toString());
+                    final repCtrl = _getController(exerciseLog.nome, s.numero,
+                        'rep', s.repeticoes?.toString());
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(4),
+                        color: s.concluida
+                            ? AppColors.success.withValues(alpha: 0.08)
+                            : Colors.transparent,
+                      ),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: isMobile ? 36 : 44,
+                            child: Text(
+                              '#${s.numero}',
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.w600,
+                                color: s.concluida
+                                    ? AppColors.success
+                                    : AppColors.onSurface,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: SizedBox(
+                              height: 36,
+                              child: TextField(
+                                controller: cargaCtrl,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                        decimal: true),
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  color: AppColors.onSurface,
+                                ),
+                                decoration: InputDecoration(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 8),
+                                  isDense: true,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(4),
+                                    borderSide: const BorderSide(
+                                        color: AppColors.outline),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(4),
+                                    borderSide: const BorderSide(
+                                        color: AppColors.outline),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(4),
+                                    borderSide: const BorderSide(
+                                        color: AppColors.primary, width: 2),
+                                  ),
+                                  filled: true,
+                                  fillColor: AppColors.surfaceHigh,
+                                ),
+                                onChanged: (v) => _updateSerieData(
+                                    exerciseLog, serieIdx, 'carga', v),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: SizedBox(
+                              height: 36,
+                              child: TextField(
+                                controller: repCtrl,
+                                keyboardType: TextInputType.number,
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  color: AppColors.onSurface,
+                                ),
+                                decoration: InputDecoration(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 8),
+                                  isDense: true,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(4),
+                                    borderSide: const BorderSide(
+                                        color: AppColors.outline),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(4),
+                                    borderSide: const BorderSide(
+                                        color: AppColors.outline),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(4),
+                                    borderSide: const BorderSide(
+                                        color: AppColors.primary, width: 2),
+                                  ),
+                                  filled: true,
+                                  fillColor: AppColors.surfaceHigh,
+                                ),
+                                onChanged: (v) => _updateSerieData(
+                                    exerciseLog, serieIdx, 'rep', v),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          GestureDetector(
+                            onTap: () =>
+                                _toggleSerie(exerciseLog, serieIdx),
+                            child: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: s.concluida
+                                    ? AppColors.success
+                                    : AppColors.surfaceHigh,
+                                border: Border.all(
+                                  color: s.concluida
+                                      ? AppColors.success
+                                      : AppColors.outline,
+                                  width: 2,
+                                ),
+                              ),
+                              child: s.concluida
+                                  ? const Icon(Icons.check,
+                                      size: 18, color: Colors.white)
+                                  : const SizedBox(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
                 if (plannedExercise.observacoes != null) ...[
                   const SizedBox(height: 10),
                   Container(
@@ -834,6 +857,101 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
         ],
       ),
     );
+  }
+
+  IconData _funcionalIcon(Exercise ex) {
+    if (ex.categoria == 'cardio') return Icons.directions_run;
+    if (ex.equipamento == 'corda') return Icons.cable;
+    if (ex.equipamento == 'kettlebell') return Icons.fitness_center;
+    return Icons.bolt;
+  }
+
+  String _funcionalSubtitle(Exercise ex, ExerciseLog log) {
+    final parts = <String>[];
+    if (ex.duracao != null) parts.add('${ex.duracao}s');
+    if (ex.rounds != null) parts.add('${ex.rounds} rounds');
+    parts.add(ex.equipamento == 'corda' ? '🪢 Corda' : ex.equipamento == 'kettlebell' ? '🔔 Kettlebell' : '⚡ Funcional');
+    return parts.join(' • ');
+  }
+
+  Widget _buildFuncionalCard(ExerciseLog exerciseLog, Exercise exercise) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceHigh,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          // Info row
+          Row(
+            children: [
+              _funcionalInfoChip(Icons.timer, '${exercise.duracao ?? exercise.descanso}s'),
+              const SizedBox(width: 10),
+              if (exercise.rounds != null) ...[
+                _funcionalInfoChip(Icons.repeat, '${exercise.rounds} rounds'),
+                const SizedBox(width: 10),
+              ],
+              _funcionalInfoChip(Icons.fitness_center, exercise.equipamento == 'corda' ? 'Corda' : exercise.equipamento == 'kettlebell' ? 'Kettlebell' : 'Funcional'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Toggle complete button
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton.icon(
+              onPressed: () => _toggleFuncionalComplete(exerciseLog),
+              icon: Icon(
+                exerciseLog.todasConcluidas ? Icons.check_circle : Icons.play_circle_outline,
+                size: 20,
+              ),
+              label: Text(
+                exerciseLog.todasConcluidas ? 'CONCLUÍDO ✅' : 'MARCAR COMO CONCLUÍDO',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: exerciseLog.todasConcluidas
+                    ? AppColors.success
+                    : AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _funcionalInfoChip(IconData icon, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: AppColors.textSecondary),
+        const SizedBox(width: 4),
+        Text(label, style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary)),
+      ],
+    );
+  }
+
+  void _toggleFuncionalComplete(ExerciseLog exercise) {
+    setState(() {
+      final updatedExercises = _activeLog!.exercicios.toList();
+      final exIdx = updatedExercises.indexOf(exercise);
+      // Toggle todas as séries
+      final allDone = exercise.todasConcluidas;
+      final updatedSeries = exercise.series.map((s) => s.copyWith(concluida: !allDone)).toList();
+      updatedExercises[exIdx] = ExerciseLog(
+        nome: exercise.nome,
+        grupoMuscular: exercise.grupoMuscular,
+        series: updatedSeries,
+      );
+      _activeLog = _activeLog!.copyWith(exercicios: updatedExercises);
+    });
+    _saveLog();
   }
 
   Widget _actionChip(
