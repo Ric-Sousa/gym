@@ -37,12 +37,26 @@ export const onUserCreated = functions.auth.user().onCreate(async (user) => {
 // ──────────── CALLABLES ────────────
 
 export const createStudent = functions.region('europe-west1').https.onCall(async (request) => {
-  if (!request.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
-  const callerDoc = await db.collection('users').doc(request.auth.uid).get();
-  if (callerDoc.data()?.role !== 'admin') throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
-
-  const { nome, email, personalId, genero, password } = request.data;
+  const { nome, email, personalId, genero, password, authToken } = request.data;
   if (!nome || !email) throw new functions.https.HttpsError('invalid-argument', 'Nome e email obrigatórios.');
+
+  // Verifica o token manualmente — mais fiável no Flutter Web
+  let callerUid: string;
+  if (request.auth) {
+    callerUid = request.auth.uid;
+  } else if (authToken) {
+    try {
+      const decoded = await auth.verifyIdToken(authToken);
+      callerUid = decoded.uid;
+    } catch (_) {
+      throw new functions.https.HttpsError('unauthenticated', 'Token inválido. Tenta sair e entrar novamente.');
+    }
+  } else {
+    throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+  }
+
+  const callerDoc = await db.collection('users').doc(callerUid).get();
+  if (callerDoc.data()?.role !== 'admin') throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
 
   try {
     const existingUser = await auth.getUserByEmail(email);
