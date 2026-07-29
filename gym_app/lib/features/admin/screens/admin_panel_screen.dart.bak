@@ -2857,6 +2857,185 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
     );
   }
 
+  Widget _buildLoadProgressionChart() {
+    final logsAsync = ref.watch(adminWorkoutLogsProvider(widget.client.uid));
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AdminThemeColors.of(context).surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AdminThemeColors.of(context).border),
+        boxShadow: [
+          BoxShadow(
+            color: AdminThemeColors.of(context).shadow,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('PROGRESSÃO DE CARGAS',
+              style: GoogleFonts.barlowCondensed(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.03,
+                  color: AdminThemeColors.of(context).text)),
+          const SizedBox(height: 4),
+          Text('Evolução da carga máxima por exercício ao longo do tempo',
+              style: GoogleFonts.inter(
+                  fontSize: 12, color: AdminThemeColors.of(context).muted)),
+          const SizedBox(height: 16),
+          logsAsync.when(
+            data: (logs) {
+              if (logs.isEmpty) {
+                return SizedBox(
+                  height: 140,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.fitness_center,
+                            size: 36, color: AdminThemeColors.of(context).muted),
+                        const SizedBox(height: 8),
+                        Text('Sem treinos registados ainda',
+                            style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: AdminThemeColors.of(context).muted)),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Quando o aluno registar cargas nos treinos, aparecem aqui.',
+                          style: GoogleFonts.inter(
+                              fontSize: 11,
+                              color: AdminThemeColors.of(context).muted),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              // Agrupa cargas máximas por exercício ao longo do tempo
+              final Map<String, List<(DateTime, double)>> progression = {};
+              for (final log in logs) {
+                for (final ex in log.exercicios) {
+                  final maxCarga = ex.cargaMaxima;
+                  if (maxCarga != null && maxCarga > 0) {
+                    progression.putIfAbsent(ex.nome, () => []);
+                    progression[ex.nome]!.add((log.data, maxCarga));
+                  }
+                }
+              }
+
+              // Ordena cada série por data
+              for (final key in progression.keys) {
+                progression[key]!.sort((a, b) => a.$1.compareTo(b.$1));
+              }
+
+              if (progression.isEmpty) {
+                return SizedBox(
+                  height: 140,
+                  child: Center(
+                    child: Text('Regista cargas nos treinos para ver a progressão.',
+                        style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: AdminThemeColors.of(context).muted)),
+                  ),
+                );
+              }
+
+              final colors = [
+                AdminThemeColors.of(context).lime,
+                AdminThemeColors.of(context).blue,
+                AdminThemeColors.of(context).orange,
+                AdminThemeColors.of(context).purple,
+              ];
+
+              return SizedBox(
+                height: 200,
+                child: LineChart(
+                  LineChartData(
+                    gridData: FlGridData(
+                      show: true,
+                      drawVerticalLine: false,
+                      horizontalInterval: 5,
+                      getDrawingHorizontalLine: (value) => FlLine(
+                        color: AdminThemeColors.of(context).border,
+                        strokeWidth: 0.5,
+                      ),
+                    ),
+                    titlesData: const FlTitlesData(
+                      leftTitles: AxisTitles(
+                        axisNameWidget: Text('kg', style: TextStyle(fontSize: 10)),
+                        sideTitles: SideTitles(showTitles: true, reservedSize: 30),
+                      ),
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      topTitles:
+                          AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      rightTitles:
+                          AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    ),
+                    borderData: FlBorderData(
+                      show: true,
+                      border: Border(
+                        bottom: BorderSide(
+                            color: AdminThemeColors.of(context).border),
+                        left: BorderSide(
+                            color: AdminThemeColors.of(context).border),
+                      ),
+                    ),
+                    lineBarsData: progression.entries.toList().asMap().entries.map((entry) {
+                      final colorIdx = entry.key % colors.length;
+                      final exName = entry.value.key;
+                      final points = entry.value.value;
+                      return LineChartBarData(
+                        spots: points
+                            .asMap()
+                            .entries
+                            .map((e) => FlSpot(
+                                e.key.toDouble(), e.value.$2))
+                            .toList(),
+                        isCurved: true,
+                        color: colors[colorIdx],
+                        barWidth: 2,
+                        dotData: FlDotData(
+                          show: points.length <= 6,
+                        ),
+                        belowBarData: BarAreaData(
+                          show: true,
+                          color: colors[colorIdx].withValues(alpha: 0.05),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              );
+            },
+            loading: () => SizedBox(
+              height: 140,
+              child: Center(
+                child: CircularProgressIndicator(
+                    color: AdminThemeColors.of(context).lime),
+              ),
+            ),
+            error: (_, __) => SizedBox(
+              height: 140,
+              child: Center(
+                child: Text('Erro ao carregar dados',
+                    style: GoogleFonts.inter(
+                        color: AdminThemeColors.of(context).muted)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ─── Exercise Library View ────────────────────────────────────────
