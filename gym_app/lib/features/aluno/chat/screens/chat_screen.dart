@@ -46,6 +46,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   @override
+  void didUpdateWidget(ChatScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Se o chatPartnerId mudou (ex: admin trocou de aluno), reseta o estado
+    if (widget.chatPartnerId != oldWidget.chatPartnerId) {
+      _typingDebounce?.cancel();
+      // Limpa typing status da sala antiga antes de mudar
+      if (_currentSalaId != null && _currentUserId != null) {
+        ref.read(chatRepositoryProvider).setTypingStatus(
+            _currentSalaId!, _currentUserId!, false);
+      }
+      _textController.clear();
+      _currentSalaId = null;
+      _currentUserId = null;
+      _typingSent = false;
+    }
+  }
+
+  @override
   void dispose() {
     _typingDebounce?.cancel();
     // Limpa o indicador de digitacao ao sair
