@@ -7,6 +7,10 @@ import '../models/workout_plan_model.dart';
 import '../models/message_model.dart';
 import '../models/progress_model.dart';
 import '../models/food_model.dart';
+import '../models/workout_log_model.dart';
+import '../models/payment_model.dart';
+import '../models/booking_model.dart';
+import '../models/group_model.dart';
 import '../../core/config/app_constants.dart';
 
 /// Data source para operações no Cloud Firestore.
@@ -392,6 +396,259 @@ class FirestoreDataSource {
     } on FirebaseException catch (e) {
       throw ServerException(message: e.message ?? 'Erro ao adicionar alimento');
     }
+  }
+
+  // ───────────────────── WORKOUT LOGS ─────────────────────
+
+  /// Obtém registo de treino de um dia específico.
+  Future<WorkoutLogModel?> getWorkoutLog(String userId, String date) async {
+    try {
+      final doc = await _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(userId)
+          .collection(AppConstants.workoutLogSubcollection)
+          .doc(date)
+          .get();
+      if (!doc.exists) return null;
+      return WorkoutLogModel.fromMap(doc.id, userId, doc.data()!);
+    } on FirebaseException catch (e) {
+      throw ServerException(
+          message: e.message ?? 'Erro ao obter registo de treino');
+    }
+  }
+
+  /// Guarda ou atualiza registo de treino.
+  Future<void> setWorkoutLog(
+      String userId, String date, Map<String, dynamic> data) async {
+    try {
+      await _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(userId)
+          .collection(AppConstants.workoutLogSubcollection)
+          .doc(date)
+          .set(data, SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      throw ServerException(
+          message: e.message ?? 'Erro ao guardar registo de treino');
+    }
+  }
+
+  /// Obtém histórico de registos de treino.
+  Future<List<WorkoutLogModel>> getWorkoutLogHistory(
+      String userId, {int limit = 30}) async {
+    try {
+      final snapshot = await _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(userId)
+          .collection(AppConstants.workoutLogSubcollection)
+          .orderBy('data', descending: true)
+          .limit(limit)
+          .get();
+      return snapshot.docs
+          .map((doc) => WorkoutLogModel.fromMap(doc.id, userId, doc.data()))
+          .toList();
+    } on FirebaseException catch (e) {
+      throw ServerException(
+          message: e.message ?? 'Erro ao obter histórico de treinos');
+    }
+  }
+
+  // ───────────────────── PAYMENTS ─────────────────────
+
+  /// Obtém pagamentos de um utilizador.
+  Future<List<PaymentModel>> getPayments(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection(AppConstants.paymentsCollection)
+          .where('userId', isEqualTo: userId)
+          .orderBy('data', descending: true)
+          .get();
+      return snapshot.docs
+          .map((doc) => PaymentModel.fromMap(doc.id, doc.data()))
+          .toList();
+    } on FirebaseException catch (e) {
+      throw ServerException(
+          message: e.message ?? 'Erro ao obter pagamentos');
+    }
+  }
+
+  /// Obtém todos os pagamentos (admin).
+  Future<List<PaymentModel>> getAllPayments() async {
+    try {
+      final snapshot = await _firestore
+          .collection(AppConstants.paymentsCollection)
+          .orderBy('data', descending: true)
+          .get();
+      return snapshot.docs
+          .map((doc) => PaymentModel.fromMap(doc.id, doc.data()))
+          .toList();
+    } on FirebaseException catch (e) {
+      throw ServerException(
+          message: e.message ?? 'Erro ao listar pagamentos');
+    }
+  }
+
+  /// Adiciona um pagamento.
+  Future<void> addPayment(Map<String, dynamic> data) async {
+    try {
+      await _firestore.collection(AppConstants.paymentsCollection).add(data);
+    } on FirebaseException catch (e) {
+      throw ServerException(
+          message: e.message ?? 'Erro ao guardar pagamento');
+    }
+  }
+
+  /// Atualiza estado de pagamento.
+  Future<void> updatePayment(String id, Map<String, dynamic> data) async {
+    try {
+      await _firestore
+          .collection(AppConstants.paymentsCollection)
+          .doc(id)
+          .update(data);
+    } on FirebaseException catch (e) {
+      throw ServerException(
+          message: e.message ?? 'Erro ao atualizar pagamento');
+    }
+  }
+
+  // ─── Agenda / Bookings ───────────────────────────────────────
+
+  /// Obtém marcações de um aluno.
+  Future<List<BookingModel>> getStudentBookings(String studentId) async {
+    try {
+      final snap = await _firestore
+          .collection(AppConstants.agendaCollection)
+          .where('studentId', isEqualTo: studentId)
+          .orderBy('data', descending: true)
+          .get();
+      return snap.docs
+          .map((doc) => BookingModel.fromMap(doc.id, doc.data()))
+          .toList();
+    } on FirebaseException catch (e) {
+      throw ServerException(
+          message: e.message ?? 'Erro ao obter agenda');
+    }
+  }
+
+  /// Obtém marcações de um trainer (admin).
+  Future<List<BookingModel>> getTrainerBookings(String trainerId) async {
+    try {
+      final snap = await _firestore
+          .collection(AppConstants.agendaCollection)
+          .where('trainerId', isEqualTo: trainerId)
+          .orderBy('data', descending: true)
+          .get();
+      return snap.docs
+          .map((doc) => BookingModel.fromMap(doc.id, doc.data()))
+          .toList();
+    } on FirebaseException catch (e) {
+      throw ServerException(
+          message: e.message ?? 'Erro ao obter agenda');
+    }
+  }
+
+  /// Adiciona uma marcação.
+  Future<void> addBooking(Map<String, dynamic> data) async {
+    try {
+      await _firestore.collection(AppConstants.agendaCollection).add(data);
+    } on FirebaseException catch (e) {
+      throw ServerException(
+          message: e.message ?? 'Erro ao guardar marcação');
+    }
+  }
+
+  /// Atualiza uma marcação.
+  Future<void> updateBooking(String id, Map<String, dynamic> data) async {
+    try {
+      await _firestore
+          .collection(AppConstants.agendaCollection)
+          .doc(id)
+          .update(data);
+    } on FirebaseException catch (e) {
+      throw ServerException(
+          message: e.message ?? 'Erro ao atualizar marcação');
+    }
+  }
+
+  /// Stream de marcações de um aluno.
+  Stream<List<BookingModel>> watchStudentBookings(String studentId) {
+    return _firestore
+        .collection(AppConstants.agendaCollection)
+        .where('studentId', isEqualTo: studentId)
+        .orderBy('data', descending: false)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => BookingModel.fromMap(doc.id, doc.data()))
+            .toList());
+  }
+
+  // ─── Grupos ──────────────────────────────────────────────────
+
+  /// Obtém grupos onde o utilizador é membro.
+  Future<List<GroupModel>> getMyGroups(String userId) async {
+    try {
+      final snap = await _firestore
+          .collection(AppConstants.groupsCollection)
+          .where('membros', arrayContains: userId)
+          .orderBy('createdAt', descending: true)
+          .get();
+      return snap.docs
+          .map((doc) => GroupModel.fromMap(doc.id, doc.data()))
+          .toList();
+    } on FirebaseException catch (e) {
+      throw ServerException(message: e.message ?? 'Erro ao obter grupos');
+    }
+  }
+
+  /// Obtém todos os grupos (admin).
+  Future<List<GroupModel>> getAllGroups() async {
+    try {
+      final snap = await _firestore
+          .collection(AppConstants.groupsCollection)
+          .orderBy('createdAt', descending: true)
+          .get();
+      return snap.docs
+          .map((doc) => GroupModel.fromMap(doc.id, doc.data()))
+          .toList();
+    } on FirebaseException catch (e) {
+      throw ServerException(message: e.message ?? 'Erro ao listar grupos');
+    }
+  }
+
+  /// Cria um novo grupo.
+  Future<String> createGroup(Map<String, dynamic> data) async {
+    try {
+      final ref = await _firestore.collection(AppConstants.groupsCollection).add(data);
+      return ref.id;
+    } on FirebaseException catch (e) {
+      throw ServerException(message: e.message ?? 'Erro ao criar grupo');
+    }
+  }
+
+  /// Envia mensagem para um grupo.
+  Future<void> sendGroupMessage(String groupId, Map<String, dynamic> data) async {
+    try {
+      await _firestore
+          .collection(AppConstants.groupsCollection)
+          .doc(groupId)
+          .collection(AppConstants.groupMessagesSubcollection)
+          .add(data);
+    } on FirebaseException catch (e) {
+      throw ServerException(message: e.message ?? 'Erro ao enviar mensagem');
+    }
+  }
+
+  /// Stream de mensagens de um grupo.
+  Stream<List<MessageModel>> watchGroupMessages(String groupId) {
+    return _firestore
+        .collection(AppConstants.groupsCollection)
+        .doc(groupId)
+        .collection(AppConstants.groupMessagesSubcollection)
+        .orderBy('timestamp', descending: false)
+        .snapshots()
+        .map((snap) => snap.docs
+            .map((doc) => MessageModel.fromMap(doc.id, doc.data()))
+            .toList());
   }
 
   // ───────────────────── EXERCISES ─────────────────────

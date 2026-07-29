@@ -23,11 +23,14 @@ class PersonalFitApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
     final adminThemeMode = ref.watch(adminThemeModeProvider);
+    // Observa o género diretamente do Firestore — atualiza o tema sem reiniciar
+    final generoAsync = ref.watch(currentUserGeneroProvider);
+    final genero = generoAsync.valueOrNull;
 
     return MaterialApp(
       title: AppStrings.appName,
       debugShowCheckedModeBanner: false,
-      theme: _buildKineticDarkTheme().copyWith(
+      theme: _buildKineticDarkTheme(genero).copyWith(
         brightness: Brightness.light,
         colorScheme: ColorScheme.light(
           primary: AppColors.primary,
@@ -39,7 +42,7 @@ class PersonalFitApp extends ConsumerWidget {
         scaffoldBackgroundColor: AppColors.adminLightBg,
         extensions: [AdminThemeColors.light],
       ),
-      darkTheme: _buildKineticDarkTheme().copyWith(
+      darkTheme: _buildKineticDarkTheme(genero).copyWith(
         extensions: [AdminThemeColors.dark],
       ),
       themeMode: adminThemeMode,
@@ -94,7 +97,7 @@ class PersonalFitApp extends ConsumerWidget {
     }
   }
 
-  ThemeData _buildKineticDarkTheme() {
+  ThemeData _buildKineticDarkTheme([String? genero]) {
     final interTextTheme = GoogleFonts.interTextTheme();
     final montserratTextTheme = GoogleFonts.montserratTextTheme();
 
@@ -102,11 +105,11 @@ class PersonalFitApp extends ConsumerWidget {
       useMaterial3: true,
       brightness: Brightness.dark,
       scaffoldBackgroundColor: AppColors.background,
-      colorScheme: const ColorScheme.dark(
-        primary: AppColors.primary,
+      colorScheme: ColorScheme.dark(
+        primary: AppColors.primaryFor(genero),
         onPrimary: AppColors.textOnPrimary,
-        primaryContainer: AppColors.primaryContainer,
-        onPrimaryContainer: AppColors.onPrimaryContainer,
+        primaryContainer: AppColors.primaryContainerFor(genero),
+        onPrimaryContainer: AppColors.primaryFor(genero),
         secondary: AppColors.secondary,
         onSecondary: AppColors.onSecondary,
         secondaryContainer: AppColors.secondaryContainer,

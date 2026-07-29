@@ -3,11 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:typed_data';
 import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/app_constants.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../data/models/progress_model.dart';
+import '../../../../data/models/payment_model.dart';
 import '../../../../data/models/user_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
@@ -120,6 +123,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             const SizedBox(height: 24),
             _buildProgressPhotos(user.uid, progressAsync),
+            const SizedBox(height: 16),
+            // ── Comparação Antes/Depois ──
+            _buildComparisonButton(user.uid, progressAsync),
+            const SizedBox(height: 24),
+            // ── Pagamentos e Faturas ──
+            _buildPaymentsSection(user.uid),
           ],
         ),
       ),
@@ -375,6 +384,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             const Divider(color: AppColors.outline),
             _infoRow('Nome', user.nome),
             _infoRow('E-mail', user.email),
+            _infoRow('Género', user.generoDisplay),
             _infoRow(
               'Peso',
               user.pesoAtual != null ? '${user.pesoAtual} kg' : 'Não definido',
@@ -652,6 +662,286 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  Widget _buildComparisonButton(
+      String userId, AsyncValue<List<ProgressModel>> progressAsync) {
+    final withPhotos = progressAsync.maybeWhen(
+      data: (list) =>
+          list.where((p) => p.fotos.isNotEmpty).toList(),
+      orElse: () => <ProgressModel>[],
+    );
+
+    if (withPhotos.length < 2) return const SizedBox.shrink();
+
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () => _showProgressComparison(withPhotos),
+        icon: const Icon(Icons.compare, size: 16),
+        label: const Text('COMPARAR ANTES / DEPOIS'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          side: BorderSide(color: AppColors.primary.withValues(alpha: 0.5)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+      ),
+    );
+  }
+
+  void _showProgressComparison(List<ProgressModel> withPhotos) {
+    int beforeIdx = withPhotos.length - 1;
+    int afterIdx = 0;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.surfaceHigh,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: Row(
+            children: [
+              const Icon(Icons.compare, color: AppColors.primary, size: 20),
+              const SizedBox(width: 8),
+              Text('Comparação Antes / Depois',
+                  style: GoogleFonts.montserrat(
+                      color: AppColors.onSurface,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16)),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('ANTES',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.barlowCondensed(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textSecondary)),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text('DEPOIS',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.barlowCondensed(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          withPhotos[beforeIdx].fotos.first,
+                          height: 180,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            height: 180,
+                            color: AppColors.surface,
+                            child: const Icon(Icons.broken_image,
+                                color: AppColors.textSecondary),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4),
+                      child: Icon(Icons.arrow_forward, size: 20, color: AppColors.primary),
+                    ),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          withPhotos[afterIdx].fotos.first,
+                          height: 180,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            height: 180,
+                            color: AppColors.surface,
+                            child: const Icon(Icons.broken_image,
+                                color: AppColors.textSecondary),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (withPhotos[beforeIdx].peso != null &&
+                    withPhotos[afterIdx].peso != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Diferença: ${(withPhotos[afterIdx].peso! - withPhotos[beforeIdx].peso!).toStringAsFixed(1)} kg',
+                    style: GoogleFonts.montserrat(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Fechar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentsSection(String userId) {
+    final paymentsAsync = ref.watch(
+      StreamProvider<List<PaymentModel>>((ref) {
+        return ref.read(paymentRepositoryProvider).watchPayments(userId);
+      }),
+    );
+
+    return paymentsAsync.when(
+      data: (payments) {
+        if (payments.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Pagamentos e Faturas',
+              style: GoogleFonts.montserrat(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppColors.onSurface,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...payments.map((p) => _paymentCard(p)),
+          ],
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+
+  Widget _paymentCard(PaymentModel payment) {
+    final statusColors = {
+      'paid': AppColors.primary,
+      'pending': AppColors.calories,
+      'failed': AppColors.error,
+      'refunded': AppColors.textSecondary,
+    };
+    final statusLabels = {
+      'paid': 'PAGO',
+      'pending': 'PENDENTE',
+      'failed': 'FALHOU',
+      'refunded': 'REEMBOLSADO',
+    };
+
+    final statusColor = statusColors[payment.status] ?? AppColors.textSecondary;
+    final statusLabel = statusLabels[payment.status] ?? payment.status.toUpperCase();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              payment.isPaid ? Icons.receipt : Icons.pending,
+              color: statusColor,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  payment.descricao ?? 'Mensalidade',
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.onSurface,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  DateFormat('d MMM yyyy', 'pt').format(payment.data),
+                  style: GoogleFonts.inter(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                payment.valorFormatado,
+                style: GoogleFonts.montserrat(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15,
+                  color: AppColors.onSurface,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  statusLabel,
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: statusColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (payment.faturaUrl != null) ...[
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.picture_as_pdf, color: AppColors.primary, size: 22),
+              onPressed: () => launchUrl(Uri.parse(payment.faturaUrl!), mode: LaunchMode.externalApplication),
+              tooltip: 'Ver fatura',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Future<void> _editProfile(UserModel user) async {
     final nomeController = TextEditingController(text: user.nome);
     final pesoController = TextEditingController(
@@ -660,6 +950,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final alturaController = TextEditingController(
       text: user.altura?.toString() ?? '',
     );
+    String _genero = user.genero ?? 'feminino';
 
     final result = await showDialog<bool>(
       context: context,
@@ -747,6 +1038,36 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
                 style: GoogleFonts.inter(color: AppColors.onSurface),
               ),
+              const SizedBox(height: 12),
+              // Seletor de género
+              DropdownButtonFormField<String>(
+                value: _genero,
+                decoration: InputDecoration(
+                  labelText: 'Género',
+                  labelStyle: GoogleFonts.inter(color: AppColors.onSurfaceVariant),
+                  filled: true,
+                  fillColor: AppColors.surfaceHighest,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.outline),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.outline),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                  ),
+                ),
+                dropdownColor: AppColors.surfaceHigh,
+                style: GoogleFonts.inter(color: AppColors.onSurface),
+                items: const [
+                  DropdownMenuItem(value: 'feminino', child: Text('🌸 Feminino')),
+                  DropdownMenuItem(value: 'masculino', child: Text('💪 Masculino')),
+                ],
+                onChanged: (v) => _genero = v ?? 'feminino',
+              ),
             ],
           ),
         ),
@@ -789,9 +1110,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       if (novaAltura != null && novaAltura != user.altura) {
         updates['altura'] = novaAltura;
       }
+      if (_genero != (user.genero ?? 'feminino')) {
+        updates['genero'] = _genero;
+      }
 
       if (updates.isNotEmpty) {
         await ref.read(userRepositoryProvider).updateUser(user.uid, updates);
+        // Força refresh para atualizar cores do tema
+        ref.invalidate(userProfileProvider(user.uid));
         if (mounted) {
           showAppNotification(context, 'Perfil atualizado!', type: NotificationType.success);
         }

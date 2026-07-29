@@ -25,9 +25,14 @@ class _ProgressSubmissionScreenState
   final _picker = ImagePicker();
   final _pesoController = TextEditingController();
   final _cinturaController = TextEditingController();
+  final _abdomenController = TextEditingController();
   final _quadrilController = TextEditingController();
-  final _bracoController = TextEditingController();
-  final _pernaController = TextEditingController();
+  final _bracoDController = TextEditingController();
+  final _bracoEController = TextEditingController();
+  final _coxaDController = TextEditingController();
+  final _coxaEController = TextEditingController();
+  final _peitoController = TextEditingController();
+  final _gorduraController = TextEditingController();
   final List<Uint8List> _photos = [];
   int _currentStep = 0;
   bool _saving = false;
@@ -36,9 +41,14 @@ class _ProgressSubmissionScreenState
   void dispose() {
     _pesoController.dispose();
     _cinturaController.dispose();
+    _abdomenController.dispose();
     _quadrilController.dispose();
-    _bracoController.dispose();
-    _pernaController.dispose();
+    _bracoDController.dispose();
+    _bracoEController.dispose();
+    _coxaDController.dispose();
+    _coxaEController.dispose();
+    _peitoController.dispose();
+    _gorduraController.dispose();
     super.dispose();
   }
 
@@ -257,56 +267,52 @@ class _ProgressSubmissionScreenState
           ),
         ),
         const SizedBox(height: 12),
-        Text(
-          'Medidas corporais (opcional)',
-          style:
-              GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary),
-        ),
+        Text('Medidas corporais (opcional)',
+            style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary)),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: _medidaField(_cinturaController, 'Cintura')),
+          const SizedBox(width: 8),
+          Expanded(child: _medidaField(_abdomenController, 'Abdómen')),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: _medidaField(_quadrilController, 'Quadril')),
+          const SizedBox(width: 8),
+          Expanded(child: _medidaField(_peitoController, 'Peito')),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: _medidaField(_bracoDController, 'Braço D')),
+          const SizedBox(width: 8),
+          Expanded(child: _medidaField(_bracoEController, 'Braço E')),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: _medidaField(_coxaDController, 'Coxa D')),
+          const SizedBox(width: 8),
+          Expanded(child: _medidaField(_coxaEController, 'Coxa E')),
+        ]),
         const SizedBox(height: 8),
         TextField(
-          controller: _cinturaController,
-          keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
+          controller: _gorduraController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
           style: GoogleFonts.inter(color: AppColors.onSurface),
           decoration: const InputDecoration(
-            labelText: 'Cintura',
-            suffixText: 'cm',
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _quadrilController,
-          keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
-          style: GoogleFonts.inter(color: AppColors.onSurface),
-          decoration: const InputDecoration(
-            labelText: 'Quadril',
-            suffixText: 'cm',
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _bracoController,
-          keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
-          style: GoogleFonts.inter(color: AppColors.onSurface),
-          decoration: const InputDecoration(
-            labelText: 'Braço',
-            suffixText: 'cm',
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _pernaController,
-          keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
-          style: GoogleFonts.inter(color: AppColors.onSurface),
-          decoration: const InputDecoration(
-            labelText: 'Perna',
-            suffixText: 'cm',
+            labelText: '% Gordura Corporal',
+            suffixText: '%',
           ),
         ),
       ],
+    );
+  }
+
+  Widget _medidaField(TextEditingController ctrl, String label) {
+    return TextField(
+      controller: ctrl,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      style: GoogleFonts.inter(color: AppColors.onSurface),
+      decoration: InputDecoration(labelText: label, suffixText: 'cm'),
     );
   }
 
@@ -315,9 +321,14 @@ class _ProgressSubmissionScreenState
         ? '${_pesoController.text} kg'
         : 'Não definido';
     final temMedidas = _cinturaController.text.isNotEmpty ||
+        _abdomenController.text.isNotEmpty ||
         _quadrilController.text.isNotEmpty ||
-        _bracoController.text.isNotEmpty ||
-        _pernaController.text.isNotEmpty;
+        _peitoController.text.isNotEmpty ||
+        _bracoDController.text.isNotEmpty ||
+        _bracoEController.text.isNotEmpty ||
+        _coxaDController.text.isNotEmpty ||
+        _coxaEController.text.isNotEmpty ||
+        _gorduraController.text.isNotEmpty;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -353,12 +364,22 @@ class _ProgressSubmissionScreenState
                     GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary)),
             if (_cinturaController.text.isNotEmpty)
               _confirmRow('  Cintura', '${_cinturaController.text} cm'),
+            if (_abdomenController.text.isNotEmpty)
+              _confirmRow('  Abdómen', '${_abdomenController.text} cm'),
             if (_quadrilController.text.isNotEmpty)
               _confirmRow('  Quadril', '${_quadrilController.text} cm'),
-            if (_bracoController.text.isNotEmpty)
-              _confirmRow('  Braço', '${_bracoController.text} cm'),
-            if (_pernaController.text.isNotEmpty)
-              _confirmRow('  Perna', '${_pernaController.text} cm'),
+            if (_peitoController.text.isNotEmpty)
+              _confirmRow('  Peito', '${_peitoController.text} cm'),
+            if (_bracoDController.text.isNotEmpty)
+              _confirmRow('  Braço D', '${_bracoDController.text} cm'),
+            if (_bracoEController.text.isNotEmpty)
+              _confirmRow('  Braço E', '${_bracoEController.text} cm'),
+            if (_coxaDController.text.isNotEmpty)
+              _confirmRow('  Coxa D', '${_coxaDController.text} cm'),
+            if (_coxaEController.text.isNotEmpty)
+              _confirmRow('  Coxa E', '${_coxaEController.text} cm'),
+            if (_gorduraController.text.isNotEmpty)
+              _confirmRow('  % Gordura', '${_gorduraController.text}%'),
           ],
           if (_saving) ...[
             const SizedBox(height: 16),
@@ -489,18 +510,19 @@ class _ProgressSubmissionScreenState
 
       // Construir medidas
       final medidas = <String, double>{};
-      final cintura =
-          double.tryParse(_cinturaController.text.replaceAll(',', '.'));
-      if (cintura != null) medidas['cintura'] = cintura;
-      final quadril =
-          double.tryParse(_quadrilController.text.replaceAll(',', '.'));
-      if (quadril != null) medidas['quadril'] = quadril;
-      final braco =
-          double.tryParse(_bracoController.text.replaceAll(',', '.'));
-      if (braco != null) medidas['braco'] = braco;
-      final perna =
-          double.tryParse(_pernaController.text.replaceAll(',', '.'));
-      if (perna != null) medidas['perna'] = perna;
+      void addMedida(String key, TextEditingController ctrl) {
+        final v = double.tryParse(ctrl.text.replaceAll(',', '.'));
+        if (v != null) medidas[key] = v;
+      }
+      addMedida('cintura', _cinturaController);
+      addMedida('abdomen', _abdomenController);
+      addMedida('quadril', _quadrilController);
+      addMedida('peito', _peitoController);
+      addMedida('bracoD', _bracoDController);
+      addMedida('bracoE', _bracoEController);
+      addMedida('coxaD', _coxaDController);
+      addMedida('coxaE', _coxaEController);
+      addMedida('gordura', _gorduraController);
 
       // Peso
       final peso =

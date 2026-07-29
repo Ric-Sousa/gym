@@ -177,6 +177,7 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
     final carga = TextEditingController();
     final descanso = TextEditingController(text: '60');
     final obs = TextEditingController();
+    String selectedCategoria = 'musculação';
 
     final result = await showDialog<Exercise>(
       context: context,
@@ -195,6 +196,23 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
               ]),
               TextField(controller: carga, keyboardType: TextInputType.number, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Carga (kg)')),
               TextField(controller: descanso, keyboardType: TextInputType.number, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Descanso (s)')),
+              DropdownButtonFormField<String>(
+                value: selectedCategoria,
+                dropdownColor: AdminThemeColors.of(context).surface,
+                style: GoogleFonts.inter(color: AdminThemeColors.of(context).text, fontSize: 14),
+                decoration: InputDecoration(
+                  labelText: 'Categoria',
+                  labelStyle: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
+                  filled: true,
+                  fillColor: AdminThemeColors.of(context).bg,
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'musculação', child: Text('Musculação')),
+                  DropdownMenuItem(value: 'funcional', child: Text('Funcional')),
+                  DropdownMenuItem(value: 'cardio', child: Text('Cardio')),
+                ],
+                onChanged: (v) => selectedCategoria = v ?? 'musculação',
+              ),
               TextField(controller: obs, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Observações')),
             ],
           ),
@@ -211,6 +229,7 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                 cargaSugerida: double.tryParse(carga.text.replaceAll(',', '.')),
                 descanso: int.tryParse(descanso.text) ?? 60,
                 observacoes: obs.text.isNotEmpty ? obs.text.trim() : null,
+                categoria: selectedCategoria,
               ));
             },
             style: ElevatedButton.styleFrom(backgroundColor: AdminThemeColors.of(context).lime, foregroundColor: AdminThemeColors.of(context).bg),

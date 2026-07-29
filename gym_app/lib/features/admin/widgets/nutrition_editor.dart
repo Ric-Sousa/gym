@@ -80,6 +80,9 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
             ],
           ),
           const SizedBox(height: 16),
+          // ── Suplementos ───────────────────────────────
+          _buildSuplementosEditor(plan),
+          const SizedBox(height: 16),
           ...plan.refeicoes.map((meal) => Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 decoration: BoxDecoration(
@@ -147,6 +150,98 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
     );
   }
 
+  Widget _buildSuplementosEditor(NutritionPlanModel plan) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AdminThemeColors.of(context).surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AdminThemeColors.of(context).border),
+        boxShadow: [
+          BoxShadow(
+            color: AdminThemeColors.of(context).shadow,
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AdminThemeColors.of(context).limeDim,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.medication, color: AdminThemeColors.of(context).purple, size: 16),
+              ),
+              const SizedBox(width: 10),
+              Text('SUPLEMENTOS',
+                  style: GoogleFonts.barlowCondensed(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AdminThemeColors.of(context).text)),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: () => _addSuplemento(plan),
+                icon: Icon(Icons.add, size: 14, color: AdminThemeColors.of(context).lime),
+                label: Text('Adicionar', style: GoogleFonts.inter(fontSize: 12, color: AdminThemeColors.of(context).lime)),
+              ),
+            ],
+          ),
+          if (plan.suplementos.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text('Nenhum suplemento adicionado.',
+                  style: GoogleFonts.inter(fontSize: 12, color: AdminThemeColors.of(context).muted)),
+            )
+          else
+            ...plan.suplementos.asMap().entries.map((entry) {
+              final s = entry.value;
+              final idx = entry.key;
+              return Container(
+                margin: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AdminThemeColors.of(context).bg,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AdminThemeColors.of(context).border),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(s.nome,
+                              style: GoogleFonts.inter(
+                                  fontWeight: FontWeight.w600,
+                                  color: AdminThemeColors.of(context).text,
+                                  fontSize: 13)),
+                          Text('${s.dosagem} • ${s.horario}',
+                              style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  color: AdminThemeColors.of(context).muted)),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.delete_outline,
+                          size: 16, color: AdminThemeColors.of(context).muted),
+                      onPressed: () => _removeSuplemento(plan, idx),
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
   /// Guarda os mesmos dados em todos os 7 dias da semana.
   Future<void> _saveToAllDays(Map<String, dynamic> data) async {
     for (final dia in AppStrings.daysOfWeek) {
@@ -156,7 +251,58 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
   }
 
   Future<void> _createEmptyPlan() async {
-    await _saveToAllDays({'metaCalorias': 2000, 'refeicoes': []});
+    await _saveToAllDays({'metaCalorias': 2000, 'refeicoes': [], 'suplementos': []});
+  }
+
+  Future<void> _addSuplemento(NutritionPlanModel plan) async {
+    final nome = TextEditingController();
+    final dosagem = TextEditingController();
+    String horario = 'qualquer';
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: AdminThemeColors.of(context).surface,
+          title: Text('Adicionar suplemento', style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: nome, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Nome')),
+              const SizedBox(height: 8),
+              TextField(controller: dosagem, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Dosagem', hintText: '1 scoop (30g)')),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: horario,
+                decoration: const InputDecoration(labelText: 'Horário'),
+                items: ['pré-treino', 'pós-treino', 'manhã', 'noite', 'qualquer']
+                    .map((h) => DropdownMenuItem(value: h, child: Text(h)))
+                    .toList(),
+                onChanged: (v) => setDialogState(() => horario = v!),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.cancel, style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted))),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, {'nome': nome.text.trim(), 'dosagem': dosagem.text.trim(), 'horario': horario}),
+              style: ElevatedButton.styleFrom(backgroundColor: AdminThemeColors.of(context).lime, foregroundColor: AdminThemeColors.of(context).bg),
+              child: Text(AppStrings.save, style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result != null && result['nome']!.isNotEmpty) {
+      final suplementos = plan.suplementos.map((s) => s.toMap()).toList();
+      suplementos.add({'nome': result['nome'], 'dosagem': result['dosagem'], 'horario': result['horario']});
+      await _saveToAllDays({'suplementos': suplementos});
+    }
+  }
+
+  Future<void> _removeSuplemento(NutritionPlanModel plan, int index) async {
+    final suplementos = plan.suplementos.map((s) => s.toMap()).toList();
+    suplementos.removeAt(index);
+    await _saveToAllDays({'suplementos': suplementos});
   }
 
   Future<void> _editMetaCalorias(NutritionPlanModel plan) async {

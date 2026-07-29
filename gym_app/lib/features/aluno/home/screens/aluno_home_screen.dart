@@ -10,6 +10,8 @@ import '../../../../data/models/workout_plan_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/star_rating.dart';
+import '../../../aluno/agenda/screens/calendar_screen.dart';
+import '../../../../data/models/booking_model.dart';
 import '../../../../shared/widgets/offline_banner.dart';
 import '../../../../shared/widgets/app_notification.dart';
 
@@ -226,6 +228,9 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
             _buildNutritionBrief(diary),
             const SizedBox(height: 20),
 
+            // ── Próximas Aulas ──────────────────────────
+            _buildUpcomingSessions(userId),
+            const SizedBox(height: 20),
             // ── Rating + Workout done ────────────────────────
             _buildBottomSection(userId, diary),
             const SizedBox(height: 40),
@@ -1089,6 +1094,116 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
         ),
         child: child,
       ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // UPCOMING SESSIONS
+  // ═══════════════════════════════════════════════════════════════
+
+  Widget _buildUpcomingSessions(String userId) {
+    final bookingsAsync = ref.watch(
+      StreamProvider<List<BookingModel>>((ref) {
+        if (userId.isEmpty) return Stream.value([]);
+        return ref.read(bookingRepositoryProvider).watchStudentBookings(userId);
+      }),
+    );
+
+    return bookingsAsync.when(
+      data: (bookings) {
+        final upcoming = bookings
+            .where((b) => b.isConfirmed || b.isPending)
+            .where((b) => b.data.isAfter(DateTime.now()))
+            .toList()
+          ..sort((a, b) => a.data.compareTo(b.data));
+
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceHigh.withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.calendar_today, color: AppColors.primaryFixed, size: 18),
+                    const SizedBox(width: 8),
+                    Text('Próximas Aulas',
+                        style: GoogleFonts.montserrat(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CalendarScreen())),
+                      child: Text('Ver agenda', style: GoogleFonts.inter(fontSize: 12, color: AppColors.primaryFixed)),
+                    ),
+                  ],
+                ),
+                if (upcoming.isEmpty) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(Icons.event_busy, size: 20, color: AppColors.onSurfaceVariant.withValues(alpha: 0.4)),
+                      const SizedBox(width: 8),
+                      Text('Nenhuma aula marcada', style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant)),
+                    ],
+                  ),
+                ] else ...[
+                  const SizedBox(height: 8),
+                  ...upcoming.take(3).map((b) => Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 50,
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              decoration: BoxDecoration(
+                                color: b.isConfirmed
+                                    ? AppColors.primary.withValues(alpha: 0.12)
+                                    : AppColors.calories.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                children: [
+                                  Text(b.horaFormatada,
+                                      style: GoogleFonts.montserrat(
+                                          fontWeight: FontWeight.w700, fontSize: 13,
+                                          color: b.isConfirmed ? AppColors.primary : AppColors.calories)),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    b.tipo == 'online' ? '💻 Online' : '🏋️ Presencial',
+                                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
+                                  ),
+                                  Text(
+                                    DateFormat('EEE, d MMM', 'pt').format(b.data),
+                                    style: GoogleFonts.inter(fontSize: 11, color: AppColors.onSurfaceVariant),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text('${b.duracaoMinutos}min',
+                                style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary)),
+                          ],
+                        ),
+                      )),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 

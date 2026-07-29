@@ -6,6 +6,7 @@ import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/app_constants.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../data/models/nutrition_plan_model.dart';
+import '../../../../data/models/diary_model.dart';
 import '../../../../data/models/food_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
@@ -38,6 +39,12 @@ final todayCompletedMealTypesProvider =
       .read(diaryRepositoryProvider)
       .diaryEntryStream(userId, today)
       .map((diary) => diary?.refeicoes.map((r) => r.tipo).toSet() ?? {});
+});
+
+final todayDiaryProvider =
+    StreamProvider.family<DiaryModel?, String>((ref, userId) {
+  final today = DateFormat(AppConstants.dateFormat).format(DateTime.now());
+  return ref.read(diaryRepositoryProvider).diaryEntryStream(userId, today);
 });
 
 final foodSearchProvider =
@@ -370,6 +377,18 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
           children: [
             _buildCaloriesBar(plan, consumedCalories, diaSemana: diaSemana),
             const SizedBox(height: 16),
+            // ── Água (só hoje) ────────────────────────
+            if (isToday) ...[_buildWaterTracker(plan.userId), const SizedBox(height: 16)],
+            // ── Suplementos ──────────────────────────────
+            if (plan.suplementos.isNotEmpty) ...[
+              _buildSuplementosCard(plan),
+              const SizedBox(height: 16),
+            ],
+            // ── Diário de hoje ──────────────────────────
+            if (isToday) ...[
+              _buildDiaryView(plan.userId),
+              const SizedBox(height: 16),
+            ],
             Text(
               'Refeições do dia',
               style: GoogleFonts.montserrat(
@@ -1141,6 +1160,305 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
         showAppNotification(context, AppStrings.networkError, type: NotificationType.error);
       }
     }
+  }
+
+  // ───────────────────── ÁGUA ─────────────────────
+
+  Widget _buildWaterTracker(String userId) {
+    final diaryAsync = ref.watch(todayDiaryProvider(userId));
+    final agua = diaryAsync.value?.agua ?? 0;
+    final meta = AppConstants.dailyWaterGoalMl;
+    final progress = meta > 0 ? (agua / meta).clamp(0.0, 1.0) : 0.0;
+    final copos = agua ~/ AppConstants.waterIncrementMl;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLow,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.water.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.waterLight,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: const Icon(Icons.water_drop, color: AppColors.water, size: 16),
+              ),
+              const SizedBox(width: 8),
+              Text('Água',
+                  style: GoogleFonts.montserrat(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: AppColors.onSurface,
+                  )),
+              const Spacer(),
+              Text('$agua / $meta ml',
+                  style: GoogleFonts.montserrat(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: AppColors.water,
+                  )),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress,
+              backgroundColor: AppColors.outline,
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.water),
+              minHeight: 8,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _waterCup(copos >= 1),
+              _waterCup(copos >= 2),
+              _waterCup(copos >= 3),
+              _waterCup(copos >= 4),
+              _waterCup(copos >= 5),
+              _waterCup(copos >= 6),
+              _waterCup(copos >= 7),
+              _waterCup(copos >= 8),
+              _waterCup(copos >= 9),
+              _waterCup(copos >= 10),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _addWater(userId),
+              icon: const Icon(Icons.add, size: 16),
+              label: Text('+${AppConstants.waterIncrementMl} ml',
+                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.water,
+                foregroundColor: AppColors.textOnPrimary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _waterCup(bool filled) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Icon(
+        filled ? Icons.water_drop : Icons.water_drop_outlined,
+        size: 14,
+        color: filled ? AppColors.water : AppColors.outlineVariant,
+      ),
+    );
+  }
+
+  Future<void> _addWater(String userId) async {
+    final today = DateFormat(AppConstants.dateFormat).format(DateTime.now());
+    try {
+      await ref.read(diaryRepositoryProvider).ensureDiaryExists(userId, today);
+      await ref
+          .read(diaryRepositoryProvider)
+          .addWater(userId, today, AppConstants.waterIncrementMl);
+    } catch (_) {
+      if (mounted) {
+        showAppNotification(context, 'Erro ao adicionar água',
+            type: NotificationType.error);
+      }
+    }
+  }
+
+  // ───────────────────── SUPLEMENTOS ─────────────────────
+
+  Widget _buildSuplementosCard(NutritionPlanModel plan) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLow,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.protein.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.protein.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: const Icon(Icons.medication, color: AppColors.protein, size: 16),
+              ),
+              const SizedBox(width: 8),
+              Text('Suplementos',
+                  style: GoogleFonts.montserrat(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: AppColors.onSurface,
+                  )),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...plan.suplementos.map((s) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: AppColors.protein,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(s.nome,
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                                color: AppColors.onSurface,
+                              )),
+                          Text(s.dosagem,
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              )),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceHigh,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(s.horario,
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            color: AppColors.textSecondary,
+                          )),
+                    ),
+                  ],
+                ),
+              )),
+        ],
+      ),
+    );
+  }
+
+  // ───────────────────── DIÁRIO DE HOJE ─────────────────────
+
+  Widget _buildDiaryView(String userId) {
+    final diaryAsync = ref.watch(todayDiaryProvider(userId));
+    final meals = diaryAsync.value?.refeicoes ?? [];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLow,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: const Icon(Icons.check_circle, color: AppColors.success, size: 16),
+              ),
+              const SizedBox(width: 8),
+              Text('Comeste hoje',
+                  style: GoogleFonts.montserrat(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: AppColors.onSurface,
+                  )),
+              const Spacer(),
+              Text('${diaryAsync.value?.totalCalorias.toStringAsFixed(0) ?? 0} kcal',
+                  style: GoogleFonts.montserrat(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: AppColors.success,
+                  )),
+            ],
+          ),
+          if (meals.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Text('Nenhuma refeição registada ainda.',
+                  style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary)),
+            )
+          else
+            ...meals.map((meal) => Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceHigh,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.success.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(meal.tipo,
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.success,
+                              )),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            meal.alimentos.join(', '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(
+                                fontSize: 12, color: AppColors.onSurface),
+                          ),
+                        ),
+                        Text('${meal.calorias.toStringAsFixed(0)} kcal',
+                            style: GoogleFonts.montserrat(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
+                            )),
+                      ],
+                    ),
+                  ),
+                )),
+        ],
+      ),
+    );
   }
 
   void _showFoodSearch({

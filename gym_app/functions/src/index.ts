@@ -1,7 +1,7 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
-import { onDocumentCreated } from 'firebase-functions/v2/firestore';
-
+import Stripe from 'stripe';
+import PDFDocument from 'pdfkit';
 
 admin.initializeApp();
 
@@ -9,529 +9,396 @@ const db = admin.firestore();
 const auth = admin.auth();
 const messaging = admin.messaging();
 
-// ────────────────────────────────────────────────
-// CRIAÇÃO DE UTILIZADOR
-// ────────────────────────────────────────────────
+// ═══ Stripe ═══
+const stripeConfig = functions.config().stripe;
+const stripeSecret: string | undefined = stripeConfig?.secret_key;
+const stripeWebhookSecret: string = stripeConfig?.webhook_secret || '';
 
-/**
- * Cria automaticamente o documento do utilizador no Firestore
- * quando uma nova conta Firebase Auth é criada.
- * Por defeito todos os novos utilizadores são 'aluno'.
- * Para criar um admin, define role: 'admin' manualmente no Firestore.
- */
+if (!stripeSecret) {
+  console.warn('⚠️  Stripe secret_key não definida.');
+}
+
+const stripe = stripeSecret
+  ? new Stripe(stripeSecret, { apiVersion: '2025-06-30.acacia' as any })
+  : null;
+
+// ──────────── AUTH ────────────
+
 export const onUserCreated = functions.auth.user().onCreate(async (user) => {
-  const userDoc = {
+  await db.collection('users').doc(user.uid).set({
     nome: user.displayName ?? user.email?.split('@')[0] ?? 'Novo Aluno',
     email: user.email ?? '',
     role: 'aluno',
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-  };
-
-  await db.collection('users').doc(user.uid).set(userDoc);
-  console.log(`User document created for ${user.uid} with role: aluno`);
+  });
+  console.log(`User doc created for ${user.uid}`);
 });
 
-// ────────────────────────────────────────────────
-// CALLABLE: Criar aluno (admin)
-// ────────────────────────────────────────────────
+// ──────────── CALLABLES ────────────
 
-interface CreateStudentResult {
-  uid: string;
-  email: string;
-  temporaryPassword?: string;
-}
+export const createStudent = functions.region('europe-west1').https.onCall(async (request) => {
+  if (!request.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+  const callerDoc = await db.collection('users').doc(request.auth.uid).get();
+  if (callerDoc.data()?.role !== 'admin') throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
 
-/**
- * Callable function que permite ao admin criar um novo aluno.
- * Cria a conta Firebase Auth + documento Firestore.
- * O admin que invoca deve estar autenticado e ter role='admin'.
- */
-export const createStudent = functions.region('europe-west1').https.onCall(
-  async (request): Promise<CreateStudentResult> => {
-    // Verifica autenticação
-    if (!request.auth) {
-      throw new functions.https.HttpsError(
-        'unauthenticated',
-        'Tens de iniciar sessão para criar alunos.'
-      );
+  const { nome, email, personalId, genero } = request.data;
+  if (!nome || !email) throw new functions.https.HttpsError('invalid-argument', 'Nome e email obrigatórios.');
+
+  try {
+    const existingUser = await auth.getUserByEmail(email);
+    if (existingUser) {
+      await db.collection('users').doc(existingUser.uid).set({
+        nome, email, role: 'aluno',
+        ...(personalId ? { personalId } : {}),
+        ...(genero ? { genero } : {}),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return { uid: existingUser.uid, email };
     }
+  } catch (_) { /* não existe */ }
 
-    // Verifica se quem chama é admin
-    const callerDoc = await db.collection('users').doc(request.auth.uid).get();
-    const callerRole = callerDoc.data()?.role;
-    if (callerRole !== 'admin') {
-      throw new functions.https.HttpsError(
-        'permission-denied',
-        'Apenas administradores podem criar alunos.'
-      );
-    }
+  const temporaryPassword = Math.random().toString(36).slice(-10) + 'A1!';
+  const userRecord = await auth.createUser({ email, password: temporaryPassword, displayName: nome });
+  await db.collection('users').doc(userRecord.uid).set({
+    nome, email, role: 'aluno',
+    personalId: personalId || null,
+    genero: genero || 'feminino',
+    pesoAtual: null, altura: null,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return { uid: userRecord.uid, email, temporaryPassword };
+});
 
-    const { nome, email, personalId } = request.data;
+export const seedFoods = functions.region('europe-west1').https.onCall(async (request) => {
+  if (!request.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+  const callerDoc = await db.collection('users').doc(request.auth.uid).get();
+  if (callerDoc.data()?.role !== 'admin') throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
 
-    if (!nome || !email) {
-      throw new functions.https.HttpsError(
-        'invalid-argument',
-        'Nome e email são obrigatórios.'
-      );
-    }
+  const { alimentos } = request.data;
+  if (!alimentos || !Array.isArray(alimentos)) throw new functions.https.HttpsError('invalid-argument', 'Array obrigatório.');
 
-    const userData: Record<string, unknown> = {
-      nome: nome,
-      email: email,
-      role: 'aluno',
-    };
-    // Define o personal trainer associado (UID do admin que criou)
-    if (personalId) {
-      userData.personalId = personalId;
-    }
-    }
-
-    // Verifica se já existe
-    try {
-      const existingUser = await auth.getUserByEmail(email);
-      if (existingUser) {
-        // Já existe — apenas garante que o documento Firestore tem os dados
-        await db.collection('users').doc(existingUser.uid).set(
-          {
-            nome: nome,
-            email: email,
-            role: 'aluno',
-            ...(personalId ? { personalId } : {}),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
-        return {
-          uid: existingUser.uid,
-          email: email,
-        };
-      }
-    } catch (_) {
-      // Não existe — continua para criar
-    }
-
-    // Gera password aleatória
-    const temporaryPassword = Math.random().toString(36).slice(-10) + 'A1!';
-
-    // Cria utilizador Firebase Auth
-    const userRecord = await auth.createUser({
-      email: email,
-      password: temporaryPassword,
-      displayName: nome,
+  let added = 0, skipped = 0;
+  for (const a of alimentos) {
+    if (!a.nome) { skipped++; continue; }
+    const existing = await db.collection('alimentos').where('nome', '==', a.nome).limit(1).get();
+    if (!existing.empty) { skipped++; continue; }
+    await db.collection('alimentos').add({
+      nome: a.nome,
+      caloriasPor100g: a.caloriasPor100g ?? 0,
+      proteinasPor100g: a.proteinasPor100g ?? null,
+      hidratosPor100g: a.hidratosPor100g ?? null,
+      gordurasPor100g: a.gordurasPor100g ?? null,
+      categoria: a.categoria ?? null,
     });
-
-    // Cria documento Firestore
-    await db.collection('users').doc(userRecord.uid).set({
-      nome: nome,
-      email: email,
-      role: 'aluno',
-      personalId: personalId || null,
-      pesoAtual: null,
-      altura: null,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    console.log(
-      `Admin ${request.auth.uid} created student ${userRecord.uid} (${email})`
-    );
-
-    return {
-      uid: userRecord.uid,
-      email: email,
-      temporaryPassword: temporaryPassword,
-    };
+    added++;
   }
-);
+  return { added, skipped };
+});
 
-// ────────────────────────────────────────────────
-// CALLABLE: Seed de alimentos (admin)
-// ────────────────────────────────────────────────
+export const requestProgress = functions.region('europe-west1').https.onCall(async (request) => {
+  if (!request.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+  const callerDoc = await db.collection('users').doc(request.auth.uid).get();
+  if (callerDoc.data()?.role !== 'admin') throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
 
-interface SeedFoodsResult {
-  added: number;
-  skipped: number;
-}
+  const { userId } = request.data;
+  if (!userId) throw new functions.https.HttpsError('invalid-argument', 'userId obrigatório.');
 
-export const seedFoods = functions.region('europe-west1').https.onCall(
-  async (request): Promise<SeedFoodsResult> => {
-    // Verifica autenticação
-    if (!request.auth) {
-      throw new functions.https.HttpsError(
-        'unauthenticated',
-        'Tens de iniciar sessão.'
-      );
-    }
+  await db.collection('users').doc(userId).set({
+    hasPendingProgress: true,
+    progressRequestedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
 
-    // Verifica se quem chama é admin
-    const callerDoc = await db.collection('users').doc(request.auth.uid).get();
-    const callerRole = callerDoc.data()?.role;
-    if (callerRole !== 'admin') {
-      throw new functions.https.HttpsError(
-        'permission-denied',
-        'Apenas administradores podem gerir alimentos.'
-      );
-    }
-
-    const { alimentos } = request.data;
-
-    if (!alimentos || !Array.isArray(alimentos)) {
-      throw new functions.https.HttpsError(
-        'invalid-argument',
-        'Array de alimentos obrigatório.'
-      );
-    }
-
-    let added = 0;
-    let skipped = 0;
-
-    for (const alimento of alimentos) {
-      const nome = alimento.nome as string;
-      if (!nome) {
-        skipped++;
-        continue;
-      }
-
-      // Verifica duplicado
-      const existing = await db
-        .collection('alimentos')
-        .where('nome', '==', nome)
-        .limit(1)
-        .get();
-
-      if (!existing.empty) {
-        skipped++;
-        continue;
-      }
-
-      await db.collection('alimentos').add({
-        nome: nome,
-        caloriasPor100g: alimento.caloriasPor100g ?? 0,
-        proteinasPor100g: alimento.proteinasPor100g ?? null,
-        hidratosPor100g: alimento.hidratosPor100g ?? null,
-        gordurasPor100g: alimento.gordurasPor100g ?? null,
-        categoria: alimento.categoria ?? null,
-      });
-      added++;
-    }
-
-    console.log(`Seed complete: ${added} added, ${skipped} skipped`);
-    return { added, skipped };
-  }
-);
-
-// ────────────────────────────────────────────────
-// NOTIFICAÇÕES PUSH
-// ────────────────────────────────────────────────
-
-/**
- * Envia notificação quando uma nova mensagem de chat é criada.
- * Gatilho: documento criado em chat/{salaId}/mensagens/{msgId}
- * Usa Cloud Functions 2nd Gen para compatibilidade com Firestore eur3.
- */
-export const onNewChatMessage = onDocumentCreated(
-  { document: 'chat/{salaId}/mensagens/{msgId}', region: 'europe-west1' },
-  async (event) => {
-    const data = event.data?.data();
-    if (!data || !data.remetenteId) return;
-
-    const salaId = event.params.salaId;
-    const parts = salaId.split('_');
-    if (parts.length < 3) return;
-
-    const uid1 = parts[1];
-    const uid2 = parts[2];
-    const destinatarioId =
-      data.remetenteId === uid1 ? uid2 : uid1;
-
-    try {
-      const userDoc = await db.collection('users').doc(destinatarioId).get();
-      const fcmToken = userDoc.data()?.fcmToken;
-
-      if (!fcmToken) {
-        console.log(`No FCM token for user ${destinatarioId}`);
-        return;
-      }
-
-      const senderDoc = await db
-        .collection('users')
-        .doc(data.remetenteId)
-        .get();
-      const senderName = senderDoc.data()?.nome ?? 'Personal Trainer';
-
+  const adminName = callerDoc.data()?.nome ?? 'Personal Trainer';
+  try {
+    const userDoc = await db.collection('users').doc(userId).get();
+    const fcmToken = userDoc.data()?.fcmToken;
+    if (fcmToken) {
       await messaging.send({
         token: fcmToken,
         notification: {
-          title: senderName,
-          body: data.texto?.substring(0, 100) ?? 'Nova mensagem',
+          title: 'Avaliação de Progresso 📊',
+          body: `${adminName} pediu a tua avaliação mensal!`,
         },
-        data: {
-          type: 'chat',
-          salaId: salaId,
-        },
+        data: { type: 'progress_request', requestedBy: request.auth.uid },
       });
-
-      console.log(`Notification sent to ${destinatarioId}`);
-    } catch (error) {
-      console.error('Error sending notification:', error);
     }
-  }
-);
+  } catch (e) { console.error('FCM error:', e); }
 
-/**
- * Gatilho agendado: lembrete de água a cada 2 horas (8h-22h).
- */
+  return { success: true, message: 'Pedido de progresso enviado.' };
+});
+
+export const createCheckoutSession = functions.region('europe-west1').https.onCall(async (request) => {
+  if (!stripe) throw new functions.https.HttpsError('failed-precondition', 'Stripe não configurado.');
+  if (!request.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+  const callerDoc = await db.collection('users').doc(request.auth.uid).get();
+  if (callerDoc.data()?.role !== 'admin') throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
+
+  const { userId, valor, descricao } = request.data;
+  if (!userId || !valor || valor <= 0) throw new functions.https.HttpsError('invalid-argument', 'userId e valor obrigatórios.');
+
+  const paymentRef = await db.collection('pagamentos').add({
+    userId, valor, moeda: 'eur', status: 'pending',
+    descricao: descricao || 'Mensalidade',
+    data: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ['card'], mode: 'payment',
+    line_items: [{ price_data: { currency: 'eur', product_data: { name: descricao || 'Mensalidade GymBT' }, unit_amount: Math.round(valor * 100) }, quantity: 1 }],
+    metadata: { paymentId: paymentRef.id, userId },
+    success_url: 'https://gymbt-4ef87.web.app/perfil?pagamento=sucesso',
+    cancel_url: 'https://gymbt-4ef87.web.app/perfil?pagamento=cancelado',
+  });
+
+  await paymentRef.update({ stripeSessionId: session.id });
+  return { url: session.url!, paymentId: paymentRef.id };
+});
+
+// ──────────── FIRESTORE TRIGGERS ────────────
+
+// ═══ NOTIFICAÇÕES DE CHAT & BOOKING (callables v1 — compatível com eur3) ═══
+
+export const sendChatNotification = functions
+  .region('europe-west1')
+  .https.onCall(async (request) => {
+    if (!request.auth)
+      throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+
+    const { salaId, remetenteId, texto } = request.data;
+    if (!salaId || !remetenteId || !texto)
+      throw new functions.https.HttpsError('invalid-argument', 'salaId, remetenteId e texto obrigatórios.');
+
+    // Verifica que o remetente é o utilizador autenticado
+    if (remetenteId !== request.auth!.uid)
+      throw new functions.https.HttpsError('permission-denied', 'ID não corresponde.');
+
+    const parts = salaId.split('_');
+    if (parts.length < 3) return { ok: true };
+    const uid1 = parts[1], uid2 = parts[2];
+    const destinatarioId = remetenteId === uid1 ? uid2 : uid1;
+
+    const userDoc = await db.collection('users').doc(destinatarioId).get();
+    const fcmToken = userDoc.data()?.fcmToken;
+    if (!fcmToken) return { ok: true };
+
+    const senderDoc = await db.collection('users').doc(remetenteId).get();
+    await messaging.send({
+      token: fcmToken,
+      notification: {
+        title: senderDoc.data()?.nome ?? 'Personal Trainer',
+        body: texto.substring(0, 100),
+      },
+      data: { type: 'chat', salaId },
+    });
+    return { ok: true };
+  });
+
+export const notifyNewBooking = functions
+  .region('europe-west1')
+  .https.onCall(async (request) => {
+    if (!request.auth)
+      throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+
+    const { studentId, trainerId, bookingDate, tipo } = request.data;
+    if (!studentId || !trainerId || !bookingDate)
+      throw new functions.https.HttpsError('invalid-argument', 'studentId, trainerId e bookingDate obrigatórios.');
+
+    // Verifica que o aluno é o utilizador autenticado
+    if (studentId !== request.auth!.uid)
+      throw new functions.https.HttpsError('permission-denied', 'ID não corresponde.');
+
+    const trainerDoc = await db.collection('users').doc(trainerId).get();
+    const studentDoc = await db.collection('users').doc(studentId).get();
+
+    const fcmToken = trainerDoc.data()?.fcmToken;
+    if (!fcmToken) return { ok: true };
+
+    const date = new Date(bookingDate);
+    const timeStr = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    const dateStr = date.toLocaleDateString('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' });
+    const tipoLabel = tipo === 'online' ? '💻 Online' : '🏋️ Presencial';
+
+    await messaging.send({
+      token: fcmToken,
+      notification: {
+        title: 'Nova Aula Marcada 📅',
+        body: `${studentDoc.data()?.nome ?? 'Aluno'} marcou aula para ${dateStr} às ${timeStr} (${tipoLabel})`,
+      },
+      data: { type: 'new_booking', studentId },
+    });
+    return { ok: true };
+  });
+
+// ──────────── SCHEDULED ────────────
+
 export const sendWaterReminder = functions.pubsub
-  .schedule('every 2 hours from 08:00 to 22:00')
-  .timeZone('Europe/Lisbon')
-  .onRun(async (_context) => {
-    try {
-      const usersSnapshot = await db
-        .collection('users')
-        .where('role', '==', 'aluno')
-        .get();
-
-      const today = new Date().toISOString().split('T')[0];
-      const promises = usersSnapshot.docs.map(async (userDoc) => {
-        const fcmToken = userDoc.data().fcmToken;
-        if (!fcmToken) return;
-
-        const diaryDoc = await db
-          .collection('users')
-          .doc(userDoc.id)
-          .collection('diario')
-          .doc(today)
-          .get();
-
-        const agua = diaryDoc.data()?.agua ?? 0;
-        if (agua >= 2500) return;
-
-        await messaging.send({
-          token: fcmToken,
-          notification: {
-            title: 'Hora de beber água! 💧',
-            body: `Já bebeste ${agua}ml de ${2500}ml hoje. Continua!`,
-          },
-          data: {
-            type: 'water_reminder',
-          },
-        });
-      });
-
-      await Promise.all(promises);
-      console.log(`Water reminders sent`);
-    } catch (error) {
-      console.error('Error sending water reminders:', error);
-    }
-
+  .schedule('every 2 hours from 08:00 to 22:00').timeZone('Europe/Lisbon')
+  .onRun(async () => {
+    const usersSnapshot = await db.collection('users').where('role', '==', 'aluno').get();
+    const today = new Date().toISOString().split('T')[0];
+    const promises = usersSnapshot.docs.map(async (u) => {
+      const token = u.data().fcmToken;
+      if (!token) return;
+      const diary = await db.collection('users').doc(u.id).collection('diario').doc(today).get();
+      const agua = diary.data()?.agua ?? 0;
+      if (agua >= 2500) return;
+      await messaging.send({ token, notification: { title: 'Hora de beber água! 💧', body: `Já bebeste ${agua}ml de 2500ml. Continua!` }, data: { type: 'water_reminder' } });
+    });
+    await Promise.all(promises);
     return null;
   });
 
-// ────────────────────────────────────────────────
-// BACKUP DIÁRIO DO FIRESTORE
-// ────────────────────────────────────────────────
+export const sendWorkoutReminder = functions.pubsub
+  .schedule('every day 07:00').timeZone('Europe/Lisbon')
+  .onRun(async () => {
+    const usersSnapshot = await db.collection('users').where('role', '==', 'aluno').get();
+    const today = new Date().toISOString().split('T')[0];
+    const promises = usersSnapshot.docs.map(async (u) => {
+      const token = u.data().fcmToken;
+      if (!token) return;
+      const log = await db.collection('users').doc(u.id).collection('workoutLogs').doc(today).get();
+      if (log.exists) return;
+      const nome = u.data().nome ?? 'Aluno';
+      await messaging.send({ token, notification: { title: 'Bom dia! 🏋️ Hora de treinar!', body: `Vê o teu plano de hoje, ${nome.split(' ')[0]}!` }, data: { type: 'workout_reminder', screen: 'workout' } });
+    });
+    await Promise.all(promises);
+    return null;
+  });
+
+export const sendWeighInReminder = functions.pubsub
+  .schedule('every monday 09:00').timeZone('Europe/Lisbon')
+  .onRun(async () => {
+    const usersSnapshot = await db.collection('users').where('role', '==', 'aluno').get();
+    const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const promises = usersSnapshot.docs.map(async (u) => {
+      const token = u.data().fcmToken;
+      if (!token) return;
+      const recent = await db.collection('users').doc(u.id).collection('progresso')
+        .where('data', '>=', admin.firestore.Timestamp.fromDate(sevenDaysAgo)).limit(1).get();
+      if (!recent.empty) return;
+      const nome = u.data().nome ?? 'Aluno';
+      const peso = u.data().pesoAtual;
+      const pesoMsg = peso ? `Último peso: ${peso}kg. ` : '';
+      await messaging.send({ token, notification: { title: 'Hora de pesar! ⚖️', body: `${nome.split(' ')[0]}, ${pesoMsg}Regista o teu peso esta semana!` }, data: { type: 'weighin_reminder', screen: 'profile' } });
+    });
+    await Promise.all(promises);
+    return null;
+  });
+
+export const sendWeeklyCheckin = functions.pubsub
+  .schedule('every sunday 18:00').timeZone('Europe/Lisbon')
+  .onRun(async () => {
+    const usersSnapshot = await db.collection('users').where('role', '==', 'aluno').get();
+    const today = new Date();
+    const daysSinceMonday = today.getDay() === 0 ? 6 : today.getDay() - 1;
+    const weekStart = new Date(today); weekStart.setDate(today.getDate() - daysSinceMonday); weekStart.setHours(0, 0, 0, 0);
+    const promises = usersSnapshot.docs.map(async (u) => {
+      const token = u.data().fcmToken;
+      if (!token) return;
+      const logs = await db.collection('users').doc(u.id).collection('workoutLogs')
+        .where('data', '>=', admin.firestore.Timestamp.fromDate(weekStart)).get();
+      const treinos = logs.size;
+      const nome = u.data().nome ?? 'Aluno';
+      const msg = treinos > 0 ? `Fizeste ${treinos} treino(s) esta semana! 💪 Continua, ${nome.split(' ')[0]}!` : `Como foi a tua semana? Vamos retomar! 💪`;
+      await messaging.send({ token, notification: { title: 'Check-in Semanal 📊', body: msg }, data: { type: 'weekly_checkin', screen: 'home', treinosSemana: String(treinos) } });
+    });
+    await Promise.all(promises);
+    return null;
+  });
 
 export const dailyFirestoreBackup = functions.pubsub
-  .schedule('every day 03:00')
-  .timeZone('Europe/Lisbon')
-  .onRun(async (_context) => {
-    try {
-      const bucket = admin.storage().bucket();
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const fileName = `backups/firestore-${timestamp}.json`;
-
-      const collections = ['users', 'chat', 'alimentos', 'exercicios'];
-      const backup: Record<string, unknown> = {};
-
-      for (const col of collections) {
-        const snapshot = await db.collection(col).get();
-        backup[col] = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-      }
-
-      const file = bucket.file(fileName);
-      await file.save(JSON.stringify(backup, null, 2), {
-        contentType: 'application/json',
-      });
-
-      console.log(`Backup saved to ${fileName}`);
-    } catch (error) {
-      console.error('Error during backup:', error);
+  .schedule('every day 03:00').timeZone('Europe/Lisbon')
+  .onRun(async () => {
+    const bucket = admin.storage().bucket();
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const backup: Record<string, unknown> = {};
+    for (const col of ['users', 'chat', 'alimentos', 'exercicios']) {
+      const snap = await db.collection(col).get();
+      backup[col] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     }
-
+    await bucket.file(`backups/firestore-${timestamp}.json`).save(JSON.stringify(backup, null, 2), { contentType: 'application/json' });
     return null;
   });
-
-// ────────────────────────────────────────────────
-// LIMPEZA DE TOKENS FCM INVÁLIDOS
-// ────────────────────────────────────────────────
 
 export const cleanupInvalidFcmTokens = functions.pubsub
-  .schedule('every day 04:00')
-  .timeZone('Europe/Lisbon')
-  .onRun(async (_context) => {
-    try {
-      const usersSnapshot = await db.collection('users').get();
-      const batch = db.batch();
-      let cleanupCount = 0;
-
-      for (const userDoc of usersSnapshot.docs) {
-        const fcmToken = userDoc.data().fcmToken;
-        if (!fcmToken) continue;
-
-        try {
-          await messaging.send(
-            {
-              token: fcmToken,
-              data: { type: 'token_check' },
-            },
-            true // dryRun
-          );
-        } catch (error: any) {
-          if (error.code === 'messaging/registration-token-not-registered') {
-            batch.update(userDoc.ref, {
-              fcmToken: admin.firestore.FieldValue.delete(),
-            });
-            cleanupCount++;
-            console.log(`Removed invalid token for user ${userDoc.id}`);
-          }
-        }
+  .schedule('every day 04:00').timeZone('Europe/Lisbon')
+  .onRun(async () => {
+    const usersSnapshot = await db.collection('users').get();
+    const batch = db.batch(); let count = 0;
+    for (const u of usersSnapshot.docs) {
+      const token = u.data().fcmToken;
+      if (!token) continue;
+      try { await messaging.send({ token, data: { type: 'token_check' } }, true); } catch (e: any) {
+        if (e.code === 'messaging/registration-token-not-registered') { batch.update(u.ref, { fcmToken: admin.firestore.FieldValue.delete() }); count++; }
       }
-
-      if (cleanupCount > 0) {
-        await batch.commit();
-      }
-      console.log(`Cleaned up ${cleanupCount} invalid FCM tokens`);
-    } catch (error) {
-      console.error('Error cleaning up FCM tokens:', error);
     }
-
+    if (count > 0) await batch.commit();
     return null;
   });
 
-// ────────────────────────────────────────────────
-// PEDIDO DE PROGRESSO (Admin → Aluno)
-// ────────────────────────────────────────────────
+// ──────────── STRIPE WEBHOOK ────────────
 
-/**
- * HTTP function (onRequest) que permite ao admin solicitar progresso.
- * Usa onRequest em vez de onCall para controlo total de CORS e auth —
- * essencial para compatibilidade com Flutter web.
- */
-export const requestProgress = functions
-  .region('europe-west1')
-  .https.onRequest(async (req, res) => {
-    // ── CORS ──
-    res.set('Access-Control-Allow-Origin', '*');
+const stripeApp = require('express')();
+stripeApp.use(require('express').raw({ type: 'application/json' }));
+stripeApp.post('/', async (req: any, res: any) => {
+  if (!stripe) { res.status(500).json({ error: 'Stripe não configurado.' }); return; }
+  const sig = req.headers['stripe-signature'];
+  if (!sig) { res.status(400).json({ error: 'Missing signature.' }); return; }
 
-    if (req.method === 'OPTIONS') {
-      res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-      res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-      res.set('Access-Control-Max-Age', '3600');
-      res.status(204).send('');
-      return;
-    }
+  let event: Stripe.Event;
+  try { event = stripe.webhooks.constructEvent(req.body, sig, stripeWebhookSecret); } catch (e: any) {
+    res.status(400).json({ error: `Webhook Error: ${e.message}` }); return;
+  }
 
-    if (req.method !== 'POST') {
-      res.status(405).json({ error: 'Método não permitido.' });
-      return;
-    }
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as Stripe.Checkout.Session;
+    const { paymentId, userId } = session.metadata || {};
+    if (!paymentId) { res.status(400).json({ error: 'Missing paymentId' }); return; }
+    await db.collection('pagamentos').doc(paymentId).update({
+      status: 'paid',
+      stripePaymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id,
+      paidAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    if (userId) await generateInvoicePdf(paymentId, userId);
+  }
+  res.status(200).json({ received: true });
+});
 
-    try {
-      // ═══ 1. Autenticação via Authorization header ═══
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        res.status(401).json({ error: 'Token de autenticação em falta.' });
-        return;
-      }
+export const stripeWebhook = functions.region('europe-west1').https.onRequest(stripeApp);
 
-      const idToken = authHeader.split('Bearer ')[1];
-      let decoded: admin.auth.DecodedIdToken;
-      try {
-        decoded = await auth.verifyIdToken(idToken);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error('verifyIdToken failed:', msg);
-        res.status(401).json({ error: 'Token inválido ou expirado.' });
-        return;
-      }
+// ──────────── HELPERS ────────────
 
-      const callerUid = decoded.uid;
-      console.log('Authenticated callerUid:', callerUid);
+async function generateInvoicePdf(paymentId: string, userId: string): Promise<void> {
+  const [paymentDoc, userDoc] = await Promise.all([db.collection('pagamentos').doc(paymentId).get(), db.collection('users').doc(userId).get()]);
+  const payment = paymentDoc.data(), user = userDoc.data();
+  if (!payment || !user) return;
 
-      // ═══ 2. Autorização (apenas admin) ═══
-      const callerDoc = await db.collection('users').doc(callerUid).get();
-      const callerData = callerDoc.data();
-      const callerRole = callerData?.role;
-      const adminName = callerData?.nome ?? 'Personal Trainer';
+  const valor = payment.valor || 0, descricao = payment.descricao || 'Mensalidade';
+  const date = payment.paidAt ? (payment.paidAt as admin.firestore.Timestamp).toDate() : new Date();
+  const nome = user.nome || 'Aluno', email = user.email || '';
 
-      console.log('callerRole:', callerRole);
+  const chunks: Buffer[] = [];
+  const doc = new PDFDocument({ size: 'A4', margin: 50 });
+  doc.on('data', (c: Buffer) => chunks.push(c));
+  const pdfPromise = new Promise<Buffer>(r => doc.on('end', () => r(Buffer.concat(chunks))));
 
-      if (callerRole !== 'admin') {
-        res
-          .status(403)
-          .json({ error: 'Apenas administradores podem solicitar progresso.' });
-        return;
-      }
+  doc.fontSize(28).font('Helvetica-Bold').text('GymBT', { align: 'center' }).moveDown(0.3);
+  doc.fontSize(14).font('Helvetica').text('FATURA / RECIBO', { align: 'center' }).moveDown(1);
+  doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#B20C7E').lineWidth(2).stroke().moveDown(1);
+  doc.fontSize(12).font('Helvetica-Bold').text('Dados do Aluno').moveDown(0.3);
+  doc.font('Helvetica').fontSize(11).text(`Nome: ${nome}`).text(`Email: ${email}`).text(`Data: ${date.toLocaleDateString('pt-PT')}`).moveDown(1);
+  doc.fontSize(12).font('Helvetica-Bold').text('Detalhes do Pagamento').moveDown(0.3);
+  doc.font('Helvetica').fontSize(11).text(`Descrição: ${descricao}`).text(`Valor: ${valor.toFixed(2)} EUR`).text('Estado: PAGO').text(`Ref.ª: ${paymentId}`).moveDown(1);
+  doc.moveTo(50, doc.y).lineTo(545, doc.y).strokeColor('#CCCCCC').lineWidth(1).stroke().moveDown(0.5);
+  doc.fontSize(16).font('Helvetica-Bold').text(`TOTAL: ${valor.toFixed(2)} EUR`, { align: 'right' }).moveDown(2);
+  doc.fontSize(9).font('Helvetica').fillColor('#888888').text('GymBT — A tua app de fitness', { align: 'center' }).text('Documento gerado automaticamente', { align: 'center' });
+  doc.end();
 
-      // ═══ 3. Validar dados ═══
-      const { userId } = req.body as { userId?: string };
-      if (!userId) {
-        res.status(400).json({ error: 'ID do aluno é obrigatório.' });
-        return;
-      }
-
-      console.log('Marking hasPendingProgress for userId:', userId);
-
-      // ═══ 4. Marcar progresso pendente ═══
-      await db
-        .collection('users')
-        .doc(userId)
-        .set(
-          {
-            hasPendingProgress: true,
-            progressRequestedAt:
-              admin.firestore.FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
-      console.log('hasPendingProgress set on user', userId);
-
-      // ═══ 5. Enviar notificação push (best-effort) ═══
-      try {
-        const userDoc = await db.collection('users').doc(userId).get();
-        const fcmToken = userDoc.data()?.fcmToken;
-
-        if (fcmToken) {
-          await messaging.send({
-            token: fcmToken,
-            notification: {
-              title: 'Avaliação de Progresso 📊',
-              body: `${adminName} pediu a tua avaliação mensal. Envia as tuas fotos e peso!`,
-            },
-            data: {
-              type: 'progress_request',
-              requestedBy: callerUid,
-            },
-          });
-          console.log(`Notification sent to ${userId}`);
-        } else {
-          console.log('No FCM token for user', userId);
-        }
-      } catch (notifErr: unknown) {
-        const msg =
-          notifErr instanceof Error ? notifErr.message : String(notifErr);
-        console.error('Error sending notification:', msg);
-      }
-
-      // ═══ Sucesso ═══
-      res
-        .status(200)
-        .json({ success: true, message: 'Pedido de progresso enviado.' });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error('requestProgress unexpected error:', msg);
-      res.status(500).json({ error: 'Erro interno do servidor.' });
-    }
-  });
+  const pdfBuffer = await pdfPromise;
+  const bucket = admin.storage().bucket();
+  const faturaPath = `faturas/${userId}/${paymentId}.pdf`;
+  await bucket.file(faturaPath).save(pdfBuffer, { contentType: 'application/pdf', metadata: { metadata: { userId, paymentId, nome, valor: String(valor) } } });
+  const [faturaUrl] = await bucket.file(faturaPath).getSignedUrl({ action: 'read', expires: Date.now() + 30 * 24 * 60 * 60 * 1000 });
+  await db.collection('pagamentos').doc(paymentId).update({ faturaUrl });
+}

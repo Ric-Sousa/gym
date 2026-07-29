@@ -13,3 +13,6 @@ flutter run -d chrome
 # Deploy para web
 flutter build web
 firebase deploy --only hosting
+
+# Stripe
+https://dashboard.stripe.com/apikeys

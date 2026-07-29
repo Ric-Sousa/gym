@@ -8,6 +8,7 @@ class Exercise {
   final String? videoURL;
   final String? observacoes;
   final String? grupoMuscular;
+  final String categoria; // 'musculação', 'funcional', 'cardio'
 
   const Exercise({
     required this.nome,
@@ -18,6 +19,7 @@ class Exercise {
     this.videoURL,
     this.observacoes,
     this.grupoMuscular,
+    this.categoria = 'musculação',
   });
 
   factory Exercise.fromMap(Map<String, dynamic> map) {
@@ -30,6 +32,7 @@ class Exercise {
       videoURL: map['videoURL'] as String?,
       observacoes: map['observacoes'] as String?,
       grupoMuscular: map['grupoMuscular'] as String?,
+      categoria: map['categoria'] as String? ?? 'musculação',
     );
   }
 
@@ -43,6 +46,7 @@ class Exercise {
       if (videoURL != null) 'videoURL': videoURL,
       if (observacoes != null) 'observacoes': observacoes,
       if (grupoMuscular != null) 'grupoMuscular': grupoMuscular,
+      'categoria': categoria,
     };
   }
 }

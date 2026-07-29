@@ -11,6 +11,7 @@ class UserModel {
   final DateTime? ultimaAtividade;
   final bool hasPendingProgress; // Tem pedido de progresso pendente
   final DateTime? progressRequestedAt; // Quando o pedido foi feito
+  final String? genero; // 'masculino', 'feminino' ou null
 
   const UserModel({
     required this.uid,
@@ -24,6 +25,7 @@ class UserModel {
     this.ultimaAtividade,
     this.hasPendingProgress = false,
     this.progressRequestedAt,
+    this.genero,
   });
 
   /// Cria a partir do documento Firestore.
@@ -44,6 +46,7 @@ class UserModel {
       progressRequestedAt: map['progressRequestedAt'] != null
           ? (map['progressRequestedAt'] as dynamic).toDate() as DateTime
           : null,
+      genero: map['genero'] as String?,
     );
   }
 
@@ -61,6 +64,7 @@ class UserModel {
       'hasPendingProgress': hasPendingProgress,
       if (progressRequestedAt != null)
         'progressRequestedAt': progressRequestedAt,
+      if (genero != null) 'genero': genero,
     };
   }
 
@@ -78,6 +82,7 @@ class UserModel {
     bool clearAltura = false,
     bool clearFoto = false,
     bool clearPersonalId = false,
+    String? genero,
     bool clearUltimaAtividade = false,
   }) {
     return UserModel(
@@ -91,6 +96,7 @@ class UserModel {
       personalId: clearPersonalId ? null : (personalId ?? this.personalId),
       ultimaAtividade:
           clearUltimaAtividade ? null : (ultimaAtividade ?? this.ultimaAtividade),
+      genero: genero ?? this.genero,
     );
   }
 
@@ -110,6 +116,13 @@ class UserModel {
     if (bmi < 35) return 'Obesidade Grau I';
     if (bmi < 40) return 'Obesidade Grau II';
     return 'Obesidade Grau III';
+  }
+
+  /// Texto amigável para o género.
+  String get generoDisplay {
+    if (genero == 'masculino') return '💪 Masculino';
+    if (genero == 'feminino') return '🌸 Feminino';
+    return 'Não definido';
   }
 
   bool get isAdmin => role == 'admin';
