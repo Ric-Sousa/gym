@@ -1397,7 +1397,9 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
   Future<void> _showCreateStudentDialog() async {
     final nomeCtrl = TextEditingController();
     final emailCtrl = TextEditingController();
+    final passwordCtrl = TextEditingController();
     String _genero = 'feminino';
+    bool _obscurePassword = true;
     bool loading = false;
 
     final result = await showDialog<Map<String, String>>(
@@ -1412,8 +1414,9 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
           title: Text('Novo Cliente',
               style: GoogleFonts.inter(
                   fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nomeCtrl,
@@ -1446,7 +1449,31 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                 ),
               ),
               const SizedBox(height: 12),
-              // Seletor de género
+              // Password
+              TextField(
+                controller: passwordCtrl,
+                obscureText: _obscurePassword,
+                style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
+                decoration: InputDecoration(
+                  labelText: 'Senha (opcional)',
+                  labelStyle: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
+                  filled: true,
+                  fillColor: AdminThemeColors.of(context).bg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: AdminThemeColors.of(context).border),
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                      size: 18,
+                      color: AdminThemeColors.of(context).muted,
+                    ),
+                    onPressed: () => setDialogState(() => _obscurePassword = !_obscurePassword),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: _genero,
                 decoration: InputDecoration(
@@ -1492,11 +1519,13 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                         final callable =
                             functions.httpsCallable('createStudent');
                         final adminId = FirebaseAuth.instance.currentUser?.uid ?? '';
+                      final pw = passwordCtrl.text.trim();
                         final response = await callable.call(<String, dynamic>{
                           'nome': nomeCtrl.text.trim(),
                           'email': emailCtrl.text.trim(),
                           'personalId': adminId,
                           'genero': _genero,
+                          if (pw.isNotEmpty) 'password': pw,
                         });
                         final data = response.data as Map<String, dynamic>;
                         setDialogState(() => loading = false);
