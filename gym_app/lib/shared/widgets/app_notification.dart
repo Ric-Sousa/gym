@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/config/app_colors.dart';
+import '../../core/services/sound_service.dart';
 
 /// Tipo de notificação.
 enum NotificationType { success, error, info }
@@ -27,6 +28,9 @@ void showAppNotification(
   );
 
   overlay.insert(entry);
+
+  // Toca o chime de notificação
+  SoundService().playNotificationChime();
 }
 
 class _ToastWidget extends StatefulWidget {

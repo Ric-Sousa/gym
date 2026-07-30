@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:async';
 import 'dart:typed_data';
 import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/app_constants.dart';
@@ -16,6 +17,8 @@ import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/app_notification.dart';
+import '../../../../core/services/sound_service.dart';
+import '../../../../core/config/notification_sounds.dart';
 import '../../../../shared/widgets/image_comparison_slider.dart';
 import 'progress_submission_screen.dart';
 
@@ -39,6 +42,7 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _picker = ImagePicker();
+  Timer? _previewRestoreTimer;
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +69,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ],
       ),
       body: userAsync.when(
-        data: (user) => _buildProfileContent(user),
+        data: (user) {
+          // Configura o som de notificação com a preferência do utilizador
+          SoundService().setSound(user.notificationSound ?? defaultSoundAsset);
+          return _buildProfileContent(user);
+        },
         loading: () =>
             const Center(child: CircularProgressIndicator(color: AppColors.primary)),
         error: (_, __) => const Center(
@@ -95,6 +103,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             _buildQuickMetrics(user),
             const SizedBox(height: 24),
             _buildEditableFields(user),
+            const SizedBox(height: 24),
+            _buildSoundPicker(user),
             const SizedBox(height: 24),
             Text(
               AppStrings.weightEvolution,
@@ -569,6 +579,148 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         builder: (_) => _PhotoViewer(photos: photos, initialIndex: initialIndex),
       ),
     );
+  }
+
+  Widget _buildSoundPicker(UserModel user) {
+    final currentSound = user.notificationSound ?? defaultSoundAsset;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.music_note, color: AppColors.primary, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Som de Notificação',
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.onSurface,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Escolhe o som que toca nas notificações',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const Divider(color: AppColors.outline),
+            ...notificationSoundOptions.map((option) {
+              final isSelected = option.asset == currentSound;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 4),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppColors.primary.withValues(alpha: 0.08)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: InkWell(
+                  onTap: () => _selectSound(user, option),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isSelected
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_unchecked,
+                          color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            option.name,
+                            style: GoogleFonts.inter(
+                              fontSize: 14,
+                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                              color: AppColors.onSurface,
+                            ),
+                          ),
+                        ),
+                        // Botão de preview
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () {
+                              _previewRestoreTimer?.cancel();
+                              SoundService().setSound(option.asset);
+                              SoundService().playNotificationChime();
+                              // Restaura a seleção após o preview
+                              _previewRestoreTimer = Timer(
+                                const Duration(milliseconds: 600),
+                                () {
+                                  if (mounted) {
+                                    SoundService().setSound(currentSound);
+                                  }
+                                },
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.12),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.play_arrow_rounded,
+                                color: AppColors.primary,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _selectSound(UserModel user, SoundOption option) async {
+    // Cancela qualquer restore pendente de preview
+    _previewRestoreTimer?.cancel();
+    // Configura imediatamente o som no serviço
+    SoundService().setSound(option.asset);
+
+    // Guarda no Firestore
+    try {
+      await ref
+          .read(userRepositoryProvider)
+          .updateUser(user.uid, {'notificationSound': option.asset});
+      ref.invalidate(userProfileProvider(user.uid));
+    } catch (_) {
+      // Se falhar, reverte para o anterior
+      SoundService().setSound(user.notificationSound ?? defaultSoundAsset);
+    }
+  }
+
+  @override
+  void dispose() {
+    _previewRestoreTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _changeProfilePhoto(String userId) async {

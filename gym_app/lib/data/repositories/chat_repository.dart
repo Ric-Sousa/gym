@@ -22,9 +22,10 @@ class ChatRepository {
 
   /// Stream de mensagens.
   Stream<List<MessageModel>> messagesStream(String salaId) {
-    return _firestoreDataSource.messagesStream(salaId).handleError((e) {
-      if (e is ServerException) throw ServerFailure(message: e.message);
-      throw const ServerFailure(message: 'Erro ao carregar mensagens');
+    return _firestoreDataSource.messagesStream(salaId).handleError((e, stack) {
+      // ignore: avoid_print
+      print('Chat messagesStream error for $salaId: $e');
+      // Swallow errors — don't re-throw, keep stream alive.
     });
   }
 
@@ -40,7 +41,10 @@ class ChatRepository {
 
   /// Stream que indica se o outro participante está a digitar.
   Stream<String?> typingStream(String salaId, String myUserId) {
-    return _firestoreDataSource.typingStream(salaId, myUserId);
+    return _firestoreDataSource.typingStream(salaId, myUserId).handleError((_, __) {
+      // ignore: avoid_print
+      print('Typing stream error for $salaId');
+    });
   }
 
   /// Define ou remove o estado de digitação.

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -23,12 +24,16 @@ import '../../../shared/widgets/image_comparison_slider.dart';
 import '../../../shared/widgets/app_notification.dart';
 import '../../admin/widgets/workout_editor.dart';
 import '../../admin/widgets/nutrition_editor.dart';
-import '../../admin/widgets/admin_messages_view.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../../core/services/sound_service.dart';
+import '../../../core/config/notification_sounds.dart';
+import '../../admin/widgets/floating_chat_button.dart';
 import '../../../features/aluno/chat/screens/chat_screen.dart';
+import '../../../features/aluno/perfil/screens/profile_screen.dart';
 
 // ─── Enums & Local Providers ──────────────────────────────────────
 
-enum AdminView { dashboard, clients, exercises, foods, messages, payments, agenda }
+enum AdminView { dashboard, clients, exercises, foods, messages, payments, agenda, settings }
 
 final alunosListProvider = FutureProvider<List<UserModel>>((ref) {
   return ref.read(userRepositoryProvider).getAllAlunos();
@@ -156,13 +161,25 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
             ),
           ),
         ),
-        body: _selectedClient != null
-            ? _ClientDetailView(
-                client: _selectedClient!,
-                isMobile: true,
-                onBack: () => setState(() => _selectedClient = null),
-              )
-            : _buildView(),
+        body: Stack(
+          children: [
+            _selectedClient != null
+                ? _ClientDetailView(
+                    client: _selectedClient!,
+                    isMobile: true,
+                    onBack: () => setState(() => _selectedClient = null),
+                  )
+                : _buildView(),
+            FloatingChatButton(
+              onViewProfile: (aluno) {
+                setState(() {
+                  _selectedClient = aluno;
+                  _view = AdminView.clients;
+                });
+              },
+            ),
+          ],
+        ),
       );
     }
 
@@ -173,13 +190,25 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
         children: [
           _buildSidebar(),
           Expanded(
-            child: _selectedClient != null
-                ? _ClientDetailView(
-                    client: _selectedClient!,
-                    isMobile: false,
-                    onBack: () => setState(() => _selectedClient = null),
-                  )
-                : _buildView(),
+            child: Stack(
+              children: [
+                _selectedClient != null
+                    ? _ClientDetailView(
+                        client: _selectedClient!,
+                        isMobile: false,
+                        onBack: () => setState(() => _selectedClient = null),
+                      )
+                    : _buildView(),
+                FloatingChatButton(
+                  onViewProfile: (aluno) {
+                    setState(() {
+                      _selectedClient = aluno;
+                      _view = AdminView.clients;
+                    });
+                  },
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -199,14 +228,14 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
         return const _AdminExerciseLibrary();
       case AdminView.foods:
         return const _AdminFoodLibrary();
-      case AdminView.messages:
-        {
-          return AdminMessagesView(onSelect: (c) => setState(() => _selectedClient = c));
-        }
       case AdminView.payments:
         return const _AdminPaymentsView();
       case AdminView.agenda:
         return const _AdminAgendaView();
+      case AdminView.messages:
+        return _AdminDashboard(onSelectClient: (_) {});
+      case AdminView.settings:
+        return const _AdminSettingsView();
     }
   }
 }
@@ -336,14 +365,6 @@ class _AdminSidebar extends StatelessWidget {
             active: currentView == AdminView.payments,
             onTap: () => onNavigate(AdminView.payments),
           ),
-          _NavCategory(label: 'COMUNICAÇÃO'),
-          _NavItem(
-            icon: Icons.chat_outlined,
-            activeIcon: Icons.chat,
-            label: 'Mensagens',
-            active: currentView == AdminView.messages && !isClientDetail,
-            onTap: () => onNavigate(AdminView.messages),
-          ),
           _NavCategory(label: 'AGENDA'),
           _NavItem(
             icon: Icons.calendar_today_outlined,
@@ -351,6 +372,14 @@ class _AdminSidebar extends StatelessWidget {
             label: 'Agenda',
             active: currentView == AdminView.agenda,
             onTap: () => onNavigate(AdminView.agenda),
+          ),
+          _NavCategory(label: 'DEFINIÇÕES'),
+          _NavItem(
+            icon: Icons.settings_outlined,
+            activeIcon: Icons.settings,
+            label: 'Definições',
+            active: currentView == AdminView.settings,
+            onTap: () => onNavigate(AdminView.settings),
           ),
           const Spacer(),
           // Logout
@@ -1839,6 +1868,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
               child: ChatScreen(
                 chatPartnerId: widget.client.uid,
                 chatPartnerName: widget.client.nome,
+                chatPartnerPhoto: widget.client.fotoPerfil,
                 key: ValueKey('admin_chat_${widget.client.uid}'),
               ),
             ),
@@ -4734,4 +4764,201 @@ TextStyle _adminDisplay(BuildContext context, double size) {
     letterSpacing: -0.01,
     color: AdminThemeColors.of(context).text,
   );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Admin Settings View
+// ═══════════════════════════════════════════════════════════════════
+
+class _AdminSettingsView extends ConsumerWidget {
+  const _AdminSettingsView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authProvider);
+    final userId = authState.user?.uid ?? '';
+    final userAsync = ref.watch(userProfileProvider(userId));
+    final isMobile = MediaQuery.of(context).size.width < 900;
+
+    return userAsync.when(
+      data: (user) {
+        SoundService().setSound(user.notificationSound ?? defaultSoundAsset);
+        return SingleChildScrollView(
+          padding: EdgeInsets.all(isMobile ? 16 : 36),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('DEFINIÇÕES', style: _adminDisplay(context, isMobile ? 28 : 40)),
+              const SizedBox(height: 4),
+              Text('Configura o teu perfil e preferências',
+                  style: GoogleFonts.inter(fontSize: 14, color: AdminThemeColors.of(context).muted)),
+              const SizedBox(height: 32),
+              _buildProfileCard(context, ref, user),
+              const SizedBox(height: 24),
+              _buildSoundPicker(context, ref, user),
+            ],
+          ),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (_, __) => const Center(child: Text('Erro ao carregar perfil')),
+    );
+  }
+
+  Widget _buildProfileCard(BuildContext context, WidgetRef ref, UserModel user) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AdminThemeColors.of(context).surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AdminThemeColors.of(context).border),
+        boxShadow: [BoxShadow(color: AdminThemeColors.of(context).shadow, blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.person, color: AdminThemeColors.of(context).lime, size: 18),
+              const SizedBox(width: 8),
+              Text('PERFIL', style: GoogleFonts.barlowCondensed(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 0.03, color: AdminThemeColors.of(context).text)),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () => _changePhoto(context, ref, user),
+                child: Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 36,
+                      backgroundColor: AdminThemeColors.of(context).surface2,
+                      backgroundImage: user.fotoPerfil != null ? NetworkImage(user.fotoPerfil!) : null,
+                      child: user.fotoPerfil == null
+                          ? Text(user.nome.isNotEmpty ? user.nome[0].toUpperCase() : '?',
+                              style: GoogleFonts.barlowCondensed(fontSize: 22, fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).lime))
+                          : null,
+                    ),
+                    Positioned(
+                      bottom: 0, right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(color: AdminThemeColors.of(context).lime, shape: BoxShape.circle),
+                        child: Icon(Icons.camera_alt, size: 12, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(user.nome, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: AdminThemeColors.of(context).text)),
+                    const SizedBox(height: 2),
+                    Text(user.email, style: GoogleFonts.inter(fontSize: 13, color: AdminThemeColors.of(context).muted)),
+                    const SizedBox(height: 2),
+                    Text(user.role == 'admin' ? 'Administrador' : 'Aluno', style: GoogleFonts.inter(fontSize: 12, color: AdminThemeColors.of(context).lime)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSoundPicker(BuildContext context, WidgetRef ref, UserModel user) {
+    final currentSound = user.notificationSound ?? defaultSoundAsset;
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AdminThemeColors.of(context).surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AdminThemeColors.of(context).border),
+        boxShadow: [BoxShadow(color: AdminThemeColors.of(context).shadow, blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.music_note, color: AdminThemeColors.of(context).lime, size: 18),
+              const SizedBox(width: 8),
+              Text('SOM DE NOTIFICAÇÃO', style: GoogleFonts.barlowCondensed(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 0.03, color: AdminThemeColors.of(context).text)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text('Escolhe o som que toca nas notificações', style: GoogleFonts.inter(fontSize: 12, color: AdminThemeColors.of(context).muted)),
+          const SizedBox(height: 16),
+          ...notificationSoundOptions.map((option) {
+            final isSelected = option.asset == currentSound;
+            return Container(
+              margin: const EdgeInsets.only(bottom: 4),
+              decoration: BoxDecoration(
+                color: isSelected ? AdminThemeColors.of(context).lime.withValues(alpha: 0.08) : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: InkWell(
+                onTap: () async {
+                  SoundService().setSound(option.asset);
+                  try {
+                    await ref.read(userRepositoryProvider).updateUser(user.uid, {'notificationSound': option.asset});
+                    ref.invalidate(userProfileProvider(user.uid));
+                  } catch (_) {
+                    SoundService().setSound(currentSound);
+                  }
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Row(
+                    children: [
+                      Icon(isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                          color: isSelected ? AdminThemeColors.of(context).lime : AdminThemeColors.of(context).muted, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(option.name,
+                            style: GoogleFonts.inter(fontSize: 14, fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                                color: AdminThemeColors.of(context).text)),
+                      ),
+                      InkWell(
+                        onTap: () {
+                          SoundService().setSound(option.asset);
+                          SoundService().playNotificationChime();
+                        },
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          width: 36, height: 36,
+                          decoration: BoxDecoration(
+                            color: AdminThemeColors.of(context).lime.withValues(alpha: 0.12), shape: BoxShape.circle,
+                          ),
+                          child: Icon(Icons.play_arrow_rounded, color: AdminThemeColors.of(context).lime, size: 20),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _changePhoto(BuildContext context, WidgetRef ref, UserModel user) async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80, maxWidth: 512, maxHeight: 512);
+    if (picked == null) return;
+    try {
+      final bytes = await picked.readAsBytes();
+      final url = await ref.read(progressRepositoryProvider).uploadProfilePhoto(user.uid, Uint8List.fromList(bytes));
+      await ref.read(userRepositoryProvider).updateUser(user.uid, {'fotoPerfil': url});
+      ref.invalidate(userProfileProvider(user.uid));
+    } catch (_) {}
+  }
 }
