@@ -17,7 +17,7 @@ import '../../../shared/widgets/empty_state.dart';
 
 /// Provider que obtém a última mensagem de cada conversa do admin com alunos.
 final adminConversationsProvider =
-    StreamProvider<List<_ConversationPreview>>((ref) {
+    StreamProvider<List<ConversationPreview>>((ref) {
   final authState = ref.watch(authProvider);
   final adminId = authState.user?.uid ?? '';
 
@@ -29,8 +29,11 @@ final adminConversationsProvider =
       .where(FieldPath.documentId, isGreaterThanOrEqualTo: 'chat_')
       .where(FieldPath.documentId, isLessThanOrEqualTo: 'chat_\uf8ff')
       .snapshots()
+      .handleError((_, __) {
+        // Swallow Firestore stream errors to prevent UI crashes on web.
+      })
       .asyncMap((snapshot) async {
-    final conversations = <_ConversationPreview>[];
+    final conversations = <ConversationPreview>[];
     for (final doc in snapshot.docs) {
       final roomId = doc.id;
       final parts = roomId.split('_');
@@ -90,10 +93,28 @@ final adminConversationsProvider =
           }
         }
 
-        conversations.add(_ConversationPreview(
+        // Contar mensagens não lidas deste aluno
+        int unreadCount = 0;
+        try {
+          final unreadSnap = await firestore
+              .collection(AppConstants.chatCollection)
+              .doc(roomId)
+              .collection(AppConstants.messagesSubcollection)
+              .where('lida', isEqualTo: false)
+              .get();
+          unreadCount = unreadSnap.docs
+              .where((d) => d.data()['remetenteId'] != adminId)
+              .length;
+        } catch (_) {
+          // Fallback: conta pelo menos 1 se a última mensagem não foi lida
+          unreadCount = (lastMessage != null && !lastMessage!.lida) ? 1 : 0;
+        }
+
+        conversations.add(ConversationPreview(
           aluno: aluno,
           lastMessage: lastMessage,
           roomId: roomId,
+          unreadCount: unreadCount,
         ));
       } catch (_) {
         // Só ignora se o documento do aluno nao existir.
@@ -359,21 +380,23 @@ Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
 }
 
 /// Preview de uma conversa.
-class _ConversationPreview {
+class ConversationPreview {
   final UserModel aluno;
   final MessageModel? lastMessage;
   final String roomId;
+  final int unreadCount;
 
-  const _ConversationPreview({
+  const ConversationPreview({
     required this.aluno,
     this.lastMessage,
     required this.roomId,
+    this.unreadCount = 0,
   });
 }
 
 /// Tile de uma conversa na lista.
 class _ConversationTile extends StatelessWidget {
-  final _ConversationPreview preview;
+  final ConversationPreview preview;
   final VoidCallback onTap;
 
   const _ConversationTile({required this.preview, required this.onTap});

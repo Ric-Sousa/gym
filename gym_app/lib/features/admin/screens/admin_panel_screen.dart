@@ -23,7 +23,7 @@ import '../../../shared/utils/booking_notifications.dart';
 import '../../../shared/widgets/app_notification.dart';
 import '../../admin/widgets/workout_editor.dart';
 import '../../admin/widgets/nutrition_editor.dart';
-import '../../admin/widgets/admin_messages_view.dart';
+import '../../admin/widgets/floating_chat_button.dart';
 import '../../../features/aluno/chat/screens/chat_screen.dart';
 
 // ─── Enums & Local Providers ──────────────────────────────────────
@@ -156,13 +156,25 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
             ),
           ),
         ),
-        body: _selectedClient != null
-            ? _ClientDetailView(
-                client: _selectedClient!,
-                isMobile: true,
-                onBack: () => setState(() => _selectedClient = null),
-              )
-            : _buildView(),
+        body: Stack(
+          children: [
+            _selectedClient != null
+                ? _ClientDetailView(
+                    client: _selectedClient!,
+                    isMobile: true,
+                    onBack: () => setState(() => _selectedClient = null),
+                  )
+                : _buildView(),
+            FloatingChatButton(
+              onViewProfile: (aluno) {
+                setState(() {
+                  _selectedClient = aluno;
+                  _view = AdminView.clients;
+                });
+              },
+            ),
+          ],
+        ),
       );
     }
 
@@ -173,13 +185,25 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
         children: [
           _buildSidebar(),
           Expanded(
-            child: _selectedClient != null
-                ? _ClientDetailView(
-                    client: _selectedClient!,
-                    isMobile: false,
-                    onBack: () => setState(() => _selectedClient = null),
-                  )
-                : _buildView(),
+            child: Stack(
+              children: [
+                _selectedClient != null
+                    ? _ClientDetailView(
+                        client: _selectedClient!,
+                        isMobile: false,
+                        onBack: () => setState(() => _selectedClient = null),
+                      )
+                    : _buildView(),
+                FloatingChatButton(
+                  onViewProfile: (aluno) {
+                    setState(() {
+                      _selectedClient = aluno;
+                      _view = AdminView.clients;
+                    });
+                  },
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -199,14 +223,12 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
         return const _AdminExerciseLibrary();
       case AdminView.foods:
         return const _AdminFoodLibrary();
-      case AdminView.messages:
-        {
-          return AdminMessagesView(onSelect: (c) => setState(() => _selectedClient = c));
-        }
       case AdminView.payments:
         return const _AdminPaymentsView();
       case AdminView.agenda:
         return const _AdminAgendaView();
+      case AdminView.messages:
+        return _AdminDashboard(onSelectClient: (_) {});
     }
   }
 }
@@ -335,14 +357,6 @@ class _AdminSidebar extends StatelessWidget {
             label: 'Pagamentos',
             active: currentView == AdminView.payments,
             onTap: () => onNavigate(AdminView.payments),
-          ),
-          _NavCategory(label: 'COMUNICAÇÃO'),
-          _NavItem(
-            icon: Icons.chat_outlined,
-            activeIcon: Icons.chat,
-            label: 'Mensagens',
-            active: currentView == AdminView.messages && !isClientDetail,
-            onTap: () => onNavigate(AdminView.messages),
           ),
           _NavCategory(label: 'AGENDA'),
           _NavItem(
@@ -1836,6 +1850,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
               child: ChatScreen(
                 chatPartnerId: widget.client.uid,
                 chatPartnerName: widget.client.nome,
+                chatPartnerPhoto: widget.client.fotoPerfil,
                 key: ValueKey('admin_chat_${widget.client.uid}'),
               ),
             ),

@@ -9,6 +9,7 @@ import '../../../../data/models/group_model.dart';
 import '../../../../data/models/message_model.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/app_notification.dart';
+import '../../../../shared/utils/new_message_detector.dart';
 
 /// Ecrã de chat de grupo — alunos trocam horários/blocos.
 class GroupChatScreen extends ConsumerStatefulWidget {
@@ -19,7 +20,7 @@ class GroupChatScreen extends ConsumerStatefulWidget {
   ConsumerState<GroupChatScreen> createState() => _GroupChatScreenState();
 }
 
-class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
+class _GroupChatScreenState extends ConsumerState<GroupChatScreen> with NewMessageDetector {
   final _textCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   bool _sending = false;
@@ -70,6 +71,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
   }
 
   Widget _buildMessageList(List<MessageModel> messages) {
+    detectNewMessages(messages, _userId);
     if (messages.isEmpty) {
       return Center(
         child: Column(
