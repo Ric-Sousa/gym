@@ -272,7 +272,7 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
               TextField(controller: dosagem, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Dosagem', hintText: '1 scoop (30g)')),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: horario,
+                initialValue: horario,
                 decoration: const InputDecoration(labelText: 'Horário'),
                 items: ['pré-treino', 'pós-treino', 'manhã', 'noite', 'qualquer']
                     .map((h) => DropdownMenuItem(value: h, child: Text(h)))

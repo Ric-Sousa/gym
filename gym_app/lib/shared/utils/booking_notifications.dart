@@ -13,5 +13,5 @@ void fireBookingNotification(BookingModel booking, String newStatus) {
     'newStatus': newStatus,
     'bookingDate': booking.data.toIso8601String(),
     'tipo': booking.tipo,
-  }).catchError((_) {});
+  }); // fire-and-forget
 }

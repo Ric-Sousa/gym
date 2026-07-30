@@ -16,7 +16,6 @@ import '../../../data/models/progress_model.dart';
 import '../../../data/models/payment_model.dart';
 import '../../../data/models/booking_model.dart';
 import '../../../features/auth/providers/auth_provider.dart';
-import '../../../data/repositories/workout_repository.dart';
 import '../../../shared/providers/global_providers.dart';
 import '../../../shared/providers/admin_providers.dart';
 import '../../../shared/utils/booking_notifications.dart';
@@ -737,7 +736,7 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: AdminThemeColors.of(context).text)),
-                  Text('${aluno.email}',
+                  Text(aluno.email,
                       style: GoogleFonts.inter(
                           fontSize: 11, color: AdminThemeColors.of(context).muted)),
                 ],
@@ -1354,7 +1353,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                       'ALTURA', '${aluno.altura?.toStringAsFixed(0) ?? '--'}cm'),
                   const SizedBox(width: 8),
                   _miniStat('IMC',
-                      '${aluno.imc?.toStringAsFixed(1) ?? '--'}'),
+                      aluno.imc?.toStringAsFixed(1) ?? '--'),
                 ].map((e) => Expanded(child: e)).toList(),
               ),
               const SizedBox(height: 12),
@@ -1411,8 +1410,8 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
     final nomeCtrl = TextEditingController();
     final emailCtrl = TextEditingController();
     final passwordCtrl = TextEditingController();
-    String _genero = 'feminino';
-    bool _obscurePassword = true;
+    String genero = 'feminino';
+    bool obscurePassword = true;
     bool loading = false;
 
     final result = await showDialog<Map<String, dynamic>>(
@@ -1465,7 +1464,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
               // Password
               TextField(
                 controller: passwordCtrl,
-                obscureText: _obscurePassword,
+                obscureText: obscurePassword,
                 style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
                 decoration: InputDecoration(
                   labelText: 'Senha (opcional)',
@@ -1478,17 +1477,17 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                   ),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                      obscurePassword ? Icons.visibility_off : Icons.visibility,
                       size: 18,
                       color: AdminThemeColors.of(context).muted,
                     ),
-                    onPressed: () => setDialogState(() => _obscurePassword = !_obscurePassword),
+                    onPressed: () => setDialogState(() => obscurePassword = !obscurePassword),
                   ),
                 ),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _genero,
+                initialValue: genero,
                 decoration: InputDecoration(
                   labelText: 'Género',
                   labelStyle: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
@@ -1505,7 +1504,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                   DropdownMenuItem(value: 'feminino', child: Text('🌸 Feminino')),
                   DropdownMenuItem(value: 'masculino', child: Text('💪 Masculino')),
                 ],
-                onChanged: (v) => setDialogState(() => _genero = v ?? 'feminino'),
+                onChanged: (v) => setDialogState(() => genero = v ?? 'feminino'),
               ),
               if (loading) ...[
                 const SizedBox(height: 16),
@@ -1542,7 +1541,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                           'nome': nomeCtrl.text.trim(),
                           'email': emailCtrl.text.trim(),
                           'personalId': adminId,
-                          'genero': _genero,
+                          'genero': genero,
                           'authToken': token ?? '',
                         };
                         if (pw.isNotEmpty) body['password'] = pw;
@@ -2602,7 +2601,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<int>(
-                        value: beforeIdx,
+                        initialValue: beforeIdx,
                         decoration: InputDecoration(
                           labelText: 'Antes',
                           contentPadding: const EdgeInsets.symmetric(
@@ -2627,7 +2626,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: DropdownButtonFormField<int>(
-                        value: afterIdx,
+                        initialValue: afterIdx,
                         decoration: InputDecoration(
                           labelText: 'Depois',
                           contentPadding: const EdgeInsets.symmetric(
@@ -2882,8 +2881,8 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
         _infoCard('Dados do Aluno', [
           ('Peso', '${c.pesoAtual?.toStringAsFixed(1) ?? '--'} kg'),
           ('Altura', '${c.altura?.toStringAsFixed(0) ?? '--'} cm'),
-          ('IMC', '${c.imc?.toStringAsFixed(1) ?? '--'}'),
-          ('Categoria', '${c.imcCategory ?? '--'}'),
+          ('IMC', c.imc?.toStringAsFixed(1) ?? '--'),
+          ('Categoria', c.imcCategory ?? '--'),
         ]),
         const SizedBox(height: 16),
         _infoCard('Contacto', [
@@ -3188,7 +3187,7 @@ class _AdminExerciseLibraryState
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                                '${(i + 1).toString().padLeft(2, '0')}',
+                                (i + 1).toString().padLeft(2, '0'),
                                 style: GoogleFonts.barlowCondensed(
                                     fontSize: 48,
                                     fontWeight: FontWeight.w900,
@@ -3289,7 +3288,7 @@ class _AdminExerciseLibraryState
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: selectedGrupo,
+                  initialValue: selectedGrupo,
                   dropdownColor: AdminThemeColors.of(context).surface,
                   style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
                   decoration: InputDecoration(
@@ -3314,7 +3313,7 @@ class _AdminExerciseLibraryState
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: selectedCategoria,
+                  initialValue: selectedCategoria,
                   dropdownColor: AdminThemeColors.of(context).surface,
                   style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
                   decoration: InputDecoration(
@@ -3793,7 +3792,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: selectedCat,
+                  initialValue: selectedCat,
                   dropdownColor: AdminThemeColors.of(context).surface,
                   style:
                       GoogleFonts.inter(color: AdminThemeColors.of(context).text),
@@ -3874,7 +3873,7 @@ class _AdminPaymentsView extends ConsumerStatefulWidget {
 }
 
 class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
-  bool _creating = false;
+  final bool _creating = false;
 
   @override
   Widget build(BuildContext context) {
@@ -4230,7 +4229,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                   children: [
                     // Select student
                     DropdownButtonFormField<UserModel>(
-                      value: selectedAluno,
+                      initialValue: selectedAluno,
                       dropdownColor: AdminThemeColors.of(context).surface,
                       style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
                       decoration: InputDecoration(

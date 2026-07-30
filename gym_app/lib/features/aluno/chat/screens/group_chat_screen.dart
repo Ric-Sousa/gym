@@ -25,7 +25,6 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
   bool _sending = false;
 
   String get _userId => FirebaseAuth.instance.currentUser?.uid ?? '';
-  String get _userName => FirebaseAuth.instance.currentUser?.displayName ?? 'Aluno';
 
   @override
   void dispose() {
@@ -235,6 +234,6 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       'salaId': widget.group.id,
       'remetenteId': _userId,
       'texto': '[${widget.group.nome}] Nova mensagem de grupo',
-    }).catchError((_) {});
+    }); // fire-and-forget
   }
 }

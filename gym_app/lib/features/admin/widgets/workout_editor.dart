@@ -222,7 +222,7 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                 const SizedBox(height: 12),
                 // Categoria com ícones
                 DropdownButtonFormField<String>(
-                  value: selectedCategoria,
+                  initialValue: selectedCategoria,
                   dropdownColor: AdminThemeColors.of(context).surface,
                   style: GoogleFonts.inter(color: AdminThemeColors.of(context).text, fontSize: 14),
                   decoration: InputDecoration(
@@ -242,7 +242,7 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                 const SizedBox(height: 12),
                 // Equipamento
                 DropdownButtonFormField<String>(
-                  value: selectedEquipamento,
+                  initialValue: selectedEquipamento,
                   dropdownColor: AdminThemeColors.of(context).surface,
                   style: GoogleFonts.inter(color: AdminThemeColors.of(context).text, fontSize: 14),
                   decoration: InputDecoration(

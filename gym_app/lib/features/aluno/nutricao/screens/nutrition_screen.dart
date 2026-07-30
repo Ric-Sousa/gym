@@ -516,7 +516,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
                     text: TextSpan(
                       children: [
                         TextSpan(
-                          text: '${consumed.toStringAsFixed(0)}',
+                          text: consumed.toStringAsFixed(0).toString(),
                           style: GoogleFonts.montserrat(
                             color: AppColors.onSurface,
                             fontSize: 22,
@@ -930,7 +930,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
                           ),
                         ),
                         TextSpan(
-                          text: '${caloriasConsumidas.toStringAsFixed(0)}',
+                          text: caloriasConsumidas.toStringAsFixed(0).toString(),
                           style: GoogleFonts.montserrat(
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
@@ -1492,7 +1492,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
                 });
               } else {
                 // Adicionar novo alimento (sem substituir)
-                final mealKey = '${diaSemana}_${mealTipo}';
+                final mealKey = '${diaSemana}_$mealTipo';
                 final newAlimento = Alimento(
                   nome: food.nome,
                   quantidade: '100g',

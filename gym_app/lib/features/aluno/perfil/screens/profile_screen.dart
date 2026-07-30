@@ -690,8 +690,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   void _showProgressComparison(List<ProgressModel> withPhotos) {
-    int beforeIdx = withPhotos.length - 1;
-    int afterIdx = 0;
+    final int beforeIdx = withPhotos.length - 1;
+    final int afterIdx = 0;
 
     showDialog(
       context: context,
@@ -916,7 +916,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final alturaController = TextEditingController(
       text: user.altura?.toString() ?? '',
     );
-    String _genero = user.genero ?? 'feminino';
+    String genero = user.genero ?? 'feminino';
 
     final result = await showDialog<bool>(
       context: context,
@@ -1007,7 +1007,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               const SizedBox(height: 12),
               // Seletor de género
               DropdownButtonFormField<String>(
-                value: _genero,
+                initialValue: genero,
                 decoration: InputDecoration(
                   labelText: 'Género',
                   labelStyle: GoogleFonts.inter(color: AppColors.onSurfaceVariant),
@@ -1032,7 +1032,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   DropdownMenuItem(value: 'feminino', child: Text('🌸 Feminino')),
                   DropdownMenuItem(value: 'masculino', child: Text('💪 Masculino')),
                 ],
-                onChanged: (v) => _genero = v ?? 'feminino',
+                onChanged: (v) => genero = v ?? 'feminino',
               ),
             ],
           ),
@@ -1076,8 +1076,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       if (novaAltura != null && novaAltura != user.altura) {
         updates['altura'] = novaAltura;
       }
-      if (_genero != (user.genero ?? 'feminino')) {
-        updates['genero'] = _genero;
+      if (genero != (user.genero ?? 'feminino')) {
+        updates['genero'] = genero;
       }
 
       if (updates.isNotEmpty) {

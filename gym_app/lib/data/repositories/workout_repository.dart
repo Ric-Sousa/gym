@@ -2,7 +2,6 @@ import '../../core/errors/exceptions.dart';
 import '../../core/errors/failures.dart';
 import '../datasources/firestore_datasource.dart';
 import '../models/workout_plan_model.dart';
-import '../models/workout_log_model.dart';
 
 /// Dados de progressão entre dois treinos consecutivos.
 class ProgressionData {

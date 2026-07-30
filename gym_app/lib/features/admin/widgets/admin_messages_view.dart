@@ -8,12 +8,10 @@ import '../../../core/config/admin_theme.dart';
 import '../../../core/config/app_constants.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/models/message_model.dart';
-import '../../../data/models/group_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../shared/providers/global_providers.dart';
 import '../../../shared/providers/admin_providers.dart';
 import '../../../features/auth/providers/auth_provider.dart';
-import '../../../shared/widgets/empty_state.dart';
 
 /// Provider que obtém a última mensagem de cada conversa do admin com alunos.
 final adminConversationsProvider =

@@ -309,11 +309,8 @@ class FirestoreDataSource {
   /// Envia uma mensagem e garante que o documento da sala existe.
   Future<void> sendMessage(
       String salaId, Map<String, dynamic> messageMap) async {
-    print('📤 [sendMessage] salaId=$salaId texto=${messageMap['texto']}');
-
     // 1. Cria/atualiza o documento pai
     try {
-      print('📤 [sendMessage] Passo 1: set() no doc pai chat/$salaId');
       // Usa DateTime.now() em vez de FieldValue.serverTimestamp()
       // para evitar potenciais conflitos com as regras do Firestore.
       final now = DateTime.now();
@@ -326,24 +323,19 @@ class FirestoreDataSource {
         'lastSenderId': messageMap['remetenteId'] ?? '',
         'typing': '',
       }, SetOptions(merge: true));
-      print('✅ [sendMessage] Passo 1 OK');
     } on FirebaseException catch (e) {
-      print('❌ [sendMessage] Passo 1 FALHOU: ${e.code} - ${e.message}');
       throw ServerException(
           message: e.message ?? 'Erro ao enviar mensagem (passo 1)');
     }
 
     // 2. Adiciona a mensagem à subcoleção
     try {
-      print('📤 [sendMessage] Passo 2: add() na subcoleção mensagens');
       await _firestore
           .collection(AppConstants.chatCollection)
           .doc(salaId)
           .collection(AppConstants.messagesSubcollection)
           .add(messageMap);
-      print('✅ [sendMessage] Passo 2 OK');
     } on FirebaseException catch (e) {
-      print('❌ [sendMessage] Passo 2 FALHOU: ${e.code} - ${e.message}');
       throw ServerException(
           message: e.message ?? 'Erro ao enviar mensagem (passo 2)');
     }

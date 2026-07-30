@@ -202,7 +202,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
               // Duração
               Expanded(
                 child: DropdownButtonFormField<int>(
-                  value: _duracao,
+                  initialValue: _duracao,
                   dropdownColor: AppColors.surfaceHigh,
                   style: GoogleFonts.inter(color: AppColors.onSurface, fontSize: 13),
                   decoration: InputDecoration(
@@ -499,7 +499,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       'trainerId': trainerId,
       'bookingDate': bookingDate.toIso8601String(),
       'tipo': tipo,
-    }).catchError((_) {}); // silencioso — a Cloud Function trata o envio
+    }); // fire-and-forget
   }
 
   Future<void> _cancelBooking(BookingModel booking) async {
