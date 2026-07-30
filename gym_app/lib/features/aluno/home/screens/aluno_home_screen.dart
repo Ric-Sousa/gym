@@ -1102,12 +1102,8 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
   // ═══════════════════════════════════════════════════════════════
 
   Widget _buildUpcomingSessions(String userId) {
-    final bookingsAsync = ref.watch(
-      StreamProvider<List<BookingModel>>((ref) {
-        if (userId.isEmpty) return Stream.value([]);
-        return ref.read(bookingRepositoryProvider).watchStudentBookings(userId);
-      }),
-    );
+    // Usa provider estável (module-level) — nunca inline StreamProvider no build()!
+    final bookingsAsync = ref.watch(studentBookingsStreamProvider(userId));
 
     return bookingsAsync.when(
       data: (bookings) {

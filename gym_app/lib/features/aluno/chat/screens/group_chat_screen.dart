@@ -26,7 +26,6 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> with NewMessa
   bool _sending = false;
 
   String get _userId => FirebaseAuth.instance.currentUser?.uid ?? '';
-  String get _userName => FirebaseAuth.instance.currentUser?.displayName ?? 'Aluno';
 
   @override
   void dispose() {
@@ -37,11 +36,8 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> with NewMessa
 
   @override
   Widget build(BuildContext context) {
-    final messagesAsync = ref.watch(
-      StreamProvider<List<MessageModel>>((ref) {
-        return ref.read(groupRepositoryProvider).watchMessages(widget.group.id);
-      }),
-    );
+    // Usa provider estável (module-level) — nunca inline StreamProvider no build()!
+    final messagesAsync = ref.watch(groupMessagesStreamProvider(widget.group.id));
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -237,6 +233,6 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> with NewMessa
       'salaId': widget.group.id,
       'remetenteId': _userId,
       'texto': '[${widget.group.nome}] Nova mensagem de grupo',
-    }).catchError((_) {});
+    }); // fire-and-forget
   }
 }

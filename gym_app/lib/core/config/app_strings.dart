@@ -28,6 +28,7 @@ class AppStrings {
   static const String tabWorkout = 'Treino';
   static const String tabChat = 'Chat';
   static const String tabProfile = 'Perfil';
+  static const String tabAgenda = 'Agenda';
 
   // Dashboard
   static const String waterTitle = 'Água';

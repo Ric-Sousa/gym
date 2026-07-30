@@ -4,6 +4,9 @@ import '../../core/services/fcm_service.dart';
 import '../../data/datasources/auth_datasource.dart';
 import '../../data/datasources/firestore_datasource.dart';
 import '../../data/datasources/storage_datasource.dart';
+import '../../data/models/booking_model.dart';
+import '../../data/models/payment_model.dart';
+import '../../data/models/message_model.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/repositories/chat_repository.dart';
 import '../../data/repositories/diary_repository.dart';
@@ -134,4 +137,39 @@ final currentUserGeneroProvider = StreamProvider<String?>((ref) {
   final userId = authState.user?.uid;
   if (userId == null) return const Stream.empty();
   return ref.read(userRepositoryProvider).userStream(userId).map((u) => u.genero);
+});
+
+// ──────────── AGENDA / BOOKINGS STREAMS ────────────
+
+/// Stream de marcações do aluno (agenda).
+/// Provider family estável — NUNCA criar StreamProvider inline no build(),
+/// pois cada rebuild recria o listener Firestore causando loop infinito.
+final studentBookingsStreamProvider =
+    StreamProvider.family<List<BookingModel>, String>((ref, studentId) {
+  if (studentId.isEmpty) return Stream.value([]);
+  return ref.read(bookingRepositoryProvider).watchStudentBookings(studentId);
+});
+
+/// Stream de marcações do trainer (para deteção de conflitos).
+/// Provider family estável — NUNCA criar StreamProvider inline no build().
+final trainerBookingsStreamProvider =
+    StreamProvider.family<List<BookingModel>, String>((ref, trainerId) {
+  if (trainerId.isEmpty) return Stream.value([]);
+  return ref.read(bookingRepositoryProvider).watchTrainerBookings(trainerId);
+});
+
+/// Stream de pagamentos do aluno.
+/// Provider family estável — NUNCA criar StreamProvider inline no build().
+final paymentsStreamProvider =
+    StreamProvider.family<List<PaymentModel>, String>((ref, userId) {
+  if (userId.isEmpty) return Stream.value([]);
+  return ref.read(paymentRepositoryProvider).watchPayments(userId);
+});
+
+/// Stream de mensagens de um grupo.
+/// Provider family estável — NUNCA criar StreamProvider inline no build().
+final groupMessagesStreamProvider =
+    StreamProvider.family<List<MessageModel>, String>((ref, groupId) {
+  if (groupId.isEmpty) return Stream.value([]);
+  return ref.read(groupRepositoryProvider).watchMessages(groupId);
 });

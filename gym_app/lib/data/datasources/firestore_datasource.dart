@@ -309,11 +309,8 @@ class FirestoreDataSource {
   /// Envia uma mensagem e garante que o documento da sala existe.
   Future<void> sendMessage(
       String salaId, Map<String, dynamic> messageMap) async {
-    print('📤 [sendMessage] salaId=$salaId texto=${messageMap['texto']}');
-
     // 1. Cria/atualiza o documento pai
     try {
-      print('📤 [sendMessage] Passo 1: set() no doc pai chat/$salaId');
       // Usa DateTime.now() em vez de FieldValue.serverTimestamp()
       // para evitar potenciais conflitos com as regras do Firestore.
       final now = DateTime.now();
@@ -326,24 +323,19 @@ class FirestoreDataSource {
         'lastSenderId': messageMap['remetenteId'] ?? '',
         'typing': '',
       }, SetOptions(merge: true));
-      print('✅ [sendMessage] Passo 1 OK');
     } on FirebaseException catch (e) {
-      print('❌ [sendMessage] Passo 1 FALHOU: ${e.code} - ${e.message}');
       throw ServerException(
           message: e.message ?? 'Erro ao enviar mensagem (passo 1)');
     }
 
     // 2. Adiciona a mensagem à subcoleção
     try {
-      print('📤 [sendMessage] Passo 2: add() na subcoleção mensagens');
       await _firestore
           .collection(AppConstants.chatCollection)
           .doc(salaId)
           .collection(AppConstants.messagesSubcollection)
           .add(messageMap);
-      print('✅ [sendMessage] Passo 2 OK');
     } on FirebaseException catch (e) {
-      print('❌ [sendMessage] Passo 2 FALHOU: ${e.code} - ${e.message}');
       throw ServerException(
           message: e.message ?? 'Erro ao enviar mensagem (passo 2)');
     }
@@ -617,16 +609,18 @@ class FirestoreDataSource {
   // ─── Agenda / Bookings ───────────────────────────────────────
 
   /// Obtém marcações de um aluno.
+  /// Ordenação feita client-side para evitar necessidade de índice composto Firestore.
   Future<List<BookingModel>> getStudentBookings(String studentId) async {
     try {
       final snap = await _firestore
           .collection(AppConstants.agendaCollection)
           .where('studentId', isEqualTo: studentId)
-          .orderBy('data', descending: true)
           .get();
-      return snap.docs
+      final bookings = snap.docs
           .map((doc) => BookingModel.fromMap(doc.id, doc.data()))
           .toList();
+      bookings.sort((a, b) => b.data.compareTo(a.data));
+      return bookings;
     } on FirebaseException catch (e) {
       throw ServerException(
           message: e.message ?? 'Erro ao obter agenda');
@@ -634,16 +628,18 @@ class FirestoreDataSource {
   }
 
   /// Obtém marcações de um trainer (admin).
+  /// Ordenação feita client-side para evitar necessidade de índice composto Firestore.
   Future<List<BookingModel>> getTrainerBookings(String trainerId) async {
     try {
       final snap = await _firestore
           .collection(AppConstants.agendaCollection)
           .where('trainerId', isEqualTo: trainerId)
-          .orderBy('data', descending: true)
           .get();
-      return snap.docs
+      final bookings = snap.docs
           .map((doc) => BookingModel.fromMap(doc.id, doc.data()))
           .toList();
+      bookings.sort((a, b) => b.data.compareTo(a.data));
+      return bookings;
     } on FirebaseException catch (e) {
       throw ServerException(
           message: e.message ?? 'Erro ao obter agenda');
@@ -673,16 +669,44 @@ class FirestoreDataSource {
     }
   }
 
-  /// Stream de marcações de um aluno.
+  /// Atualiza apenas o estado de uma marcação (conveniência).
+  Future<void> updateBookingStatus(String id, String newStatus) async {
+    return updateBooking(id, {'status': newStatus});
+  }
+
+  /// Stream de marcações de um aluno (ordenado client-side — sem índice composto).
   Stream<List<BookingModel>> watchStudentBookings(String studentId) {
+    if (studentId.isEmpty) return Stream.value([]);
     return _firestore
         .collection(AppConstants.agendaCollection)
         .where('studentId', isEqualTo: studentId)
-        .orderBy('data', descending: false)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((doc) => BookingModel.fromMap(doc.id, doc.data()))
-            .toList());
+        .map((snap) {
+          final list = snap.docs
+              .map((doc) => BookingModel.fromMap(doc.id, doc.data()))
+              .toList();
+          list.sort((a, b) => a.data.compareTo(b.data));
+          return list;
+        })
+        .handleError((_) => <BookingModel>[]);
+  }
+
+  /// Stream de marcações confirmadas/pending do trainer (ordenado client-side — sem índice composto).
+  Stream<List<BookingModel>> watchTrainerBookings(String trainerId) {
+    if (trainerId.isEmpty) return Stream.value([]);
+    return _firestore
+        .collection(AppConstants.agendaCollection)
+        .where('trainerId', isEqualTo: trainerId)
+        .snapshots()
+        .map((snap) {
+          final list = snap.docs
+              .map((doc) => BookingModel.fromMap(doc.id, doc.data()))
+              .where((b) => b.isConfirmed || b.isPending)
+              .toList();
+          list.sort((a, b) => a.data.compareTo(b.data));
+          return list;
+        })
+        .handleError((_) => <BookingModel>[]);
   }
 
   // ─── Grupos ──────────────────────────────────────────────────

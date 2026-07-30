@@ -158,10 +158,11 @@ final adminUserPaymentsProvider =
   return ref.read(paymentRepositoryProvider).getPayments(userId);
 });
 
-/// Provider de agenda do trainer (admin).
+/// Provider de agenda do trainer (admin) — Stream para atualizações em tempo real.
 final adminTrainerBookingsProvider =
-    FutureProvider.family<List<BookingModel>, String>((ref, trainerId) {
-  return ref.read(bookingRepositoryProvider).getTrainerBookings(trainerId);
+    StreamProvider.family<List<BookingModel>, String>((ref, trainerId) {
+  if (trainerId.isEmpty) return Stream.value([]);
+  return ref.read(bookingRepositoryProvider).watchTrainerBookings(trainerId);
 });
 
 /// Provider de progressão de cargas para clientes online.
@@ -179,7 +180,9 @@ final adminGroupsProvider = FutureProvider<List<GroupModel>>((ref) {
 final adminStudentNamesProvider =
     FutureProvider.family<Map<String, String>, String>((ref, trainerId) async {
   if (trainerId.isEmpty) return {};
-  final bookings = await ref.watch(adminTrainerBookingsProvider(trainerId).future);
+  // Lê os bookings atuais (StreamProvider) — se estiver em loading/error, retorna vazio
+  final bookingsAsync = ref.read(adminTrainerBookingsProvider(trainerId));
+  final bookings = bookingsAsync.valueOrNull ?? [];
   final uids = bookings.map((b) => b.studentId).toSet().toList();
   if (uids.isEmpty) return {};
   return ref.read(userRepositoryProvider).getUserNames(uids);

@@ -19,6 +19,7 @@ import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/app_notification.dart';
 import '../../../../core/services/sound_service.dart';
 import '../../../../core/config/notification_sounds.dart';
+import '../../../../shared/widgets/image_comparison_slider.dart';
 import 'progress_submission_screen.dart';
 
 final userProfileProvider =
@@ -841,8 +842,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   void _showProgressComparison(List<ProgressModel> withPhotos) {
-    int beforeIdx = withPhotos.length - 1;
-    int afterIdx = 0;
+    final int beforeIdx = withPhotos.length - 1;
+    final int afterIdx = 0;
 
     showDialog(
       context: context,
@@ -888,46 +889,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          withPhotos[beforeIdx].fotos.first,
-                          height: 180,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            height: 180,
-                            color: AppColors.surface,
-                            child: const Icon(Icons.broken_image,
-                                color: AppColors.textSecondary),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 4),
-                      child: Icon(Icons.arrow_forward, size: 20, color: AppColors.primary),
-                    ),
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          withPhotos[afterIdx].fotos.first,
-                          height: 180,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            height: 180,
-                            color: AppColors.surface,
-                            child: const Icon(Icons.broken_image,
-                                color: AppColors.textSecondary),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                ImageComparisonSlider(
+                  beforeImage: withPhotos[beforeIdx].fotos.first,
+                  afterImage: withPhotos[afterIdx].fotos.first,
+                  height: 280,
+                  dividerColor: AppColors.primary,
                 ),
                 if (withPhotos[beforeIdx].peso != null &&
                     withPhotos[afterIdx].peso != null) ...[
@@ -955,11 +921,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildPaymentsSection(String userId) {
-    final paymentsAsync = ref.watch(
-      StreamProvider<List<PaymentModel>>((ref) {
-        return ref.read(paymentRepositoryProvider).watchPayments(userId);
-      }),
-    );
+    // Usa provider estável (module-level) — nunca inline StreamProvider no build()!
+    final paymentsAsync = ref.watch(paymentsStreamProvider(userId));
 
     return paymentsAsync.when(
       data: (payments) {
@@ -1102,7 +1065,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final alturaController = TextEditingController(
       text: user.altura?.toString() ?? '',
     );
-    String _genero = user.genero ?? 'feminino';
+    String genero = user.genero ?? 'feminino';
 
     final result = await showDialog<bool>(
       context: context,
@@ -1193,7 +1156,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               const SizedBox(height: 12),
               // Seletor de género
               DropdownButtonFormField<String>(
-                value: _genero,
+                initialValue: genero,
                 decoration: InputDecoration(
                   labelText: 'Género',
                   labelStyle: GoogleFonts.inter(color: AppColors.onSurfaceVariant),
@@ -1218,7 +1181,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   DropdownMenuItem(value: 'feminino', child: Text('🌸 Feminino')),
                   DropdownMenuItem(value: 'masculino', child: Text('💪 Masculino')),
                 ],
-                onChanged: (v) => _genero = v ?? 'feminino',
+                onChanged: (v) => genero = v ?? 'feminino',
               ),
             ],
           ),
@@ -1262,8 +1225,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       if (novaAltura != null && novaAltura != user.altura) {
         updates['altura'] = novaAltura;
       }
-      if (_genero != (user.genero ?? 'feminino')) {
-        updates['genero'] = _genero;
+      if (genero != (user.genero ?? 'feminino')) {
+        updates['genero'] = genero;
       }
 
       if (updates.isNotEmpty) {

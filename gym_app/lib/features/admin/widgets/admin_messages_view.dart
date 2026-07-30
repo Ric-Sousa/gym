@@ -8,12 +8,10 @@ import '../../../core/config/admin_theme.dart';
 import '../../../core/config/app_constants.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/models/message_model.dart';
-import '../../../data/models/group_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../shared/providers/global_providers.dart';
 import '../../../shared/providers/admin_providers.dart';
 import '../../../features/auth/providers/auth_provider.dart';
-import '../../../shared/widgets/empty_state.dart';
 
 /// Provider que obtém a última mensagem de cada conversa do admin com alunos.
 final adminConversationsProvider =
@@ -285,16 +283,13 @@ class AdminMessagesView extends ConsumerWidget {
 /// Diálogo para criar um novo grupo.
 Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
   final nomeCtrl = TextEditingController();
-  final alunosAsync = ref.read(
-    FutureProvider<List<UserModel>>((ref) async {
-      final snap = await FirebaseFirestore.instance
-          .collection(AppConstants.usersCollection)
-          .where('role', isEqualTo: AppConstants.roleAluno)
-          .get();
-      return snap.docs.map((d) => UserModel.fromMap(d.id, d.data())).toList();
-    }),
-  );
-  final alunos = alunosAsync.valueOrNull ?? [];
+  // Aguarda os alunos do Firestore — o FutureProvider inline não bloqueava
+  List<UserModel> alunos;
+  try {
+    alunos = await ref.read(userRepositoryProvider).getAllAlunos();
+  } catch (_) {
+    alunos = []; // fallback se Firestore falhar
+  }
   final selectedIds = <String>{};
 
   await showDialog(

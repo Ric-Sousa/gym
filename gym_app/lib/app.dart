@@ -11,6 +11,7 @@ import 'features/aluno/nutricao/screens/nutrition_screen.dart';
 import 'features/aluno/treino/screens/workout_screen.dart';
 import 'features/aluno/chat/screens/chat_screen.dart';
 import 'features/aluno/perfil/screens/profile_screen.dart';
+import 'features/aluno/agenda/screens/calendar_screen.dart';
 import 'features/admin/screens/admin_panel_screen.dart';
 import 'shared/providers/admin_providers.dart';
 import 'shared/providers/global_providers.dart';
@@ -28,6 +29,7 @@ class PersonalFitApp extends ConsumerWidget {
     final genero = generoAsync.valueOrNull;
 
     return MaterialApp(
+      key: ValueKey(genero ?? 'default'),
       title: AppStrings.appName,
       debugShowCheckedModeBanner: false,
       theme: _buildKineticDarkTheme(genero).copyWith(
@@ -444,6 +446,7 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
     AlunoHomeScreen(),
     NutritionScreen(),
     WorkoutScreen(),
+    CalendarScreen(),
     ChatScreen(),
     ProfileScreen(),
   ];
@@ -491,6 +494,11 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
             icon: Icon(Icons.fitness_center_outlined),
             selectedIcon: Icon(Icons.fitness_center),
             label: AppStrings.tabWorkout,
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.calendar_today_outlined),
+            selectedIcon: Icon(Icons.calendar_today),
+            label: AppStrings.tabAgenda,
           ),
           NavigationDestination(
             icon: Icon(Icons.chat_outlined),

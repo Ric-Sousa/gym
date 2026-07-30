@@ -424,7 +424,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
             if (hasPT) ...[
               Text('PERSONAL TRAINER', style: GoogleFonts.barlowCondensed(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.06, color: AppColors.textSecondary)),
               const SizedBox(height: 8),
-              _buildPTChatTile(personalId!),
+              _buildPTChatTile(personalId),
               const SizedBox(height: 24),
             ],
             // ── Grupos ──
@@ -658,7 +658,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
       'salaId': salaId,
       'remetenteId': remetenteId,
       'texto': texto,
-    }).catchError((_) {}); // silencioso — a Cloud Function trata o envio
+    }); // fire-and-forget
   }
 }
 

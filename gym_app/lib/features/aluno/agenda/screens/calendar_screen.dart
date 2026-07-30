@@ -4,14 +4,26 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import '../../../../shared/utils/booking_notifications.dart';
 import '../../../../core/config/app_colors.dart';
 import '../../../../data/models/booking_model.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/app_notification.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 
-/// Ecrã de calendário/agenda para o aluno marcar e ver aulas com PT.
+/// Horários disponíveis para marcação (8h às 18h, blocos de 60 min).
+const _kAvailableHours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+const _kSlotDurationMin = 60;
+
+/// Estado visual de cada bloco horário.
+enum _SlotState {
+  available,       // cinzento — livre para marcar
+  pending,         // amarelo — pedido pendente do próprio aluno
+  confirmedMine,   // verde — confirmado (meu)
+  confirmedOther,  // verde escuro — ocupado por outro aluno
+  cancelled,       // vermelho claro — recusado/cancelado
+}
+
+/// Ecrã de agenda do aluno — grelha horária com blocos coloridos.
 class CalendarScreen extends ConsumerStatefulWidget {
   const CalendarScreen({super.key});
 
@@ -21,57 +33,55 @@ class CalendarScreen extends ConsumerStatefulWidget {
 
 class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   DateTime _selectedDate = DateTime.now();
-  bool _booking = false;
-  TimeOfDay? _selectedTime;
-  int _duracao = 60;
-  String _tipo = 'presencial';
-  final _notasCtrl = TextEditingController();
 
   String get _userId => FirebaseAuth.instance.currentUser?.uid ?? '';
 
   @override
-  void dispose() {
-    _notasCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final bookingsAsync = ref.watch(
-      StreamProvider<List<BookingModel>>((ref) {
-        if (_userId.isEmpty) return Stream.value([]);
-        return ref.read(bookingRepositoryProvider).watchStudentBookings(_userId);
-      }),
-    );
+    final authState = ref.watch(authProvider);
+    final trainerId = authState.user?.personalId ?? '';
+
+    final bookingsAsync = ref.watch(studentBookingsStreamProvider(_userId));
+    final trainerBookingsAsync = ref.watch(trainerBookingsStreamProvider(trainerId));
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text('Agenda', style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, fontSize: 18)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => setState(() => _booking = !_booking),
-            tooltip: 'Marcar aula',
-          ),
-        ],
       ),
       body: bookingsAsync.when(
-        data: (bookings) => Column(
-          children: [
-            // ── Seletor de semana ──
-            _buildWeekSelector(),
-            // ── Painel de marcação ──
-            if (_booking) _buildBookingPanel(bookings),
-            // ── Lista de marcações do dia ──
-            Expanded(child: _buildDayBookings(bookings)),
-          ],
-        ),
+        data: (myBookings) {
+          final allTrainerBookings = trainerBookingsAsync.valueOrNull ?? [];
+          return Column(
+            children: [
+              _buildWeekSelector(),
+              Expanded(child: _buildTimeGrid(myBookings, allTrainerBookings)),
+            ],
+          );
+        },
         loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
-        error: (_, __) => const Center(child: Text('Erro ao carregar agenda', style: TextStyle(color: AppColors.textSecondary))),
+        error: (e, _) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+              const SizedBox(height: 12),
+              Text('Erro ao carregar agenda', style: GoogleFonts.inter(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Text(e.toString(), style: GoogleFonts.inter(fontSize: 11, color: AppColors.textSecondary.withAlpha(150)), textAlign: TextAlign.center),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // WEEK SELECTOR
+  // ═══════════════════════════════════════════════════════════════
 
   Widget _buildWeekSelector() {
     final today = DateTime.now();
@@ -89,13 +99,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Row(
           children: days.map((d) {
-            final isSelected = _selectedDate.year == d.year &&
-                _selectedDate.month == d.month &&
-                _selectedDate.day == d.day;
-            final isToday = today.year == d.year &&
-                today.month == d.month &&
-                today.day == d.day;
-
+            final isSelected = _selectedDate.year == d.year && _selectedDate.month == d.month && _selectedDate.day == d.day;
+            final isToday = today.year == d.year && today.month == d.month && today.day == d.day;
             return GestureDetector(
               onTap: () => setState(() => _selectedDate = d),
               child: Container(
@@ -105,28 +110,18 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 decoration: BoxDecoration(
                   color: isSelected ? AppColors.primary : AppColors.surface,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: isToday && !isSelected ? AppColors.primary : AppColors.outline,
-                  ),
+                  border: Border.all(color: isToday && !isSelected ? AppColors.primary : AppColors.outline),
                 ),
                 child: Column(
                   children: [
                     Text(
                       ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'][d.weekday - 1],
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: isSelected ? Colors.white : AppColors.textSecondary,
-                      ),
+                      style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: isSelected ? Colors.white : AppColors.textSecondary),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       '${d.day}',
-                      style: GoogleFonts.montserrat(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: isSelected ? Colors.white : AppColors.onSurface,
-                      ),
+                      style: GoogleFonts.montserrat(fontSize: 16, fontWeight: FontWeight.w700, color: isSelected ? Colors.white : AppColors.onSurface),
                     ),
                   ],
                 ),
@@ -138,363 +133,228 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     );
   }
 
-  Widget _buildBookingPanel(List<BookingModel> existingBookings) {
-    return Container(
+  // ═══════════════════════════════════════════════════════════════
+  // TIME GRID
+  // ═══════════════════════════════════════════════════════════════
+
+  Widget _buildTimeGrid(List<BookingModel> myBookings, List<BookingModel> allTrainerBookings) {
+    final now = DateTime.now();
+    final isToday = _selectedDate.year == now.year && _selectedDate.month == now.month && _selectedDate.day == now.day;
+
+    return ListView.builder(
       padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.outline),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text('Nova Marcação', style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, color: AppColors.onSurface)),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.close, size: 18),
-                onPressed: () => setState(() => _booking = false),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Data
-          Text(DateFormat('EEEE, d MMMM yyyy', 'pt').format(_selectedDate),
-              style: GoogleFonts.inter(color: AppColors.primary, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 12),
-          // Hora
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () async {
-                    final t = await showTimePicker(
-                      context: context,
-                      initialTime: TimeOfDay(hour: 9, minute: 0),
-                    );
-                    if (t != null) setState(() => _selectedTime = t);
-                  },
-                  icon: const Icon(Icons.access_time, size: 16),
-                  label: Text(_selectedTime?.format(context) ?? 'Hora',
-                      style: GoogleFonts.inter(fontSize: 13)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.onSurface,
-                    side: BorderSide(color: AppColors.outline),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Duração
-              Expanded(
-                child: DropdownButtonFormField<int>(
-                  value: _duracao,
-                  dropdownColor: AppColors.surfaceHigh,
-                  style: GoogleFonts.inter(color: AppColors.onSurface, fontSize: 13),
-                  decoration: InputDecoration(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: const BorderSide(color: AppColors.outline),
-                    ),
-                  ),
-                  items: [30, 45, 60, 90, 120].map((m) => DropdownMenuItem(value: m, child: Text('${m}min'))).toList(),
-                  onChanged: (v) => setState(() => _duracao = v ?? 60),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Tipo
-          Row(
-            children: ['presencial', 'online'].map((t) {
-              final active = _tipo == t;
-              return Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(right: t == 'presencial' ? 4 : 0, left: t == 'online' ? 4 : 0),
-                  child: GestureDetector(
-                    onTap: () => setState(() => _tipo = t),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: active ? AppColors.primary.withValues(alpha: 0.12) : AppColors.surface,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: active ? AppColors.primary : AppColors.outline),
-                      ),
-                      child: Text(
-                        t == 'presencial' ? '🏋️ Presencial' : '💻 Online',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                          color: active ? AppColors.primary : AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _notasCtrl,
-            style: GoogleFonts.inter(color: AppColors.onSurface, fontSize: 13),
-            decoration: InputDecoration(
-              hintText: 'Notas (opcional)',
-              hintStyle: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: AppColors.outline),
+      itemCount: _kAvailableHours.length,
+      itemBuilder: (_, i) {
+        final hour = _kAvailableHours[i];
+        final slotStart = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, hour, 0);
+        final slotEnd = slotStart.add(const Duration(minutes: _kSlotDurationMin));
+
+        final slotState = _getSlotState(slotStart, slotEnd, myBookings, allTrainerBookings);
+        final isPast = isToday && slotEnd.isBefore(now);
+
+        return _buildSlotTile(hour, slotState, slotStart, isPast, myBookings);
+      },
+    );
+  }
+
+  _SlotState _getSlotState(
+    DateTime slotStart,
+    DateTime slotEnd,
+    List<BookingModel> myBookings,
+    List<BookingModel> allTrainerBookings,
+  ) {
+    // 1. Verifica se há um booking confirmado que se sobrepõe (de qualquer aluno)
+    final confirmedOverlap = allTrainerBookings.where((b) => b.isConfirmed).any((b) {
+      return _overlaps(slotStart, slotEnd, b.data, b.data.add(Duration(minutes: b.duracaoMinutos)));
+    });
+    if (confirmedOverlap) {
+      final myConfirmed = myBookings.where((b) => b.isConfirmed).any((b) {
+        return _overlaps(slotStart, slotEnd, b.data, b.data.add(Duration(minutes: b.duracaoMinutos)));
+      });
+      return myConfirmed ? _SlotState.confirmedMine : _SlotState.confirmedOther;
+    }
+
+    // 2. Pendentes do próprio aluno
+    final myPending = myBookings.where((b) => b.isPending).any((b) {
+      return _overlaps(slotStart, slotEnd, b.data, b.data.add(Duration(minutes: b.duracaoMinutos)));
+    });
+    if (myPending) return _SlotState.pending;
+
+    // 3. Cancelados do próprio aluno
+    final myCancelled = myBookings.where((b) => b.isCancelled).any((b) {
+      return _overlaps(slotStart, slotEnd, b.data, b.data.add(Duration(minutes: b.duracaoMinutos)));
+    });
+    if (myCancelled) return _SlotState.cancelled;
+
+    return _SlotState.available;
+  }
+
+  bool _overlaps(DateTime s1, DateTime e1, DateTime s2, DateTime e2) {
+    return s1.isBefore(e2) && e1.isAfter(s2);
+  }
+
+  Widget _buildSlotTile(int hour, _SlotState state, DateTime slotStart, bool isPast, List<BookingModel> myBookings) {
+    final (Color bgColor, Color textColor, IconData? icon, String label) = switch (state) {
+      _SlotState.available => (AppColors.surface, AppColors.onSurface, null, 'Disponível'),
+      _SlotState.pending => (AppColors.calories.withValues(alpha: 0.2), AppColors.calories, Icons.hourglass_bottom, 'Aguardando'),
+      _SlotState.confirmedMine => (AppColors.primary.withValues(alpha: 0.2), AppColors.primary, Icons.check_circle, 'Confirmada'),
+      _SlotState.confirmedOther => (AppColors.error.withValues(alpha: 0.12), AppColors.error, Icons.lock, 'Ocupado'),
+      _SlotState.cancelled => (AppColors.error.withValues(alpha: 0.08), AppColors.error.withValues(alpha: 0.5), Icons.cancel, 'Recusada'),
+    };
+
+    final isAvailable = state == _SlotState.available && !isPast;
+    final isMyPending = state == _SlotState.pending;
+    final isMyConfirmed = state == _SlotState.confirmedMine;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Material(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: isAvailable
+              ? () => _confirmBooking(slotStart)
+              : isMyPending
+                  ? () => _cancelMyPending(slotStart, myBookings)
+                  : isMyConfirmed
+                      ? () => _cancelConfirmed(slotStart, myBookings)
+                      : null,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isAvailable ? AppColors.outline : Colors.transparent,
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _selectedTime == null ? null : () => _submitBooking(existingBookings),
-              icon: const Icon(Icons.check, size: 16),
-              label: Text('Confirmar Marcação', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 56,
+                  child: Text(
+                    '${hour.toString().padLeft(2, '0')}:00',
+                    style: GoogleFonts.montserrat(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: isPast ? AppColors.textSecondary.withValues(alpha: 0.4) : textColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${(hour + 1).toString().padLeft(2, '0')}:00',
+                  style: GoogleFonts.inter(fontSize: 11, color: textColor.withValues(alpha: 0.5)),
+                ),
+                const Spacer(),
+                if (icon != null) ...[
+                  Icon(icon, size: 16, color: textColor),
+                  const SizedBox(width: 6),
+                  Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: textColor)),
+                ],
+                if (isAvailable) ...[
+                  const Icon(Icons.add_circle_outline, size: 18, color: AppColors.primary),
+                  const SizedBox(width: 6),
+                  Text('Marcar', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary)),
+                ],
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Future<void> _submitBooking(List<BookingModel> existing) async {
-    if (_selectedTime == null) return;
+  // ═══════════════════════════════════════════════════════════════
+  // ACTIONS
+  // ═══════════════════════════════════════════════════════════════
 
-    final bookingDate = DateTime(
-      _selectedDate.year,
-      _selectedDate.month,
-      _selectedDate.day,
-      _selectedTime!.hour,
-      _selectedTime!.minute,
-    );
+  Future<void> _confirmBooking(DateTime slotStart) async {
+    final authState = ref.read(authProvider);
+    final trainerId = authState.user?.personalId ?? '';
 
-    // Verifica conflito de horário
-    final conflito = existing.any((b) {
-      if (b.isCancelled) return false;
-      final bStart = b.data;
-      final bEnd = b.data.add(Duration(minutes: b.duracaoMinutos));
-      final myEnd = bookingDate.add(Duration(minutes: _duracao));
-      return bookingDate.isBefore(bEnd) && myEnd.isAfter(bStart);
-    });
-
-    if (conflito) {
-      showAppNotification(context, 'Já tens uma aula nesse horário.', type: NotificationType.error);
+    if (trainerId.isEmpty) {
+      if (mounted) showAppNotification(context, 'Ainda não tens um Personal Trainer associado.', type: NotificationType.info);
       return;
     }
 
-    // Obtém o trainerId do perfil do aluno (personalId)
-    final authState = ref.read(authProvider);
-    final trainerId = authState.user?.personalId ?? '';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceHigh,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Text('Marcar aula?', style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, color: AppColors.onSurface)),
+        content: Text(
+          '${DateFormat('EEEE, d MMMM', 'pt').format(slotStart)}\n'
+          '${slotStart.hour.toString().padLeft(2, '0')}:00 - ${(slotStart.hour + 1).toString().padLeft(2, '0')}:00\n\n'
+          'O teu PT será notificado e poderá confirmar ou recusar.',
+          style: GoogleFonts.inter(color: AppColors.textSecondary, height: 1.5),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            child: const Text('Marcar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
 
     try {
       await ref.read(bookingRepositoryProvider).addBooking({
         'studentId': _userId,
         'trainerId': trainerId,
-        'data': bookingDate,
-        'duracaoMinutos': _duracao,
+        'data': slotStart,
+        'duracaoMinutos': _kSlotDurationMin,
         'status': 'pending',
-        'tipo': _tipo,
-        if (_notasCtrl.text.trim().isNotEmpty) 'notas': _notasCtrl.text.trim(),
+        'tipo': 'presencial',
         'createdAt': DateTime.now(),
       });
 
-      // Notificar o PT (fire-and-forget, sem bloquear)
-      _notifyBooking(_userId, trainerId, bookingDate, _tipo);
+      // Notificar PT (fire-and-forget)
+      FirebaseFunctions.instanceFor(region: 'europe-west1')
+          .httpsCallable('notifyNewBooking')
+          .call({
+        'studentId': _userId,
+        'trainerId': trainerId,
+        'bookingDate': slotStart.toIso8601String(),
+        'tipo': 'presencial',
+      });
 
-      if (mounted) {
-        showAppNotification(context, 'Aula marcada com sucesso!', type: NotificationType.success);
-        setState(() {
-          _booking = false;
-          _selectedTime = null;
-          _notasCtrl.clear();
-        });
-      }
+      if (mounted) showAppNotification(context, 'Aula marcada! Aguarda confirmação do PT.', type: NotificationType.success);
     } catch (_) {
       if (mounted) showAppNotification(context, 'Erro ao marcar aula.', type: NotificationType.error);
     }
   }
 
-  Widget _buildDayBookings(List<BookingModel> bookings) {
-    final dayBookings = bookings
-        .where((b) =>
-            b.data.year == _selectedDate.year &&
-            b.data.month == _selectedDate.month &&
-            b.data.day == _selectedDate.day)
-        .toList()
-      ..sort((a, b) => a.data.compareTo(b.data));
-
-    if (dayBookings.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.event_busy, size: 48, color: AppColors.textSecondary.withValues(alpha: 0.4)),
-            const SizedBox(height: 12),
-            Text('Nenhuma aula marcada', style: GoogleFonts.inter(color: AppColors.textSecondary)),
-            const SizedBox(height: 4),
-            Text('para ${DateFormat('d MMMM', 'pt').format(_selectedDate)}',
-                style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary.withValues(alpha: 0.6))),
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: dayBookings.length,
-      itemBuilder: (_, i) => _bookingCard(dayBookings[i]),
+  /// Cancela uma marcação pending do próprio aluno neste slot.
+  Future<void> _cancelMyPending(DateTime slotStart, List<BookingModel> myBookings) async {
+    final pendingBooking = myBookings.where((b) => b.isPending).firstWhere(
+      (b) {
+        final bEnd = b.data.add(Duration(minutes: b.duracaoMinutos));
+        return _overlaps(slotStart, slotStart.add(const Duration(minutes: _kSlotDurationMin)), b.data, bEnd);
+      },
+      orElse: () => BookingModel(id: '', studentId: '', trainerId: '', data: DateTime.now()),
     );
-  }
 
-  Widget _bookingCard(BookingModel booking) {
-    final statusColors = {
-      'confirmed': AppColors.primary,
-      'pending': AppColors.calories,
-      'cancelled': AppColors.error,
-      'completed': AppColors.protein,
-    };
-    final statusLabels = {
-      'confirmed': 'Confirmada',
-      'pending': 'Pendente',
-      'cancelled': 'Cancelada',
-      'completed': 'Concluída',
-    };
+    if (pendingBooking.id.isEmpty) return;
 
-    final color = statusColors[booking.status] ?? AppColors.textSecondary;
-    final label = statusLabels[booking.status] ?? booking.status;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.outline),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Container(
-              width: 56,
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Column(
-                children: [
-                  Text(booking.horaFormatada,
-                      style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, fontSize: 16, color: color)),
-                  Text(booking.fimFormatado,
-                      style: GoogleFonts.inter(fontSize: 10, color: color.withValues(alpha: 0.7))),
-                ],
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        booking.tipo == 'online' ? Icons.videocam : Icons.fitness_center,
-                        size: 14,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        booking.tipo == 'online' ? 'Online' : 'Presencial',
-                        style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('${booking.duracaoMinutos}min',
-                          style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary)),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  if (booking.notas != null && booking.notas!.isNotEmpty)
-                    Text(booking.notas!, style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary)),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(label, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: color)),
-            ),
-            if (booking.isPending) ...[
-              const SizedBox(width: 4),
-              IconButton(
-                icon: const Icon(Icons.close, size: 16, color: AppColors.error),
-                onPressed: () => _cancelBooking(booking),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                tooltip: 'Cancelar',
-              ),
-            ],
-            if (booking.isConfirmed) ...[
-              const SizedBox(width: 4),
-              IconButton(
-                icon: const Icon(Icons.check_circle_outline, size: 16, color: AppColors.protein),
-                onPressed: () => _completeBooking(booking),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                tooltip: 'Concluir aula',
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Envia notificação ao PT sobre nova marcação (best-effort).
-  void _notifyBooking(String studentId, String trainerId, DateTime bookingDate, String tipo) {
-    FirebaseFunctions.instanceFor(region: 'europe-west1')
-        .httpsCallable('notifyNewBooking')
-        .call({
-      'studentId': studentId,
-      'trainerId': trainerId,
-      'bookingDate': bookingDate.toIso8601String(),
-      'tipo': tipo,
-    }).catchError((_) {}); // silencioso — a Cloud Function trata o envio
-  }
-
-  Future<void> _cancelBooking(BookingModel booking) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceHigh,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: Text('Cancelar aula?', style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, color: AppColors.onSurface)),
-        content: Text('${booking.horaFormatada} - ${DateFormat('d MMM', 'pt').format(booking.data)}',
-            style: GoogleFonts.inter(color: AppColors.textSecondary)),
+        title: Text('Cancelar pedido?', style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, color: AppColors.onSurface)),
+        content: Text('O pedido para ${pendingBooking.horaFormatada} será cancelado.', style: GoogleFonts.inter(color: AppColors.textSecondary)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Voltar')),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white),
-            child: const Text('Cancelar'),
+            child: const Text('Cancelar Pedido'),
           ),
         ],
       ),
@@ -502,29 +362,39 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
     if (confirm == true) {
       try {
-        await ref.read(bookingRepositoryProvider).updateBooking(booking.id, {'status': 'cancelled'});
-        if (mounted) showAppNotification(context, 'Aula cancelada.', type: NotificationType.success);
+        await ref.read(bookingRepositoryProvider).updateBooking(pendingBooking.id, {'status': 'cancelled'});
+        if (mounted) showAppNotification(context, 'Pedido cancelado.', type: NotificationType.success);
       } catch (_) {
         if (mounted) showAppNotification(context, 'Erro ao cancelar.', type: NotificationType.error);
       }
     }
   }
 
-  Future<void> _completeBooking(BookingModel booking) async {
+  /// Cancela uma aula confirmada.
+  Future<void> _cancelConfirmed(DateTime slotStart, List<BookingModel> myBookings) async {
+    final confirmedBooking = myBookings.where((b) => b.isConfirmed).firstWhere(
+      (b) {
+        final bEnd = b.data.add(Duration(minutes: b.duracaoMinutos));
+        return _overlaps(slotStart, slotStart.add(const Duration(minutes: _kSlotDurationMin)), b.data, bEnd);
+      },
+      orElse: () => BookingModel(id: '', studentId: '', trainerId: '', data: DateTime.now()),
+    );
+
+    if (confirmedBooking.id.isEmpty) return;
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceHigh,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: Text('Concluir aula?', style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, color: AppColors.onSurface)),
-        content: Text('Marcar aula de ${booking.horaFormatada} como concluída?',
-            style: GoogleFonts.inter(color: AppColors.textSecondary)),
+        title: Text('Cancelar aula?', style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, color: AppColors.onSurface)),
+        content: Text('A aula de ${confirmedBooking.horaFormatada} será cancelada.', style: GoogleFonts.inter(color: AppColors.textSecondary)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Voltar')),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.protein, foregroundColor: Colors.white),
-            child: const Text('Concluir'),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white),
+            child: const Text('Cancelar Aula'),
           ),
         ],
       ),
@@ -532,12 +402,18 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
     if (confirm == true) {
       try {
-        await ref.read(bookingRepositoryProvider).updateBooking(booking.id, {'status': 'completed'});
-        // Notificar o PT que a aula foi concluída (fire-and-forget)
-        fireBookingNotification(booking, 'completed');
-        if (mounted) showAppNotification(context, 'Aula concluída! 💪', type: NotificationType.success);
+        await ref.read(bookingRepositoryProvider).updateBooking(confirmedBooking.id, {'status': 'cancelled'});
+        // Notificar o PT (fire-and-forget)
+        FirebaseFunctions.instanceFor(region: 'europe-west1')
+            .httpsCallable('notifyBookingCancelled')
+            .call({
+          'bookingId': confirmedBooking.id,
+          'studentId': _userId,
+          'trainerId': confirmedBooking.trainerId,
+        });
+        if (mounted) showAppNotification(context, 'Aula cancelada.', type: NotificationType.success);
       } catch (_) {
-        if (mounted) showAppNotification(context, 'Erro ao concluir.', type: NotificationType.error);
+        if (mounted) showAppNotification(context, 'Erro ao cancelar.', type: NotificationType.error);
       }
     }
   }

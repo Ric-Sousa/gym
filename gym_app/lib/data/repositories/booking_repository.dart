@@ -32,4 +32,9 @@ class BookingRepository {
   Stream<List<BookingModel>> watchStudentBookings(String studentId) {
     return _firestore.watchStudentBookings(studentId);
   }
+
+  /// Stream de marcações confirmadas/pending do trainer (para conflitos).
+  Stream<List<BookingModel>> watchTrainerBookings(String trainerId) {
+    return _firestore.watchTrainerBookings(trainerId);
+  }
 }

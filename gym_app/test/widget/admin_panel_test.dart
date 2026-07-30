@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:gym_app/data/models/user_model.dart';
@@ -12,7 +11,6 @@ import 'package:gym_app/core/services/fcm_service.dart';
 
 import 'test_helpers.dart';
 
-/// Mock do FCMService — evita dependência do Firebase nos testes.
 class MockFCMService extends Mock implements FCMService {}
 
 void main() {
@@ -27,13 +25,13 @@ void main() {
     when(() => mockFcm.dispose()).thenReturn(null);
   });
 
-  /// Configura viewport grande e providers mockados para o admin panel.
   Future<void> _pumpLargeAdmin(WidgetTester tester) async {
     tester.view.physicalSize = const Size(4800, 3600);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
+    final trainerId = adminAuthState.user!.uid;
     await tester.pumpWidget(createTestApp(
       overrides: [
         authProvider.overrideWith((ref) => MockAuthNotifier(adminAuthState)),
@@ -51,14 +49,16 @@ void main() {
             ),
           ),
         ),
-        // O _agendaCard() usa adminTrainerBookingsProvider(trainerId) via authProvider
-        adminTrainerBookingsProvider('test-admin-123').overrideWith(
-          (ref) => Future.value(<BookingModel>[]),
+        adminTrainerBookingsProvider(trainerId).overrideWith(
+          (ref) => Stream.value(<BookingModel>[]),
+        ),
+        adminStudentNamesProvider(trainerId).overrideWith(
+          (ref) => Future.value(<String, String>{}),
         ),
       ],
       child: const AdminPanelScreen(),
     ));
-    await tester.pump();
+    await tester.pumpAndSettle();
   }
 
   group('AdminPanelScreen', () {
@@ -94,6 +94,27 @@ void main() {
     testWidgets('sidebar shows logout icon', (tester) async {
       await _pumpLargeAdmin(tester);
       expect(find.byIcon(Icons.logout), findsOneWidget);
+    });
+
+    // ─── Agenda Tests ──────────────────────────────────────
+
+    testWidgets('dashboard renders AGENDA DA SEMANA card title', (tester) async {
+      await _pumpLargeAdmin(tester);
+      expect(find.text('AGENDA DA SEMANA'), findsOneWidget);
+    });
+
+    testWidgets('sidebar has Agenda navigation item', (tester) async {
+      await _pumpLargeAdmin(tester);
+      expect(find.text('Agenda'), findsOneWidget);
+    });
+
+    testWidgets('navigating to Agenda view renders AGENDA title', (tester) async {
+      await _pumpLargeAdmin(tester);
+      // Tocar no item Agenda da sidebar
+      await tester.tap(find.text('Agenda'));
+      await tester.pumpAndSettle();
+      // A view de agenda deve mostrar o título 'AGENDA'
+      expect(find.text('AGENDA'), findsWidgets);
     });
   });
 }
