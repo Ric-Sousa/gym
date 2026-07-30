@@ -873,9 +873,12 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
               child: CircularProgressIndicator(
                   color: AdminThemeColors.of(context).lime),
             ),
-            error: (_, __) => Text('Erro',
-                style: GoogleFonts.inter(
-                    color: AdminThemeColors.of(context).muted)),
+            error: (e, __) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Text('Erro: ${e.toString()}',
+                  style: GoogleFonts.inter(
+                      color: AdminThemeColors.of(context).muted, fontSize: 12)),
+            ),
           ),
         ],
       ),
@@ -4411,9 +4414,12 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
               child: CircularProgressIndicator(
                   color: AdminThemeColors.of(context).lime),
             ),
-            error: (_, __) => Text('Erro',
-                style: GoogleFonts.inter(
-                    color: AdminThemeColors.of(context).muted)),
+            error: (e, __) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Text('Erro: ${e.toString()}',
+                  style: GoogleFonts.inter(
+                      color: AdminThemeColors.of(context).muted, fontSize: 12)),
+            ),
           ),
         ],
       ),

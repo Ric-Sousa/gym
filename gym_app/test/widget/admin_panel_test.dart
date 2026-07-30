@@ -50,7 +50,7 @@ void main() {
           ),
         ),
         adminTrainerBookingsProvider(trainerId).overrideWith(
-          (ref) => Future.value(<BookingModel>[]),
+          (ref) => Stream.value(<BookingModel>[]),
         ),
         adminStudentNamesProvider(trainerId).overrideWith(
           (ref) => Future.value(<String, String>{}),

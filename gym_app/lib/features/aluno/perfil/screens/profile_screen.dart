@@ -769,11 +769,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildPaymentsSection(String userId) {
-    final paymentsAsync = ref.watch(
-      StreamProvider<List<PaymentModel>>((ref) {
-        return ref.read(paymentRepositoryProvider).watchPayments(userId);
-      }),
-    );
+    // Usa provider estável (module-level) — nunca inline StreamProvider no build()!
+    final paymentsAsync = ref.watch(paymentsStreamProvider(userId));
 
     return paymentsAsync.when(
       data: (payments) {

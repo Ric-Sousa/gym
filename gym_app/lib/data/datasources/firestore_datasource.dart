@@ -669,8 +669,14 @@ class FirestoreDataSource {
     }
   }
 
+  /// Atualiza apenas o estado de uma marcação (conveniência).
+  Future<void> updateBookingStatus(String id, String newStatus) async {
+    return updateBooking(id, {'status': newStatus});
+  }
+
   /// Stream de marcações de um aluno (ordenado client-side — sem índice composto).
   Stream<List<BookingModel>> watchStudentBookings(String studentId) {
+    if (studentId.isEmpty) return Stream.value([]);
     return _firestore
         .collection(AppConstants.agendaCollection)
         .where('studentId', isEqualTo: studentId)
@@ -681,11 +687,13 @@ class FirestoreDataSource {
               .toList();
           list.sort((a, b) => a.data.compareTo(b.data));
           return list;
-        });
+        })
+        .handleError((_) => <BookingModel>[]);
   }
 
   /// Stream de marcações confirmadas/pending do trainer (ordenado client-side — sem índice composto).
   Stream<List<BookingModel>> watchTrainerBookings(String trainerId) {
+    if (trainerId.isEmpty) return Stream.value([]);
     return _firestore
         .collection(AppConstants.agendaCollection)
         .where('trainerId', isEqualTo: trainerId)
@@ -697,7 +705,8 @@ class FirestoreDataSource {
               .toList();
           list.sort((a, b) => a.data.compareTo(b.data));
           return list;
-        });
+        })
+        .handleError((_) => <BookingModel>[]);
   }
 
   // ─── Grupos ──────────────────────────────────────────────────

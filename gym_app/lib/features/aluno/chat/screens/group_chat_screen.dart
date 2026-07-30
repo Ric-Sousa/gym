@@ -35,11 +35,8 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final messagesAsync = ref.watch(
-      StreamProvider<List<MessageModel>>((ref) {
-        return ref.read(groupRepositoryProvider).watchMessages(widget.group.id);
-      }),
-    );
+    // Usa provider estável (module-level) — nunca inline StreamProvider no build()!
+    final messagesAsync = ref.watch(groupMessagesStreamProvider(widget.group.id));
 
     return Scaffold(
       backgroundColor: AppColors.background,

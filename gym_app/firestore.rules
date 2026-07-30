@@ -8,8 +8,9 @@ service cloud.firestore {
     }
 
     // ── Helper: is the user an admin? ──────────────
+    // Usa .get('role', '') para nunca falhar quando o campo não existe
     function isAdmin() {
-      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin';
     }
 
     // ── Helper: does the user own this document? ───
@@ -80,6 +81,78 @@ service cloud.firestore {
     match /exercicios/{docId} {
       allow read: if isAuth();
       allow write: if isAdmin();
+    }
+
+    // ══════════════════════════════════════════════════════
+    // AGENDA collection (bookings)
+    // ══════════════════════════════════════════════════════
+    match /agenda/{docId} {
+      // Aluno vê as suas próprias marcações, as do seu trainer (conflitos),
+      // e o trainer vê as dele pelo próprio UID.
+      // Admin vê todas.
+      // Usa .get('field', '') para nunca falhar com campos em falta.
+      allow read: if isAuth() && (
+        isAdmin() ||
+        resource.data.studentId == request.auth.uid ||
+        resource.data.trainerId == request.auth.uid ||
+        resource.data.trainerId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('personalId', '')
+      );
+      // Aluno pode criar marcações (status='pending'); admin pode criar/atualizar qualquer
+      allow create: if isAuth() && (
+        isAdmin() ||
+        request.resource.data.studentId == request.auth.uid
+      );
+      // Admin, o próprio aluno OU o trainer pode atualizar (ex: cancelar, concluir)
+      allow update: if isAuth() && (
+        isAdmin() ||
+        resource.data.studentId == request.auth.uid ||
+        resource.data.trainerId == request.auth.uid
+      );
+      // Só admin pode apagar
+      allow delete: if isAdmin();
+    }
+
+    // ══════════════════════════════════════════════════════
+    // PAYMENTS collection
+    // ══════════════════════════════════════════════════════
+    match /pagamentos/{docId} {
+      // Aluno vê os seus próprios pagamentos; admin vê todos
+      allow read: if isAuth() && (
+        isAdmin() ||
+        resource.data.userId == request.auth.uid
+      );
+      // Só admin pode criar/atualizar pagamentos
+      allow write: if isAdmin();
+    }
+
+    // ══════════════════════════════════════════════════════
+    // GROUPS collection
+    // ══════════════════════════════════════════════════════
+    match /grupos/{groupId} {
+      // Qualquer utilizador autenticado pode ler grupos onde é membro
+      allow read: if isAuth() && (
+        isAdmin() ||
+        request.auth.uid in resource.data.membros
+      );
+      // Admin pode criar/atualizar grupos
+      allow create, update: if isAuth() && (
+        isAdmin() ||
+        request.auth.uid in request.resource.data.membros
+      );
+      allow delete: if isAdmin();
+
+      // ── GROUP MESSAGES subcollection ─────────
+      match /mensagens/{msgId} {
+        allow read: if isAuth() && (
+          isAdmin() ||
+          request.auth.uid in get(/databases/$(database)/documents/grupos/$(groupId)).data.membros
+        );
+        allow create: if isAuth() && (
+          isAdmin() ||
+          request.auth.uid in get(/databases/$(database)/documents/grupos/$(groupId)).data.membros
+        );
+        allow update, delete: if false; // mensagens imutáveis
+      }
     }
 
   }
