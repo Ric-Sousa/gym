@@ -24,18 +24,31 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> with NewMessa
   final _textCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   bool _sending = false;
+  // Guardado localmente porque ref fica invalido no dispose
+  StateController<bool>? _chatNotifier;
 
   String get _userId => FirebaseAuth.instance.currentUser?.uid ?? '';
 
   @override
   void initState() {
     super.initState();
-    ref.read(isAlunoInChatProvider.notifier).state = true;
+    // Captura o notifier localmente — ref fica invalido no dispose
+    _chatNotifier = ref.read(isAlunoInChatProvider.notifier);
+    // Deferir para depois da build — Riverpod proibe modificar providers durante a build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _chatNotifier?.state = true;
+    });
   }
 
   @override
   void dispose() {
-    ref.read(isAlunoInChatProvider.notifier).state = false;
+    // Usa Future.microtask para adiar a modificacao do provider —
+    // durante o dispose o widget tree esta a ser finalizado e o
+    // Riverpod nao permite modificar providers nessa fase.
+    final notifier = _chatNotifier;
+    if (notifier != null) {
+      Future.microtask(() => notifier.state = false);
+    }
     _textCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
@@ -237,6 +250,12 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> with NewMessa
     // Fire-and-forget — não bloqueia o envio da mensagem
     Future(() async {
       try {
+        // Força refresh do token antes de chamar a function — evita 401
+        // por token expirado, comum em Flutter Web.
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          await user.getIdToken(true); // forceRefresh = true
+        }
         await FirebaseFunctions.instanceFor(region: 'europe-west1')
             .httpsCallable('sendChatNotification')
             .call({
@@ -244,7 +263,12 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> with NewMessa
           'remetenteId': _userId,
           'texto': '[${widget.group.nome}] Nova mensagem de grupo',
         });
-      } catch (_) {}
+      } on FirebaseFunctionsException catch (e) {
+        // Log apenas em debug — nao incomoda o utilizador
+        debugPrint('⚠️ Cloud Function sendChatNotification: ${e.code} — ${e.message}');
+      } catch (e) {
+        debugPrint('⚠️ Cloud Function sendChatNotification erro: $e');
+      }
     });
   }
 }

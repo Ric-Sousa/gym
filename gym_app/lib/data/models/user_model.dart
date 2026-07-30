@@ -14,6 +14,7 @@ class UserModel {
   final String? genero; // 'masculino', 'feminino' ou null
   final String tipoCliente; // 'presencial' ou 'online'
   final String? notificationSound; // asset path do som de notificação
+  final bool soundEnabled; // se os sons de notificação estão ativos
 
   const UserModel({
     required this.uid,
@@ -30,6 +31,7 @@ class UserModel {
     this.genero,
     this.tipoCliente = 'presencial',
     this.notificationSound,
+    this.soundEnabled = true,
   });
 
   /// Cria a partir do documento Firestore.
@@ -53,6 +55,7 @@ class UserModel {
       genero: map['genero'] as String?,
       tipoCliente: map['tipoCliente'] as String? ?? 'presencial',
       notificationSound: map['notificationSound'] as String?,
+      soundEnabled: map['soundEnabled'] as bool? ?? true,
     );
   }
 
@@ -73,6 +76,7 @@ class UserModel {
       if (genero != null) 'genero': genero,
       'tipoCliente': tipoCliente,
       if (notificationSound != null) 'notificationSound': notificationSound,
+      if (!soundEnabled) 'soundEnabled': false, // só escreve se for false (poupa writes)
     };
   }
 
@@ -94,6 +98,7 @@ class UserModel {
     bool clearUltimaAtividade = false,
     String? tipoCliente,
     String? notificationSound,
+    bool? soundEnabled,
   }) {
     return UserModel(
       uid: uid,
@@ -109,6 +114,7 @@ class UserModel {
       genero: genero ?? this.genero,
       tipoCliente: tipoCliente ?? this.tipoCliente,
       notificationSound: notificationSound ?? this.notificationSound,
+      soundEnabled: soundEnabled ?? this.soundEnabled,
     );
   }
 

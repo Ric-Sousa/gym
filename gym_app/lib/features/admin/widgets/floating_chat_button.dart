@@ -49,7 +49,8 @@ class FloatingChatButton extends ConsumerWidget {
     // Toca som de notificacao quando chegam novas mensagens e o modal esta fechado
     ref.listen<int>(adminUnreadCountProvider, (prev, next) {
       if (prev == null) return; // skip initial load
-      if (next > prev && !ref.read(isChatModalOpenProvider)) {
+      final soundEnabled = ref.read(authProvider).user?.soundEnabled ?? true;
+      if (next > prev && !ref.read(isChatModalOpenProvider) && soundEnabled) {
         SoundService().playNotificationChime();
       }
     });
@@ -653,7 +654,7 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
           .where('lida', isEqualTo: false)
           .get();
 
-      if (snapshot.docs.isEmpty) return;
+      if (snapshot.docs.isEmpty || !mounted) return;
 
       final batch = firestore.batch();
       for (final doc in snapshot.docs) {
@@ -665,8 +666,8 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
         {'lastReadAt': FieldValue.serverTimestamp()},
       );
       await batch.commit();
-
-      ref.invalidate(adminConversationsProvider);
+      // So invalida se o widget ainda estiver montado
+      if (mounted) ref.invalidate(adminConversationsProvider);
     } catch (_) {
       // Silently ignore — the UI will still work.
     }
@@ -687,7 +688,10 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
     if (text.isEmpty) return;
 
     _msgController.clear();
-    FocusScope.of(context).unfocus();
+    // NOTA: Nao chamamos FocusScope.of(context).unfocus() aqui porque
+    // no Flutter Web causa o bug 'ViewInsets cannot be negative'
+    // (window.dart:99 assertion) ao dispensar o teclado virtual.
+    // O campo de texto e limpo e continua funcional.
     final authState = ref.read(authProvider);
     final adminId = authState.user?.uid ?? '';
 

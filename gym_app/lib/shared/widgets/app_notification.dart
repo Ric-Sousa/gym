@@ -12,6 +12,7 @@ void showAppNotification(
   String message, {
   NotificationType type = NotificationType.info,
   Duration duration = const Duration(seconds: 3),
+  bool playSound = false,
 }) {
   final overlay = Overlay.of(context);
   late OverlayEntry entry;
@@ -29,11 +30,13 @@ void showAppNotification(
 
   overlay.insert(entry);
 
-  // Toca o som adequado ao tipo de notificação
-  if (type == NotificationType.error) {
-    SoundService().playErrorSound();
-  } else {
-    SoundService().playNotificationChime();
+  // Som apenas quando explicitamente solicitado (ex: erros críticos)
+  if (playSound) {
+    if (type == NotificationType.error) {
+      SoundService().playErrorSound();
+    } else {
+      SoundService().playNotificationChime();
+    }
   }
 }
 

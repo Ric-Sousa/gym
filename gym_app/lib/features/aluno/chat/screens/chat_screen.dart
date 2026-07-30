@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -38,11 +39,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
   Timer? _typingDebounce;
   bool _typingSent = false;
   String? _fetchedPartnerPhoto;
+  // Guardado localmente porque ref fica invalido no dispose
+  StateController<bool>? _chatNotifier;
 
   @override
   void initState() {
     super.initState();
-    ref.read(isAlunoInChatProvider.notifier).state = true;
+    // Captura o notifier localmente — ref fica invalido no dispose
+    _chatNotifier = ref.read(isAlunoInChatProvider.notifier);
+    // Deferir para depois da build — Riverpod proibe modificar providers durante a build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _chatNotifier?.state = true;
+    });
     _focusNode.addListener(() {
       if (mounted) setState(() => _isFocused = _focusNode.hasFocus);
     });
@@ -87,10 +95,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
 
   @override
   void dispose() {
-    ref.read(isAlunoInChatProvider.notifier).state = false;
+    // Usa Future.microtask para adiar a modificacao do provider —
+    // durante o dispose o widget tree esta a ser finalizado e o
+    // Riverpod nao permite modificar providers nessa fase.
+    final notifier = _chatNotifier;
+    if (notifier != null) {
+      Future.microtask(() => notifier.state = false);
+    }
     _typingDebounce?.cancel();
-    // Limpa o indicador de digitacao ao sair
-    _clearTypingStatus();
+    // Previne novas escritas de typing no Firestore — nao chamamos
+    // _clearTypingStatus() aqui porque e assincrono e o ref/widget
+    // ja nao sao validos apos o dispose.
+    _typingSent = false;
     _textController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
@@ -657,6 +673,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
     // Fire-and-forget — não bloqueia o envio da mensagem
     Future(() async {
       try {
+        // Força refresh do token antes de chamar a function — evita 401
+        // por token expirado, comum em Flutter Web.
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          await user.getIdToken(true); // forceRefresh = true
+        }
         await FirebaseFunctions.instanceFor(region: 'europe-west1')
             .httpsCallable('sendChatNotification')
             .call({
@@ -664,7 +686,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
           'remetenteId': remetenteId,
           'texto': texto,
         });
-      } catch (_) {}
+      } on FirebaseFunctionsException catch (e) {
+        // Log apenas em debug — nao incomoda o utilizador
+        debugPrint('⚠️ Cloud Function sendChatNotification: ${e.code} — ${e.message}');
+      } catch (e) {
+        debugPrint('⚠️ Cloud Function sendChatNotification erro: $e');
+      }
     });
   }
 }

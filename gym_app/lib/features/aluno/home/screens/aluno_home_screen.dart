@@ -13,7 +13,6 @@ import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/star_rating.dart';
 import '../../../aluno/agenda/screens/calendar_screen.dart';
-import '../../../../data/models/booking_model.dart';
 import '../../../../shared/widgets/offline_banner.dart';
 import '../../../../shared/widgets/app_notification.dart';
 
@@ -34,16 +33,19 @@ final alunoUnreadCountProvider = StreamProvider.family<int, String>((ref, userId
           final data = doc.data();
           final lastSenderId = data['lastSenderId'] as String? ?? '';
           if (lastSenderId.isEmpty || lastSenderId == userId) continue;
-          // Verifica se ha mensagens nao lidas na subcolecao
-          final unreadSnap = await firestore
-              .collection(AppConstants.chatCollection)
-              .doc(doc.id)
-              .collection(AppConstants.messagesSubcollection)
-              .where('lida', isEqualTo: false)
-              .where('remetenteId', isNotEqualTo: userId)
-              .count()
-              .get();
-          count += unreadSnap.count ?? 0;
+          // Conta mensagens nao lidas na subcolecao (get() em vez de count() — aggregate query nao suporta NOT_EQUAL no web)
+          try {
+            final unreadSnap = await firestore
+                .collection(AppConstants.chatCollection)
+                .doc(doc.id)
+                .collection(AppConstants.messagesSubcollection)
+                .where('lida', isEqualTo: false)
+                .where('remetenteId', isNotEqualTo: userId)
+                .get();
+            count += unreadSnap.docs.length;
+          } catch (_) {
+            // Silencioso — count() nao funciona no web com NOT_EQUAL
+          }
         }
         return count;
       })
@@ -136,10 +138,12 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
 
     // Toca som de notificacao quando chegam novas mensagens e o aluno nao esta no chat
     ref.listen(alunoUnreadCountProvider(userId), (prev, next) {
+      if (!mounted) return; // widget pode estar a ser disposed
       if (prev == null) return; // skip initial load
       final prevCount = prev.value ?? 0;
       final nextCount = next.value ?? 0;
-      if (nextCount > prevCount && !ref.read(isAlunoInChatProvider)) {
+      final soundEnabled = ref.read(authProvider).user?.soundEnabled ?? true;
+      if (nextCount > prevCount && !ref.read(isAlunoInChatProvider) && soundEnabled) {
         SoundService().playNotificationChime();
       }
     });
