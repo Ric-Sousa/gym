@@ -53,6 +53,9 @@ dependencies:
   # Google Fonts
   google_fonts: ^6.2.1
 
+  # Audio
+  just_audio: ^0.9.40
+
   # Utilities
   intl: ^0.20.0
   cloud_functions: ^6.3.5
@@ -76,6 +79,7 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - assets/sounds/
 
 flutter_intl:
   enabled: true

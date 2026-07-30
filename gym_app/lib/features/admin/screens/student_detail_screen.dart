@@ -96,6 +96,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
           ChatScreen(
               chatPartnerId: aluno.uid,
               chatPartnerName: aluno.nome,
+              chatPartnerPhoto: aluno.fotoPerfil,
               key: ValueKey('chat_${aluno.uid}')),
         ],
       ),

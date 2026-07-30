@@ -62,8 +62,12 @@ service cloud.firestore {
 
       match /mensagens/{msgId} {
         allow read, create: if isAuth();
-        // Mensagens são imutáveis — não podem ser editadas nem apagadas
-        allow update, delete: if false;
+        // Permitir atualização apenas do campo 'lida' (marcação como lida).
+        allow update: if isAuth() &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['lida']);
+        // Mensagens não podem ser apagadas.
+        allow delete: if false;
       }
     }
 

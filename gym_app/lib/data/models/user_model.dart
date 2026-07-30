@@ -13,6 +13,7 @@ class UserModel {
   final DateTime? progressRequestedAt; // Quando o pedido foi feito
   final String? genero; // 'masculino', 'feminino' ou null
   final String tipoCliente; // 'presencial' ou 'online'
+  final String? notificationSound; // asset path do som de notificação
 
   const UserModel({
     required this.uid,
@@ -28,6 +29,7 @@ class UserModel {
     this.progressRequestedAt,
     this.genero,
     this.tipoCliente = 'presencial',
+    this.notificationSound,
   });
 
   /// Cria a partir do documento Firestore.
@@ -50,6 +52,7 @@ class UserModel {
           : null,
       genero: map['genero'] as String?,
       tipoCliente: map['tipoCliente'] as String? ?? 'presencial',
+      notificationSound: map['notificationSound'] as String?,
     );
   }
 
@@ -69,6 +72,7 @@ class UserModel {
         'progressRequestedAt': progressRequestedAt,
       if (genero != null) 'genero': genero,
       'tipoCliente': tipoCliente,
+      if (notificationSound != null) 'notificationSound': notificationSound,
     };
   }
 
@@ -89,6 +93,7 @@ class UserModel {
     String? genero,
     bool clearUltimaAtividade = false,
     String? tipoCliente,
+    String? notificationSound,
   }) {
     return UserModel(
       uid: uid,
@@ -103,6 +108,7 @@ class UserModel {
           clearUltimaAtividade ? null : (ultimaAtividade ?? this.ultimaAtividade),
       genero: genero ?? this.genero,
       tipoCliente: tipoCliente ?? this.tipoCliente,
+      notificationSound: notificationSound ?? this.notificationSound,
     );
   }
 

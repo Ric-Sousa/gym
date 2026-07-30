@@ -11,6 +11,7 @@ import '../../../../data/models/group_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/app_notification.dart';
+import '../../../../shared/utils/new_message_detector.dart';
 import 'group_chat_screen.dart';
 
 final chatMessagesProvider =
@@ -22,19 +23,21 @@ final chatMessagesProvider =
 class ChatScreen extends ConsumerStatefulWidget {
   final String? chatPartnerId;
   final String? chatPartnerName;
-  const ChatScreen({super.key, this.chatPartnerId, this.chatPartnerName});
+  final String? chatPartnerPhoto;
+  const ChatScreen({super.key, this.chatPartnerId, this.chatPartnerName, this.chatPartnerPhoto});
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends ConsumerState<ChatScreen> {
+class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector {
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
   final _focusNode = FocusNode();
   bool _isFocused = false;
   Timer? _typingDebounce;
   bool _typingSent = false;
+  String? _fetchedPartnerPhoto;
 
   @override
   void initState() {
@@ -43,6 +46,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (mounted) setState(() => _isFocused = _focusNode.hasFocus);
     });
     _textController.addListener(_onTyping);
+    _fetchPartnerPhotoIfNeeded();
+  }
+
+  /// If no photo was passed, fetch the partner's UserModel to get it.
+  Future<void> _fetchPartnerPhotoIfNeeded() async {
+    if (widget.chatPartnerPhoto != null) return;
+    final partnerId = widget.chatPartnerId;
+    if (partnerId == null || partnerId.isEmpty) return;
+
+    try {
+      final user = await ref.read(userRepositoryProvider).getUser(partnerId);
+      if (mounted) setState(() => _fetchedPartnerPhoto = user.fotoPerfil);
+    } catch (_) {
+      // Silencioso — mostra iniciais como fallback.
+    }
   }
 
   @override
@@ -60,6 +78,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _currentSalaId = null;
       _currentUserId = null;
       _typingSent = false;
+      _fetchedPartnerPhoto = null;
+      resetDetector();
+      _fetchPartnerPhotoIfNeeded();
     }
   }
 
@@ -143,6 +164,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     // Nome e iniciais da outra pessoa (admin ve aluno, aluno ve admin)
     final partnerName = widget.chatPartnerName;
+    final partnerPhoto = widget.chatPartnerPhoto ?? _fetchedPartnerPhoto;
     final otherName = partnerName != null && partnerName.isNotEmpty ? partnerName : adminName;
     final otherInitials = partnerName != null && partnerName.isNotEmpty
         ? partnerName[0].toUpperCase()
@@ -176,14 +198,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         leading: CircleAvatar(
           radius: 16,
           backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-          child: Text(
-            otherInitials,
-            style: GoogleFonts.montserrat(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: AppColors.primary,
-            ),
-          ),
+          backgroundImage: partnerPhoto != null ? NetworkImage(partnerPhoto) : null,
+          child: partnerPhoto == null
+              ? Text(
+                  otherInitials,
+                  style: GoogleFonts.montserrat(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
+                )
+              : null,
         ),
       ),
       body: Column(
@@ -191,6 +216,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           Expanded(
             child: messagesAsync.when(
               data: (messages) {
+                detectNewMessages(messages, userId, playSound: false);
                 WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
                 if (messages.isEmpty) {
                   return Center(
@@ -481,7 +507,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => ChatScreen(chatPartnerId: personalId, chatPartnerName: 'Sara Gameiro'),
+              builder: (_) => ChatScreen(chatPartnerId: personalId, chatPartnerName: 'Sara Gameiro', chatPartnerPhoto: null),
             ),
           );
         },
