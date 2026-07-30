@@ -216,7 +216,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
           Expanded(
             child: messagesAsync.when(
               data: (messages) {
-                detectNewMessages(messages, userId);
+                detectNewMessages(messages, userId, playSound: false);
                 WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
                 if (messages.isEmpty) {
                   return Center(

@@ -21,7 +21,10 @@ mixin NewMessageDetector {
 
   /// Analisa a lista de [messages] e toca o chime para mensagens
   /// novas que não sejam do utilizador atual ([myId]).
-  void detectNewMessages(List<MessageModel> messages, String myId) {
+  ///
+  /// Se [playSound] for false, não toca o som (ex: quando o user
+  /// está dentro do chat e já está a ver as mensagens).
+  void detectNewMessages(List<MessageModel> messages, String myId, {bool playSound = true}) {
     if (messages.isEmpty) return;
 
     if (!_initialLoadDone) {
@@ -35,7 +38,7 @@ mixin NewMessageDetector {
       if (!_seenMessageIds.contains(msg.id)) {
         _seenMessageIds.add(msg.id);
         // Toca o chime apenas para mensagens de outros remetentes
-        if (msg.remetenteId != myId) {
+        if (msg.remetenteId != myId && playSound) {
           SoundService().playNotificationChime();
         }
       }

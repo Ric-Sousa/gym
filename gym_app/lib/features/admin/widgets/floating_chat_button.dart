@@ -843,7 +843,7 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
             color: AdminThemeColors.of(context).surface,
             child: messagesAsync.when(
               data: (messages) {
-                detectNewMessages(messages, ref.read(authProvider).user?.uid ?? '');
+                detectNewMessages(messages, ref.read(authProvider).user?.uid ?? '', playSound: false);
                 // Scroll to bottom on initial load + when near bottom
                 final nearBottom = !_scrollController.hasClients ||
                     _scrollController.position.pixels >=

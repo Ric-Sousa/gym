@@ -71,7 +71,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> with NewMessa
   }
 
   Widget _buildMessageList(List<MessageModel> messages) {
-    detectNewMessages(messages, _userId);
+    detectNewMessages(messages, _userId, playSound: false);
     if (messages.isEmpty) {
       return Center(
         child: Column(
