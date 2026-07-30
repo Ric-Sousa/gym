@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/config/admin_theme.dart';
 import '../../../core/config/app_constants.dart';
+import '../../../core/services/sound_service.dart';
 import '../../../shared/utils/new_message_detector.dart';
 import '../../../data/models/message_model.dart';
 import '../../../data/models/user_model.dart';
@@ -30,6 +31,9 @@ final adminUnreadCountProvider = Provider<int>((ref) {
       0;
 });
 
+/// Tracks whether the admin chat modal is currently open.
+final isChatModalOpenProvider = StateProvider<bool>((ref) => false);
+
 // ─── Floating Chat Button ─────────────────────────────────────────
 
 class FloatingChatButton extends ConsumerWidget {
@@ -42,6 +46,15 @@ class FloatingChatButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final unreadCount = ref.watch(adminUnreadCountProvider);
 
+    // Toca som de notificacao quando chegam novas mensagens e o modal esta fechado
+    ref.listen<int>(adminUnreadCountProvider, (prev, next) {
+      if (prev == null) return; // skip initial load
+      final soundEnabled = ref.read(authProvider).user?.soundEnabled ?? true;
+      if (next > prev && !ref.read(isChatModalOpenProvider) && soundEnabled) {
+        SoundService().playNotificationChime();
+      }
+    });
+
     return Positioned(
       bottom: 24,
       right: 24,
@@ -52,7 +65,7 @@ class FloatingChatButton extends ConsumerWidget {
           // Unread badge chip above the button — black, minimalist
           if (unreadCount > 0)
             GestureDetector(
-              onTap: () => _openChatModal(context),
+              onTap: () => _openChatModal(context, ref),
               child: Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 padding:
@@ -85,7 +98,7 @@ class FloatingChatButton extends ConsumerWidget {
                 AdminThemeColors.of(context).lime.withValues(alpha: 0.35),
             borderRadius: BorderRadius.circular(30),
             child: InkWell(
-              onTap: () => _openChatModal(context),
+              onTap: () => _openChatModal(context, ref),
               borderRadius: BorderRadius.circular(30),
               child: Container(
                 width: 60,
@@ -149,7 +162,8 @@ class FloatingChatButton extends ConsumerWidget {
     );
   }
 
-  void _openChatModal(BuildContext context) {
+  void _openChatModal(BuildContext context, WidgetRef ref) {
+    ref.read(isChatModalOpenProvider.notifier).state = true;
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
     final isMobile = screenWidth < 600;
@@ -177,7 +191,9 @@ class FloatingChatButton extends ConsumerWidget {
           ),
         );
       },
-    );
+    ).then((_) {
+      ref.read(isChatModalOpenProvider.notifier).state = false;
+    });
   }
 }
 
@@ -638,15 +654,20 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
           .where('lida', isEqualTo: false)
           .get();
 
-      if (snapshot.docs.isEmpty) return;
+      if (snapshot.docs.isEmpty || !mounted) return;
 
       final batch = firestore.batch();
       for (final doc in snapshot.docs) {
         batch.update(doc.reference, {'lida': true});
       }
+      // Atualiza também o documento da sala para disparar o stream
+      batch.update(
+        firestore.collection(AppConstants.chatCollection).doc(roomId),
+        {'lastReadAt': FieldValue.serverTimestamp()},
+      );
       await batch.commit();
-
-      ref.invalidate(adminConversationsProvider);
+      // So invalida se o widget ainda estiver montado
+      if (mounted) ref.invalidate(adminConversationsProvider);
     } catch (_) {
       // Silently ignore — the UI will still work.
     }
@@ -667,7 +688,10 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
     if (text.isEmpty) return;
 
     _msgController.clear();
-    FocusScope.of(context).unfocus();
+    // NOTA: Nao chamamos FocusScope.of(context).unfocus() aqui porque
+    // no Flutter Web causa o bug 'ViewInsets cannot be negative'
+    // (window.dart:99 assertion) ao dispensar o teclado virtual.
+    // O campo de texto e limpo e continua funcional.
     final authState = ref.read(authProvider);
     final adminId = authState.user?.uid ?? '';
 
@@ -950,6 +974,7 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
                       minLines: 1,
                       maxLines: 3,
                       textCapitalization: TextCapitalization.sentences,
+                      textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _sendMessage(),
                       style: GoogleFonts.inter(
                         fontSize: 13,

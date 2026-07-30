@@ -2,18 +2,55 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/app_constants.dart';
 import '../../../../core/config/app_strings.dart';
+import '../../../../core/services/sound_service.dart';
 import '../../../../data/models/diary_model.dart';
 import '../../../../data/models/workout_plan_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/star_rating.dart';
 import '../../../aluno/agenda/screens/calendar_screen.dart';
-import '../../../../data/models/booking_model.dart';
 import '../../../../shared/widgets/offline_banner.dart';
 import '../../../../shared/widgets/app_notification.dart';
+
+
+/// Provider que monitora mensagens nao lidas do aluno para tocar som de notificacao.
+final alunoUnreadCountProvider = StreamProvider.family<int, String>((ref, userId) {
+  if (userId.isEmpty) return Stream.value(0);
+  final firestore = FirebaseFirestore.instance;
+  return firestore
+      .collection(AppConstants.chatCollection)
+      .where(FieldPath.documentId, isGreaterThanOrEqualTo: 'chat_')
+      .where(FieldPath.documentId, isLessThanOrEqualTo: 'chat_\uf8ff')
+      .snapshots()
+      .asyncMap((snap) async {
+        int count = 0;
+        for (final doc in snap.docs) {
+          if (!doc.id.contains(userId)) continue;
+          final data = doc.data();
+          final lastSenderId = data['lastSenderId'] as String? ?? '';
+          if (lastSenderId.isEmpty || lastSenderId == userId) continue;
+          // Conta mensagens nao lidas na subcolecao (get() em vez de count() — aggregate query nao suporta NOT_EQUAL no web)
+          try {
+            final unreadSnap = await firestore
+                .collection(AppConstants.chatCollection)
+                .doc(doc.id)
+                .collection(AppConstants.messagesSubcollection)
+                .where('lida', isEqualTo: false)
+                .where('remetenteId', isNotEqualTo: userId)
+                .get();
+            count += unreadSnap.docs.length;
+          } catch (_) {
+            // Silencioso — count() nao funciona no web com NOT_EQUAL
+          }
+        }
+        return count;
+      })
+      .handleError((_, __) => 0);
+});
 
 /// Provider do plano de treino de hoje (se existir).
 final todayWorkoutPlanProvider = FutureProvider.family<WorkoutDay?, String>(
@@ -95,7 +132,22 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
+    final userId = authState.user?.uid ?? '';
     final isOffline = ref.watch(connectivityStreamProvider).value ?? false;
+
+    // Toca som de notificacao quando chegam novas mensagens e o aluno nao esta no chat
+    ref.listen(alunoUnreadCountProvider(userId), (prev, next) {
+      if (!mounted) return; // widget pode estar a ser disposed
+      if (prev == null) return; // skip initial load
+      final prevCount = prev.value ?? 0;
+      final nextCount = next.value ?? 0;
+      final soundEnabled = ref.read(authProvider).user?.soundEnabled ?? true;
+      if (nextCount > prevCount && !ref.read(isAlunoInChatProvider) && soundEnabled) {
+        SoundService().playNotificationChime();
+      }
+    });
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: _buildAppBar(),

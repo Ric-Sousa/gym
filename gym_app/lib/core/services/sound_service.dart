@@ -24,4 +24,9 @@ class SoundService {
   void playNotificationChime() {
     impl.SoundService().playNotificationChime();
   }
+
+  /// Toca o som específico de erro.
+  void playErrorSound() {
+    impl.SoundService().playErrorSound();
+  }
 }

@@ -12,6 +12,7 @@ void showAppNotification(
   String message, {
   NotificationType type = NotificationType.info,
   Duration duration = const Duration(seconds: 3),
+  bool playSound = false,
 }) {
   final overlay = Overlay.of(context);
   late OverlayEntry entry;
@@ -29,8 +30,14 @@ void showAppNotification(
 
   overlay.insert(entry);
 
-  // Toca o chime de notificação
-  SoundService().playNotificationChime();
+  // Som apenas quando explicitamente solicitado (ex: erros críticos)
+  if (playSound) {
+    if (type == NotificationType.error) {
+      SoundService().playErrorSound();
+    } else {
+      SoundService().playNotificationChime();
+    }
+  }
 }
 
 class _ToastWidget extends StatefulWidget {
