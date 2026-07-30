@@ -28,7 +28,14 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> with NewMessa
   String get _userId => FirebaseAuth.instance.currentUser?.uid ?? '';
 
   @override
+  void initState() {
+    super.initState();
+    ref.read(isAlunoInChatProvider.notifier).state = true;
+  }
+
+  @override
   void dispose() {
+    ref.read(isAlunoInChatProvider.notifier).state = false;
     _textCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
@@ -227,12 +234,17 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> with NewMessa
 
   /// Envia notificação push aos membros do grupo (best-effort).
   void _notifyGroup() {
-    FirebaseFunctions.instanceFor(region: 'europe-west1')
-        .httpsCallable('sendChatNotification')
-        .call({
-      'salaId': widget.group.id,
-      'remetenteId': _userId,
-      'texto': '[${widget.group.nome}] Nova mensagem de grupo',
-    }); // fire-and-forget
+    // Fire-and-forget — não bloqueia o envio da mensagem
+    Future(() async {
+      try {
+        await FirebaseFunctions.instanceFor(region: 'europe-west1')
+            .httpsCallable('sendChatNotification')
+            .call({
+          'salaId': widget.group.id,
+          'remetenteId': _userId,
+          'texto': '[${widget.group.nome}] Nova mensagem de grupo',
+        });
+      } catch (_) {}
+    });
   }
 }

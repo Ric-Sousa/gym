@@ -1,4 +1,5 @@
 import 'dart:html' as html;
+import '../config/notification_sounds.dart';
 
 /// Web implementation of sound service.
 ///
@@ -9,7 +10,7 @@ class SoundService {
   SoundService._();
 
   html.AudioElement? _audio;
-  String _currentAsset = 'assets/sounds/chime.wav';
+  String _currentAsset = defaultSoundAsset;
 
   /// Define o ficheiro de som a usar nas notificações.
   void setSound(String assetPath) {
@@ -19,8 +20,16 @@ class SoundService {
   }
 
   void playNotificationChime() {
+    _play(_currentAsset);
+  }
+
+  void playErrorSound() {
+    _play(errorSoundAsset);
+  }
+
+  void _play(String asset) {
     try {
-      _audio ??= html.AudioElement(_currentAsset)
+      _audio = html.AudioElement(asset)
         ..load();
       _audio!
         ..currentTime = 0

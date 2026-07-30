@@ -29,8 +29,12 @@ void showAppNotification(
 
   overlay.insert(entry);
 
-  // Toca o chime de notificação
-  SoundService().playNotificationChime();
+  // Toca o som adequado ao tipo de notificação
+  if (type == NotificationType.error) {
+    SoundService().playErrorSound();
+  } else {
+    SoundService().playNotificationChime();
+  }
 }
 
 class _ToastWidget extends StatefulWidget {

@@ -42,6 +42,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
   @override
   void initState() {
     super.initState();
+    ref.read(isAlunoInChatProvider.notifier).state = true;
     _focusNode.addListener(() {
       if (mounted) setState(() => _isFocused = _focusNode.hasFocus);
     });
@@ -86,6 +87,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
 
   @override
   void dispose() {
+    ref.read(isAlunoInChatProvider.notifier).state = false;
     _typingDebounce?.cancel();
     // Limpa o indicador de digitacao ao sair
     _clearTypingStatus();
@@ -652,13 +654,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
 
   /// Envia notificação push ao destinatário via Cloud Function (best-effort).
   void _notifyChat(String salaId, String remetenteId, String texto) {
-    FirebaseFunctions.instanceFor(region: 'europe-west1')
-        .httpsCallable('sendChatNotification')
-        .call({
-      'salaId': salaId,
-      'remetenteId': remetenteId,
-      'texto': texto,
-    }); // fire-and-forget
+    // Fire-and-forget — não bloqueia o envio da mensagem
+    Future(() async {
+      try {
+        await FirebaseFunctions.instanceFor(region: 'europe-west1')
+            .httpsCallable('sendChatNotification')
+            .call({
+          'salaId': salaId,
+          'remetenteId': remetenteId,
+          'texto': texto,
+        });
+      } catch (_) {}
+    });
   }
 }
 

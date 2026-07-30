@@ -29,6 +29,10 @@ final connectivityServiceProvider = Provider<ConnectivityService>((ref) {
   return service;
 });
 
+/// Tracks whether the aluno is currently inside a chat screen.
+/// Used to suppress notification sounds when the user is actively chatting.
+final isAlunoInChatProvider = StateProvider<bool>((ref) => false);
+
 /// Provider para FCMService (singleton).
 final fcmServiceProvider = Provider<FCMService>((ref) {
   final userRepo = ref.watch(userRepositoryProvider);

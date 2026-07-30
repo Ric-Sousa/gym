@@ -14,31 +14,44 @@ class SoundOption {
 /// Lista de sons de notificação disponíveis.
 const notificationSoundOptions = [
   SoundOption(
-    name: 'Chime suave (padrão)',
+    name: 'Som 1 (Chime suave)',
     asset: 'assets/sounds/chime.wav',
     filename: 'chime.wav',
   ),
   SoundOption(
-    name: 'Dragon Studio',
+    name: 'Som 2',
     asset: 'assets/sounds/dragon-studio-new-notification-3-398649.mp3',
     filename: 'dragon-studio-new-notification-3-398649.mp3',
   ),
   SoundOption(
-    name: 'Universfield 010',
+    name: 'Som 3',
     asset: 'assets/sounds/universfield-new-notification-010-352755.mp3',
     filename: 'universfield-new-notification-010-352755.mp3',
   ),
   SoundOption(
-    name: 'Universfield 012',
+    name: 'Som 4',
     asset: 'assets/sounds/universfield-new-notification-012-363675.mp3',
     filename: 'universfield-new-notification-012-363675.mp3',
   ),
   SoundOption(
-    name: 'Bell',
+    name: 'Som 5',
+    asset: 'assets/sounds/universfield-new-notification-014-363678.mp3',
+    filename: 'universfield-new-notification-014-363678.mp3',
+  ),
+  SoundOption(
+    name: 'Som 6',
+    asset: 'assets/sounds/universfield-new-notification-040-493469.mp3',
+    filename: 'universfield-new-notification-040-493469.mp3',
+  ),
+  SoundOption(
+    name: 'Som 7 (Bell)',
     asset: 'assets/sounds/u_3ay6aijdt2-bell1-445873.mp3',
     filename: 'u_3ay6aijdt2-bell1-445873.mp3',
   ),
 ];
+
+/// Som específico para notificações de erro.
+const errorSoundAsset = 'assets/sounds/universfield-error-notification-08-206492.mp3';
 
 /// Caminho de som padrão.
 const defaultSoundAsset = 'assets/sounds/chime.wav';

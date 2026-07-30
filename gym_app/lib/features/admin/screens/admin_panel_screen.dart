@@ -1954,6 +1954,12 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                               color: AdminThemeColors.of(context).muted)),
                     ),
                     _requestProgressButton(c),
+                    TextButton.icon(
+                      onPressed: () => _resetStudentPassword(c),
+                      icon: Icon(Icons.lock_reset, size: 13, color: AdminThemeColors.of(context).orange),
+                      label: Text('Reset Password', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: AdminThemeColors.of(context).orange)),
+                      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                    ),
                   ],
                 ),
               ],
@@ -2021,9 +2027,62 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                   ),
                 ),
                 _requestProgressButton(c),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: () => _resetStudentPassword(c),
+                  icon: Icon(Icons.lock_reset, size: 14, color: AdminThemeColors.of(context).orange),
+                  label: Text('Reset Password', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AdminThemeColors.of(context).orange)),
+                  style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8)),
+                ),
               ],
             ),
     );
+  }
+
+  Future<void> _resetStudentPassword(UserModel c) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AdminThemeColors.of(context).surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: AdminThemeColors.of(context).border),
+        ),
+        title: Text('Reset Password',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
+        content: Text(
+          'Vai ser enviado um email para ${c.email} com um link para redefinir a palavra-passe. Continuar?',
+          style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancelar', style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminThemeColors.of(context).orange,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Enviar', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      try {
+        await ref.read(authProvider.notifier).sendPasswordResetEmail(c.email);
+        if (mounted) {
+          showAppNotification(context, 'Email de redefinição enviado para ${c.email}.', type: NotificationType.success);
+        }
+      } catch (_) {
+        if (mounted) {
+          showAppNotification(context, 'Erro ao enviar email de redefinição.', type: NotificationType.error);
+        }
+      }
+    }
   }
 
   Widget _buildTabs() {
@@ -4816,14 +4875,24 @@ class _AdminSettingsView extends ConsumerWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.person, color: AdminThemeColors.of(context).lime, size: 18),
-              const SizedBox(width: 8),
-              Text('PERFIL', style: GoogleFonts.barlowCondensed(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 0.03, color: AdminThemeColors.of(context).text)),
-            ],
-          ),
+        children: [            Row(
+              children: [
+                Icon(Icons.person, color: AdminThemeColors.of(context).lime, size: 18),
+                const SizedBox(width: 8),
+                Text('PERFIL', style: GoogleFonts.barlowCondensed(fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 0.03, color: AdminThemeColors.of(context).text)),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () => _editAdminProfile(context, ref, user),
+                  icon: Icon(Icons.edit, size: 14, color: AdminThemeColors.of(context).lime),
+                  label: Text('Editar', style: GoogleFonts.inter(fontSize: 12, color: AdminThemeColors.of(context).lime)),
+                ),
+                TextButton.icon(
+                  onPressed: () => _changeAdminPassword(context, ref, user),
+                  icon: Icon(Icons.lock_reset, size: 14, color: AdminThemeColors.of(context).orange),
+                  label: Text('Senha', style: GoogleFonts.inter(fontSize: 12, color: AdminThemeColors.of(context).orange)),
+                ),
+              ],
+            ),
           const SizedBox(height: 20),
           Row(
             children: [
@@ -4948,6 +5017,142 @@ class _AdminSettingsView extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _changeAdminPassword(BuildContext context, WidgetRef ref, UserModel user) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AdminThemeColors.of(context).surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: AdminThemeColors.of(context).border),
+        ),
+        title: Text('Alterar palavra-passe',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
+        content: Text(
+          'Vai ser enviado um email para ${user.email} com um link para redefinir a tua palavra-passe. Continuar?',
+          style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancelar', style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminThemeColors.of(context).orange,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Enviar', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && context.mounted) {
+      try {
+        await ref.read(authProvider.notifier).sendPasswordResetEmail(user.email);
+        if (context.mounted) {
+          showAppNotification(context, 'Email de redefinição enviado para ${user.email}.', type: NotificationType.success);
+        }
+      } catch (_) {
+        if (context.mounted) {
+          showAppNotification(context, 'Erro ao enviar email de redefinição.', type: NotificationType.error);
+        }
+      }
+    }
+  }
+
+  Future<void> _editAdminProfile(BuildContext context, WidgetRef ref, UserModel user) async {
+    final nomeCtrl = TextEditingController(text: user.nome);
+    final emailCtrl = TextEditingController(text: user.email);
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AdminThemeColors.of(context).surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: AdminThemeColors.of(context).border),
+        ),
+        title: Text('Editar Perfil',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nomeCtrl,
+                style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
+                decoration: InputDecoration(
+                  labelText: 'Nome',
+                  labelStyle: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
+                  filled: true,
+                  fillColor: AdminThemeColors.of(context).bg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: AdminThemeColors.of(context).border),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
+                decoration: InputDecoration(
+                  labelText: 'Email',
+                  labelStyle: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
+                  filled: true,
+                  fillColor: AdminThemeColors.of(context).bg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: AdminThemeColors.of(context).border),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancelar', style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminThemeColors.of(context).lime,
+              foregroundColor: AdminThemeColors.of(context).bg,
+            ),
+            child: Text('Guardar', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      final updates = <String, dynamic>{};
+      final novoNome = nomeCtrl.text.trim();
+      final novoEmail = emailCtrl.text.trim();
+      if (novoNome.isNotEmpty && novoNome != user.nome) updates['nome'] = novoNome;
+      if (novoEmail.isNotEmpty && novoEmail != user.email) updates['email'] = novoEmail;
+      if (updates.isNotEmpty) {
+        try {
+          await ref.read(userRepositoryProvider).updateUser(user.uid, updates);
+          ref.invalidate(userProfileProvider(user.uid));
+          if (context.mounted) {
+            showAppNotification(context, 'Perfil atualizado!', type: NotificationType.success);
+          }
+        } catch (_) {
+          if (context.mounted) {
+            showAppNotification(context, 'Erro ao atualizar perfil.', type: NotificationType.error);
+          }
+        }
+      }
+    }
   }
 
   Future<void> _changePhoto(BuildContext context, WidgetRef ref, UserModel user) async {
