@@ -18,7 +18,7 @@ class FirestoreDataSource {
   final FirebaseFirestore _firestore;
 
   FirestoreDataSource({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   // ───────────────────── USERS ─────────────────────
 
@@ -47,7 +47,8 @@ class FirestoreDataSource {
           .update(data);
     } on FirebaseException catch (e) {
       throw ServerException(
-          message: e.message ?? 'Erro ao atualizar utilizador');
+        message: e.message ?? 'Erro ao atualizar utilizador',
+      );
     }
   }
 
@@ -58,9 +59,9 @@ class FirestoreDataSource {
         .doc(uid)
         .snapshots()
         .map((doc) {
-      if (!doc.exists) throw DocumentNotFoundException();
-      return UserModel.fromMap(uid, doc.data()!);
-    });
+          if (!doc.exists) throw DocumentNotFoundException();
+          return UserModel.fromMap(uid, doc.data()!);
+        });
   }
 
   /// Lista todos os alunos.
@@ -110,7 +111,8 @@ class FirestoreDataSource {
       return DiaryModel.fromMap(date, userId, doc.data()!);
     } on FirebaseException catch (e) {
       throw ServerException(
-          message: e.message ?? 'Erro ao obter registo diário');
+        message: e.message ?? 'Erro ao obter registo diário',
+      );
     }
   }
 
@@ -123,14 +125,17 @@ class FirestoreDataSource {
         .doc(date)
         .snapshots()
         .map((doc) {
-      if (!doc.exists) return null;
-      return DiaryModel.fromMap(date, userId, doc.data()!);
-    });
+          if (!doc.exists) return null;
+          return DiaryModel.fromMap(date, userId, doc.data()!);
+        });
   }
 
   /// Cria ou atualiza documento diário.
   Future<void> setDiaryEntry(
-      String userId, String date, Map<String, dynamic> data) async {
+    String userId,
+    String date,
+    Map<String, dynamic> data,
+  ) async {
     try {
       await _firestore
           .collection(AppConstants.usersCollection)
@@ -140,13 +145,18 @@ class FirestoreDataSource {
           .set(data, SetOptions(merge: true));
     } on FirebaseException catch (e) {
       throw ServerException(
-          message: e.message ?? 'Erro ao guardar registo diário');
+        message: e.message ?? 'Erro ao guardar registo diário',
+      );
     }
   }
 
   /// Incrementa um campo numérico do diário.
   Future<void> incrementDiaryField(
-      String userId, String date, String field, num value) async {
+    String userId,
+    String date,
+    String field,
+    num value,
+  ) async {
     try {
       await _firestore
           .collection(AppConstants.usersCollection)
@@ -155,14 +165,16 @@ class FirestoreDataSource {
           .doc(date)
           .set({field: FieldValue.increment(value)}, SetOptions(merge: true));
     } on FirebaseException catch (e) {
-      throw ServerException(
-          message: e.message ?? 'Erro ao incrementar campo');
+      throw ServerException(message: e.message ?? 'Erro ao incrementar campo');
     }
   }
 
   /// Adiciona uma refeição à lista no diário.
   Future<void> addMealToDiary(
-      String userId, String date, Map<String, dynamic> mealMap) async {
+    String userId,
+    String date,
+    Map<String, dynamic> mealMap,
+  ) async {
     try {
       await _firestore
           .collection(AppConstants.usersCollection)
@@ -170,17 +182,18 @@ class FirestoreDataSource {
           .collection(AppConstants.diarySubcollection)
           .doc(date)
           .set({
-        'refeicoes': FieldValue.arrayUnion([mealMap]),
-      }, SetOptions(merge: true));
+            'refeicoes': FieldValue.arrayUnion([mealMap]),
+          }, SetOptions(merge: true));
     } on FirebaseException catch (e) {
-      throw ServerException(
-          message: e.message ?? 'Erro ao adicionar refeição');
+      throw ServerException(message: e.message ?? 'Erro ao adicionar refeição');
     }
   }
 
   /// Obtém histórico de diários (para progresso).
-  Future<List<DiaryModel>> getDiaryHistory(String userId,
-      {int limit = 90}) async {
+  Future<List<DiaryModel>> getDiaryHistory(
+    String userId, {
+    int limit = 90,
+  }) async {
     try {
       final snapshot = await _firestore
           .collection(AppConstants.usersCollection)
@@ -192,8 +205,7 @@ class FirestoreDataSource {
           .map((doc) => DiaryModel.fromMap(doc.id, userId, doc.data()))
           .toList();
     } on FirebaseException catch (e) {
-      throw ServerException(
-          message: e.message ?? 'Erro ao obter histórico');
+      throw ServerException(message: e.message ?? 'Erro ao obter histórico');
     }
   }
 
@@ -201,7 +213,9 @@ class FirestoreDataSource {
 
   /// Obtém plano nutricional para um dia da semana.
   Future<NutritionPlanModel?> getNutritionPlan(
-      String userId, String diaSemana) async {
+    String userId,
+    String diaSemana,
+  ) async {
     try {
       final doc = await _firestore
           .collection(AppConstants.usersCollection)
@@ -213,13 +227,17 @@ class FirestoreDataSource {
       return NutritionPlanModel.fromMap(diaSemana, userId, doc.data()!);
     } on FirebaseException catch (e) {
       throw ServerException(
-          message: e.message ?? 'Erro ao obter plano nutricional');
+        message: e.message ?? 'Erro ao obter plano nutricional',
+      );
     }
   }
 
   /// Guarda plano nutricional.
   Future<void> setNutritionPlan(
-      String userId, String diaSemana, Map<String, dynamic> data) async {
+    String userId,
+    String diaSemana,
+    Map<String, dynamic> data,
+  ) async {
     try {
       await _firestore
           .collection(AppConstants.usersCollection)
@@ -229,7 +247,8 @@ class FirestoreDataSource {
           .set(data, SetOptions(merge: true));
     } on FirebaseException catch (e) {
       throw ServerException(
-          message: e.message ?? 'Erro ao guardar plano nutricional');
+        message: e.message ?? 'Erro ao guardar plano nutricional',
+      );
     }
   }
 
@@ -248,7 +267,8 @@ class FirestoreDataSource {
       return WorkoutPlanModel.fromMap(nome, userId, doc.data()!);
     } on FirebaseException catch (e) {
       throw ServerException(
-          message: e.message ?? 'Erro ao obter plano de treino');
+        message: e.message ?? 'Erro ao obter plano de treino',
+      );
     }
   }
 
@@ -265,13 +285,17 @@ class FirestoreDataSource {
           .toList();
     } on FirebaseException catch (e) {
       throw ServerException(
-          message: e.message ?? 'Erro ao listar planos de treino');
+        message: e.message ?? 'Erro ao listar planos de treino',
+      );
     }
   }
 
   /// Guarda plano de treino.
   Future<void> setWorkoutPlan(
-      String userId, String nome, Map<String, dynamic> data) async {
+    String userId,
+    String nome,
+    Map<String, dynamic> data,
+  ) async {
     try {
       await _firestore
           .collection(AppConstants.usersCollection)
@@ -281,7 +305,8 @@ class FirestoreDataSource {
           .set(data, SetOptions(merge: true));
     } on FirebaseException catch (e) {
       throw ServerException(
-          message: e.message ?? 'Erro ao guardar plano de treino');
+        message: e.message ?? 'Erro ao guardar plano de treino',
+      );
     }
   }
 
@@ -301,43 +326,46 @@ class FirestoreDataSource {
         .collection(AppConstants.messagesSubcollection)
         .orderBy('timestamp', descending: false)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => MessageModel.fromMap(doc.id, doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => MessageModel.fromMap(doc.id, doc.data()))
+              .toList(),
+        );
   }
 
-  /// Envia uma mensagem e garante que o documento da sala existe.
+  /// Envia a mensagem e atualiza a sala numa única operação atómica.
+  ///
+  /// O admin observa o documento pai para atualizar a lista de conversas.
+  /// Se estas escritas fossem separadas, o listener podia ler a sala antes
+  /// de a mensagem existir na subcoleção e perder a notificação sonora.
   Future<void> sendMessage(
-      String salaId, Map<String, dynamic> messageMap) async {
-    // 1. Cria/atualiza o documento pai
+    String salaId,
+    Map<String, dynamic> messageMap,
+  ) async {
     try {
-      // Usa DateTime.now() em vez de FieldValue.serverTimestamp()
-      // para evitar potenciais conflitos com as regras do Firestore.
-      final now = DateTime.now();
-      await _firestore
+      final roomRef = _firestore
           .collection(AppConstants.chatCollection)
-          .doc(salaId)
-          .set({
-        'lastMessage': messageMap['texto'] ?? '',
-        'lastTimestamp': now,
+          .doc(salaId);
+      final messageRef = roomRef
+          .collection(AppConstants.messagesSubcollection)
+          .doc();
+      final batch = _firestore.batch();
+
+      // Usa DateTime.now() em vez de FieldValue.serverTimestamp() para
+      // manter o mesmo formato esperado pelos modelos e pelas queries Web.
+      batch.set(roomRef, {
+        'lastMessage': (messageMap['texto'] as String?)?.isNotEmpty == true
+            ? messageMap['texto']
+            : 'Mensagem de áudio',
+
+        'lastTimestamp': DateTime.now(),
         'lastSenderId': messageMap['remetenteId'] ?? '',
         'typing': '',
       }, SetOptions(merge: true));
+      batch.set(messageRef, messageMap);
+      await batch.commit();
     } on FirebaseException catch (e) {
-      throw ServerException(
-          message: e.message ?? 'Erro ao enviar mensagem (passo 1)');
-    }
-
-    // 2. Adiciona a mensagem à subcoleção
-    try {
-      await _firestore
-          .collection(AppConstants.chatCollection)
-          .doc(salaId)
-          .collection(AppConstants.messagesSubcollection)
-          .add(messageMap);
-    } on FirebaseException catch (e) {
-      throw ServerException(
-          message: e.message ?? 'Erro ao enviar mensagem (passo 2)');
+      throw ServerException(message: e.message ?? 'Erro ao enviar mensagem');
     }
   }
 
@@ -349,34 +377,39 @@ class FirestoreDataSource {
         .doc(salaId)
         .snapshots()
         .map((doc) {
-      if (!doc.exists) return null;
-      final data = doc.data();
-      if (data == null) return null;
-      final typing = data['typing'] as String?;
-      if (typing == null || typing.isEmpty || typing == myUserId) return null;
-      // Verifica se o timestamp de digitação ainda é recente (< 10 segundos)
-      final typingAt = data['typingAt'];
-      if (typingAt != null) {
-        try {
-          final ts = (typingAt as dynamic).toDate() as DateTime;
-          if (DateTime.now().difference(ts).inSeconds > 10) return null;
-        } catch (_) {}
-      }
-      return typing;
-    });
+          if (!doc.exists) return null;
+          final data = doc.data();
+          if (data == null) return null;
+          final typing = data['typing'] as String?;
+          if (typing == null || typing.isEmpty || typing == myUserId)
+            return null;
+          // Verifica se o timestamp de digitação ainda é recente (< 10 segundos)
+          final typingAt = data['typingAt'];
+          if (typingAt != null) {
+            try {
+              final ts = (typingAt as dynamic).toDate() as DateTime;
+              if (DateTime.now().difference(ts).inSeconds > 10) return null;
+            } catch (_) {}
+          }
+          return typing;
+        });
   }
 
   /// Define ou remove o estado de digitação do utilizador atual.
-  Future<void> setTypingStatus(String salaId, String userId, bool isTyping) async {
+  Future<void> setTypingStatus(
+    String salaId,
+    String userId,
+    bool isTyping,
+  ) async {
     try {
       if (isTyping) {
         await _firestore
             .collection(AppConstants.chatCollection)
             .doc(salaId)
             .set({
-          'typing': userId,
-          'typingAt': DateTime.now(),
-        }, SetOptions(merge: true));
+              'typing': userId,
+              'typingAt': DateTime.now(),
+            }, SetOptions(merge: true));
       } else {
         // Usa set-merge com '' em vez de FieldValue.delete(),
         // para evitar problemas de permissões no Firestore.
@@ -393,8 +426,10 @@ class FirestoreDataSource {
   // ───────────────────── PROGRESS ─────────────────────
 
   /// Obtém registos de progresso.
-  Future<List<ProgressModel>> getProgressHistory(String userId,
-      {int limit = 50}) async {
+  Future<List<ProgressModel>> getProgressHistory(
+    String userId, {
+    int limit = 50,
+  }) async {
     try {
       final snapshot = await _firestore
           .collection(AppConstants.usersCollection)
@@ -407,14 +442,15 @@ class FirestoreDataSource {
           .map((doc) => ProgressModel.fromMap(doc.id, userId, doc.data()))
           .toList();
     } on FirebaseException catch (e) {
-      throw ServerException(
-          message: e.message ?? 'Erro ao obter progresso');
+      throw ServerException(message: e.message ?? 'Erro ao obter progresso');
     }
   }
 
   /// Adiciona registo de progresso.
   Future<void> addProgressEntry(
-      String userId, Map<String, dynamic> data) async {
+    String userId,
+    Map<String, dynamic> data,
+  ) async {
     try {
       await _firestore
           .collection(AppConstants.usersCollection)
@@ -422,8 +458,7 @@ class FirestoreDataSource {
           .collection(AppConstants.progressSubcollection)
           .add(data);
     } on FirebaseException catch (e) {
-      throw ServerException(
-          message: e.message ?? 'Erro ao guardar progresso');
+      throw ServerException(message: e.message ?? 'Erro ao guardar progresso');
     }
   }
 
@@ -454,7 +489,8 @@ class FirestoreDataSource {
           .toList();
     } on FirebaseException catch (e) {
       throw ServerException(
-          message: e.message ?? 'Erro ao pesquisar alimentos');
+        message: e.message ?? 'Erro ao pesquisar alimentos',
+      );
     }
   }
 
@@ -482,13 +518,17 @@ class FirestoreDataSource {
       return WorkoutLogModel.fromMap(doc.id, userId, doc.data()!);
     } on FirebaseException catch (e) {
       throw ServerException(
-          message: e.message ?? 'Erro ao obter registo de treino');
+        message: e.message ?? 'Erro ao obter registo de treino',
+      );
     }
   }
 
   /// Guarda ou atualiza registo de treino.
   Future<void> setWorkoutLog(
-      String userId, String date, Map<String, dynamic> data) async {
+    String userId,
+    String date,
+    Map<String, dynamic> data,
+  ) async {
     try {
       await _firestore
           .collection(AppConstants.usersCollection)
@@ -498,13 +538,16 @@ class FirestoreDataSource {
           .set(data, SetOptions(merge: true));
     } on FirebaseException catch (e) {
       throw ServerException(
-          message: e.message ?? 'Erro ao guardar registo de treino');
+        message: e.message ?? 'Erro ao guardar registo de treino',
+      );
     }
   }
 
   /// Obtém histórico de registos de treino.
   Future<List<WorkoutLogModel>> getWorkoutLogHistory(
-      String userId, {int limit = 30}) async {
+    String userId, {
+    int limit = 30,
+  }) async {
     try {
       final snapshot = await _firestore
           .collection(AppConstants.usersCollection)
@@ -518,7 +561,8 @@ class FirestoreDataSource {
           .toList();
     } on FirebaseException catch (e) {
       throw ServerException(
-          message: e.message ?? 'Erro ao obter histórico de treinos');
+        message: e.message ?? 'Erro ao obter histórico de treinos',
+      );
     }
   }
 
@@ -536,8 +580,7 @@ class FirestoreDataSource {
           .map((doc) => PaymentModel.fromMap(doc.id, doc.data()))
           .toList();
     } on FirebaseException catch (e) {
-      throw ServerException(
-          message: e.message ?? 'Erro ao obter pagamentos');
+      throw ServerException(message: e.message ?? 'Erro ao obter pagamentos');
     }
   }
 
@@ -552,8 +595,7 @@ class FirestoreDataSource {
           .map((doc) => PaymentModel.fromMap(doc.id, doc.data()))
           .toList();
     } on FirebaseException catch (e) {
-      throw ServerException(
-          message: e.message ?? 'Erro ao listar pagamentos');
+      throw ServerException(message: e.message ?? 'Erro ao listar pagamentos');
     }
   }
 
@@ -562,8 +604,7 @@ class FirestoreDataSource {
     try {
       await _firestore.collection(AppConstants.paymentsCollection).add(data);
     } on FirebaseException catch (e) {
-      throw ServerException(
-          message: e.message ?? 'Erro ao guardar pagamento');
+      throw ServerException(message: e.message ?? 'Erro ao guardar pagamento');
     }
   }
 
@@ -576,7 +617,8 @@ class FirestoreDataSource {
           .update(data);
     } on FirebaseException catch (e) {
       throw ServerException(
-          message: e.message ?? 'Erro ao atualizar pagamento');
+        message: e.message ?? 'Erro ao atualizar pagamento',
+      );
     }
   }
 
@@ -590,7 +632,10 @@ class FirestoreDataSource {
       final result = <String, String>{};
       // Firestore 'in' query supports até 30 itens; fazemos batches
       for (int i = 0; i < uniqueUids.length; i += 30) {
-        final batch = uniqueUids.sublist(i, i + 30 > uniqueUids.length ? uniqueUids.length : i + 30);
+        final batch = uniqueUids.sublist(
+          i,
+          i + 30 > uniqueUids.length ? uniqueUids.length : i + 30,
+        );
         final snap = await _firestore
             .collection(AppConstants.usersCollection)
             .where(FieldPath.documentId, whereIn: batch)
@@ -622,8 +667,7 @@ class FirestoreDataSource {
       bookings.sort((a, b) => b.data.compareTo(a.data));
       return bookings;
     } on FirebaseException catch (e) {
-      throw ServerException(
-          message: e.message ?? 'Erro ao obter agenda');
+      throw ServerException(message: e.message ?? 'Erro ao obter agenda');
     }
   }
 
@@ -641,8 +685,7 @@ class FirestoreDataSource {
       bookings.sort((a, b) => b.data.compareTo(a.data));
       return bookings;
     } on FirebaseException catch (e) {
-      throw ServerException(
-          message: e.message ?? 'Erro ao obter agenda');
+      throw ServerException(message: e.message ?? 'Erro ao obter agenda');
     }
   }
 
@@ -651,8 +694,7 @@ class FirestoreDataSource {
     try {
       await _firestore.collection(AppConstants.agendaCollection).add(data);
     } on FirebaseException catch (e) {
-      throw ServerException(
-          message: e.message ?? 'Erro ao guardar marcação');
+      throw ServerException(message: e.message ?? 'Erro ao guardar marcação');
     }
   }
 
@@ -664,8 +706,7 @@ class FirestoreDataSource {
           .doc(id)
           .update(data);
     } on FirebaseException catch (e) {
-      throw ServerException(
-          message: e.message ?? 'Erro ao atualizar marcação');
+      throw ServerException(message: e.message ?? 'Erro ao atualizar marcação');
     }
   }
 
@@ -745,7 +786,9 @@ class FirestoreDataSource {
   /// Cria um novo grupo.
   Future<String> createGroup(Map<String, dynamic> data) async {
     try {
-      final ref = await _firestore.collection(AppConstants.groupsCollection).add(data);
+      final ref = await _firestore
+          .collection(AppConstants.groupsCollection)
+          .add(data);
       return ref.id;
     } on FirebaseException catch (e) {
       throw ServerException(message: e.message ?? 'Erro ao criar grupo');
@@ -753,17 +796,22 @@ class FirestoreDataSource {
   }
 
   /// Envia mensagem para um grupo e atualiza o preview no documento pai.
-  Future<void> sendGroupMessage(String groupId, Map<String, dynamic> data) async {
+  Future<void> sendGroupMessage(
+    String groupId,
+    Map<String, dynamic> data,
+  ) async {
     try {
       // Atualiza lastMessage no documento do grupo (preview)
       await _firestore
           .collection(AppConstants.groupsCollection)
           .doc(groupId)
           .set({
-        'lastMessage': data['texto'] ?? '',
-        'lastTimestamp': data['timestamp'] ?? FieldValue.serverTimestamp(),
-        'lastSenderId': data['remetenteId'] ?? '',
-      }, SetOptions(merge: true));
+            'lastMessage': (data['texto'] as String?)?.isNotEmpty == true
+                ? data['texto']
+                : 'Mensagem de áudio',
+            'lastTimestamp': data['timestamp'] ?? FieldValue.serverTimestamp(),
+            'lastSenderId': data['remetenteId'] ?? '',
+          }, SetOptions(merge: true));
 
       // Adiciona mensagem à subcoleção
       await _firestore
@@ -784,15 +832,19 @@ class FirestoreDataSource {
         .collection(AppConstants.groupMessagesSubcollection)
         .orderBy('timestamp', descending: false)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((doc) => MessageModel.fromMap(doc.id, doc.data()))
-            .toList());
+        .map(
+          (snap) => snap.docs
+              .map((doc) => MessageModel.fromMap(doc.id, doc.data()))
+              .toList(),
+        );
   }
 
   // ───────────────────── EXERCISES ─────────────────────
 
   /// Lista todos os exercícios ou filtra por grupo muscular.
-  Future<List<Map<String, dynamic>>> getExercises({String? grupoMuscular}) async {
+  Future<List<Map<String, dynamic>>> getExercises({
+    String? grupoMuscular,
+  }) async {
     try {
       Query query = _firestore.collection(AppConstants.exercisesCollection);
       if (grupoMuscular != null) {
@@ -806,8 +858,7 @@ class FirestoreDataSource {
         return data;
       }).toList();
     } on FirebaseException catch (e) {
-      throw ServerException(
-          message: e.message ?? 'Erro ao listar exercícios');
+      throw ServerException(message: e.message ?? 'Erro ao listar exercícios');
     }
   }
 }

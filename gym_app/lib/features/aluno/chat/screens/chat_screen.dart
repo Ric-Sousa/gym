@@ -12,11 +12,17 @@ import '../../../../data/models/group_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/app_notification.dart';
+import '../../../../shared/widgets/audio_message_player.dart';
+import '../../../../shared/widgets/audio_record_button.dart';
+import '../../../../core/services/audio_recording_model.dart';
+import '../../../../shared/utils/audio_chat_message.dart';
 import '../../../../shared/utils/new_message_detector.dart';
 import 'group_chat_screen.dart';
 
-final chatMessagesProvider =
-    StreamProvider.family<List<MessageModel>, String>((ref, salaId) {
+final chatMessagesProvider = StreamProvider.family<List<MessageModel>, String>((
+  ref,
+  salaId,
+) {
   return ref.read(chatRepositoryProvider).messagesStream(salaId);
 });
 
@@ -25,13 +31,25 @@ class ChatScreen extends ConsumerStatefulWidget {
   final String? chatPartnerId;
   final String? chatPartnerName;
   final String? chatPartnerPhoto;
-  const ChatScreen({super.key, this.chatPartnerId, this.chatPartnerName, this.chatPartnerPhoto});
+
+  /// The shell controls presence for its IndexedStack tab. Standalone routes
+  /// (for example a direct PT chat) manage their own presence.
+  final bool trackChatPresence;
+
+  const ChatScreen({
+    super.key,
+    this.chatPartnerId,
+    this.chatPartnerName,
+    this.chatPartnerPhoto,
+    this.trackChatPresence = true,
+  });
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector {
+class _ChatScreenState extends ConsumerState<ChatScreen>
+    with NewMessageDetector {
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
   final _focusNode = FocusNode();
@@ -45,12 +63,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
   @override
   void initState() {
     super.initState();
-    // Captura o notifier localmente — ref fica invalido no dispose
-    _chatNotifier = ref.read(isAlunoInChatProvider.notifier);
-    // Deferir para depois da build — Riverpod proibe modificar providers durante a build
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _chatNotifier?.state = true;
-    });
+    if (widget.trackChatPresence) {
+      // Marca a presença antes da primeira build. Assim o listener de unread
+      // nunca toca som durante a abertura da conversa.
+      _chatNotifier = ref.read(isAlunoInChatProvider.notifier);
+      _chatNotifier?.state = true;
+    }
     _focusNode.addListener(() {
       if (mounted) setState(() => _isFocused = _focusNode.hasFocus);
     });
@@ -80,8 +98,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
       _typingDebounce?.cancel();
       // Limpa typing status da sala antiga antes de mudar
       if (_currentSalaId != null && _currentUserId != null) {
-        ref.read(chatRepositoryProvider).setTypingStatus(
-            _currentSalaId!, _currentUserId!, false);
+        ref
+            .read(chatRepositoryProvider)
+            .setTypingStatus(_currentSalaId!, _currentUserId!, false);
       }
       _textController.clear();
       _currentSalaId = null;
@@ -99,7 +118,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
     // durante o dispose o widget tree esta a ser finalizado e o
     // Riverpod nao permite modificar providers nessa fase.
     final notifier = _chatNotifier;
-    if (notifier != null) {
+    if (widget.trackChatPresence && notifier != null) {
       Future.microtask(() => notifier.state = false);
     }
     _typingDebounce?.cancel();
@@ -145,8 +164,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
     _typingSent = false;
     if (_currentSalaId != null && _currentUserId != null) {
       try {
-        await ref.read(chatRepositoryProvider).setTypingStatus(
-            _currentSalaId!, _currentUserId!, false);
+        await ref
+            .read(chatRepositoryProvider)
+            .setTypingStatus(_currentSalaId!, _currentUserId!, false);
       } catch (_) {}
     }
   }
@@ -171,11 +191,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
       return _buildChatList(userId);
     }
 
-    final salaId = ref.read(chatRepositoryProvider).getChatRoomId(userId, otherId);
+    final salaId = ref
+        .read(chatRepositoryProvider)
+        .getChatRoomId(userId, otherId);
     _currentSalaId = salaId;
     _currentUserId = userId;
     final messagesAsync = ref.watch(chatMessagesProvider(salaId));
-    final typingAsync = ref.watch(chatRepositoryProvider).typingStream(salaId, userId);
+    final typingAsync = ref
+        .watch(chatRepositoryProvider)
+        .typingStream(salaId, userId);
     final userName = authState.user?.nome ?? '';
     final adminName = 'Sara Gameiro';
     final isStudent = !(authState.user?.isAdmin ?? false);
@@ -183,7 +207,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
     // Nome e iniciais da outra pessoa (admin ve aluno, aluno ve admin)
     final partnerName = widget.chatPartnerName;
     final partnerPhoto = widget.chatPartnerPhoto ?? _fetchedPartnerPhoto;
-    final otherName = partnerName != null && partnerName.isNotEmpty ? partnerName : adminName;
+    final otherName = partnerName != null && partnerName.isNotEmpty
+        ? partnerName
+        : adminName;
     final otherInitials = partnerName != null && partnerName.isNotEmpty
         ? partnerName[0].toUpperCase()
         : 'SG';
@@ -216,7 +242,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
         leading: CircleAvatar(
           radius: 16,
           backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-          backgroundImage: partnerPhoto != null ? NetworkImage(partnerPhoto) : null,
+          backgroundImage: partnerPhoto != null
+              ? NetworkImage(partnerPhoto)
+              : null,
           child: partnerPhoto == null
               ? Text(
                   otherInitials,
@@ -235,7 +263,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
             child: messagesAsync.when(
               data: (messages) {
                 detectNewMessages(messages, userId, playSound: false);
-                WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+                WidgetsBinding.instance.addPostFrameCallback(
+                  (_) => _scrollToBottom(),
+                );
                 if (messages.isEmpty) {
                   return Center(
                     child: Text(
@@ -249,33 +279,46 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
                 DateTime? lastDate;
                 for (var i = 0; i < messages.length; i++) {
                   final msg = messages[i];
-                  final msgDate = DateTime(msg.timestamp.year, msg.timestamp.month, msg.timestamp.day);
+                  final msgDate = DateTime(
+                    msg.timestamp.year,
+                    msg.timestamp.month,
+                    msg.timestamp.day,
+                  );
                   if (lastDate == null || msgDate != lastDate) {
                     lastDate = msgDate;
                     items.add(_DateSeparator(date: msgDate));
                   }
                   final isMine = msg.remetenteId == userId;
-                  final showName = i == 0 || messages[i - 1].remetenteId != msg.remetenteId;
-                  items.add(_MessageBubble(
-                    message: msg,
-                    isMine: isMine,
-                    showName: showName,
-                    senderName: isMine ? 'Tu' : otherName,
-                    senderInitials: isMine
-                        ? (userName.isNotEmpty ? userName[0].toUpperCase() : '?')
-                        : otherInitials,
-                  ));
+                  final showName =
+                      i == 0 || messages[i - 1].remetenteId != msg.remetenteId;
+                  items.add(
+                    _MessageBubble(
+                      message: msg,
+                      isMine: isMine,
+                      showName: showName,
+                      senderName: isMine ? 'Tu' : otherName,
+                      senderInitials: isMine
+                          ? (userName.isNotEmpty
+                                ? userName[0].toUpperCase()
+                                : '?')
+                          : otherInitials,
+                    ),
+                  );
                 }
 
                 return ListView.builder(
                   controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   itemCount: items.length,
                   itemBuilder: (_, index) => items[index],
                 );
               },
-              loading: () =>
-                  const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+              loading: () => const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              ),
               error: (_, __) => Center(
                 child: Text(
                   'Erro ao carregar mensagens',
@@ -293,12 +336,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
                 duration: const Duration(milliseconds: 250),
                 child: isTyping
                     ? Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         child: Row(
                           children: [
                             CircleAvatar(
                               radius: 10,
-                              backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+                              backgroundColor: AppColors.primary.withValues(
+                                alpha: 0.15,
+                              ),
                               child: Text(
                                 otherInitials,
                                 style: GoogleFonts.montserrat(
@@ -371,17 +419,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
                   maxLines: 4,
                   minLines: 1,
                   textCapitalization: TextCapitalization.sentences,
-                  style: GoogleFonts.inter(color: AppColors.onSurface, fontSize: 14),
+                  style: GoogleFonts.inter(
+                    color: AppColors.onSurface,
+                    fontSize: 14,
+                  ),
                   decoration: InputDecoration(
                     hintText: AppStrings.typeMessage,
-                    hintStyle: GoogleFonts.inter(color: AppColors.outlineVariant, fontSize: 14),
+                    hintStyle: GoogleFonts.inter(
+                      color: AppColors.outlineVariant,
+                      fontSize: 14,
+                    ),
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 4),
+            AudioRecordButton(
+              color: AppColors.surface,
+              iconColor: AppColors.primary,
+              onAudioReady: (audio) => _sendAudio(salaId, userId, audio),
+            ),
+            const SizedBox(width: 4),
             Material(
               color: Colors.transparent,
               shape: const CircleBorder(),
@@ -406,7 +469,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+                  child: const Icon(
+                    Icons.send_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                 ),
               ),
             ),
@@ -431,7 +498,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('Chats', style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, fontSize: 18)),
+        title: Text(
+          'Chats',
+          style: GoogleFonts.montserrat(
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -440,7 +513,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
           children: [
             // ── PT Chat ──
             if (hasPT) ...[
-              Text('PERSONAL TRAINER', style: GoogleFonts.barlowCondensed(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.06, color: AppColors.textSecondary)),
+              Text(
+                'PERSONAL TRAINER',
+                style: GoogleFonts.barlowCondensed(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.06,
+                  color: AppColors.textSecondary,
+                ),
+              ),
               const SizedBox(height: 8),
               _buildPTChatTile(personalId),
               const SizedBox(height: 24),
@@ -449,10 +530,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
             Row(
               children: [
                 Expanded(
-                  child: Text('GRUPOS', style: GoogleFonts.barlowCondensed(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.06, color: AppColors.textSecondary)),
+                  child: Text(
+                    'GRUPOS',
+                    style: GoogleFonts.barlowCondensed(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.06,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
                 ),
                 if (groupsAsync.valueOrNull?.isNotEmpty == true)
-                  Text('${groupsAsync.value!.length} grupo(s)', style: GoogleFonts.inter(fontSize: 11, color: AppColors.textSecondary.withValues(alpha: 0.6))),
+                  Text(
+                    '${groupsAsync.value!.length} grupo(s)',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AppColors.textSecondary.withValues(alpha: 0.6),
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 8),
@@ -469,11 +564,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
                     ),
                     child: Column(
                       children: [
-                        Icon(Icons.group_outlined, size: 32, color: AppColors.textSecondary.withValues(alpha: 0.3)),
+                        Icon(
+                          Icons.group_outlined,
+                          size: 32,
+                          color: AppColors.textSecondary.withValues(alpha: 0.3),
+                        ),
                         const SizedBox(height: 8),
-                        Text('Nenhum grupo disponível', style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary)),
+                        Text(
+                          'Nenhum grupo disponível',
+                          style: GoogleFonts.inter(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
                         const SizedBox(height: 4),
-                        Text('O teu PT pode criar grupos para\ntroca de horários entre alunos.', textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 11, color: AppColors.textSecondary.withValues(alpha: 0.6))),
+                        Text(
+                          'O teu PT pode criar grupos para\ntroca de horários entre alunos.',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: AppColors.textSecondary.withValues(
+                              alpha: 0.6,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   );
@@ -484,7 +598,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
               },
               loading: () => const Padding(
                 padding: EdgeInsets.all(20),
-                child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                child: Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                ),
               ),
               error: (_, __) => const SizedBox.shrink(),
             ),
@@ -496,14 +612,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
                 decoration: BoxDecoration(
                   color: AppColors.info.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.info.withValues(alpha: 0.15)),
+                  border: Border.all(
+                    color: AppColors.info.withValues(alpha: 0.15),
+                  ),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, size: 18, color: AppColors.info.withValues(alpha: 0.6)),
+                    Icon(
+                      Icons.info_outline,
+                      size: 18,
+                      color: AppColors.info.withValues(alpha: 0.6),
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Text('Ainda não tens um Personal Trainer associado.\nPede ao teu PT para te vincular.', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary)),
+                      child: Text(
+                        'Ainda não tens um Personal Trainer associado.\nPede ao teu PT para te vincular.',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -525,7 +653,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => ChatScreen(chatPartnerId: personalId, chatPartnerName: 'Sara Gameiro', chatPartnerPhoto: null),
+              builder: (_) => ChatScreen(
+                chatPartnerId: personalId,
+                chatPartnerName: 'Sara Gameiro',
+                chatPartnerPhoto: null,
+                // A aba Chat do shell já controla a presença. Não a desligar
+                // ao fechar esta rota enquanto a aba continua visível.
+                trackChatPresence: false,
+              ),
             ),
           );
         },
@@ -550,7 +685,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Center(
-                  child: Text('SG', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16)),
+                  child: Text(
+                    'SG',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -558,13 +700,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Sara Gameiro', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: AppColors.onSurface)),
+                    Text(
+                      'Sara Gameiro',
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: AppColors.onSurface,
+                      ),
+                    ),
                     const SizedBox(height: 2),
-                    Text('Personal Trainer', style: GoogleFonts.inter(fontSize: 12, color: AppColors.primary.withValues(alpha: 0.7))),
+                    Text(
+                      'Personal Trainer',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: AppColors.primary.withValues(alpha: 0.7),
+                      ),
+                    ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppColors.primary, size: 20),
+              const Icon(
+                Icons.chevron_right,
+                color: AppColors.primary,
+                size: 20,
+              ),
             ],
           ),
         ),
@@ -573,14 +732,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
   }
 
   Widget _groupTile(GroupModel group) {
-    final hasPreview = group.lastMessage != null && group.lastMessage!.isNotEmpty;
+    final hasPreview =
+        group.lastMessage != null && group.lastMessage!.isNotEmpty;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => GroupChatScreen(group: group))),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  GroupChatScreen(group: group, trackChatPresence: false),
+            ),
+          ),
           borderRadius: BorderRadius.circular(12),
           child: Container(
             padding: const EdgeInsets.all(14),
@@ -597,22 +763,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
                     color: AppColors.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.group, color: AppColors.primary, size: 22),
+                  child: const Icon(
+                    Icons.group,
+                    color: AppColors.primary,
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(group.nome, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14, color: AppColors.onSurface)),
+                      Text(
+                        group.nome,
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: AppColors.onSurface,
+                        ),
+                      ),
                       const SizedBox(height: 2),
                       Text(
                         hasPreview
-                            ? (group.lastMessage!.length > 40 ? '${group.lastMessage!.substring(0, 40)}...' : group.lastMessage!)
+                            ? (group.lastMessage!.length > 40
+                                  ? '${group.lastMessage!.substring(0, 40)}...'
+                                  : group.lastMessage!)
                             : '${group.membros.length} membros \u2022 Troca de hor\u00e1rios',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(fontSize: 12, color: hasPreview ? AppColors.onSurface.withValues(alpha: 0.7) : AppColors.textSecondary),
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: hasPreview
+                              ? AppColors.onSurface.withValues(alpha: 0.7)
+                              : AppColors.textSecondary,
+                        ),
                       ),
                     ],
                   ),
@@ -620,10 +804,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
                 if (group.lastTimestamp != null)
                   Text(
                     _formatGroupTime(group.lastTimestamp!),
-                    style: GoogleFonts.inter(fontSize: 10, color: AppColors.textSecondary.withValues(alpha: 0.6)),
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      color: AppColors.textSecondary.withValues(alpha: 0.6),
+                    ),
                   ),
                 const SizedBox(width: 4),
-                const Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 20),
+                const Icon(
+                  Icons.chevron_right,
+                  color: AppColors.textSecondary,
+                  size: 20,
+                ),
               ],
             ),
           ),
@@ -640,6 +831,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
     if (diff.inHours < 24) return DateFormat('HH:mm').format(dt);
     if (diff.inDays < 7) return DateFormat('EEE', 'pt').format(dt);
     return DateFormat('dd/MM').format(dt);
+  }
+
+  Future<void> _sendAudio(
+    String salaId,
+    String userId,
+    RecordedAudio audio,
+  ) async {
+    try {
+      final message = await createUploadedAudioMessage(
+        storage: ref.read(storageDataSourceProvider),
+        senderId: userId,
+        chatId: salaId,
+        audio: audio,
+      );
+      await ref.read(chatRepositoryProvider).sendMessage(salaId, message);
+      _notifyChat(salaId, userId, '[Áudio]');
+    } catch (error) {
+      debugPrint('Erro ao enviar áudio: $error');
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Não foi possível enviar o áudio.',
+          type: NotificationType.error,
+        );
+      }
+    }
   }
 
   Future<void> _sendMessage(String salaId, String userId) async {
@@ -663,7 +880,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
     } catch (e) {
       debugPrint('❌ Erro ao enviar mensagem: $e');
       if (mounted) {
-        showAppNotification(context, AppStrings.messageSendError, type: NotificationType.error);
+        showAppNotification(
+          context,
+          AppStrings.messageSendError,
+          type: NotificationType.error,
+        );
       }
     }
   }
@@ -673,22 +894,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with NewMessageDetector
     // Fire-and-forget — não bloqueia o envio da mensagem
     Future(() async {
       try {
-        // Força refresh do token antes de chamar a function — evita 401
-        // por token expirado, comum em Flutter Web.
         final user = FirebaseAuth.instance.currentUser;
-        if (user != null) {
-          await user.getIdToken(true); // forceRefresh = true
-        }
-        await FirebaseFunctions.instanceFor(region: 'europe-west1')
-            .httpsCallable('sendChatNotification')
-            .call({
+        if (user == null) return;
+        final authToken = await user.getIdToken(true);
+        if (authToken == null || authToken.isEmpty) return;
+
+        // O SDK envia o Authorization automaticamente. O token no payload é
+        // apenas fallback para a callable v1, que também valida o token.
+        await FirebaseFunctions.instanceFor(
+          region: 'europe-west1',
+        ).httpsCallable('sendChatNotification').call({
           'salaId': salaId,
           'remetenteId': remetenteId,
           'texto': texto,
+          'authToken': authToken,
         });
       } on FirebaseFunctionsException catch (e) {
         // Log apenas em debug — nao incomoda o utilizador
-        debugPrint('⚠️ Cloud Function sendChatNotification: ${e.code} — ${e.message}');
+        debugPrint(
+          '⚠️ Cloud Function sendChatNotification: ${e.code} — ${e.message}',
+        );
       } catch (e) {
         debugPrint('⚠️ Cloud Function sendChatNotification erro: $e');
       }
@@ -730,18 +955,19 @@ class _MessageBubble extends StatelessWidget {
     );
 
     return Padding(
-      padding: EdgeInsets.only(
-        bottom: 4,
-        top: showName ? 10 : 0,
-      ),
+      padding: EdgeInsets.only(bottom: 4, top: showName ? 10 : 0),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
-        mainAxisAlignment: isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isMine
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         children: [
           if (!isMine) ...[avatar, const SizedBox(width: 8)],
           Flexible(
             child: Column(
-              crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              crossAxisAlignment: isMine
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
               children: [
                 if (showName)
                   Padding(
@@ -759,7 +985,10 @@ class _MessageBubble extends StatelessWidget {
                   constraints: BoxConstraints(
                     maxWidth: MediaQuery.of(context).size.width * 0.65,
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: isMine
                         ? AppColors.primary.withValues(alpha: 0.15)
@@ -767,8 +996,12 @@ class _MessageBubble extends StatelessWidget {
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(16),
                       topRight: const Radius.circular(16),
-                      bottomLeft: isMine ? const Radius.circular(16) : const Radius.circular(2),
-                      bottomRight: isMine ? const Radius.circular(2) : const Radius.circular(16),
+                      bottomLeft: isMine
+                          ? const Radius.circular(16)
+                          : const Radius.circular(2),
+                      bottomRight: isMine
+                          ? const Radius.circular(2)
+                          : const Radius.circular(16),
                     ),
                     border: Border.all(
                       color: isMine
@@ -777,16 +1010,29 @@ class _MessageBubble extends StatelessWidget {
                     ),
                   ),
                   child: Column(
-                    crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                    crossAxisAlignment: isMine
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        message.texto,
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: AppColors.onSurface,
-                          height: 1.4,
+                      if (message.isAudio)
+                        AudioMessagePlayer(
+                          url: message.audioUrl!,
+                          isMine: isMine,
+                          activeColor: isMine
+                              ? AppColors.primary
+                              : AppColors.secondary,
+                          inactiveColor: AppColors.textSecondary,
+                          durationMs: message.audioDurationMs,
+                        )
+                      else
+                        Text(
+                          message.texto,
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            color: AppColors.onSurface,
+                            height: 1.4,
+                          ),
                         ),
-                      ),
                       const SizedBox(height: 3),
                       Text(
                         time,
@@ -842,7 +1088,9 @@ class _DateSeparator extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.surfaceHigh,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.outline.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: AppColors.outline.withValues(alpha: 0.3),
+                ),
               ),
               child: Text(
                 _format(date),
@@ -914,9 +1162,7 @@ class _TypingDotsState extends State<_TypingDots>
     final delay = index * 0.2;
     final phase = (t + delay) % 1.0;
     // Efeito de fade in/out suave
-    final opacity = phase < 0.5
-        ? phase * 2.0
-        : (1.0 - phase) * 2.0;
+    final opacity = phase < 0.5 ? phase * 2.0 : (1.0 - phase) * 2.0;
     return Container(
       width: 6,
       height: 6,

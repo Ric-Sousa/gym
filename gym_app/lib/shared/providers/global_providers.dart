@@ -33,6 +33,11 @@ final connectivityServiceProvider = Provider<ConnectivityService>((ref) {
 /// Used to suppress notification sounds when the user is actively chatting.
 final isAlunoInChatProvider = StateProvider<bool>((ref) => false);
 
+/// Tracks whether the admin is actively viewing an embedded chat.
+/// The admin chat popover and the client-detail chat share this state so
+/// unread updates never produce a sound over the conversation being viewed.
+final isAdminInChatProvider = StateProvider<bool>((ref) => false);
+
 /// Provider para FCMService (singleton).
 final fcmServiceProvider = Provider<FCMService>((ref) {
   final userRepo = ref.watch(userRepositoryProvider);
@@ -140,7 +145,10 @@ final currentUserGeneroProvider = StreamProvider<String?>((ref) {
   final authState = ref.watch(authProvider);
   final userId = authState.user?.uid;
   if (userId == null) return const Stream.empty();
-  return ref.read(userRepositoryProvider).userStream(userId).map((u) => u.genero);
+  return ref
+      .read(userRepositoryProvider)
+      .userStream(userId)
+      .map((u) => u.genero);
 });
 
 // ──────────── AGENDA / BOOKINGS STREAMS ────────────
@@ -150,30 +158,34 @@ final currentUserGeneroProvider = StreamProvider<String?>((ref) {
 /// pois cada rebuild recria o listener Firestore causando loop infinito.
 final studentBookingsStreamProvider =
     StreamProvider.family<List<BookingModel>, String>((ref, studentId) {
-  if (studentId.isEmpty) return Stream.value([]);
-  return ref.read(bookingRepositoryProvider).watchStudentBookings(studentId);
-});
+      if (studentId.isEmpty) return Stream.value([]);
+      return ref
+          .read(bookingRepositoryProvider)
+          .watchStudentBookings(studentId);
+    });
 
 /// Stream de marcações do trainer (para deteção de conflitos).
 /// Provider family estável — NUNCA criar StreamProvider inline no build().
 final trainerBookingsStreamProvider =
     StreamProvider.family<List<BookingModel>, String>((ref, trainerId) {
-  if (trainerId.isEmpty) return Stream.value([]);
-  return ref.read(bookingRepositoryProvider).watchTrainerBookings(trainerId);
-});
+      if (trainerId.isEmpty) return Stream.value([]);
+      return ref
+          .read(bookingRepositoryProvider)
+          .watchTrainerBookings(trainerId);
+    });
 
 /// Stream de pagamentos do aluno.
 /// Provider family estável — NUNCA criar StreamProvider inline no build().
 final paymentsStreamProvider =
     StreamProvider.family<List<PaymentModel>, String>((ref, userId) {
-  if (userId.isEmpty) return Stream.value([]);
-  return ref.read(paymentRepositoryProvider).watchPayments(userId);
-});
+      if (userId.isEmpty) return Stream.value([]);
+      return ref.read(paymentRepositoryProvider).watchPayments(userId);
+    });
 
 /// Stream de mensagens de um grupo.
 /// Provider family estável — NUNCA criar StreamProvider inline no build().
 final groupMessagesStreamProvider =
     StreamProvider.family<List<MessageModel>, String>((ref, groupId) {
-  if (groupId.isEmpty) return Stream.value([]);
-  return ref.read(groupRepositoryProvider).watchMessages(groupId);
-});
+      if (groupId.isEmpty) return Stream.value([]);
+      return ref.read(groupRepositoryProvider).watchMessages(groupId);
+    });

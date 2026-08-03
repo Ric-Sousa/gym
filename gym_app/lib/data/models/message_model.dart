@@ -5,6 +5,8 @@ class MessageModel {
   final String texto;
   final DateTime timestamp;
   final bool lida;
+  final String? audioUrl;
+  final int? audioDurationMs;
 
   const MessageModel({
     this.id = '',
@@ -12,15 +14,25 @@ class MessageModel {
     required this.texto,
     required this.timestamp,
     this.lida = false,
+    this.audioUrl,
+    this.audioDurationMs,
   });
 
+  bool get isAudio => audioUrl != null && audioUrl!.isNotEmpty;
+
   factory MessageModel.fromMap(String id, Map<String, dynamic> map) {
+    final rawTimestamp = map['timestamp'];
+    final timestamp = rawTimestamp is DateTime
+        ? rawTimestamp
+        : (rawTimestamp as dynamic).toDate() as DateTime;
     return MessageModel(
       id: id,
       remetenteId: map['remetenteId'] as String? ?? '',
       texto: map['texto'] as String? ?? '',
-      timestamp: (map['timestamp'] as dynamic).toDate() as DateTime,
+      timestamp: timestamp,
       lida: map['lida'] as bool? ?? false,
+      audioUrl: map['audioUrl'] as String?,
+      audioDurationMs: (map['audioDurationMs'] as num?)?.toInt(),
     );
   }
 
@@ -30,6 +42,8 @@ class MessageModel {
       'texto': texto,
       'timestamp': timestamp,
       'lida': lida,
+      if (audioUrl != null && audioUrl!.isNotEmpty) 'audioUrl': audioUrl,
+      if (audioDurationMs != null) 'audioDurationMs': audioDurationMs,
     };
   }
 
@@ -39,6 +53,8 @@ class MessageModel {
     String? texto,
     DateTime? timestamp,
     bool? lida,
+    String? audioUrl,
+    int? audioDurationMs,
   }) {
     return MessageModel(
       id: id ?? this.id,
@@ -46,6 +62,8 @@ class MessageModel {
       texto: texto ?? this.texto,
       timestamp: timestamp ?? this.timestamp,
       lida: lida ?? this.lida,
+      audioUrl: audioUrl ?? this.audioUrl,
+      audioDurationMs: audioDurationMs ?? this.audioDurationMs,
     );
   }
 }

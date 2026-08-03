@@ -33,6 +33,7 @@
         "pdf",
         "pedometer",
         "printing",
+        "record",
         "riverpod_annotation",
         "share_plus",
         "url_launcher",
@@ -137,6 +138,20 @@
       "version": "5.0.0",
       "dependencies": [
         "lints"
+      ]
+    },
+    {
+      "name": "record",
+      "version": "7.1.1",
+      "dependencies": [
+        "flutter",
+        "record_android",
+        "record_ios",
+        "record_linux",
+        "record_macos",
+        "record_platform_interface",
+        "record_web",
+        "record_windows"
       ]
     },
     {
@@ -931,6 +946,38 @@
       "name": "lints",
       "version": "5.1.1",
       "dependencies": []
+    },
+    {
+      "name": "record_platform_interface",
+      "version": "2.1.0",
+      "dependencies": [
+        "flutter",
+        "plugin_platform_interface"
+      ]
+    },
+    {
+      "name": "record_macos",
+      "version": "2.1.1",
+      "dependencies": [
+        "flutter",
+        "record_platform_interface"
+      ]
+    },
+    {
+      "name": "record_ios",
+      "version": "2.1.1",
+      "dependencies": [
+        "flutter",
+        "record_platform_interface"
+      ]
+    },
+    {
+      "name": "record_android",
+      "version": "2.1.2",
+      "dependencies": [
+        "flutter",
+        "record_platform_interface"
+      ]
     },
     {
       "name": "fixnum",
@@ -2034,6 +2081,32 @@
         "collection",
         "meta",
         "pub_semver"
+      ]
+    },
+    {
+      "name": "record_web",
+      "version": "2.1.2",
+      "dependencies": [
+        "flutter",
+        "flutter_web_plugins",
+        "record_platform_interface",
+        "web"
+      ]
+    },
+    {
+      "name": "record_linux",
+      "version": "2.1.1",
+      "dependencies": [
+        "flutter",
+        "record_platform_interface"
+      ]
+    },
+    {
+      "name": "record_windows",
+      "version": "2.2.3",
+      "dependencies": [
+        "flutter",
+        "record_platform_interface"
       ]
     }
   ],

@@ -1,11 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/config/admin_theme.dart';
-import '../../../core/config/app_constants.dart';
+import '../../../core/services/audio_recording_model.dart';
 import '../../../core/services/sound_service.dart';
 import '../../../shared/utils/new_message_detector.dart';
 import '../../../data/models/message_model.dart';
@@ -13,6 +14,10 @@ import '../../../data/models/user_model.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../shared/providers/global_providers.dart';
 import '../../aluno/chat/screens/chat_screen.dart'; // for chatMessagesProvider
+import '../../../shared/widgets/audio_message_player.dart';
+import '../../../shared/widgets/audio_record_button.dart';
+import '../../../shared/utils/audio_chat_message.dart';
+import 'admin_group_notification_provider.dart';
 import 'admin_messages_view.dart';
 
 // ─── Color constants ──────────────────────────────────────────────
@@ -23,11 +28,19 @@ const _badgeBlack = Color(0xFF1A1A1A);
 /// Provider that computes unread conversation count.
 final adminUnreadCountProvider = Provider<int>((ref) {
   final conversationsAsync = ref.watch(adminConversationsProvider);
-  return conversationsAsync.whenOrNull(data: (conversations) {
-        return conversations
-            .where((c) => c.lastMessage != null && !c.lastMessage!.lida)
-            .length;
-      }) ??
+  return conversationsAsync.whenOrNull(
+        data: (conversations) {
+          // O estado de leitura é por mensagem recebida. Não usar
+          // lastMessage.lida: a última mensagem pode ter sido enviada pelo
+          // próprio admin e continuar com lida=false.
+          // Soma mensagens, não conversas: se a mesma conversa passar de
+          // 1 para 2 mensagens novas, o listener também deve detetar aumento.
+          return conversations.fold<int>(
+            0,
+            (total, conversation) => total + conversation.unreadCount,
+          );
+        },
+      ) ??
       0;
 });
 
@@ -44,16 +57,27 @@ class FloatingChatButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final unreadCount = ref.watch(adminUnreadCountProvider);
-
-    // Toca som de notificacao quando chegam novas mensagens e o modal esta fechado
-    ref.listen<int>(adminUnreadCountProvider, (prev, next) {
-      if (prev == null) return; // skip initial load
+    final unreadCount = ref.watch(
+      adminUnreadCountProvider,
+    ); // O som observa eventos de mensagem diretamente, não o contador visual.
+    // Assim alterações de lida/readAt nunca são confundidas com mensagens.
+    void playIncomingSound() {
       final soundEnabled = ref.read(authProvider).user?.soundEnabled ?? true;
-      if (next > prev && !ref.read(isChatModalOpenProvider) && soundEnabled) {
+      if (!ref.read(isChatModalOpenProvider) &&
+          !ref.read(isAdminInChatProvider) &&
+          soundEnabled) {
         SoundService().playNotificationChime();
       }
-    });
+    }
+
+    ref.listen<AsyncValue<AdminChatNotification>>(
+      adminIncomingChatNotificationProvider,
+      (_, event) => event.whenData((_) => playIncomingSound()),
+    );
+    ref.listen<AsyncValue<AdminChatNotification>>(
+      adminIncomingGroupChatNotificationProvider,
+      (_, event) => event.whenData((_) => playIncomingSound()),
+    );
 
     return Positioned(
       bottom: 24,
@@ -68,8 +92,10 @@ class FloatingChatButton extends ConsumerWidget {
               onTap: () => _openChatModal(context, ref),
               child: Container(
                 margin: const EdgeInsets.only(bottom: 10),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: _badgeBlack,
                   borderRadius: BorderRadius.circular(14),
@@ -94,8 +120,9 @@ class FloatingChatButton extends ConsumerWidget {
           // Main floating button
           Material(
             elevation: 8,
-            shadowColor:
-                AdminThemeColors.of(context).lime.withValues(alpha: 0.35),
+            shadowColor: AdminThemeColors.of(
+              context,
+            ).lime.withValues(alpha: 0.35),
             borderRadius: BorderRadius.circular(30),
             child: InkWell(
               onTap: () => _openChatModal(context, ref),
@@ -115,8 +142,9 @@ class FloatingChatButton extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(30),
                   boxShadow: [
                     BoxShadow(
-                      color: AdminThemeColors.of(context).lime
-                          .withValues(alpha: 0.3),
+                      color: AdminThemeColors.of(
+                        context,
+                      ).lime.withValues(alpha: 0.3),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -125,8 +153,11 @@ class FloatingChatButton extends ConsumerWidget {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    const Icon(Icons.chat_bubble_rounded,
-                        color: Colors.white, size: 28),
+                    const Icon(
+                      Icons.chat_bubble_rounded,
+                      color: Colors.white,
+                      size: 28,
+                    ),
                     // Badge count on button — black
                     if (unreadCount > 0)
                       Positioned(
@@ -221,6 +252,24 @@ class _ChatPopover extends ConsumerStatefulWidget {
 class _ChatPopoverState extends ConsumerState<_ChatPopover> {
   ConversationPreview? _selectedConversation;
 
+  /// Atualiza apenas o cursor local antes da transição para o detalhe.
+  /// A única escrita no Firestore é feita pelo detalhe, depois de receber a
+  /// fotografia efetivamente exibida das mensagens.
+  void _setOptimisticReadCursor(ConversationPreview conversation) {
+    final lastMessage = conversation.lastMessage;
+    if (lastMessage == null) return;
+
+    final roomId = conversation.roomId;
+    final current = ref.read(adminConversationReadAtProvider);
+    final previous = current[roomId];
+    if (previous == null || lastMessage.timestamp.isAfter(previous)) {
+      ref.read(adminConversationReadAtProvider.notifier).state = {
+        ...current,
+        roomId: lastMessage.timestamp,
+      };
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -228,9 +277,7 @@ class _ChatPopoverState extends ConsumerState<_ChatPopover> {
       child: Container(
         width: widget.isMobile ? widget.screenWidth - 16 : 400,
         height: 560,
-        constraints: BoxConstraints(
-          maxHeight: widget.screenHeight * 0.7,
-        ),
+        constraints: BoxConstraints(maxHeight: widget.screenHeight * 0.7),
         decoration: BoxDecoration(
           color: AdminThemeColors.of(context).surface,
           borderRadius: BorderRadius.circular(16),
@@ -251,16 +298,21 @@ class _ChatPopoverState extends ConsumerState<_ChatPopover> {
               ? _ConversationListView(
                   key: const ValueKey('conversation_list'),
                   onClose: widget.onClose,
-                  onSelectConversation: (conv) =>
-                      setState(() => _selectedConversation = conv),
+                  onSelectConversation: (conv) {
+                    // A abertura da conversa já conta como leitura. O cursor
+                    // otimista evita que snapshots antigos repintem o badge.
+                    setState(
+                      () =>
+                          _selectedConversation = conv.copyWith(unreadCount: 0),
+                    );
+                    _setOptimisticReadCursor(conv);
+                  },
                 )
               : _ChatDetailView(
-                  key: ValueKey(
-                      'chat_detail_${_selectedConversation!.roomId}'),
+                  key: ValueKey('chat_detail_${_selectedConversation!.roomId}'),
                   conversation: _selectedConversation!,
                   onViewProfile: widget.onViewProfile,
-                  onBack: () =>
-                      setState(() => _selectedConversation = null),
+                  onBack: () => setState(() => _selectedConversation = null),
                 ),
         ),
       ),
@@ -291,8 +343,7 @@ class _ConversationListView extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             border: Border(
-              bottom:
-                  BorderSide(color: AdminThemeColors.of(context).border),
+              bottom: BorderSide(color: AdminThemeColors.of(context).border),
             ),
           ),
           child: Row(
@@ -325,12 +376,14 @@ class _ConversationListView extends ConsumerWidget {
               ),
               IconButton(
                 onPressed: onClose,
-                icon: Icon(Icons.close,
-                    size: 20, color: AdminThemeColors.of(context).muted),
+                icon: Icon(
+                  Icons.close,
+                  size: 20,
+                  color: AdminThemeColors.of(context).muted,
+                ),
                 splashRadius: 18,
                 padding: EdgeInsets.zero,
-                constraints:
-                    const BoxConstraints(minWidth: 32, minHeight: 32),
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
               ),
             ],
           ),
@@ -344,9 +397,11 @@ class _ConversationListView extends ConsumerWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.chat_outlined,
-                          size: 44,
-                          color: AdminThemeColors.of(context).border),
+                      Icon(
+                        Icons.chat_outlined,
+                        size: 44,
+                        color: AdminThemeColors.of(context).border,
+                      ),
                       const SizedBox(height: 14),
                       Text(
                         'Nenhuma conversa',
@@ -371,7 +426,9 @@ class _ConversationListView extends ConsumerWidget {
               }
               return ListView.separated(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 10),
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 itemCount: conversations.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 6),
                 itemBuilder: (context, index) {
@@ -392,7 +449,8 @@ class _ConversationListView extends ConsumerWidget {
               child: Text(
                 'Erro ao carregar',
                 style: GoogleFonts.inter(
-                    color: AdminThemeColors.of(context).muted),
+                  color: AdminThemeColors.of(context).muted,
+                ),
               ),
             ),
           ),
@@ -408,24 +466,19 @@ class _ConversationListTile extends StatelessWidget {
   final ConversationPreview preview;
   final VoidCallback onTap;
 
-  const _ConversationListTile({
-    required this.preview,
-    required this.onTap,
-  });
+  const _ConversationListTile({required this.preview, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final aluno = preview.aluno;
     final lastMsg = preview.lastMessage;
-    final hasUnread = lastMsg != null && !lastMsg.lida;
+    final hasUnread = preview.unreadCount > 0;
 
     return Container(
       decoration: BoxDecoration(
         color: AdminThemeColors.of(context).bg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AdminThemeColors.of(context).border,
-        ),
+        border: Border.all(color: AdminThemeColors.of(context).border),
       ),
       child: InkWell(
         onTap: onTap,
@@ -441,8 +494,7 @@ class _ConversationListTile extends StatelessWidget {
                     onTap: () => _showPhotoZoom(context, aluno),
                     child: CircleAvatar(
                       radius: 20,
-                      backgroundColor:
-                          AdminThemeColors.of(context).surface2,
+                      backgroundColor: AdminThemeColors.of(context).surface2,
                       backgroundImage: aluno.fotoPerfil != null
                           ? NetworkImage(aluno.fotoPerfil!)
                           : null,
@@ -495,8 +547,7 @@ class _ConversationListTile extends StatelessWidget {
                               fontWeight: hasUnread
                                   ? FontWeight.w700
                                   : FontWeight.w600,
-                              color:
-                                  AdminThemeColors.of(context).text,
+                              color: AdminThemeColors.of(context).text,
                             ),
                           ),
                         ),
@@ -514,7 +565,11 @@ class _ConversationListTile extends StatelessWidget {
                     Text(
                       hasUnread
                           ? 'Enviou ${preview.unreadCount == 1 ? 'uma mensagem' : '${preview.unreadCount} mensagens'}'
-                          : (lastMsg?.texto ?? 'Inicia a conversa'),
+                          : (lastMsg == null
+                                ? 'Inicia a conversa'
+                                : (lastMsg.isAudio
+                                      ? 'Mensagem de áudio'
+                                      : lastMsg.texto)),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(
@@ -556,12 +611,9 @@ class _ConversationListTile extends StatelessWidget {
                   fit: BoxFit.contain,
                   errorBuilder: (_, __, ___) => CircleAvatar(
                     radius: 80,
-                    backgroundColor:
-                        AdminThemeColors.of(context).surface2,
+                    backgroundColor: AdminThemeColors.of(context).surface2,
                     child: Text(
-                      aluno.nome.isNotEmpty
-                          ? aluno.nome[0].toUpperCase()
-                          : '?',
+                      aluno.nome.isNotEmpty ? aluno.nome[0].toUpperCase() : '?',
                       style: GoogleFonts.barlowCondensed(
                         color: AdminThemeColors.of(context).lime,
                         fontWeight: FontWeight.w700,
@@ -615,61 +667,91 @@ class _ChatDetailView extends ConsumerStatefulWidget {
   ConsumerState<_ChatDetailView> createState() => _ChatDetailViewState();
 }
 
-class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessageDetector {
+class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
+    with NewMessageDetector {
   final TextEditingController _msgController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  bool _markedAsRead = false;
+  bool _isMarkingAsRead = false;
   bool _didInitialScroll = false;
+  DateTime? _lastVisibleMessageTimestamp;
+  DateTime? _pendingReadAt;
+  Timer? _readRetryTimer;
+  int _readRetryCount = 0;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _markAsRead());
+    // A leitura é iniciada pelo clique da conversa. Não escrever no Firestore
+    // a partir do build, pois isso cria um ciclo de rebuilds/streams.
   }
 
   @override
   void dispose() {
+    _readRetryTimer?.cancel();
     _msgController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
-  /// Marks all unread messages from the student as read in Firestore.
-  Future<void> _markAsRead() async {
-    if (_markedAsRead) return;
-    _markedAsRead = true;
+  void _scheduleReadRetry(DateTime readAt) {
+    if (!mounted || _readRetryCount >= 3) return;
+    _readRetryCount++;
+    _readRetryTimer?.cancel();
+    _readRetryTimer = Timer(const Duration(milliseconds: 500), () {
+      _readRetryTimer = null;
+      if (mounted) _markAsRead(readAt);
+    });
+  }
 
-    final authState = ref.read(authProvider);
-    final adminId = authState.user?.uid ?? '';
-    if (adminId.isEmpty) return;
-
-    try {
-      final firestore = FirebaseFirestore.instance;
-      final roomId = widget.conversation.roomId;
-
-      final snapshot = await firestore
-          .collection(AppConstants.chatCollection)
-          .doc(roomId)
-          .collection(AppConstants.messagesSubcollection)
-          .where('lida', isEqualTo: false)
-          .get();
-
-      if (snapshot.docs.isEmpty || !mounted) return;
-
-      final batch = firestore.batch();
-      for (final doc in snapshot.docs) {
-        batch.update(doc.reference, {'lida': true});
+  /// Marca como lidas as mensagens do aluno que já chegaram ao detalhe.
+  /// É disparado pelo callback do stream, nunca durante o build síncrono.
+  Future<void> _markAsRead(DateTime readAt) async {
+    if (!mounted) return;
+    if (_isMarkingAsRead) {
+      // O stream pode receber mensagens durante o batch. Guarda apenas o
+      // maior cursor para que nenhuma mensagem fique perdida na corrida.
+      if (_pendingReadAt == null || readAt.isAfter(_pendingReadAt!)) {
+        _pendingReadAt = readAt;
       }
-      // Atualiza também o documento da sala para disparar o stream
-      batch.update(
-        firestore.collection(AppConstants.chatCollection).doc(roomId),
-        {'lastReadAt': FieldValue.serverTimestamp()},
+      return;
+    }
+
+    _isMarkingAsRead = true;
+    final adminId = ref.read(authProvider).user?.uid ?? '';
+    if (adminId.isEmpty) {
+      _isMarkingAsRead = false;
+      return;
+    }
+
+    var failed = false;
+    try {
+      await markAdminConversationAsRead(
+        roomId: widget.conversation.roomId,
+        adminId: adminId,
+        readAt: readAt,
       );
-      await batch.commit();
-      // So invalida se o widget ainda estiver montado
-      if (mounted) ref.invalidate(adminConversationsProvider);
-    } catch (_) {
-      // Silently ignore — the UI will still work.
+      _readRetryCount = 0;
+    } catch (error) {
+      failed = true;
+      debugPrint('⚠️ Não foi possível marcar mensagens como lidas: $error');
+      if (_pendingReadAt == null || readAt.isAfter(_pendingReadAt!)) {
+        _pendingReadAt = readAt;
+      }
+    } finally {
+      _isMarkingAsRead = false;
+      final pendingReadAt = _pendingReadAt;
+      _pendingReadAt = null;
+      final shouldProcessPending =
+          mounted && pendingReadAt != null && !pendingReadAt.isBefore(readAt);
+      if (shouldProcessPending) {
+        if (failed) {
+          _scheduleReadRetry(pendingReadAt);
+        } else {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _markAsRead(pendingReadAt);
+          });
+        }
+      }
     }
   }
 
@@ -680,6 +762,30 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
       );
+    }
+  }
+
+  Future<void> _sendAudio(RecordedAudio audio) async {
+    final adminId = ref.read(authProvider).user?.uid ?? '';
+    if (adminId.isEmpty) return;
+
+    try {
+      final message = await createUploadedAudioMessage(
+        storage: ref.read(storageDataSourceProvider),
+        senderId: adminId,
+        chatId: widget.conversation.roomId,
+        audio: audio,
+      );
+      await ref
+          .read(chatRepositoryProvider)
+          .sendMessage(widget.conversation.roomId, message);
+    } catch (error) {
+      debugPrint('Erro ao enviar áudio do admin: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não foi possível enviar o áudio.')),
+        );
+      }
     }
   }
 
@@ -730,12 +836,9 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
                   fit: BoxFit.contain,
                   errorBuilder: (_, __, ___) => CircleAvatar(
                     radius: 80,
-                    backgroundColor:
-                        AdminThemeColors.of(context).surface2,
+                    backgroundColor: AdminThemeColors.of(context).surface2,
                     child: Text(
-                      aluno.nome.isNotEmpty
-                          ? aluno.nome[0].toUpperCase()
-                          : '?',
+                      aluno.nome.isNotEmpty ? aluno.nome[0].toUpperCase() : '?',
                       style: GoogleFonts.barlowCondensed(
                         color: AdminThemeColors.of(context).lime,
                         fontWeight: FontWeight.w700,
@@ -763,8 +866,9 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
 
   @override
   Widget build(BuildContext context) {
-    final messagesAsync =
-        ref.watch(chatMessagesProvider(widget.conversation.roomId));
+    final messagesAsync = ref.watch(
+      chatMessagesProvider(widget.conversation.roomId),
+    );
     final aluno = widget.conversation.aluno;
 
     return Column(
@@ -775,28 +879,28 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
           decoration: BoxDecoration(
             color: AdminThemeColors.of(context).bg,
             border: Border(
-              bottom: BorderSide(
-                  color: AdminThemeColors.of(context).border),
+              bottom: BorderSide(color: AdminThemeColors.of(context).border),
             ),
           ),
           child: Row(
             children: [
               IconButton(
-                icon: Icon(Icons.arrow_back_ios_new_rounded,
-                    size: 18, color: AdminThemeColors.of(context).text),
+                icon: Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  size: 18,
+                  color: AdminThemeColors.of(context).text,
+                ),
                 onPressed: widget.onBack,
                 splashRadius: 18,
                 padding: EdgeInsets.zero,
-                constraints:
-                    const BoxConstraints(minWidth: 36, minHeight: 36),
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
               ),
               // Photo with zoom
               GestureDetector(
                 onTap: () => _showPhotoZoom(context, aluno),
                 child: CircleAvatar(
                   radius: 16,
-                  backgroundColor:
-                      AdminThemeColors.of(context).limeDim,
+                  backgroundColor: AdminThemeColors.of(context).limeDim,
                   backgroundImage: aluno.fotoPerfil != null
                       ? NetworkImage(aluno.fotoPerfil!)
                       : null,
@@ -842,9 +946,11 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
                             ),
                           ),
                           const SizedBox(width: 4),
-                          Icon(Icons.arrow_drop_down,
-                              size: 16,
-                              color: AdminThemeColors.of(context).muted),
+                          Icon(
+                            Icons.arrow_drop_down,
+                            size: 16,
+                            color: AdminThemeColors.of(context).muted,
+                          ),
                         ],
                       ),
                     ),
@@ -867,9 +973,24 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
             color: AdminThemeColors.of(context).surface,
             child: messagesAsync.when(
               data: (messages) {
-                detectNewMessages(messages, ref.read(authProvider).user?.uid ?? '', playSound: false);
+                detectNewMessages(
+                  messages,
+                  ref.read(authProvider).user?.uid ?? '',
+                  playSound: false,
+                );
+                if (messages.isNotEmpty) {
+                  final visibleAt = messages.last.timestamp;
+                  if (_lastVisibleMessageTimestamp == null ||
+                      visibleAt.isAfter(_lastVisibleMessageTimestamp!)) {
+                    _lastVisibleMessageTimestamp = visibleAt;
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) _markAsRead(visibleAt);
+                    });
+                  }
+                }
                 // Scroll to bottom on initial load + when near bottom
-                final nearBottom = !_scrollController.hasClients ||
+                final nearBottom =
+                    !_scrollController.hasClients ||
                     _scrollController.position.pixels >=
                         _scrollController.position.maxScrollExtent - 100;
                 if (!_didInitialScroll || nearBottom) {
@@ -888,9 +1009,11 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.chat_bubble_outline,
-                            size: 40,
-                            color: AdminThemeColors.of(context).border),
+                        Icon(
+                          Icons.chat_bubble_outline,
+                          size: 40,
+                          color: AdminThemeColors.of(context).border,
+                        ),
                         const SizedBox(height: 10),
                         Text(
                           'Nenhuma mensagem ainda',
@@ -920,8 +1043,11 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
                 DateTime? lastDate;
                 for (var i = 0; i < messages.length; i++) {
                   final msg = messages[i];
-                  final msgDate = DateTime(msg.timestamp.year,
-                      msg.timestamp.month, msg.timestamp.day);
+                  final msgDate = DateTime(
+                    msg.timestamp.year,
+                    msg.timestamp.month,
+                    msg.timestamp.day,
+                  );
                   if (lastDate == null || msgDate != lastDate) {
                     lastDate = msgDate;
                     items.add(_DateSeparatorAdmin(date: msgDate));
@@ -946,7 +1072,8 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
                 child: Text(
                   'Erro ao carregar mensagens',
                   style: GoogleFonts.inter(
-                      color: AdminThemeColors.of(context).muted),
+                    color: AdminThemeColors.of(context).muted,
+                  ),
                 ),
               ),
             ),
@@ -958,8 +1085,7 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
           decoration: BoxDecoration(
             color: AdminThemeColors.of(context).bg,
             border: Border(
-              top:
-                  BorderSide(color: AdminThemeColors.of(context).border),
+              top: BorderSide(color: AdminThemeColors.of(context).border),
             ),
           ),
           child: SafeArea(
@@ -987,7 +1113,9 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
                           color: AdminThemeColors.of(context).muted,
                         ),
                         contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
                         filled: true,
                         fillColor: AdminThemeColors.of(context).surface,
                         border: OutlineInputBorder(
@@ -997,15 +1125,22 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
                           borderSide: BorderSide(
-                            color: AdminThemeColors.of(context).lime
-                                .withValues(alpha: 0.4),
+                            color: AdminThemeColors.of(
+                              context,
+                            ).lime.withValues(alpha: 0.4),
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 4),
+                AudioRecordButton(
+                  color: AdminThemeColors.of(context).surface,
+                  iconColor: AdminThemeColors.of(context).lime,
+                  onAudioReady: _sendAudio,
+                ),
+                const SizedBox(width: 4),
                 Material(
                   color: AdminThemeColors.of(context).lime,
                   shape: const CircleBorder(),
@@ -1016,9 +1151,11 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
                       width: 42,
                       height: 42,
                       alignment: Alignment.center,
-                      child: Icon(Icons.send_rounded,
-                          color: AdminThemeColors.of(context).bg,
-                          size: 19),
+                      child: Icon(
+                        Icons.send_rounded,
+                        color: AdminThemeColors.of(context).bg,
+                        size: 19,
+                      ),
                     ),
                   ),
                 ),
@@ -1057,7 +1194,8 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                        color: AdminThemeColors.of(context).border),
+                      color: AdminThemeColors.of(context).border,
+                    ),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -1072,12 +1210,16 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView> with NewMessag
                         borderRadius: BorderRadius.circular(6),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
                           child: Row(
                             children: [
-                              Icon(Icons.person_outline,
-                                  size: 16,
-                                  color: AdminThemeColors.of(context).text),
+                              Icon(
+                                Icons.person_outline,
+                                size: 16,
+                                color: AdminThemeColors.of(context).text,
+                              ),
                               const SizedBox(width: 10),
                               Text(
                                 'Ver perfil',
@@ -1130,14 +1272,11 @@ class _DateSeparatorAdmin extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
-          const Expanded(
-            child: Divider(height: 1),
-          ),
+          const Expanded(child: Divider(height: 1)),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: AdminThemeColors.of(context).surface2,
                 borderRadius: BorderRadius.circular(8),
@@ -1152,9 +1291,7 @@ class _DateSeparatorAdmin extends StatelessWidget {
               ),
             ),
           ),
-          const Expanded(
-            child: Divider(height: 1),
-          ),
+          const Expanded(child: Divider(height: 1)),
         ],
       ),
     );
@@ -1180,8 +1317,7 @@ class _ChatBubble extends StatelessWidget {
         alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
         child: Container(
           constraints: const BoxConstraints(maxWidth: 280),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             color: isMine ? theme.limeDim : theme.surface2,
             borderRadius: BorderRadius.only(
@@ -1191,30 +1327,35 @@ class _ChatBubble extends StatelessWidget {
               bottomRight: Radius.circular(isMine ? 4 : 16),
             ),
             border: Border.all(
-              color: isMine
-                  ? theme.lime.withValues(alpha: 0.3)
-                  : theme.border,
+              color: isMine ? theme.lime.withValues(alpha: 0.3) : theme.border,
             ),
           ),
           child: Column(
-            crossAxisAlignment:
-                isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            crossAxisAlignment: isMine
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
             children: [
-              Text(
-                msg.texto,
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  color: theme.text,
-                  height: 1.35,
+              if (msg.isAudio)
+                AudioMessagePlayer(
+                  url: msg.audioUrl!,
+                  isMine: isMine,
+                  activeColor: theme.lime,
+                  inactiveColor: theme.muted,
+                  durationMs: msg.audioDurationMs,
+                )
+              else
+                Text(
+                  msg.texto,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: theme.text,
+                    height: 1.35,
+                  ),
                 ),
-              ),
               const SizedBox(height: 4),
               Text(
                 time,
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  color: theme.muted,
-                ),
+                style: GoogleFonts.inter(fontSize: 10, color: theme.muted),
               ),
             ],
           ),

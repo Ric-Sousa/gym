@@ -447,7 +447,7 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
     NutritionScreen(),
     WorkoutScreen(),
     CalendarScreen(),
-    ChatScreen(),
+    ChatScreen(trackChatPresence: false),
     ProfileScreen(),
   ];
 
@@ -477,8 +477,12 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
-        onDestinationSelected: (index) =>
-            setState(() => _currentIndex = index),
+        onDestinationSelected: (index) {
+          setState(() => _currentIndex = index);
+          // O IndexedStack mantém os ecrãs montados. O estado do chat tem de
+          // acompanhar a aba visível, e não o ciclo de vida do widget.
+          ref.read(isAlunoInChatProvider.notifier).state = index == 4;
+        },
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),

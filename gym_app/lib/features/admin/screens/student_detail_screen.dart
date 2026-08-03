@@ -94,6 +94,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
           _buildTreino(aluno),
           _buildProgresso(aluno),
           ChatScreen(
+            trackChatPresence: false,
               chatPartnerId: aluno.uid,
               chatPartnerName: aluno.nome,
               chatPartnerPhoto: aluno.fotoPerfil,

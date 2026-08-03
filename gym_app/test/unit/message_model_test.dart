@@ -74,6 +74,24 @@ void main() {
       expect(updated.timestamp, date);
     });
 
+    test('suporta mensagens de áudio sem quebrar mensagens de texto', () {
+      final audioTimestamp = MockTimestamp(DateTime(2026, 7, 23, 15, 0));
+      final audio = MessageModel.fromMap('audio1', {
+        'remetenteId': remetenteId,
+        'texto': '',
+        'timestamp': audioTimestamp,
+        'lida': false,
+        'audioUrl': 'https://example.com/audio.m4a',
+        'audioDurationMs': 4200,
+      });
+
+      expect(audio.isAudio, true);
+      expect(audio.audioUrl, 'https://example.com/audio.m4a');
+      expect(audio.audioDurationMs, 4200);
+      expect(audio.toMap()['audioUrl'], 'https://example.com/audio.m4a');
+      expect(audio.toMap()['audioDurationMs'], 4200);
+    });
+
     test('construtor usa id vazio por padrão', () {
       final date = DateTime(2026, 7, 23, 14, 30);
       final message = MessageModel(
