@@ -38,6 +38,31 @@ void main() {
       expect(message.lida, false);
     });
 
+    test('fromMap não quebra quando timestamp está ausente', () {
+      final message = MessageModel.fromMap(id, {
+        'remetenteId': remetenteId,
+        'texto': texto,
+      });
+
+      expect(message.timestamp, DateTime.fromMillisecondsSinceEpoch(0));
+    });
+
+    test('fromMap aceita timestamp ISO e milissegundos', () {
+      final iso = MessageModel.fromMap(id, {
+        'remetenteId': remetenteId,
+        'texto': texto,
+        'timestamp': '2026-07-23T14:30:00.000Z',
+      });
+      final millis = MessageModel.fromMap(id, {
+        'remetenteId': remetenteId,
+        'texto': texto,
+        'timestamp': 1780000000000,
+      });
+
+      expect(iso.timestamp, DateTime.parse('2026-07-23T14:30:00.000Z'));
+      expect(millis.timestamp, DateTime.fromMillisecondsSinceEpoch(1780000000000));
+    });
+
     test('toMap converte para mapa corretamente', () {
       final date = DateTime(2026, 7, 23, 14, 30);
       final message = MessageModel(

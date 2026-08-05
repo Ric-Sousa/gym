@@ -13,11 +13,11 @@ import '../../../data/models/message_model.dart';
 import '../../../data/models/user_model.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../shared/providers/global_providers.dart';
+import '../../../shared/providers/chat_notification_providers.dart';
 import '../../aluno/chat/screens/chat_screen.dart'; // for chatMessagesProvider
 import '../../../shared/widgets/audio_message_player.dart';
 import '../../../shared/widgets/audio_record_button.dart';
 import '../../../shared/utils/audio_chat_message.dart';
-import 'admin_group_notification_provider.dart';
 import 'admin_messages_view.dart';
 
 // ─── Color constants ──────────────────────────────────────────────
@@ -70,12 +70,12 @@ class FloatingChatButton extends ConsumerWidget {
       }
     }
 
-    ref.listen<AsyncValue<AdminChatNotification>>(
-      adminIncomingChatNotificationProvider,
+    ref.listen<AsyncValue<StableChatNotification>>(
+      stableAdminChatNotificationProvider,
       (_, event) => event.whenData((_) => playIncomingSound()),
     );
-    ref.listen<AsyncValue<AdminChatNotification>>(
-      adminIncomingGroupChatNotificationProvider,
+    ref.listen<AsyncValue<StableChatNotification>>(
+      stableAdminGroupNotificationProvider,
       (_, event) => event.whenData((_) => playIncomingSound()),
     );
 

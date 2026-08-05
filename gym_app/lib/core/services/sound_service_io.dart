@@ -12,6 +12,9 @@ class SoundService {
   /// Mantém a API igual à implementação Web.
   void prepare() {}
 
+  /// No nativo não existe bloqueio de autoplay; mantém a API idêntica ao Web.
+  void unlock() {}
+
   /// Define o ficheiro de som a usar nas notificações.
   void setSound(String assetPath) {
     _currentAsset = assetPath;

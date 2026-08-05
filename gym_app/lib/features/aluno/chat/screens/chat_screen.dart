@@ -23,7 +23,18 @@ final chatMessagesProvider = StreamProvider.family<List<MessageModel>, String>((
   ref,
   salaId,
 ) {
+  if (salaId.isEmpty) return Stream.value(const <MessageModel>[]);
   return ref.read(chatRepositoryProvider).messagesStream(salaId);
+});
+
+/// Provider estável dos grupos do aluno. Não criar providers dentro de build:
+/// cada rebuild recriava a consulta e podia entrar num ciclo de listeners.
+final alunoGroupsProvider = FutureProvider.family<List<GroupModel>, String>((
+  ref,
+  userId,
+) {
+  if (userId.isEmpty) return Future.value(const <GroupModel>[]);
+  return ref.read(groupRepositoryProvider).getMyGroups(userId);
 });
 
 /// Ecrã de chat — Kinetic Dark.
@@ -67,7 +78,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       // Marca a presença antes da primeira build. Assim o listener de unread
       // nunca toca som durante a abertura da conversa.
       _chatNotifier = ref.read(isAlunoInChatProvider.notifier);
-      _chatNotifier?.state = true;
+      Future.microtask(() {
+        if (mounted) _chatNotifier?.state = true;
+      });
     }
     _focusNode.addListener(() {
       if (mounted) setState(() => _isFocused = _focusNode.hasFocus);
@@ -488,12 +501,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final personalId = authState.user?.personalId;
     final hasPT = personalId != null && personalId.isNotEmpty;
 
-    final groupsAsync = ref.watch(
-      FutureProvider<List<GroupModel>>((ref) {
-        if (userId.isEmpty) return [];
-        return ref.read(groupRepositoryProvider).getMyGroups(userId);
-      }),
-    );
+    final groupsAsync = ref.watch(alunoGroupsProvider(userId));
 
     return Scaffold(
       backgroundColor: AppColors.background,

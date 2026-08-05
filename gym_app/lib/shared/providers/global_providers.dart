@@ -7,6 +7,7 @@ import '../../data/datasources/storage_datasource.dart';
 import '../../data/models/booking_model.dart';
 import '../../data/models/payment_model.dart';
 import '../../data/models/message_model.dart';
+import '../../data/models/user_model.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../data/repositories/chat_repository.dart';
 import '../../data/repositories/diary_repository.dart';
@@ -149,6 +150,19 @@ final currentUserGeneroProvider = StreamProvider<String?>((ref) {
       .read(userRepositoryProvider)
       .userStream(userId)
       .map((u) => u.genero);
+});
+
+/// Stream do utilizador autenticado, usado para sincronizar preferências
+/// (ex: som de notificação) logo após o login, sem depender de o utilizador
+/// abrir as Definições/Perfil. Stream vazio sem sessão — evita queries
+/// desnecessárias no ecrã de login.
+final currentUserStreamProvider = StreamProvider<UserModel?>((ref) {
+  final userId = ref.watch(authProvider.select((s) => s.user?.uid ?? ''));
+  if (userId.isEmpty) return const Stream.empty();
+  return ref
+      .read(userRepositoryProvider)
+      .userStream(userId)
+      .map<UserModel?>((u) => u);
 });
 
 // ──────────── AGENDA / BOOKINGS STREAMS ────────────

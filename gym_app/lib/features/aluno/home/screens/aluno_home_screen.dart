@@ -12,12 +12,15 @@ import '../../../../data/models/diary_model.dart';
 import '../../../../data/models/workout_plan_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
+import '../../../../shared/providers/chat_notification_providers.dart';
 import '../../../../shared/widgets/star_rating.dart';
 import '../../../aluno/agenda/screens/calendar_screen.dart';
 import '../../../../shared/widgets/offline_banner.dart';
 import '../../../../shared/widgets/app_notification.dart';
 
-/// Provider que monitora mensagens nao lidas do aluno para tocar som de notificacao.
+/// Provider que monitora mensagens nao lidas do aluno para o contador visual.
+/// A reprodução sonora usa os providers estáveis de
+/// `chat_notification_providers.dart`.
 /// Observa as subcoleções de cada sala; o documento pai é atualizado antes da
 /// mensagem e, por isso, não é uma fonte suficiente para detetar novas mensagens.
 final alunoUnreadCountProvider = StreamProvider.family<int, String>((
@@ -302,9 +305,6 @@ class AlunoHomeScreen extends ConsumerStatefulWidget {
 }
 
 class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
-  bool _personalUnreadReady = false;
-  bool _groupUnreadReady = false;
-
   @override
   void initState() {
     super.initState();
@@ -321,23 +321,14 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
     final userId = authState.user?.uid ?? '';
     final isOffline = ref.watch(connectivityStreamProvider).value ?? false;
 
-    // O primeiro valor válido é apenas a hidratação inicial do Firestore;
-    // nunca deve produzir som. Depois disso, aumentos são mensagens novas.
-    ref.listen(alunoUnreadCountProvider(userId), (prev, next) {
-      _playUnreadSoundIfNeeded(
-        previous: prev?.value,
-        current: next.value,
-        isReady: _personalUnreadReady,
-        markReady: () => _personalUnreadReady = true,
-      );
+    // O som reage a documentos adicionados, não a alterações de contador.
+    // Assim a primeira mensagem e mensagens consecutivas com o mesmo horário
+    // são tratadas exatamente uma vez.
+    ref.listen(stableAlunoChatNotificationProvider(userId), (_, next) {
+      next.whenData((_) => _playIncomingSound());
     });
-    ref.listen(alunoGroupUnreadCountProvider(userId), (prev, next) {
-      _playUnreadSoundIfNeeded(
-        previous: prev?.value,
-        current: next.value,
-        isReady: _groupUnreadReady,
-        markReady: () => _groupUnreadReady = true,
-      );
+    ref.listen(stableAlunoGroupNotificationProvider(userId), (_, next) {
+      next.whenData((_) => _playIncomingSound());
     });
 
     return Scaffold(
@@ -352,21 +343,8 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
     );
   }
 
-  void _playUnreadSoundIfNeeded({
-    required int? previous,
-    required int? current,
-    required bool isReady,
-    required VoidCallback markReady,
-  }) {
-    if (!mounted || current == null) return;
-    // AsyncValue.loading -> data também é uma transição, mas representa a
-    // hidratação inicial e não uma mensagem que acabou de chegar.
-    if (!isReady) {
-      markReady();
-      return;
-    }
-    if (previous == null || current <= previous) return;
-    if (ref.read(isAlunoInChatProvider)) return;
+  void _playIncomingSound() {
+    if (!mounted || ref.read(isAlunoInChatProvider)) return;
     if (!(ref.read(authProvider).user?.soundEnabled ?? true)) return;
     SoundService().playNotificationChime();
   }

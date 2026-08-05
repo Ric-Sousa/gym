@@ -51,7 +51,9 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
       // Marca a presença antes da primeira build para impedir que a carga
       // inicial de mensagens seja interpretada como uma notificação nova.
       _chatNotifier = ref.read(_presenceProvider.notifier);
-      _chatNotifier?.state = true;
+      Future.microtask(() {
+        if (mounted) _chatNotifier?.state = true;
+      });
     }
   }
 

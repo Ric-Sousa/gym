@@ -360,6 +360,7 @@ class FirestoreDataSource {
 
         'lastTimestamp': DateTime.now(),
         'lastSenderId': messageMap['remetenteId'] ?? '',
+        'lastMessageId': messageRef.id,
         'typing': '',
       }, SetOptions(merge: true));
       batch.set(messageRef, messageMap);
@@ -796,29 +797,38 @@ class FirestoreDataSource {
   }
 
   /// Envia mensagem para um grupo e atualiza o preview no documento pai.
+  ///
+  /// As duas escritas usam o mesmo batch. Assim, o listener do documento do
+  /// grupo não consegue observar o preview antes de a mensagem existir na
+  /// subcoleção — situação que fazia o contador/som perder a primeira mensagem.
   Future<void> sendGroupMessage(
     String groupId,
     Map<String, dynamic> data,
   ) async {
     try {
-      // Atualiza lastMessage no documento do grupo (preview)
-      await _firestore
+      final groupRef = _firestore
           .collection(AppConstants.groupsCollection)
-          .doc(groupId)
-          .set({
-            'lastMessage': (data['texto'] as String?)?.isNotEmpty == true
-                ? data['texto']
-                : 'Mensagem de áudio',
-            'lastTimestamp': data['timestamp'] ?? FieldValue.serverTimestamp(),
-            'lastSenderId': data['remetenteId'] ?? '',
-          }, SetOptions(merge: true));
-
-      // Adiciona mensagem à subcoleção
-      await _firestore
-          .collection(AppConstants.groupsCollection)
-          .doc(groupId)
+          .doc(groupId);
+      final messageRef = groupRef
           .collection(AppConstants.groupMessagesSubcollection)
-          .add(data);
+          .doc();
+      final timestamp = data['timestamp'] ?? DateTime.now();
+      final batch = _firestore.batch();
+
+      batch.set(
+        groupRef,
+        {
+          'lastMessage': (data['texto'] as String?)?.isNotEmpty == true
+              ? data['texto']
+              : 'Mensagem de áudio',
+          'lastTimestamp': timestamp,
+          'lastSenderId': data['remetenteId'] ?? '',
+          'lastMessageId': messageRef.id,
+        },
+        SetOptions(merge: true),
+      );
+      batch.set(messageRef, data);
+      await batch.commit();
     } on FirebaseException catch (e) {
       throw ServerException(message: e.message ?? 'Erro ao enviar mensagem');
     }

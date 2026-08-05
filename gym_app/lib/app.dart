@@ -15,6 +15,7 @@ import 'features/aluno/agenda/screens/calendar_screen.dart';
 import 'features/admin/screens/admin_panel_screen.dart';
 import 'shared/providers/admin_providers.dart';
 import 'shared/providers/global_providers.dart';
+import 'shared/widgets/sound_preference_sync.dart';
 
 /// App root widget.
 class PersonalFitApp extends ConsumerWidget {
@@ -28,27 +29,32 @@ class PersonalFitApp extends ConsumerWidget {
     final generoAsync = ref.watch(currentUserGeneroProvider);
     final genero = generoAsync.valueOrNull;
 
-    return MaterialApp(
-      key: ValueKey(genero ?? 'default'),
-      title: AppStrings.appName,
-      debugShowCheckedModeBanner: false,
-      theme: _buildKineticDarkTheme(genero).copyWith(
-        brightness: Brightness.light,
-        colorScheme: ColorScheme.light(
-          primary: AppColors.primary,
-          onPrimary: AppColors.textOnPrimary,
-          surface: AppColors.adminLightSurface,
-          onSurface: AppColors.adminLightText,
-          outline: AppColors.adminLightBorder,
+    // Aplica a preferência de som do utilizador autenticado (admin/aluno)
+    // assim que o perfil carrega e desbloqueia o áudio no primeiro gesto em
+    // qualquer parte da app — não apenas no chat.
+    return SoundPreferenceSync(
+      child: MaterialApp(
+        key: ValueKey(genero ?? 'default'),
+        title: AppStrings.appName,
+        debugShowCheckedModeBanner: false,
+        theme: _buildKineticDarkTheme(genero).copyWith(
+          brightness: Brightness.light,
+          colorScheme: ColorScheme.light(
+            primary: AppColors.primary,
+            onPrimary: AppColors.textOnPrimary,
+            surface: AppColors.adminLightSurface,
+            onSurface: AppColors.adminLightText,
+            outline: AppColors.adminLightBorder,
+          ),
+          scaffoldBackgroundColor: AppColors.adminLightBg,
+          extensions: [AdminThemeColors.light],
         ),
-        scaffoldBackgroundColor: AppColors.adminLightBg,
-        extensions: [AdminThemeColors.light],
+        darkTheme: _buildKineticDarkTheme(
+          genero,
+        ).copyWith(extensions: [AdminThemeColors.dark]),
+        themeMode: adminThemeMode,
+        home: _buildHome(authState),
       ),
-      darkTheme: _buildKineticDarkTheme(genero).copyWith(
-        extensions: [AdminThemeColors.dark],
-      ),
-      themeMode: adminThemeMode,
-      home: _buildHome(authState),
     );
   }
 
@@ -62,11 +68,7 @@ class PersonalFitApp extends ConsumerWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.fitness_center,
-                  size: 64,
-                  color: AppColors.primary,
-                ),
+                Icon(Icons.fitness_center, size: 64, color: AppColors.primary),
                 const SizedBox(height: 24),
                 SizedBox(
                   width: 36,
@@ -218,10 +220,7 @@ class PersonalFitApp extends ConsumerWidget {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-          side: const BorderSide(
-            color: AppColors.outline,
-            width: 1,
-          ),
+          side: const BorderSide(color: AppColors.outline, width: 1),
         ),
         margin: const EdgeInsets.only(bottom: 12),
       ),
@@ -230,8 +229,10 @@ class PersonalFitApp extends ConsumerWidget {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.surface,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
         border: const UnderlineInputBorder(
           borderSide: BorderSide(color: AppColors.outline),
         ),
@@ -264,9 +265,7 @@ class PersonalFitApp extends ConsumerWidget {
           backgroundColor: AppColors.primary,
           foregroundColor: AppColors.textOnPrimary,
           elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(4),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
           textStyle: GoogleFonts.inter(
             fontSize: 14,
@@ -279,9 +278,7 @@ class PersonalFitApp extends ConsumerWidget {
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.onSurface,
           side: const BorderSide(color: AppColors.outline),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(4),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
           textStyle: GoogleFonts.inter(
             fontSize: 14,
@@ -302,18 +299,13 @@ class PersonalFitApp extends ConsumerWidget {
       // ── Chips ────────────────────────────────────────────────
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.surfaceHigh,
-        labelStyle: GoogleFonts.inter(
-          fontSize: 12,
-          color: AppColors.onSurface,
-        ),
+        labelStyle: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurface),
         selectedColor: AppColors.primary,
         secondaryLabelStyle: GoogleFonts.inter(
           fontSize: 12,
           color: AppColors.textOnPrimary,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(4),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         side: const BorderSide(color: AppColors.outline),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       ),
@@ -383,9 +375,7 @@ class PersonalFitApp extends ConsumerWidget {
           color: AppColors.onSurface,
           fontSize: 14,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(4),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
         behavior: SnackBarBehavior.floating,
       ),
 
@@ -471,10 +461,7 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {

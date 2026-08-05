@@ -4,9 +4,9 @@ import '../config/notification_sounds.dart';
 
 /// Implementação Web do serviço de som.
 ///
-/// Os browsers bloqueiam áudio iniciado sem interação do utilizador. O serviço
-/// observa a primeira interação e nunca deixa a Future de `play()` escapar,
-/// evitando o Uncaught (in promise) NotAllowedError.
+/// O browser só permite áudio automático depois de uma interação do utilizador.
+/// Os elementos são criados uma vez, anexados ao DOM e reutilizados para que
+/// uma mensagem posterior não dependa de criar um novo elemento bloqueado.
 class SoundService {
   static final SoundService _instance = SoundService._();
   factory SoundService() => _instance;
@@ -22,24 +22,31 @@ class SoundService {
     );
   }
 
-  final List<StreamSubscription<dynamic>> _interactionSubscriptions = [];
-  final List<html.AudioElement> _activeAudio = [];
-  final List<String> _pendingAssets = [];
-  String _currentAsset = defaultSoundAsset;
-  bool _isUnlocked = false;
-
-  // Um WAV silencioso permite chamar play() dentro do primeiro gesto normal
-  // da página sem tocar uma notificação antiga nem exigir o menu de sons.
+  static const _audioPoolSize = 4;
   static const _silentWavDataUri =
       'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
 
-  /// Instancia o serviço cedo, antes de qualquer evento de notificação.
-  void prepare() {}
+  final List<StreamSubscription<dynamic>> _interactionSubscriptions = [];
+  final List<html.AudioElement> _audioPool = [];
+  html.AudioElement? _unlockAudio;
+  final List<String> _pendingAssets = [];
+  String _currentAsset = defaultSoundAsset;
+  bool _isUnlocked = false;
+  int _nextAudioIndex = 0;
+
+  /// Prepara os elementos antes de os listeners de Firestore começarem.
+  void prepare() {
+    _ensureAudioPool();
+  }
 
   /// Define o ficheiro de som a usar nas notificações.
   void setSound(String assetPath) {
-    _currentAsset = assetPath;
+    if (assetPath.trim().isNotEmpty) _currentAsset = assetPath;
   }
+
+  /// Desbloqueia a reprodução de áudio. Chamado no primeiro gesto do
+  /// utilizador em qualquer parte da app (não apenas no chat).
+  void unlock() => _markAsUnlocked();
 
   void playNotificationChime() {
     _play(_currentAsset);
@@ -49,6 +56,7 @@ class SoundService {
     _play(errorSoundAsset);
   }
 
+  /// Mantido para compatibilidade com versões anteriores do serviço.
   void discardPendingNotificationSounds() {
     _pendingAssets.clear();
   }
@@ -56,41 +64,90 @@ class SoundService {
   void _markAsUnlocked() {
     if (_isUnlocked) return;
     _isUnlocked = true;
-    // Alguns browsers só registam a autorização se play() for chamado dentro
-    // do próprio gesto. Este áudio é silencioso e não é uma notificação.
-    final unlockAudio = html.AudioElement(_silentWavDataUri)
-      ..volume = 0
-      ..preload = 'auto';
-    unlockAudio.play().catchError((_) {});
+    _ensureAudioPool();
 
-    // Não reproduzir notificações antigas no gesto que apenas desbloqueia
-    // o áudio. Apenas mensagens posteriores ao desbloqueio são reproduzidas.
+    // Usa um elemento dedicado para o desbloqueio. Nunca interrompemos um
+    // elemento do pool que possa estar a reproduzir uma notificação real.
+    final unlockAudio = _unlockAudio ??= html.AudioElement()
+      ..preload = 'auto'
+      ..muted = true
+      ..volume = 0;
+    unlockAudio.style.display = 'none';
+    unlockAudio.src = _silentWavDataUri;
+    final body = html.document.body;
+    if (body != null && unlockAudio.parent == null) {
+      body.children.add(unlockAudio);
+    }
+    unawaited(_safePlay(unlockAudio));
+
+    // Uma notificação pendente é suficiente: não reproduzir histórico inteiro
+    // ao desbloquear uma aba que ficou inativa.
+    final pendingAsset = _pendingAssets.isEmpty ? null : _pendingAssets.last;
     _pendingAssets.clear();
+    if (pendingAsset != null) _play(pendingAsset);
+  }
+
+  String _assetUrl(String asset) => 'assets/$asset';
+
+  void _ensureAudioPool() {
+    while (_audioPool.length < _audioPoolSize) {
+      final audio = html.AudioElement()
+        ..preload = 'auto'
+        ..muted = false
+        ..volume = 1.0;
+      audio.style.display = 'none';
+      audio.setAttribute('aria-hidden', 'true');
+      _audioPool.add(audio);
+    }
+
+    // `prepare()` can run before Flutter has attached document.body. Attach
+    // existing elements on every access so the pool cannot remain detached.
+    final body = html.document.body;
+    if (body != null) {
+      for (final audio in _audioPool) {
+        if (audio.parent == null) body.children.add(audio);
+      }
+    }
+  }
+
+  html.AudioElement _audioForPlayback() {
+    _ensureAudioPool();
+    final audio = _audioPool[_nextAudioIndex % _audioPool.length];
+    _nextAudioIndex++;
+    audio.pause();
+    try {
+      audio.currentTime = 0;
+    } catch (_) {}
+    return audio;
   }
 
   void _play(String asset) {
-    if (asset.isEmpty) return;
-    // Não tentar contornar a política do browser. Guarda o som para o
-    // primeiro gesto do utilizador, em vez de produzir uma rejeição ou perder
-    // silenciosamente a notificação.
+    if (asset.trim().isEmpty) return;
+
     if (!_isUnlocked) {
+      // The browser cannot play yet. Keep only a small, latest-event queue.
+      if (_pendingAssets.length >= 8) _pendingAssets.removeAt(0);
       _pendingAssets.add(asset);
       return;
     }
 
-    final audio = html.AudioElement(asset)
+    final audio = _audioForPlayback()
+      ..muted = false
+      ..volume = 1.0
       ..preload = 'auto'
-      ..currentTime = 0;
-    _activeAudio.add(audio);
+      ..src = _assetUrl(asset);
 
-    audio.onEnded.listen((_) => _activeAudio.remove(audio));
-    audio.onError.listen((_) => _activeAudio.remove(audio));
-    audio.load();
+    // Setting src starts loading; calling load() immediately afterwards can
+    // abort that load in some browsers. Let the browser start it naturally.
+    unawaited(_safePlay(audio));
+  }
 
-    // play() rejeita assincronamente quando o browser bloqueia autoplay;
-    // try/catch sozinho não captura essa rejeição.
-    audio.play().catchError((_) {
-      _activeAudio.remove(audio);
-    });
+  Future<void> _safePlay(html.AudioElement audio) async {
+    try {
+      await audio.play();
+    } catch (_) {
+      // Autoplay/network/media errors are non-fatal. Most importantly, never
+      // let a rejected HTMLMediaElement promise crash Flutter Web.
+    }
   }
 }

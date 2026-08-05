@@ -24,9 +24,15 @@ mixin NewMessageDetector {
   ///
   /// Se [playSound] for false, não toca o som (ex: quando o user
   /// está dentro do chat e já está a ver as mensagens).
-  void detectNewMessages(List<MessageModel> messages, String myId, {bool playSound = true}) {
-    if (messages.isEmpty) return;
-
+  void detectNewMessages(
+    List<MessageModel> messages,
+    String myId, {
+    bool playSound = true,
+    void Function(MessageModel)? onNewMessage,
+  }) {
+    // Mesmo uma fotografia vazia conta como a carga inicial. Sem esta marca,
+    // a primeira mensagem de uma conversa nova seria confundida com hidratação
+    // e o som seria perdido.
     if (!_initialLoadDone) {
       // Primeira carga: apenas regista os IDs, sem tocar som
       _seenMessageIds.addAll(messages.map((m) => m.id));
@@ -37,9 +43,12 @@ mixin NewMessageDetector {
     for (final msg in messages) {
       if (!_seenMessageIds.contains(msg.id)) {
         _seenMessageIds.add(msg.id);
-        // Toca o chime apenas para mensagens de outros remetentes
-        if (msg.remetenteId != myId && playSound) {
-          SoundService().playNotificationChime();
+        // Toca o chime apenas para mensagens de outros remetentes. O callback
+        // é útil para testes e para integrações que precisam reagir ao evento
+        // sem duplicar o mecanismo de deduplicação por ID.
+        if (msg.remetenteId != myId) {
+          onNewMessage?.call(msg);
+          if (playSound) SoundService().playNotificationChime();
         }
       }
     }

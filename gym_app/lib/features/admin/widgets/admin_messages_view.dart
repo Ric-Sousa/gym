@@ -28,69 +28,6 @@ DateTime? _readTimestamp(dynamic value) {
   return null;
 }
 
-/// Evento de mensagem recebida pelo admin.
-class AdminChatNotification {
-  final String roomId;
-  final DateTime timestamp;
-
-  const AdminChatNotification({required this.roomId, required this.timestamp});
-}
-
-/// Observa diretamente as salas e emite apenas mensagens novas do aluno.
-///
-// O contador visual faz queries adicionais para calcular unread. Ele não é
-
-/// uma fonte adequada para som: uma atualização de `lida` ou uma fotografia
-/// antiga pode alterar o contador sem existir uma mensagem nova. Este stream
-/// compara `lastTimestamp` por sala e ignora a primeira fotografia.
-final adminIncomingChatNotificationProvider =
-    StreamProvider<AdminChatNotification>((ref) {
-      final adminId = ref.watch(authProvider).user?.uid ?? '';
-      if (adminId.isEmpty) return const Stream.empty();
-
-      final query = FirebaseFirestore.instance
-          .collection(AppConstants.chatCollection)
-          .where(FieldPath.documentId, isGreaterThanOrEqualTo: 'chat_')
-          .where(FieldPath.documentId, isLessThanOrEqualTo: 'chat_\\uf8ff');
-
-      return () async* {
-        final latestByRoom = <String, DateTime>{};
-        var isInitialSnapshot = true;
-
-        await for (final snapshot in query.snapshots()) {
-          for (final change in snapshot.docChanges) {
-            final data = change.doc.data();
-            if (data == null) continue;
-
-            final roomParts = change.doc.id.split('_');
-            if (roomParts.length < 3 ||
-                (roomParts[1] != adminId && roomParts[2] != adminId)) {
-              continue;
-            }
-
-            final timestamp = _readTimestamp(data['lastTimestamp']);
-            final senderId = data['lastSenderId'] as String? ?? '';
-            if (timestamp == null) continue;
-
-            final previousTimestamp = latestByRoom[change.doc.id];
-            latestByRoom[change.doc.id] = timestamp;
-            if (isInitialSnapshot ||
-                (previousTimestamp != null &&
-                    !timestamp.isAfter(previousTimestamp)) ||
-                senderId == adminId) {
-              continue;
-            }
-
-            yield AdminChatNotification(
-              roomId: change.doc.id,
-              timestamp: timestamp,
-            );
-          }
-          isInitialSnapshot = false;
-        }
-      }();
-    });
-
 /// Provider que obtém as conversas do admin com alunos.
 ///
 /// A contagem é calculada a partir da mesma fotografia de mensagens que

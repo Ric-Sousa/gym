@@ -26,6 +26,12 @@ class SoundService {
     impl.SoundService().setSound(assetPath);
   }
 
+  /// Desbloqueia a reprodução de áudio após o primeiro gesto do utilizador.
+  /// No Web evita o bloqueio de autoplay; nativo é uma operação sem efeito.
+  void unlock() {
+    impl.SoundService().unlock();
+  }
+
   /// Toca o som de notificação configurado.
   void playNotificationChime() {
     impl.SoundService().playNotificationChime();

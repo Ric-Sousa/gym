@@ -1,5 +1,25 @@
 /// Modelo de mensagem no chat.
 class MessageModel {
+  static DateTime _parseTimestamp(dynamic rawTimestamp) {
+    if (rawTimestamp is DateTime) return rawTimestamp;
+    if (rawTimestamp is String) {
+      final parsed = DateTime.tryParse(rawTimestamp);
+      if (parsed != null) return parsed;
+    }
+    if (rawTimestamp is num) {
+      return DateTime.fromMillisecondsSinceEpoch(rawTimestamp.toInt());
+    }
+
+    // Firestore Timestamp (e mocks compatíveis) expõem toDate(). Algumas
+    // mensagens antigas/pending podem não ter timestamp; não deixamos esse
+    // documento derrubar a stream inteira do chat.
+    try {
+      final converted = (rawTimestamp as dynamic).toDate();
+      if (converted is DateTime) return converted;
+    } catch (_) {}
+
+    return DateTime.fromMillisecondsSinceEpoch(0);
+  }
   final String id;
   final String remetenteId;
   final String texto;
@@ -21,10 +41,7 @@ class MessageModel {
   bool get isAudio => audioUrl != null && audioUrl!.isNotEmpty;
 
   factory MessageModel.fromMap(String id, Map<String, dynamic> map) {
-    final rawTimestamp = map['timestamp'];
-    final timestamp = rawTimestamp is DateTime
-        ? rawTimestamp
-        : (rawTimestamp as dynamic).toDate() as DateTime;
+    final timestamp = _parseTimestamp(map['timestamp']);
     return MessageModel(
       id: id,
       remetenteId: map['remetenteId'] as String? ?? '',
