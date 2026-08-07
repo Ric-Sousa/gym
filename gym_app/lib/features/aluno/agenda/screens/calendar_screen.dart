@@ -8,6 +8,7 @@ import '../../../../core/config/app_colors.dart';
 import '../../../../data/models/booking_model.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/app_notification.dart';
+import '../../../../shared/widgets/app_design_system.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 
 /// Horários disponíveis para marcação (8h às 18h, blocos de 60 min).
@@ -48,56 +49,68 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(
-          'Agenda',
-          style: GoogleFonts.montserrat(
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 16),
+            child: AppPageIntro(
+              eyebrow: 'Planeamento',
+              title: 'A tua agenda',
+              subtitle: 'Escolhe o melhor momento para manteres o ritmo.',
+            ),
           ),
-        ),
-      ),
-      body: bookingsAsync.when(
-        data: (myBookings) {
-          final allTrainerBookings = trainerBookingsAsync.valueOrNull ?? [];
-          return Column(
-            children: [
-              _buildWeekSelector(),
-              Expanded(child: _buildTimeGrid(myBookings, allTrainerBookings)),
-            ],
-          );
-        },
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
-        ),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, size: 48, color: AppColors.error),
-              const SizedBox(height: 12),
-              Text(
-                'Erro ao carregar agenda',
-                style: GoogleFonts.inter(
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w600,
+          Expanded(
+            child: bookingsAsync.when(
+              data: (myBookings) {
+                final allTrainerBookings =
+                    trainerBookingsAsync.asData?.value ?? [];
+                return Column(
+                  children: [
+                    _buildWeekSelector(),
+                    Expanded(
+                      child: _buildTimeGrid(myBookings, allTrainerBookings),
+                    ),
+                  ],
+                );
+              },
+              loading: () => const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              ),
+              error: (e, _) => Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: AppColors.error,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Erro ao carregar agenda',
+                      style: GoogleFonts.inter(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Text(
+                        e.toString(),
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: AppColors.textSecondary.withAlpha(150),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Text(
-                  e.toString(),
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    color: AppColors.textSecondary.withAlpha(150),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -138,7 +151,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
                   color: isSelected ? AppColors.primary : AppColors.surface,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: isToday && !isSelected
                         ? AppColors.primary
@@ -338,9 +351,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       padding: const EdgeInsets.only(bottom: 6),
       child: Material(
         color: bgColor,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(14),
         child: InkWell(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(14),
           onTap: isAvailable
               ? () => _confirmBooking(slotStart)
               : isMyPending
@@ -351,7 +364,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: isAvailable ? AppColors.outline : Colors.transparent,
               ),
@@ -438,7 +451,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceHigh,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Text(
           'Marcar aula?',
           style: GoogleFonts.montserrat(
@@ -572,7 +585,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceHigh,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Text(
           'Cancelar pedido?',
           style: GoogleFonts.montserrat(
@@ -653,7 +666,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceHigh,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Text(
           'Cancelar aula?',
           style: GoogleFonts.montserrat(

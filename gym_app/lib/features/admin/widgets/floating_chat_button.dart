@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod/legacy.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
@@ -275,18 +276,26 @@ class _ChatPopoverState extends ConsumerState<_ChatPopover> {
     return Material(
       color: Colors.transparent,
       child: Container(
-        width: widget.isMobile ? widget.screenWidth - 16 : 400,
+        width: widget.isMobile
+            ? widget.screenWidth - 16
+            : widget.screenWidth.clamp(340.0, 440.0).toDouble(),
         height: 560,
-        constraints: BoxConstraints(maxHeight: widget.screenHeight * 0.7),
+        constraints: BoxConstraints(
+          maxHeight: widget.screenHeight * 0.7,
+          maxWidth: widget.isMobile
+              ? widget.screenWidth - 16
+              : widget.screenWidth.clamp(340.0, 440.0).toDouble(),
+        ),
         decoration: BoxDecoration(
           color: AdminThemeColors.of(context).surface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(24),
           border: Border.all(color: AdminThemeColors.of(context).border),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.18),
-              blurRadius: 36,
-              offset: const Offset(0, 16),
+              blurRadius: 44,
+              spreadRadius: 2,
+              offset: const Offset(0, 18),
             ),
           ],
         ),
@@ -1186,13 +1195,13 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
               top: position.dy + 4,
               child: Material(
                 elevation: 12,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(14),
                 color: AdminThemeColors.of(context).surface,
                 child: Container(
                   width: 160,
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                       color: AdminThemeColors.of(context).border,
                     ),

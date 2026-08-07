@@ -31,7 +31,7 @@ class SoundPreferenceSync extends ConsumerWidget {
       if (prev != next) SoundService().setSound(defaultSoundAsset);
     });
 
-    final user = ref.watch(currentUserStreamProvider).valueOrNull;
+    final user = ref.watch(currentUserStreamProvider).asData?.value;
     if (user != null) {
       SoundService().setSound(user.notificationSound ?? defaultSoundAsset);
     }

@@ -32,17 +32,31 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const EmptyState(icon: Icons.fitness_center, title: AppStrings.noWorkoutAssigned),
+                const EmptyState(
+                  icon: Icons.fitness_center,
+                  title: AppStrings.noWorkoutAssigned,
+                ),
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
                   onPressed: _createEmptyPlan,
                   icon: const Icon(Icons.add, size: 16),
-                  label: Text('Criar plano de treino', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700)),
+                  label: Text(
+                    'Criar plano de treino',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AdminThemeColors.of(context).lime,
                     foregroundColor: AdminThemeColors.of(context).bg,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
                   ),
                 ),
               ],
@@ -51,8 +65,17 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
         }
         return _buildPlanEditor(plans);
       },
-      loading: () => Center(child: CircularProgressIndicator(color: AdminThemeColors.of(context).lime)),
-      error: (_, __) => Center(child: Text('Erro ao carregar planos', style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted))),
+      loading: () => Center(
+        child: CircularProgressIndicator(
+          color: AdminThemeColors.of(context).lime,
+        ),
+      ),
+      error: (_, __) => Center(
+        child: Text(
+          'Erro ao carregar planos',
+          style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
+        ),
+      ),
     );
   }
 
@@ -72,13 +95,28 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: ChoiceChip(
-                      label: Text(entry.value.nome, style: GoogleFonts.inter(fontSize: 13, color: selected ? AdminThemeColors.of(context).bg : AdminThemeColors.of(context).muted)),
+                      label: Text(
+                        entry.value.nome,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: selected
+                              ? AdminThemeColors.of(context).bg
+                              : AdminThemeColors.of(context).muted,
+                        ),
+                      ),
                       selected: selected,
-                      onSelected: (_) => setState(() => _selectedPlanIndex = entry.key),
+                      onSelected: (_) =>
+                          setState(() => _selectedPlanIndex = entry.key),
                       selectedColor: AdminThemeColors.of(context).lime,
                       backgroundColor: AdminThemeColors.of(context).surface2,
-                      side: BorderSide(color: selected ? AdminThemeColors.of(context).lime : AdminThemeColors.of(context).border),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                      side: BorderSide(
+                        color: selected
+                            ? AdminThemeColors.of(context).lime
+                            : AdminThemeColors.of(context).border,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                   );
                 }).toList(),
@@ -97,7 +135,9 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                 decoration: BoxDecoration(
                   color: AdminThemeColors.of(context).surface,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AdminThemeColors.of(context).border),
+                  border: Border.all(
+                    color: AdminThemeColors.of(context).border,
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: AdminThemeColors.of(context).shadow,
@@ -110,28 +150,71 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                   leading: CircleAvatar(
                     radius: 16,
                     backgroundColor: AdminThemeColors.of(context).limeDim,
-                    child: Icon(Icons.fitness_center, color: AdminThemeColors.of(context).lime, size: 16),
+                    child: Icon(
+                      Icons.fitness_center,
+                      color: AdminThemeColors.of(context).lime,
+                      size: 16,
+                    ),
                   ),
-                  title: Text(day.diaSemana, style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: AdminThemeColors.of(context).text)),
+                  title: Text(
+                    day.diaSemana,
+                    style: GoogleFonts.inter(
+                      fontWeight: FontWeight.w600,
+                      color: AdminThemeColors.of(context).text,
+                    ),
+                  ),
                   subtitle: day.foco.isNotEmpty
-                      ? Text('Foco: ${day.foco}', style: GoogleFonts.inter(fontSize: 12, color: AdminThemeColors.of(context).muted))
+                      ? Text(
+                          'Foco: ${day.foco}',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: AdminThemeColors.of(context).muted,
+                          ),
+                        )
                       : null,
                   children: [
-                    ...day.exercicios.map((ex) => ListTile(
-                          dense: true,
-                          title: Text(ex.nome, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text, fontSize: 14)),
-                  subtitle: _buildExerciseSubtitle(ex),
-                  trailing: ex.cargaSugerida != null
-                              ? Text('${ex.cargaSugerida}kg', style: GoogleFonts.montserrat(fontSize: 13, color: AdminThemeColors.of(context).orange))
-                              : null,
-                        )),
-                    Divider(color: AdminThemeColors.of(context).border, height: 1),
+                    ...day.exercicios.map(
+                      (ex) => ListTile(
+                        dense: true,
+                        title: Text(
+                          ex.nome,
+                          style: GoogleFonts.inter(
+                            color: AdminThemeColors.of(context).text,
+                            fontSize: 14,
+                          ),
+                        ),
+                        subtitle: _buildExerciseSubtitle(ex),
+                        trailing: ex.cargaSugerida != null
+                            ? Text(
+                                '${ex.cargaSugerida}kg',
+                                style: GoogleFonts.montserrat(
+                                  fontSize: 13,
+                                  color: AdminThemeColors.of(context).orange,
+                                ),
+                              )
+                            : null,
+                      ),
+                    ),
+                    Divider(
+                      color: AdminThemeColors.of(context).border,
+                      height: 1,
+                    ),
                     Padding(
                       padding: const EdgeInsets.all(12),
                       child: TextButton.icon(
                         onPressed: () => _addExercise(plan, day.diaSemana),
-                        icon: Icon(Icons.add, size: 14, color: AdminThemeColors.of(context).lime),
-                        label: Text('Adicionar exercício', style: GoogleFonts.inter(fontSize: 12, color: AdminThemeColors.of(context).lime)),
+                        icon: Icon(
+                          Icons.add,
+                          size: 14,
+                          color: AdminThemeColors.of(context).lime,
+                        ),
+                        label: Text(
+                          'Adicionar exercício',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: AdminThemeColors.of(context).lime,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -155,19 +238,29 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
     parts.add(_equipamentoEmoji(ex.equipamento));
     return Text(
       parts.join(' • '),
-      style: GoogleFonts.montserrat(fontSize: 12, color: AdminThemeColors.of(context).muted),
+      style: GoogleFonts.montserrat(
+        fontSize: 12,
+        color: AdminThemeColors.of(context).muted,
+      ),
     );
   }
 
   String _equipamentoEmoji(String equip) {
     switch (equip) {
-      case 'barra': return '🏋️';
-      case 'haltere': return '💪';
-      case 'kettlebell': return '🔔';
-      case 'corda': return '🪢';
-      case 'peso_corporal': return '🧘';
-      case 'banda': return '🎗️';
-      default: return '🔧';
+      case 'barra':
+        return '🏋️';
+      case 'haltere':
+        return '💪';
+      case 'kettlebell':
+        return '🔔';
+      case 'corda':
+        return '🪢';
+      case 'peso_corporal':
+        return '🧘';
+      case 'banda':
+        return '🎗️';
+      default:
+        return '🔧';
     }
   }
 
@@ -177,21 +270,51 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AdminThemeColors.of(context).surface,
-        title: Text('Novo plano de treino', style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
-        content: TextField(controller: nameCtrl, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Nome do plano')),
+        title: Text(
+          'Novo plano de treino',
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w700,
+            color: AdminThemeColors.of(context).text,
+          ),
+        ),
+        content: TextField(
+          controller: nameCtrl,
+          style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
+          decoration: const InputDecoration(labelText: 'Nome do plano'),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.cancel, style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              AppStrings.cancel,
+              style: GoogleFonts.inter(
+                color: AdminThemeColors.of(context).muted,
+              ),
+            ),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, nameCtrl.text.trim()),
-            style: ElevatedButton.styleFrom(backgroundColor: AdminThemeColors.of(context).lime, foregroundColor: AdminThemeColors.of(context).bg),
-            child: Text(AppStrings.save, style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminThemeColors.of(context).lime,
+              foregroundColor: AdminThemeColors.of(context).bg,
+            ),
+            child: Text(
+              AppStrings.save,
+              style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),
     );
     if (result != null && result.isNotEmpty) {
-      final defaultDays = AppStrings.daysOfWeek.map((d) => WorkoutDay(diaSemana: d).toMap()).toList();
-      await ref.read(workoutRepositoryProvider).savePlan(widget.aluno.uid, result, {'dias': defaultDays});
+      final defaultDays = AppStrings.daysOfWeek
+          .map((d) => WorkoutDay(diaSemana: d).toMap())
+          .toList();
+      await ref.read(workoutRepositoryProvider).savePlan(
+        widget.aluno.uid,
+        result,
+        {'dias': defaultDays},
+      );
       ref.invalidate(adminWorkoutPlansProvider(widget.aluno.uid));
     }
   }
@@ -213,62 +336,112 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: AdminThemeColors.of(context).surface,
-          title: Text('Adicionar exercício', style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: AdminThemeColors.of(context).text)),
+          title: Text(
+            'Adicionar exercício',
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w700,
+              color: AdminThemeColors.of(context).text,
+            ),
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(controller: nome, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Nome')),
+                TextField(
+                  controller: nome,
+                  style: GoogleFonts.inter(
+                    color: AdminThemeColors.of(context).text,
+                  ),
+                  decoration: const InputDecoration(labelText: 'Nome'),
+                ),
                 const SizedBox(height: 12),
                 // Categoria com ícones
                 DropdownButtonFormField<String>(
                   initialValue: selectedCategoria,
                   dropdownColor: AdminThemeColors.of(context).surface,
-                  style: GoogleFonts.inter(color: AdminThemeColors.of(context).text, fontSize: 14),
+                  style: GoogleFonts.inter(
+                    color: AdminThemeColors.of(context).text,
+                    fontSize: 14,
+                  ),
                   decoration: InputDecoration(
                     labelText: 'Categoria',
-                    labelStyle: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
+                    labelStyle: GoogleFonts.inter(
+                      color: AdminThemeColors.of(context).muted,
+                    ),
                     filled: true,
                     fillColor: AdminThemeColors.of(context).bg,
                   ),
                   items: const [
-                    DropdownMenuItem(value: 'musculação', child: Text('🏋️ Musculação')),
-                    DropdownMenuItem(value: 'funcional', child: Text('⚡ Funcional')),
-                    DropdownMenuItem(value: 'pesos_livres', child: Text('🪨 Pesos Livres')),
+                    DropdownMenuItem(
+                      value: 'musculação',
+                      child: Text('🏋️ Musculação'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'funcional',
+                      child: Text('⚡ Funcional'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'pesos_livres',
+                      child: Text('🪨 Pesos Livres'),
+                    ),
                     DropdownMenuItem(value: 'cardio', child: Text('🏃 Cardio')),
                   ],
-                  onChanged: (v) => setDialogState(() => selectedCategoria = v ?? 'musculação'),
+                  onChanged: (v) => setDialogState(
+                    () => selectedCategoria = v ?? 'musculação',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 // Equipamento
                 DropdownButtonFormField<String>(
                   initialValue: selectedEquipamento,
                   dropdownColor: AdminThemeColors.of(context).surface,
-                  style: GoogleFonts.inter(color: AdminThemeColors.of(context).text, fontSize: 14),
+                  style: GoogleFonts.inter(
+                    color: AdminThemeColors.of(context).text,
+                    fontSize: 14,
+                  ),
                   decoration: InputDecoration(
                     labelText: 'Equipamento',
-                    labelStyle: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
+                    labelStyle: GoogleFonts.inter(
+                      color: AdminThemeColors.of(context).muted,
+                    ),
                     filled: true,
                     fillColor: AdminThemeColors.of(context).bg,
                   ),
                   items: const [
                     DropdownMenuItem(value: 'outro', child: Text('🔧 Outro')),
                     DropdownMenuItem(value: 'barra', child: Text('🏋️ Barra')),
-                    DropdownMenuItem(value: 'haltere', child: Text('💪 Haltere')),
-                    DropdownMenuItem(value: 'kettlebell', child: Text('🔔 Kettlebell')),
+                    DropdownMenuItem(
+                      value: 'haltere',
+                      child: Text('💪 Haltere'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'kettlebell',
+                      child: Text('🔔 Kettlebell'),
+                    ),
                     DropdownMenuItem(value: 'corda', child: Text('🪢 Corda')),
-                    DropdownMenuItem(value: 'peso_corporal', child: Text('🧘 Peso Corporal')),
-                    DropdownMenuItem(value: 'banda', child: Text('🎗️ Banda Elástica')),
+                    DropdownMenuItem(
+                      value: 'peso_corporal',
+                      child: Text('🧘 Peso Corporal'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'banda',
+                      child: Text('🎗️ Banda Elástica'),
+                    ),
                   ],
-                  onChanged: (v) => setDialogState(() => selectedEquipamento = v ?? 'outro'),
+                  onChanged: (v) =>
+                      setDialogState(() => selectedEquipamento = v ?? 'outro'),
                 ),
                 const SizedBox(height: 12),
                 // Campos específicos para funcional/pesos_livres
-                if (selectedCategoria == 'funcional' || selectedCategoria == 'pesos_livres' || selectedCategoria == 'cardio') ...[
+                if (selectedCategoria == 'funcional' ||
+                    selectedCategoria == 'pesos_livres' ||
+                    selectedCategoria == 'cardio') ...[
                   TextField(
                     controller: duracao,
                     keyboardType: TextInputType.number,
-                    style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
+                    style: GoogleFonts.inter(
+                      color: AdminThemeColors.of(context).text,
+                    ),
                     decoration: const InputDecoration(
                       labelText: 'Duração (segundos)',
                       hintText: 'Ex: 60 para corda',
@@ -278,7 +451,9 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                   TextField(
                     controller: rounds,
                     keyboardType: TextInputType.number,
-                    style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
+                    style: GoogleFonts.inter(
+                      color: AdminThemeColors.of(context).text,
+                    ),
                     decoration: const InputDecoration(
                       labelText: 'Rounds',
                       hintText: 'Ex: 3 rounds',
@@ -287,42 +462,104 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                   const SizedBox(height: 12),
                 ],
                 // Campos específicos para musculação/pesos_livres
-                if (selectedCategoria == 'musculação' || selectedCategoria == 'pesos_livres') ...[
-                  Row(children: [
-                    Expanded(child: TextField(controller: series, keyboardType: TextInputType.number, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Séries'))),
-                    const SizedBox(width: 12),
-                    Expanded(child: TextField(controller: reps, keyboardType: TextInputType.number, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Reps'))),
-                  ]),
+                if (selectedCategoria == 'musculação' ||
+                    selectedCategoria == 'pesos_livres') ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: series,
+                          keyboardType: TextInputType.number,
+                          style: GoogleFonts.inter(
+                            color: AdminThemeColors.of(context).text,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Séries',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: reps,
+                          keyboardType: TextInputType.number,
+                          style: GoogleFonts.inter(
+                            color: AdminThemeColors.of(context).text,
+                          ),
+                          decoration: const InputDecoration(labelText: 'Reps'),
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 12),
-                  TextField(controller: carga, keyboardType: TextInputType.number, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Carga (kg)')),
+                  TextField(
+                    controller: carga,
+                    keyboardType: TextInputType.number,
+                    style: GoogleFonts.inter(
+                      color: AdminThemeColors.of(context).text,
+                    ),
+                    decoration: const InputDecoration(labelText: 'Carga (kg)'),
+                  ),
                   const SizedBox(height: 12),
                 ],
-                TextField(controller: descanso, keyboardType: TextInputType.number, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Descanso (s)')),
+                TextField(
+                  controller: descanso,
+                  keyboardType: TextInputType.number,
+                  style: GoogleFonts.inter(
+                    color: AdminThemeColors.of(context).text,
+                  ),
+                  decoration: const InputDecoration(labelText: 'Descanso (s)'),
+                ),
                 const SizedBox(height: 12),
-                TextField(controller: obs, style: GoogleFonts.inter(color: AdminThemeColors.of(context).text), decoration: const InputDecoration(labelText: 'Observações')),
+                TextField(
+                  controller: obs,
+                  style: GoogleFonts.inter(
+                    color: AdminThemeColors.of(context).text,
+                  ),
+                  decoration: const InputDecoration(labelText: 'Observações'),
+                ),
               ],
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.cancel, style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted))),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(
+                AppStrings.cancel,
+                style: GoogleFonts.inter(
+                  color: AdminThemeColors.of(context).muted,
+                ),
+              ),
+            ),
             ElevatedButton(
               onPressed: () {
                 if (nome.text.trim().isEmpty) return;
-                Navigator.pop(ctx, Exercise(
-                  nome: nome.text.trim(),
-                  series: int.tryParse(series.text) ?? 3,
-                  repeticoes: int.tryParse(reps.text) ?? 10,
-                  cargaSugerida: double.tryParse(carga.text.replaceAll(',', '.')),
-                  descanso: int.tryParse(descanso.text) ?? 60,
-                  observacoes: obs.text.isNotEmpty ? obs.text.trim() : null,
-                  categoria: selectedCategoria,
-                  equipamento: selectedEquipamento,
-                  duracao: int.tryParse(duracao.text),
-                  rounds: int.tryParse(rounds.text),
-                ));
+                Navigator.pop(
+                  ctx,
+                  Exercise(
+                    nome: nome.text.trim(),
+                    series: int.tryParse(series.text) ?? 3,
+                    repeticoes: int.tryParse(reps.text) ?? 10,
+                    cargaSugerida: double.tryParse(
+                      carga.text.replaceAll(',', '.'),
+                    ),
+                    descanso: int.tryParse(descanso.text) ?? 60,
+                    observacoes: obs.text.isNotEmpty ? obs.text.trim() : null,
+                    categoria: selectedCategoria,
+                    equipamento: selectedEquipamento,
+                    duracao: int.tryParse(duracao.text),
+                    rounds: int.tryParse(rounds.text),
+                  ),
+                );
               },
-              style: ElevatedButton.styleFrom(backgroundColor: AdminThemeColors.of(context).lime, foregroundColor: AdminThemeColors.of(context).bg),
-              child: Text(AppStrings.save, style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminThemeColors.of(context).lime,
+                foregroundColor: AdminThemeColors.of(context).bg,
+              ),
+              child: Text(
+                AppStrings.save,
+                style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+              ),
             ),
           ],
         ),
@@ -330,10 +567,19 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
     );
     if (result != null) {
       final updated = plan.dias.map((d) {
-        if (d.diaSemana == diaSemana) return WorkoutDay(diaSemana: d.diaSemana, foco: d.foco, exercicios: [...d.exercicios, result]);
+        if (d.diaSemana == diaSemana)
+          return WorkoutDay(
+            diaSemana: d.diaSemana,
+            foco: d.foco,
+            exercicios: [...d.exercicios, result],
+          );
         return d;
       }).toList();
-      await ref.read(workoutRepositoryProvider).savePlan(widget.aluno.uid, plan.nome, {'dias': updated.map((d) => d.toMap()).toList()});
+      await ref.read(workoutRepositoryProvider).savePlan(
+        widget.aluno.uid,
+        plan.nome,
+        {'dias': updated.map((d) => d.toMap()).toList()},
+      );
       ref.invalidate(adminWorkoutPlansProvider(widget.aluno.uid));
     }
   }

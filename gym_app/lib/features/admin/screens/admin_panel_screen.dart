@@ -29,6 +29,7 @@ import '../../../core/services/sound_service.dart';
 import '../../../core/config/notification_sounds.dart';
 import '../../admin/widgets/floating_chat_button.dart';
 import '../../admin/widgets/admin_messages_view.dart';
+import '../../../shared/widgets/app_design_system.dart';
 import '../../../features/aluno/chat/screens/chat_screen.dart';
 import '../../../features/aluno/perfil/screens/profile_screen.dart';
 
@@ -103,6 +104,51 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
 
   bool get _isMobile => MediaQuery.of(context).size.width < 900;
 
+  String get _workspaceTitle {
+    if (_selectedClient != null) return _selectedClient!.nome;
+    switch (_view) {
+      case AdminView.dashboard:
+        return 'Visão geral';
+      case AdminView.clients:
+        return 'Clientes';
+      case AdminView.exercises:
+        return 'Biblioteca de exercícios';
+      case AdminView.foods:
+        return 'Biblioteca de alimentos';
+      case AdminView.messages:
+        return 'Mensagens';
+      case AdminView.payments:
+        return 'Pagamentos';
+      case AdminView.agenda:
+        return 'Agenda';
+      case AdminView.settings:
+        return 'Definições';
+    }
+  }
+
+  String get _workspaceSubtitle {
+    if (_selectedClient != null)
+      return 'Perfil, progresso e acompanhamento do cliente';
+    switch (_view) {
+      case AdminView.dashboard:
+        return 'Acompanha a evolução do teu negócio num só lugar';
+      case AdminView.clients:
+        return 'Pesquisa e gere todos os teus clientes';
+      case AdminView.exercises:
+        return 'Constrói planos de treino consistentes';
+      case AdminView.foods:
+        return 'Organiza a biblioteca de alimentos e refeições';
+      case AdminView.messages:
+        return 'Mantém o contacto próximo com os teus alunos';
+      case AdminView.payments:
+        return 'Controla pagamentos e estado das subscrições';
+      case AdminView.agenda:
+        return 'Planeia sessões e horários da semana';
+      case AdminView.settings:
+        return 'Preferências e configuração da aplicação';
+    }
+  }
+
   Widget _buildSidebar() {
     return _AdminSidebar(
       currentView: _view,
@@ -128,6 +174,7 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
         backgroundColor: AdminThemeColors.of(context).bg,
         appBar: AppBar(
           backgroundColor: AdminThemeColors.of(context).surface,
+          surfaceTintColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
             icon: Icon(Icons.menu, color: AdminThemeColors.of(context).text),
@@ -213,26 +260,36 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
         children: [
           _buildSidebar(),
           Expanded(
-            child: Stack(
+            child: Column(
               children: [
-                _selectedClient != null
-                    ? _ClientDetailView(
-                        client: _selectedClient!,
-                        isMobile: false,
-                        onBack: () {
-                          ref.read(isAdminInChatProvider.notifier).state =
-                              false;
-                          setState(() => _selectedClient = null);
+                AdminWorkspaceHeader(
+                  title: _workspaceTitle,
+                  subtitle: _workspaceSubtitle,
+                ),
+                Expanded(
+                  child: Stack(
+                    children: [
+                      _selectedClient != null
+                          ? _ClientDetailView(
+                              client: _selectedClient!,
+                              isMobile: false,
+                              onBack: () {
+                                ref.read(isAdminInChatProvider.notifier).state =
+                                    false;
+                                setState(() => _selectedClient = null);
+                              },
+                            )
+                          : _buildView(),
+                      FloatingChatButton(
+                        onViewProfile: (aluno) {
+                          setState(() {
+                            _selectedClient = aluno;
+                            _view = AdminView.clients;
+                          });
                         },
-                      )
-                    : _buildView(),
-                FloatingChatButton(
-                  onViewProfile: (aluno) {
-                    setState(() {
-                      _selectedClient = aluno;
-                      _view = AdminView.clients;
-                    });
-                  },
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -310,7 +367,7 @@ class _AdminSidebar extends StatelessWidget {
                 height: 32,
                 decoration: BoxDecoration(
                   color: AdminThemeColors.of(context).limeDim,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(18),
                   border: Border.all(
                     color: AdminThemeColors.of(
                       context,
@@ -355,7 +412,7 @@ class _AdminSidebar extends StatelessWidget {
     );
 
     return Container(
-      width: isMobile ? 260 : 220,
+      width: isMobile ? 284 : 236,
       decoration: BoxDecoration(
         color: AdminThemeColors.of(context).surface,
         boxShadow: [
@@ -503,12 +560,12 @@ class _NavItem extends StatelessWidget {
         color: active
             ? AdminThemeColors.of(context).limeDim
             : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             child: Row(
               children: [
                 Icon(
@@ -566,7 +623,12 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
 
     final isMobile = MediaQuery.of(context).size.width < 900;
     return SingleChildScrollView(
-      padding: EdgeInsets.all(isMobile ? 16 : 36),
+      padding: EdgeInsets.fromLTRB(
+        isMobile ? 16 : 40,
+        isMobile ? 20 : 40,
+        isMobile ? 16 : 40,
+        isMobile ? 28 : 44,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -704,7 +766,7 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
         color: AdminThemeColors.of(context).surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AdminThemeColors.of(context).border),
         boxShadow: [
           BoxShadow(
@@ -793,7 +855,7 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
     return Container(
       decoration: BoxDecoration(
         color: AdminThemeColors.of(context).surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AdminThemeColors.of(context).border),
         boxShadow: [
           BoxShadow(
@@ -955,7 +1017,7 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AdminThemeColors.of(context).surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AdminThemeColors.of(context).border),
         boxShadow: [
           BoxShadow(
@@ -1143,7 +1205,7 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AdminThemeColors.of(context).surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AdminThemeColors.of(context).border),
         boxShadow: [
           BoxShadow(
@@ -1232,14 +1294,19 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
 
     final isMobile = MediaQuery.of(context).size.width < 900;
     return SingleChildScrollView(
-      padding: EdgeInsets.all(isMobile ? 16 : 36),
+      padding: EdgeInsets.fromLTRB(
+        isMobile ? 16 : 40,
+        isMobile ? 20 : 40,
+        isMobile ? 16 : 40,
+        isMobile ? 28 : 44,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (isMobile) ...[
             Text('CLIENTES', style: _adminDisplay(context, 28)),
             Text(
-              '${alunosAsync.valueOrNull?.length ?? 0} clientes cadastrados',
+              '${alunosAsync.asData?.value.length ?? 0} clientes cadastrados',
               style: GoogleFonts.inter(
                 fontSize: 14,
                 color: AdminThemeColors.of(context).muted,
@@ -1281,7 +1348,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                     children: [
                       Text('CLIENTES', style: _adminDisplay(context, 40)),
                       Text(
-                        '${alunosAsync.valueOrNull?.length ?? 0} clientes cadastrados',
+                        '${alunosAsync.asData?.value.length ?? 0} clientes cadastrados',
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           color: AdminThemeColors.of(context).muted,
@@ -2832,7 +2899,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AdminThemeColors.of(context).surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AdminThemeColors.of(context).border),
         boxShadow: [
           BoxShadow(
@@ -3024,7 +3091,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AdminThemeColors.of(context).surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AdminThemeColors.of(context).border),
         boxShadow: [
           BoxShadow(
@@ -3721,7 +3788,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AdminThemeColors.of(context).surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AdminThemeColors.of(context).border),
         boxShadow: [
           BoxShadow(
@@ -3810,14 +3877,19 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
 
     final isMobile = MediaQuery.of(context).size.width < 900;
     return SingleChildScrollView(
-      padding: EdgeInsets.all(isMobile ? 16 : 36),
+      padding: EdgeInsets.fromLTRB(
+        isMobile ? 16 : 40,
+        isMobile ? 20 : 40,
+        isMobile ? 16 : 40,
+        isMobile ? 28 : 44,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (isMobile) ...[
             Text('BIBLIOTECA DE EXERCÍCIOS', style: _adminDisplay(context, 28)),
             Text(
-              '${exercisesAsync.valueOrNull?.length ?? 0} exercícios',
+              '${exercisesAsync.asData?.value.length ?? 0} exercícios',
               style: GoogleFonts.inter(
                 fontSize: 14,
                 color: AdminThemeColors.of(context).muted,
@@ -3861,7 +3933,7 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
                         style: _adminDisplay(context, 40),
                       ),
                       Text(
-                        '${exercisesAsync.valueOrNull?.length ?? 0} exercícios',
+                        '${exercisesAsync.asData?.value.length ?? 0} exercícios',
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           color: AdminThemeColors.of(context).muted,
@@ -4374,14 +4446,19 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
     final isMobile = MediaQuery.of(context).size.width < 900;
 
     return SingleChildScrollView(
-      padding: EdgeInsets.all(isMobile ? 16 : 36),
+      padding: EdgeInsets.fromLTRB(
+        isMobile ? 16 : 40,
+        isMobile ? 20 : 40,
+        isMobile ? 16 : 40,
+        isMobile ? 28 : 44,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (isMobile) ...[
             Text('BIBLIOTECA DE ALIMENTOS', style: _adminDisplay(context, 28)),
             Text(
-              '${foodsAsync.valueOrNull?.length ?? 0} alimentos',
+              '${foodsAsync.asData?.value.length ?? 0} alimentos',
               style: GoogleFonts.inter(
                 fontSize: 14,
                 color: AdminThemeColors.of(context).muted,
@@ -4425,7 +4502,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                         style: _adminDisplay(context, 40),
                       ),
                       Text(
-                        '${foodsAsync.valueOrNull?.length ?? 0} alimentos',
+                        '${foodsAsync.asData?.value.length ?? 0} alimentos',
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           color: AdminThemeColors.of(context).muted,
@@ -4591,7 +4668,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AdminThemeColors.of(context).surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AdminThemeColors.of(context).border),
         boxShadow: [
           BoxShadow(
@@ -4951,7 +5028,12 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
     final isMobile = MediaQuery.of(context).size.width < 900;
 
     return SingleChildScrollView(
-      padding: EdgeInsets.all(isMobile ? 16 : 36),
+      padding: EdgeInsets.fromLTRB(
+        isMobile ? 16 : 40,
+        isMobile ? 20 : 40,
+        isMobile ? 16 : 40,
+        isMobile ? 28 : 44,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -5438,7 +5520,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
 
   Future<void> _showCreatePaymentDialog() async {
     final alunosAsync = ref.read(alunosListProvider);
-    final alunos = alunosAsync.valueOrNull ?? [];
+    final alunos = alunosAsync.asData?.value ?? [];
 
     if (alunos.isEmpty) {
       showAppNotification(
@@ -5689,7 +5771,12 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
     final isMobile = MediaQuery.of(context).size.width < 900;
 
     return SingleChildScrollView(
-      padding: EdgeInsets.all(isMobile ? 16 : 36),
+      padding: EdgeInsets.fromLTRB(
+        isMobile ? 16 : 40,
+        isMobile ? 20 : 40,
+        isMobile ? 16 : 40,
+        isMobile ? 28 : 44,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -5751,7 +5838,7 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
           const SizedBox(height: 12),
           bookingsAsync.when(
             data: (bookings) {
-              final names = namesAsync.valueOrNull ?? {};
+              final names = namesAsync.asData?.value ?? {};
               return _buildDayBookings(bookings, names);
             },
             loading: () => Center(
@@ -6176,7 +6263,12 @@ class _AdminSettingsView extends ConsumerWidget {
       data: (user) {
         SoundService().setSound(user.notificationSound ?? defaultSoundAsset);
         return SingleChildScrollView(
-          padding: EdgeInsets.all(isMobile ? 16 : 36),
+          padding: EdgeInsets.fromLTRB(
+            isMobile ? 16 : 40,
+            isMobile ? 20 : 40,
+            isMobile ? 16 : 40,
+            isMobile ? 28 : 44,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -6214,7 +6306,7 @@ class _AdminSettingsView extends ConsumerWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AdminThemeColors.of(context).surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AdminThemeColors.of(context).border),
         boxShadow: [
           BoxShadow(
@@ -6371,7 +6463,7 @@ class _AdminSettingsView extends ConsumerWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AdminThemeColors.of(context).surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AdminThemeColors.of(context).border),
         boxShadow: [
           BoxShadow(

@@ -118,6 +118,8 @@ class _AudioRecordButtonState extends State<AudioRecordButton> {
             : Icon(active ? Icons.stop_rounded : Icons.mic_none_rounded),
         color: active ? widget.recordingColor : widget.iconColor,
         style: IconButton.styleFrom(
+          padding: const EdgeInsets.all(11),
+          minimumSize: const Size(44, 44),
           backgroundColor: active
               ? widget.recordingColor.withValues(alpha: 0.12)
               : widget.color,

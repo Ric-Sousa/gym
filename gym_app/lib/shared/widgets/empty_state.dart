@@ -27,19 +27,38 @@ class EmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 72,
-              color: AppColors.textSecondary.withValues(alpha: 0.3),
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceHigh,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppColors.outline.withValues(alpha: 0.75),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.surfaceLowest.withValues(alpha: 0.35),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Icon(
+                icon,
+                size: 40,
+                color: AppColors.textSecondary.withValues(alpha: 0.55),
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Text(
               title,
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: AppColors.textSecondary,
+                height: 1.3,
+                fontWeight: FontWeight.w600,
+                color: AppColors.onSurfaceVariant,
               ),
             ),
             if (subtitle != null) ...[
@@ -48,8 +67,9 @@ class EmptyState extends StatelessWidget {
                 subtitle!,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: AppColors.textSecondary.withValues(alpha: 0.6),
+                  fontSize: 13,
+                  height: 1.45,
+                  color: AppColors.textSecondary.withValues(alpha: 0.7),
                 ),
               ),
             ],

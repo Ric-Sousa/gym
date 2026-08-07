@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod/legacy.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -14,6 +15,7 @@ import '../../../../shared/widgets/audio_message_player.dart';
 import '../../../../shared/widgets/audio_record_button.dart';
 import '../../../../shared/utils/audio_chat_message.dart';
 import '../../../../shared/utils/new_message_detector.dart';
+import '../../../../shared/widgets/app_design_system.dart';
 
 /// Ecrã de chat de grupo — alunos trocam horários/blocos.
 class GroupChatScreen extends ConsumerStatefulWidget {
@@ -81,21 +83,48 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        leadingWidth: 56,
+        titleSpacing: 0,
+        title: Row(
           children: [
-            Text(
-              widget.group.nome,
-              style: GoogleFonts.montserrat(
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.24),
+                ),
+              ),
+              child: const Icon(
+                Icons.group_outlined,
+                color: AppColors.primary,
+                size: 18,
               ),
             ),
-            Text(
-              '${widget.group.membros.length} membros',
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                color: AppColors.textSecondary,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.group.nome,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.montserrat(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                    ),
+                  ),
+                  Text(
+                    '${widget.group.membros.length} membros',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -103,6 +132,79 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
       ),
       body: Column(
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+            child: AppSurface(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              color: AppColors.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(18),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 300;
+                  Widget copy({required bool bounded}) => Row(
+                    children: [
+                      Icon(
+                        Icons.forum_outlined,
+                        color: AppColors.primary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      if (bounded)
+                        Expanded(
+                          child: Text(
+                            'Partilha horários e mantém o grupo alinhado.',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: AppColors.onSurface,
+                              height: 1.35,
+                            ),
+                          ),
+                        )
+                      else
+                        Flexible(
+                          child: Text(
+                            'Partilha horários e mantém o grupo alinhado.',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: AppColors.onSurface,
+                              height: 1.35,
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                  if (compact) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: constraints.maxWidth,
+                          child: copy(bounded: true),
+                        ),
+                        const SizedBox(height: 10),
+                        AppStatusPill(
+                          label: '${widget.group.membros.length}',
+                          icon: Icons.people_outline,
+                          color: AppColors.primary,
+                        ),
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: copy(bounded: false)),
+                      const SizedBox(width: 10),
+                      AppStatusPill(
+                        label: '${widget.group.membros.length}',
+                        icon: Icons.people_outline,
+                        color: AppColors.primary,
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
           Expanded(
             child: messagesAsync.when(
               data: (messages) => _buildMessageList(messages),
@@ -157,12 +259,10 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
 
     return ListView.builder(
       controller: _scrollCtrl,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
       itemCount: messages.length,
-      itemBuilder: (_, i) => _messageBubble(
-        messages[i],
-        i < messages.length - 1 ? messages[i + 1] : null,
-      ),
+      itemBuilder: (_, i) =>
+          _messageBubble(messages[i], i > 0 ? messages[i - 1] : null),
     );
   }
 
@@ -176,10 +276,11 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
     }
   }
 
-  Widget _messageBubble(MessageModel msg, MessageModel? next) {
+  Widget _messageBubble(MessageModel msg, MessageModel? previous) {
     final isMine = msg.remetenteId == _userId;
     final showName =
-        !isMine && (next == null || next.remetenteId != msg.remetenteId);
+        !isMine &&
+        (previous == null || previous.remetenteId != msg.remetenteId);
     final timeStr = DateFormat('HH:mm').format(msg.timestamp);
 
     return Padding(
@@ -226,6 +327,11 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                   ),
                   decoration: BoxDecoration(
                     color: isMine ? AppColors.primary : AppColors.surface,
+                    border: Border.all(
+                      color: isMine
+                          ? AppColors.primaryFixed.withValues(alpha: 0.18)
+                          : AppColors.outline.withValues(alpha: 0.65),
+                    ),
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(16),
                       topRight: const Radius.circular(16),
@@ -278,10 +384,19 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
 
   Widget _buildInputBar() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.outline)),
+        color: AppColors.surfaceLow,
+        border: Border(
+          top: BorderSide(color: AppColors.outline.withValues(alpha: 0.5)),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.surfaceLowest.withValues(alpha: 0.35),
+            blurRadius: 16,
+            offset: const Offset(0, -4),
+          ),
+        ],
       ),
       child: SafeArea(
         child: Row(
@@ -300,14 +415,29 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                     fontSize: 14,
                   ),
                   contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
+                    horizontal: 18,
+                    vertical: 12,
                   ),
                   filled: true,
-                  fillColor: AppColors.surfaceHigh,
+                  fillColor: AppColors.surface,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: BorderSide.none,
+                    borderRadius: BorderRadius.circular(22),
+                    borderSide: BorderSide(
+                      color: AppColors.outline.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(22),
+                    borderSide: BorderSide(
+                      color: AppColors.outline.withValues(alpha: 0.35),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(22),
+                    borderSide: BorderSide(
+                      color: AppColors.primary.withValues(alpha: 0.55),
+                      width: 1.4,
+                    ),
                   ),
                 ),
                 textInputAction: TextInputAction.send,
@@ -321,11 +451,25 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
             ),
             const SizedBox(width: 4),
             Container(
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 color: AppColors.primary,
                 shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.24),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints.tightFor(
+                  width: 44,
+                  height: 44,
+                ),
                 icon: _sending
                     ? const SizedBox(
                         width: 18,

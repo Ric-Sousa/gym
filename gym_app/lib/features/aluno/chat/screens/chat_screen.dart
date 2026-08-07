@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod/legacy.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_functions/cloud_functions.dart';
@@ -18,6 +19,7 @@ import '../../../../core/services/audio_recording_model.dart';
 import '../../../../shared/utils/audio_chat_message.dart';
 import '../../../../shared/utils/new_message_detector.dart';
 import 'group_chat_screen.dart';
+import '../../../../shared/widgets/app_design_system.dart';
 
 final chatMessagesProvider = StreamProvider.family<List<MessageModel>, String>((
   ref,
@@ -321,10 +323,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
                 return ListView.builder(
                   controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
                   itemCount: items.length,
                   itemBuilder: (_, index) => items[index],
                 );
@@ -395,12 +394,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   Widget _buildMessageInput(String salaId, String userId) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
       decoration: BoxDecoration(
         color: AppColors.surfaceLow,
         border: Border(
           top: BorderSide(color: AppColors.outline.withValues(alpha: 0.5)),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.surfaceLowest.withValues(alpha: 0.35),
+            blurRadius: 16,
+            offset: const Offset(0, -4),
+          ),
+        ],
       ),
       child: SafeArea(
         child: Row(
@@ -410,7 +416,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               child: Container(
                 decoration: BoxDecoration(
                   color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.circular(22),
                   border: Border.all(
                     color: _isFocused
                         ? AppColors.primary.withValues(alpha: 0.4)
@@ -502,27 +508,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final hasPT = personalId != null && personalId.isNotEmpty;
 
     final groupsAsync = ref.watch(alunoGroupsProvider(userId));
+    final groupCount = groupsAsync.asData?.value.length ?? 0;
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(
-          'Chats',
-          style: GoogleFonts.montserrat(
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
-          ),
-        ),
-      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const AppPageIntro(
+              eyebrow: 'Comunicação',
+              title: 'Fala com a tua equipa',
+              subtitle: 'Mantém o contacto com o teu PT e acompanha os grupos.',
+            ),
+            const SizedBox(height: 26),
             // ── PT Chat ──
             if (hasPT) ...[
               Text(
-                'PERSONAL TRAINER',
+                'CONVERSA PRINCIPAL',
                 style: GoogleFonts.barlowCondensed(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -535,6 +539,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               const SizedBox(height: 24),
             ],
             // ── Grupos ──
+            const SizedBox(height: 4),
             Row(
               children: [
                 Expanded(
@@ -548,9 +553,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     ),
                   ),
                 ),
-                if (groupsAsync.valueOrNull?.isNotEmpty == true)
+                if (groupCount > 0)
                   Text(
-                    '${groupsAsync.value!.length} grupo(s)',
+                    '$groupCount grupo(s)',
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       color: AppColors.textSecondary.withValues(alpha: 0.6),
@@ -567,8 +572,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: AppColors.outline),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.surfaceLowest.withValues(
+                            alpha: 0.28,
+                          ),
+                          blurRadius: 14,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
                     ),
                     child: Column(
                       children: [
@@ -672,11 +686,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ),
           );
         },
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
           ),
           child: Row(

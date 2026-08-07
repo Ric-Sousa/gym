@@ -86,7 +86,7 @@ class _ProgressSubmissionScreenState
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                   child: Text(
@@ -172,7 +172,10 @@ class _ProgressSubmissionScreenState
       children: [
         Text(
           'Adiciona até 4 fotos (frente, lado, costas, opcional)',
-          style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary),
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: AppColors.textSecondary,
+          ),
         ),
         const SizedBox(height: 12),
         Wrap(
@@ -188,7 +191,7 @@ class _ProgressSubmissionScreenState
                     width: 100,
                     height: 130,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: AppColors.outline),
                       image: DecorationImage(
                         image: MemoryImage(bytes),
@@ -207,8 +210,11 @@ class _ProgressSubmissionScreenState
                           color: AppColors.error,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.close,
-                            size: 14, color: Colors.white),
+                        child: const Icon(
+                          Icons.close,
+                          size: 14,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ),
@@ -232,8 +238,11 @@ class _ProgressSubmissionScreenState
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.add_a_photo,
-                          color: AppColors.primary, size: 24),
+                      Icon(
+                        Icons.add_a_photo,
+                        color: AppColors.primary,
+                        size: 24,
+                      ),
                       const SizedBox(height: 4),
                       Text(
                         'Adicionar',
@@ -257,8 +266,7 @@ class _ProgressSubmissionScreenState
       children: [
         TextField(
           controller: _pesoController,
-          keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
           style: GoogleFonts.inter(color: AppColors.onSurface),
           decoration: InputDecoration(
             labelText: 'Peso (kg)',
@@ -267,32 +275,45 @@ class _ProgressSubmissionScreenState
           ),
         ),
         const SizedBox(height: 12),
-        Text('Medidas corporais (opcional)',
-            style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary)),
+        Text(
+          'Medidas corporais (opcional)',
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: AppColors.textSecondary,
+          ),
+        ),
         const SizedBox(height: 8),
-        Row(children: [
-          Expanded(child: _medidaField(_cinturaController, 'Cintura')),
-          const SizedBox(width: 8),
-          Expanded(child: _medidaField(_abdomenController, 'Abdómen')),
-        ]),
+        Row(
+          children: [
+            Expanded(child: _medidaField(_cinturaController, 'Cintura')),
+            const SizedBox(width: 8),
+            Expanded(child: _medidaField(_abdomenController, 'Abdómen')),
+          ],
+        ),
         const SizedBox(height: 8),
-        Row(children: [
-          Expanded(child: _medidaField(_quadrilController, 'Quadril')),
-          const SizedBox(width: 8),
-          Expanded(child: _medidaField(_peitoController, 'Peito')),
-        ]),
+        Row(
+          children: [
+            Expanded(child: _medidaField(_quadrilController, 'Quadril')),
+            const SizedBox(width: 8),
+            Expanded(child: _medidaField(_peitoController, 'Peito')),
+          ],
+        ),
         const SizedBox(height: 8),
-        Row(children: [
-          Expanded(child: _medidaField(_bracoDController, 'Braço D')),
-          const SizedBox(width: 8),
-          Expanded(child: _medidaField(_bracoEController, 'Braço E')),
-        ]),
+        Row(
+          children: [
+            Expanded(child: _medidaField(_bracoDController, 'Braço D')),
+            const SizedBox(width: 8),
+            Expanded(child: _medidaField(_bracoEController, 'Braço E')),
+          ],
+        ),
         const SizedBox(height: 8),
-        Row(children: [
-          Expanded(child: _medidaField(_coxaDController, 'Coxa D')),
-          const SizedBox(width: 8),
-          Expanded(child: _medidaField(_coxaEController, 'Coxa E')),
-        ]),
+        Row(
+          children: [
+            Expanded(child: _medidaField(_coxaDController, 'Coxa D')),
+            const SizedBox(width: 8),
+            Expanded(child: _medidaField(_coxaEController, 'Coxa E')),
+          ],
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: _gorduraController,
@@ -320,7 +341,8 @@ class _ProgressSubmissionScreenState
     final peso = _pesoController.text.isNotEmpty
         ? '${_pesoController.text} kg'
         : 'Não definido';
-    final temMedidas = _cinturaController.text.isNotEmpty ||
+    final temMedidas =
+        _cinturaController.text.isNotEmpty ||
         _abdomenController.text.isNotEmpty ||
         _quadrilController.text.isNotEmpty ||
         _peitoController.text.isNotEmpty ||
@@ -334,7 +356,7 @@ class _ProgressSubmissionScreenState
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.outline),
       ),
       child: Column(
@@ -342,7 +364,11 @@ class _ProgressSubmissionScreenState
         children: [
           Row(
             children: [
-              const Icon(Icons.check_circle, color: AppColors.success, size: 20),
+              const Icon(
+                Icons.check_circle,
+                color: AppColors.success,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Resumo da Avaliação',
@@ -359,9 +385,13 @@ class _ProgressSubmissionScreenState
           _confirmRow('Peso', peso),
           if (temMedidas) ...[
             const SizedBox(height: 8),
-            Text('Medidas:',
-                style:
-                    GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary)),
+            Text(
+              'Medidas:',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            ),
             if (_cinturaController.text.isNotEmpty)
               _confirmRow('  Cintura', '${_cinturaController.text} cm'),
             if (_abdomenController.text.isNotEmpty)
@@ -405,14 +435,21 @@ class _ProgressSubmissionScreenState
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label,
-              style: GoogleFonts.inter(
-                  fontSize: 13, color: AppColors.textSecondary)),
-          Text(value,
-              style: GoogleFonts.inter(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.onSurface)),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: AppColors.onSurface,
+            ),
+          ),
         ],
       ),
     );
@@ -428,13 +465,19 @@ class _ProgressSubmissionScreenState
       // Validar peso
       final peso = _pesoController.text.trim();
       if (peso.isEmpty) {
-        showAppNotification(context, 'O peso é obrigatório.',
-            type: NotificationType.error);
+        showAppNotification(
+          context,
+          'O peso é obrigatório.',
+          type: NotificationType.error,
+        );
         return;
       }
       if (double.tryParse(peso.replaceAll(',', '.')) == null) {
-        showAppNotification(context, 'Peso inválido.',
-            type: NotificationType.error);
+        showAppNotification(
+          context,
+          'Peso inválido.',
+          type: NotificationType.error,
+        );
         return;
       }
     }
@@ -447,9 +490,13 @@ class _ProgressSubmissionScreenState
       context: context,
       builder: (ctx) => SimpleDialog(
         backgroundColor: AppColors.surfaceHigh,
-        title: Text('Adicionar foto',
-            style: GoogleFonts.montserrat(
-                fontWeight: FontWeight.w700, color: AppColors.onSurface)),
+        title: Text(
+          'Adicionar foto',
+          style: GoogleFonts.montserrat(
+            fontWeight: FontWeight.w700,
+            color: AppColors.onSurface,
+          ),
+        ),
         children: [
           SimpleDialogOption(
             onPressed: () => Navigator.pop(ctx, ImageSource.camera),
@@ -514,6 +561,7 @@ class _ProgressSubmissionScreenState
         final v = double.tryParse(ctrl.text.replaceAll(',', '.'));
         if (v != null) medidas[key] = v;
       }
+
       addMedida('cintura', _cinturaController);
       addMedida('abdomen', _abdomenController);
       addMedida('quadril', _quadrilController);
@@ -525,8 +573,7 @@ class _ProgressSubmissionScreenState
       addMedida('gordura', _gorduraController);
 
       // Peso
-      final peso =
-          double.tryParse(_pesoController.text.replaceAll(',', '.'));
+      final peso = double.tryParse(_pesoController.text.replaceAll(',', '.'));
 
       // Guardar entrada de progresso
       await progressRepo.addProgress(userId, {
@@ -544,9 +591,7 @@ class _ProgressSubmissionScreenState
           'hasPendingProgress': false,
         });
       } else {
-        await userRepo.updateUser(userId, {
-          'hasPendingProgress': false,
-        });
+        await userRepo.updateUser(userId, {'hasPendingProgress': false});
       }
 
       if (mounted) {

@@ -58,28 +58,29 @@ class AdminThemeColors extends ThemeExtension<AdminThemeColors> {
     shadowElevated: AppColors.primary.withValues(alpha: 0.15),
   );
 
-  /// Paleta clara (mesma paleta escura — a app é sempre dark).
+  /// Paleta clara baseada nos valores admin já existentes.
   static final light = AdminThemeColors(
-    bg: AppColors.background,
-    surface: AppColors.surfaceHigh,
-    surface2: AppColors.surfaceHighest,
-    border: AppColors.outline,
-    lime: AppColors.primary,
-    limeDim: AppColors.primary.withValues(alpha: 0.12),
-    text: AppColors.onSurface,
-    muted: AppColors.onSurfaceVariant,
-    danger: AppColors.error,
-    blue: AppColors.water,
-    orange: AppColors.calories,
-    purple: AppColors.protein,
-    green: AppColors.success,
-    shadow: AppColors.primary.withValues(alpha: 0.08),
-    shadowElevated: AppColors.primary.withValues(alpha: 0.15),
+    bg: AppColors.adminLightBg,
+    surface: AppColors.adminLightSurface,
+    surface2: AppColors.adminLightSurface2,
+    border: AppColors.adminLightBorder,
+    lime: AppColors.adminLightLime,
+    limeDim: AppColors.adminLightLimeDim,
+    text: AppColors.adminLightText,
+    muted: AppColors.adminLightMuted,
+    danger: AppColors.adminLightDanger,
+    blue: AppColors.adminLightBlue,
+    orange: AppColors.adminLightOrange,
+    purple: AppColors.adminLightPurple,
+    green: AppColors.adminLightGreen,
+    shadow: AppColors.adminLightShadow,
+    shadowElevated: AppColors.adminLightShadowElevated,
   );
 
   /// Shortcut: `AdminThemeColors.of(context)`.
   static AdminThemeColors of(BuildContext context) {
-    return Theme.of(context).extension<AdminThemeColors>() ?? AdminThemeColors.dark;
+    return Theme.of(context).extension<AdminThemeColors>() ??
+        AdminThemeColors.dark;
   }
 
   @override

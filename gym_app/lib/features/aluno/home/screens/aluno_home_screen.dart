@@ -17,6 +17,7 @@ import '../../../../shared/widgets/star_rating.dart';
 import '../../../aluno/agenda/screens/calendar_screen.dart';
 import '../../../../shared/widgets/offline_banner.dart';
 import '../../../../shared/widgets/app_notification.dart';
+import '../../../../shared/widgets/app_design_system.dart';
 
 /// Provider que monitora mensagens nao lidas do aluno para o contador visual.
 /// A reprodução sonora usa os providers estáveis de
@@ -472,6 +473,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
       0.0,
       1.0,
     );
+    final nome = ref.read(authProvider).user?.nome.split(' ').first ?? 'Aluno';
     return RefreshIndicator(
       onRefresh: () async {
         ref.invalidate(todayDiaryProvider(userId));
@@ -482,31 +484,53 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
       color: AppColors.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 42),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Hero Session Card ────────────────────────────
+            AppPageIntro(
+              eyebrow: DateFormat('EEEE, d MMMM', 'pt').format(DateTime.now()),
+              title: 'O teu foco, $nome',
+              subtitle:
+                  'Um passo consistente hoje vale mais do que a perfeição amanhã.',
+            ),
+            const SizedBox(height: AppDesignTokens.sectionGap),
             _buildHeroCard(userId),
-            const SizedBox(height: 16),
-
-            // ── Bento Grid Stats ─────────────────────────────
-            _buildBentoGrid(diary, waterPct, isOffline, userId),
-            const SizedBox(height: 20),
-
-            // ── Weekly Activity Bars ─────────────────────────
+            const SizedBox(height: AppDesignTokens.pageGap),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth >= 820) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _buildBentoGrid(
+                          diary,
+                          waterPct,
+                          isOffline,
+                          userId,
+                        ),
+                      ),
+                      const SizedBox(width: AppDesignTokens.pageGap),
+                      Expanded(child: _buildNutritionBrief(diary)),
+                    ],
+                  );
+                }
+                return Column(
+                  children: [
+                    _buildBentoGrid(diary, waterPct, isOffline, userId),
+                    const SizedBox(height: AppDesignTokens.pageGap),
+                    _buildNutritionBrief(diary),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: AppDesignTokens.pageGap),
             _buildWeeklyActivity(userId),
-            const SizedBox(height: 20),
-
-            // ── Nutrition Brief ──────────────────────────────
-            _buildNutritionBrief(diary),
-            const SizedBox(height: 20),
-
-            // ── Próximas Aulas ──────────────────────────
+            const SizedBox(height: AppDesignTokens.pageGap),
             _buildUpcomingSessions(userId),
-            const SizedBox(height: 20),
-            // ── Rating + Workout done ────────────────────────
+            const SizedBox(height: AppDesignTokens.pageGap),
             _buildBottomSection(userId, diary),
-            const SizedBox(height: 40),
           ],
         ),
       ),
@@ -532,11 +556,11 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
         final exerciseCount = hasWorkout ? todayWorkout.exercicios.length : 0;
 
         return ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           child: Container(
             decoration: BoxDecoration(
               color: AppColors.surfaceHigh.withValues(alpha: 0.85),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: AppColors.outline.withValues(alpha: 0.5),
               ),
@@ -549,7 +573,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
             ),
             child: Container(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 border: Border(
                   left: BorderSide(
                     color: hasWorkout
@@ -679,12 +703,12 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
 
   Widget _buildHeroCardSkeleton() {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         height: 180,
         decoration: BoxDecoration(
           color: AppColors.surfaceHigh.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.outline.withValues(alpha: 0.5)),
         ),
         child: const Center(
@@ -699,7 +723,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: AppColors.surfaceHighest,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
         label,
@@ -778,14 +802,14 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
     VoidCallback? onTap,
   }) {
     final card = ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         width: width,
         height: height,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.surfaceHigh.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
         ),
         child: Column(
@@ -878,12 +902,12 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
     final today = DateTime.now().weekday - 1;
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: AppColors.surfaceHigh.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
         ),
         child: Column(
@@ -910,7 +934,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
             const SizedBox(height: 20),
             historyAsync.when(
               data: (history) {
-                final plans = workoutPlansAsync.valueOrNull ?? [];
+                final plans = workoutPlansAsync.asData?.value ?? [];
 
                 // Map diary entries to day buckets (0=Mon..6=Sun)
                 final calPerDay = List.filled(7, 0.0);
@@ -1313,7 +1337,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: AppColors.surfaceHighest,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
               meal.tipo,
@@ -1500,7 +1524,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                               ),
                               decoration: BoxDecoration(
                                 color: AppColors.surfaceHighest,
-                                borderRadius: BorderRadius.circular(4),
+                                borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
                                 meal.tipo,
@@ -1548,12 +1572,12 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
     double? progress,
   }) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.surfaceHigh.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
         ),
         child: LayoutBuilder(
@@ -1698,12 +1722,12 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
 
   Widget _glassSection({required EdgeInsets padding, required Widget child}) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: padding,
         decoration: BoxDecoration(
           color: AppColors.surfaceHigh.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
         ),
         child: child,
@@ -1729,12 +1753,12 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
               ..sort((a, b) => a.data.compareTo(b.data));
 
         return ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: AppColors.surfaceHigh.withValues(alpha: 0.85),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: AppColors.outline.withValues(alpha: 0.4),
               ),

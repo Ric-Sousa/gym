@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod/legacy.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/config/app_colors.dart';
@@ -232,33 +233,32 @@ class AdminMessagesView extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Grupos ──
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'GRUPOS DE ALUNOS',
-                      style: GoogleFonts.barlowCondensed(
-                        fontSize: isMobile ? 18 : 24,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.01,
-                        color: AdminThemeColors.of(context).text,
-                      ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stacked = constraints.maxWidth < 520;
+              final heading = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'GRUPOS DE ALUNOS',
+                    style: GoogleFonts.barlowCondensed(
+                      fontSize: isMobile ? 18 : 24,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.01,
+                      color: AdminThemeColors.of(context).text,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Grupos para troca de horários e blocos',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        color: AdminThemeColors.of(context).muted,
-                      ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Grupos para troca de horários e blocos',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: AdminThemeColors.of(context).muted,
                     ),
-                  ],
-                ),
-              ),
-              ElevatedButton.icon(
+                  ),
+                ],
+              );
+              final createButton = ElevatedButton.icon(
                 onPressed: () => _showCreateGroupDialog(context, ref),
                 icon: const Icon(Icons.add, size: 16),
                 label: Text(
@@ -273,15 +273,29 @@ class AdminMessagesView extends ConsumerWidget {
                   backgroundColor: AdminThemeColors.of(context).lime,
                   foregroundColor: AdminThemeColors.of(context).bg,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 8,
                   ),
                 ),
-              ),
-            ],
+              );
+
+              if (stacked) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [heading, const SizedBox(height: 14), createButton],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: heading),
+                  createButton,
+                ],
+              );
+            },
           ),
           const SizedBox(height: 12),
           groupsAsync.when(
@@ -293,7 +307,7 @@ class AdminMessagesView extends ConsumerWidget {
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: AdminThemeColors.of(context).surface,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: AdminThemeColors.of(context).border,
                       ),
@@ -339,12 +353,12 @@ class AdminMessagesView extends ConsumerWidget {
                             ),
                           ),
                         ),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(16),
                         child: Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: AdminThemeColors.of(context).surface,
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(16),
                             border: Border.all(
                               color: AdminThemeColors.of(context).border,
                             ),
@@ -356,7 +370,7 @@ class AdminMessagesView extends ConsumerWidget {
                                 height: 36,
                                 decoration: BoxDecoration(
                                   color: AdminThemeColors.of(context).limeDim,
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
                                 child: Icon(
                                   Icons.group,
@@ -426,7 +440,7 @@ class AdminMessagesView extends ConsumerWidget {
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     color: AdminThemeColors.of(context).surface,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: AdminThemeColors.of(context).border,
                     ),
@@ -498,7 +512,7 @@ Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
       builder: (ctx, setDialogState) => AlertDialog(
         backgroundColor: AdminThemeColors.of(context).surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(20),
           side: BorderSide(color: AdminThemeColors.of(context).border),
         ),
         title: Text(

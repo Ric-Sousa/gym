@@ -23,11 +23,12 @@ dependencies:
   firebase_crashlytics: ^5.2.6
 
   # State Management
-  flutter_riverpod: ^2.5.1
-  riverpod_annotation: ^2.3.5
+  flutter_riverpod: ^3.3.2
+  riverpod: ^3.3.2
+  riverpod_annotation: ^4.0.3
 
   # Charts
-  fl_chart: ^0.68.0
+  fl_chart: ^1.2.0
 
   # Video Player
   video_player: ^2.8.6
@@ -45,31 +46,31 @@ dependencies:
   pedometer: ^4.0.1
 
   # Connectivity
-  connectivity_plus: ^6.0.3
+  connectivity_plus: ^7.3.1
 
   # Image Cache
   cached_network_image: ^3.4.0
 
   # Google Fonts
-  google_fonts: ^6.2.1
+  google_fonts: ^8.2.1
 
   # Audio
-  just_audio: ^0.9.40
+  just_audio: ^0.10.6
 
   # Utilities
   intl: ^0.20.0
   cloud_functions: ^6.3.5
   http: ^1.2.0
   path_provider: ^2.1.2
-  share_plus: ^10.0.0
+  share_plus: ^13.3.0
   url_launcher: ^6.2.5
   uuid: ^4.3.3
   equatable: ^2.0.5
   record: ^7.1.1
 
 dev_dependencies:
-  flutter_lints: ^5.0.0
-  riverpod_generator: ^2.6.0
+  flutter_lints: ^6.0.0
+  riverpod_generator: ^4.0.4
   build_runner: ^2.4.9
   mocktail: ^1.0.3
   flutter_test:

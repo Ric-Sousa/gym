@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod/legacy.dart';
 import '../../core/utils/connectivity_service.dart';
 import '../../core/services/fcm_service.dart';
 import '../../data/datasources/auth_datasource.dart';
