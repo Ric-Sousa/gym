@@ -19,6 +19,13 @@ service cloud.firestore {
     }
 
     // ══════════════════════════════════════════════════════
+    // GLOBAL WORKOUT PLAN LIBRARY
+    // ══════════════════════════════════════════════════════
+    match /planosTreino/{planId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ══════════════════════════════════════════════════════
     // USERS collection
     // ══════════════════════════════════════════════════════
     match /users/{uid} {
@@ -41,6 +48,11 @@ service cloud.firestore {
       match /planoTreino/{nome} {
         allow read: if isAdmin() || isOwner(uid);
         allow write: if isAdmin(); // only admin writes workout plans
+      }
+
+      // ── WORKOUT LOGS subcollection ─────────────────
+      match /workoutLogs/{date} {
+        allow read, write: if isAdmin() || isOwner(uid);
       }
 
       // ── PROGRESS subcollection ───────────────────

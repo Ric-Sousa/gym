@@ -11,7 +11,6 @@ import '../../../../shared/providers/admin_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/app_page_frame.dart';
 import '../widgets/nutrition_editor.dart';
-import '../widgets/workout_editor.dart';
 import '../widgets/report_generator.dart';
 import '../../aluno/chat/screens/chat_screen.dart';
 
@@ -215,11 +214,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
                   if (compact) {
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        identity,
-                        const SizedBox(height: 16),
-                        status,
-                      ],
+                      children: [identity, const SizedBox(height: 16), status],
                     );
                   }
 
@@ -274,9 +269,9 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
                     label: 'Última atividade',
                     value: aluno.ultimaAtividade == null
                         ? 'Sem registo'
-                        : DateFormat('dd/MM/yyyy').format(
-                            aluno.ultimaAtividade!,
-                          ),
+                        : DateFormat(
+                            'dd/MM/yyyy',
+                          ).format(aluno.ultimaAtividade!),
                   ),
                 ],
               );
@@ -290,16 +285,28 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Informação do cliente',
-                      style: Theme.of(context).textTheme.titleLarge),
+                  Text(
+                    'Informação do cliente',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                   const SizedBox(height: 16),
-                  _summaryInfoRow(Icons.fitness_center_outlined, 'Modalidade',
-                      aluno.tipoClienteDisplay),
+                  _summaryInfoRow(
+                    Icons.fitness_center_outlined,
+                    'Modalidade',
+                    aluno.tipoClienteDisplay,
+                  ),
                   const SizedBox(height: 12),
-                  _summaryInfoRow(Icons.person_outline, 'Género',
-                      aluno.generoDisplay),
+                  _summaryInfoRow(
+                    Icons.person_outline,
+                    'Género',
+                    aluno.generoDisplay,
+                  ),
                   const SizedBox(height: 12),
-                  _summaryInfoRow(Icons.email_outlined, 'Contacto', aluno.email),
+                  _summaryInfoRow(
+                    Icons.email_outlined,
+                    'Contacto',
+                    aluno.email,
+                  ),
                 ],
               ),
             ),
@@ -327,22 +334,31 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
             children: [
               Icon(icon, color: AdminThemeColors.of(context).lime, size: 20),
               const SizedBox(height: 14),
-              Text(label, style: GoogleFonts.inter(
-                fontSize: 12,
-                color: AdminThemeColors.of(context).muted,
-              )),
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: AdminThemeColors.of(context).muted,
+                ),
+              ),
               const SizedBox(height: 4),
-              Text(value, style: GoogleFonts.montserrat(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AdminThemeColors.of(context).text,
-              )),
+              Text(
+                value,
+                style: GoogleFonts.montserrat(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AdminThemeColors.of(context).text,
+                ),
+              ),
               if (caption != null) ...[
                 const SizedBox(height: 3),
-                Text(caption, style: GoogleFonts.inter(
-                  fontSize: 11,
-            color: AdminThemeColors.of(context).muted,
-          )),
+                Text(
+                  caption,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: AdminThemeColors.of(context).muted,
+                  ),
+                ),
               ],
             ],
           ),
@@ -356,17 +372,24 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
       children: [
         Icon(icon, size: 19, color: AdminThemeColors.of(context).lime),
         const SizedBox(width: 10),
-        Text(label, style: GoogleFonts.inter(
-          fontSize: 13,
-          color: AdminThemeColors.of(context).muted,
-        )),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 13,
+            color: AdminThemeColors.of(context).muted,
+          ),
+        ),
         const Spacer(),
         Flexible(
-          child: Text(value, textAlign: TextAlign.end, style: GoogleFonts.inter(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: AdminThemeColors.of(context).text,
-          )),
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AdminThemeColors.of(context).text,
+            ),
+          ),
         ),
       ],
     );
@@ -377,7 +400,13 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
   }
 
   Widget _buildTreino(UserModel aluno) {
-    return WorkoutEditor(aluno: aluno);
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Text(
+        'Os planos de treino são criados e atribuídos na área global “Treinos” do painel administrativo.',
+        style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
+      ),
+    );
   }
 
   Widget _buildProgresso(UserModel aluno) {
@@ -421,7 +450,10 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
                         )
                       : null,
                   trailing: p.fotos.isNotEmpty
-                      ? Icon(Icons.photo, color: AdminThemeColors.of(context).lime)
+                      ? Icon(
+                          Icons.photo,
+                          color: AdminThemeColors.of(context).lime,
+                        )
                       : null,
                 ),
               ),
@@ -430,7 +462,9 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
         );
       },
       loading: () => Center(
-        child: CircularProgressIndicator(color: AdminThemeColors.of(context).lime),
+        child: CircularProgressIndicator(
+          color: AdminThemeColors.of(context).lime,
+        ),
       ),
       error: (_, __) => Center(
         child: Text(

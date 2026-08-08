@@ -34,6 +34,9 @@ class AppConstants {
   static const String diarySubcollection = 'diario';
   static const String nutritionPlanSubcollection = 'planoNutricao';
   static const String workoutPlanSubcollection = 'planoTreino';
+
+  /// Biblioteca global de planos criada pelo administrador.
+  static const String globalWorkoutPlansCollection = 'planosTreino';
   static const String progressSubcollection = 'progresso';
   static const String workoutLogSubcollection = 'workoutLogs';
   static const String chatCollection = 'chat';
@@ -47,7 +50,8 @@ class AppConstants {
 
   // Storage paths
   static const String profilePhotoPath = 'users/{userId}/profile.jpg';
-  static const String progressPhotoPath = 'users/{userId}/progresso/{timestamp}.jpg';
+  static const String progressPhotoPath =
+      'users/{userId}/progresso/{timestamp}.jpg';
   static const String exerciseVideoPath = 'exercicios/{exerciseId}/video.mp4';
 
   // Roles

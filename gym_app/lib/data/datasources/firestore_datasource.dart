@@ -252,6 +252,57 @@ class FirestoreDataSource {
     }
   }
 
+  // ───────────────────── GLOBAL WORKOUT PLANS ─────────────────────
+
+  /// Lista os planos globais criados pelo administrador.
+  Future<List<WorkoutPlanModel>> getGlobalWorkoutPlans() async {
+    try {
+      // Não usamos orderBy aqui porque planos antigos podem não ter
+      // `createdAt`. A ordenação da biblioteca é feita na interface.
+      final snapshot = await _firestore
+          .collection(AppConstants.globalWorkoutPlansCollection)
+          .get();
+      return snapshot.docs
+          .map((doc) => WorkoutPlanModel.fromMap(doc.id, '', doc.data()))
+          .toList();
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao listar planos globais',
+      );
+    }
+  }
+
+  /// Elimina um plano global.
+  Future<void> deleteGlobalWorkoutPlan(String planId) async {
+    try {
+      await _firestore
+          .collection(AppConstants.globalWorkoutPlansCollection)
+          .doc(planId)
+          .delete();
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao eliminar plano global',
+      );
+    }
+  }
+
+  /// Cria ou atualiza um plano global.
+  Future<void> setGlobalWorkoutPlan(
+    String planId,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      await _firestore
+          .collection(AppConstants.globalWorkoutPlansCollection)
+          .doc(planId)
+          .set(data, SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao guardar plano global',
+      );
+    }
+  }
+
   // ───────────────────── WORKOUT PLAN ─────────────────────
 
   /// Obtém plano de treino por nome.
@@ -286,6 +337,22 @@ class FirestoreDataSource {
     } on FirebaseException catch (e) {
       throw ServerException(
         message: e.message ?? 'Erro ao listar planos de treino',
+      );
+    }
+  }
+
+  /// Elimina um plano atribuído a um aluno.
+  Future<void> deleteWorkoutPlan(String userId, String nome) async {
+    try {
+      await _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(userId)
+          .collection(AppConstants.workoutPlanSubcollection)
+          .doc(nome)
+          .delete();
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao eliminar plano atribuído',
       );
     }
   }
@@ -516,7 +583,12 @@ class FirestoreDataSource {
           .doc(date)
           .get();
       if (!doc.exists) return null;
-      return WorkoutLogModel.fromMap(doc.id, userId, doc.data()!);
+      try {
+        return WorkoutLogModel.fromMap(doc.id, userId, doc.data()!);
+      } on FormatException {
+        // Um log antigo/corrompido não deve bloquear a execução do treino.
+        return null;
+      }
     } on FirebaseException catch (e) {
       throw ServerException(
         message: e.message ?? 'Erro ao obter registo de treino',
@@ -815,18 +887,14 @@ class FirestoreDataSource {
       final timestamp = data['timestamp'] ?? DateTime.now();
       final batch = _firestore.batch();
 
-      batch.set(
-        groupRef,
-        {
-          'lastMessage': (data['texto'] as String?)?.isNotEmpty == true
-              ? data['texto']
-              : 'Mensagem de áudio',
-          'lastTimestamp': timestamp,
-          'lastSenderId': data['remetenteId'] ?? '',
-          'lastMessageId': messageRef.id,
-        },
-        SetOptions(merge: true),
-      );
+      batch.set(groupRef, {
+        'lastMessage': (data['texto'] as String?)?.isNotEmpty == true
+            ? data['texto']
+            : 'Mensagem de áudio',
+        'lastTimestamp': timestamp,
+        'lastSenderId': data['remetenteId'] ?? '',
+        'lastMessageId': messageRef.id,
+      }, SetOptions(merge: true));
       batch.set(messageRef, data);
       await batch.commit();
     } on FirebaseException catch (e) {

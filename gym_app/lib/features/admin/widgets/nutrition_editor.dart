@@ -8,6 +8,7 @@ import '../../../../data/models/nutrition_plan_model.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/providers/admin_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
+import '../../../../shared/widgets/admin_responsive_dialog.dart';
 
 /// Editor do plano nutricional (admin) — GYMBT Lime+Dark.
 class NutritionEditor extends ConsumerStatefulWidget {
@@ -394,7 +395,7 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
     final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
+        builder: (ctx, setDialogState) => AdminResponsiveAlertDialog(
           backgroundColor: AdminThemeColors.of(context).surface,
           title: Text(
             'Adicionar suplemento',
@@ -488,7 +489,7 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
     );
     final result = await showDialog<double>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AdminResponsiveAlertDialog(
         backgroundColor: AdminThemeColors.of(context).surface,
         title: Text(
           'Meta calórica',
@@ -547,7 +548,7 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
     final kcal = TextEditingController();
     final result = await showDialog<Map<String, String>>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AdminResponsiveAlertDialog(
         backgroundColor: AdminThemeColors.of(context).surface,
         title: Text(
           'Adicionar alimento',
@@ -638,7 +639,7 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
     final tipo = TextEditingController();
     final result = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AdminResponsiveAlertDialog(
         backgroundColor: AdminThemeColors.of(context).surface,
         title: Text(
           'Nova refeição',
