@@ -1119,6 +1119,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   child: ImageComparisonSlider(
                     beforeImage: initialUrl,
                     afterImage: latestUrl,
+                    width: dialogWidth,
                     height: sliderHeight,
                     dividerColor: AppColors.primary,
                   ),
