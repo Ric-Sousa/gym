@@ -8,7 +8,7 @@ class UserRepository {
   final FirestoreDataSource _firestoreDataSource;
 
   UserRepository({required FirestoreDataSource firestoreDataSource})
-      : _firestoreDataSource = firestoreDataSource;
+    : _firestoreDataSource = firestoreDataSource;
 
   /// Obtém modelo de utilizador.
   Future<UserModel> getUser(String uid) async {
@@ -33,6 +33,24 @@ class UserRepository {
   Future<void> updateUser(String uid, Map<String, dynamic> data) async {
     try {
       await _firestoreDataSource.updateUser(uid, data);
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
+  }
+
+  /// Obtém a nota privada do administrador para um cliente.
+  Future<String> getAdminNote(String uid) async {
+    try {
+      return await _firestoreDataSource.getAdminNote(uid);
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
+  }
+
+  /// Guarda a nota privada do administrador para um cliente.
+  Future<void> setAdminNote(String uid, String note, {String? adminId}) async {
+    try {
+      await _firestoreDataSource.setAdminNote(uid, note, adminId: adminId);
     } on ServerException catch (e) {
       throw ServerFailure(message: e.message);
     }

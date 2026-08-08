@@ -62,7 +62,7 @@ exports.onUserCreated = functions.auth.user().onCreate(async (user) => {
         email: user.email ?? '',
         role: 'aluno',
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    }, { merge: true });
     console.log(`User doc created for ${user.uid}`);
 });
 // ──────────── CALLABLES ────────────
@@ -81,6 +81,7 @@ createStudentApp.post('/', async (req, res) => {
     // Aceita ambos os formatos: {data: {...}} (onCall antigo) ou fields diretos
     const d = (req.body && req.body.data) ? req.body.data : (req.body || {});
     const { nome, email, personalId, genero, password, authToken } = d;
+    const isActive = d.isActive !== false;
     console.log('createStudent body keys:', Object.keys(req.body || {}), 'nome:', nome, 'email:', email);
     if (!nome || !email) {
         res.status(400).json({ error: { message: 'Nome e email obrigatórios.' } });
@@ -111,6 +112,13 @@ createStudentApp.post('/', async (req, res) => {
                 nome, email, role: 'aluno',
                 ...(personalId ? { personalId } : {}),
                 ...(genero ? { genero } : {}),
+                isActive,
+                ...(isActive ? {
+                    deactivatedAt: admin.firestore.FieldValue.delete(),
+                    contractEndsAt: admin.firestore.FieldValue.delete(),
+                } : {
+                    deactivatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                }),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             }, { merge: true });
             res.json({ uid: existingUser.uid, email, alreadyExists: true });
@@ -127,6 +135,8 @@ createStudentApp.post('/', async (req, res) => {
             genero: genero || 'feminino',
             pesoAtual: null, altura: null,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            isActive,
+            ...(isActive ? {} : { deactivatedAt: admin.firestore.FieldValue.serverTimestamp() }),
         });
         res.json({ uid: userRecord.uid, email, created: true, temporaryPassword: password ? undefined : temporaryPassword });
     }

@@ -12,7 +12,6 @@ import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/app_notification.dart';
-import '../../../../shared/widgets/app_design_system.dart';
 
 final nutritionPlanProvider =
     FutureProvider.family<NutritionPlanModel?, (String, String)>((ref, params) {
@@ -120,14 +119,13 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
       backgroundColor: AppColors.background,
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 22, 20, 16),
-            child: AppPageIntro(
-              eyebrow: 'Nutrição diária',
-              title: 'Alimenta o teu progresso',
-              subtitle:
-                  'Consulta o plano, regista refeições e acompanha as tuas metas.',
-              action: IconButton(
+          // Mantém apenas a ação de pesquisa; o informativo "Nutrição diária"
+          // foi removido para libertar espaço para o plano e as refeições.
+          Align(
+            alignment: Alignment.centerRight,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 2),
+              child: IconButton(
                 onPressed: _showFoodSearch,
                 icon: const Icon(Icons.search),
                 tooltip: 'Pesquisar alimento',
@@ -824,15 +822,22 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
                             icon: const Icon(Icons.add, size: 15),
                             label: const Text('Adicionar alimento'),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.textSecondary,
-                              side: BorderSide(
-                                color: AppColors.outline.withValues(alpha: 0.5),
+                              foregroundColor: Colors.white,
+                              backgroundColor: AppColors.surfaceHighest
+                                  .withValues(alpha: 0.42),
+                              side: const BorderSide(color: Colors.transparent),
+                              minimumSize: const Size(0, 48),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 13,
                               ),
-                              padding: const EdgeInsets.symmetric(vertical: 8),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(11),
                               ),
-                              textStyle: GoogleFonts.inter(fontSize: 12),
+                              textStyle: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ),
@@ -850,12 +855,20 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
                             label: const Text('Registar Refeição'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.success,
-                              foregroundColor: AppColors.textOnPrimary,
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size(0, 50),
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 15,
                               ),
-                              textStyle: GoogleFonts.inter(fontSize: 13),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(11),
+                              ),
+                              textStyle: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ),
@@ -1353,11 +1366,16 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.water,
-                foregroundColor: AppColors.textOnPrimary,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(0, 50),
+                elevation: 0,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(11),
                 ),
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 15,
+                ),
               ),
             ),
           ),

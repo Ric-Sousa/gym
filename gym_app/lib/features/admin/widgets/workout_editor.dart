@@ -9,6 +9,7 @@ import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/providers/admin_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/admin_responsive_dialog.dart';
+import '../../../../shared/widgets/admin_design_system.dart';
 
 /// Editor do plano de treino (admin) — GYMBT Lime+Dark.
 class WorkoutEditor extends ConsumerStatefulWidget {
@@ -30,37 +31,41 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
       data: (plans) {
         if (plans.isEmpty) {
           return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const EmptyState(
-                  icon: Icons.fitness_center,
-                  title: AppStrings.noWorkoutAssigned,
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: _createEmptyPlan,
-                  icon: const Icon(Icons.add, size: 16),
-                  label: Text(
-                    'Criar plano de treino',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
+            child: AdminSurface(
+              padding: const EdgeInsets.all(28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const EmptyState(
+                    icon: Icons.fitness_center,
+                    title: AppStrings.noWorkoutAssigned,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: _createEmptyPlan,
+                    icon: const Icon(Icons.add, size: 16),
+                    label: Text(
+                      'Criar plano de treino',
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AdminThemeColors.of(context).lime,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
                     ),
                   ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AdminThemeColors.of(context).lime,
-                    foregroundColor: AdminThemeColors.of(context).bg,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         }
@@ -160,7 +165,7 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                 label: const Text('Adicionar treino'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: colors.lime,
-                  foregroundColor: colors.bg,
+                  foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -217,84 +222,76 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                     final day = activeDays[index];
                     return Container(
                       margin: const EdgeInsets.only(bottom: 10),
-                      decoration: BoxDecoration(
-                        color: colors.surface,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: colors.border),
-                        boxShadow: [
-                          BoxShadow(
-                            color: colors.shadow,
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: ExpansionTile(
-                        leading: CircleAvatar(
-                          radius: 16,
-                          backgroundColor: colors.limeDim,
-                          child: Icon(
-                            Icons.fitness_center,
-                            color: colors.lime,
-                            size: 16,
-                          ),
-                        ),
-                        title: Text(
-                          day.diaSemana,
-                          style: GoogleFonts.inter(
-                            fontWeight: FontWeight.w600,
-                            color: colors.text,
-                          ),
-                        ),
-                        subtitle: Text(
-                          '${day.exercicios.length} exercício(s)${day.foco.isEmpty ? '' : ' · ${day.foco}'}',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: colors.muted,
-                          ),
-                        ),
-                        children: [
-                          ...day.exercicios.map(
-                            (ex) => ListTile(
-                              dense: true,
-                              title: Text(
-                                ex.nome,
-                                style: GoogleFonts.inter(
-                                  color: colors.text,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              subtitle: _buildExerciseSubtitle(ex),
-                              trailing: ex.cargaSugerida != null
-                                  ? Text(
-                                      '${ex.cargaSugerida}kg',
-                                      style: GoogleFonts.montserrat(
-                                        fontSize: 13,
-                                        color: colors.orange,
-                                      ),
-                                    )
-                                  : null,
+                      child: AdminSurface(
+                        padding: EdgeInsets.zero,
+                        borderRadius: BorderRadius.circular(14),
+                        child: ExpansionTile(
+                          leading: CircleAvatar(
+                            radius: 16,
+                            backgroundColor: colors.limeDim,
+                            child: Icon(
+                              Icons.fitness_center,
+                              color: colors.lime,
+                              size: 16,
                             ),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-                            child: TextButton.icon(
-                              onPressed: () => _addExercise(plan),
-                              icon: Icon(
-                                Icons.add,
-                                size: 14,
-                                color: colors.lime,
+                          title: Text(
+                            day.diaSemana,
+                            style: GoogleFonts.inter(
+                              fontWeight: FontWeight.w600,
+                              color: colors.text,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${day.exercicios.length} exercício(s)${day.foco.isEmpty ? '' : ' · ${day.foco}'}',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: colors.muted,
+                            ),
+                          ),
+                          children: [
+                            ...day.exercicios.map(
+                              (ex) => ListTile(
+                                dense: true,
+                                title: Text(
+                                  ex.nome,
+                                  style: GoogleFonts.inter(
+                                    color: colors.text,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                subtitle: _buildExerciseSubtitle(ex),
+                                trailing: ex.cargaSugerida != null
+                                    ? Text(
+                                        '${ex.cargaSugerida}kg',
+                                        style: GoogleFonts.montserrat(
+                                          fontSize: 13,
+                                          color: colors.orange,
+                                        ),
+                                      )
+                                    : null,
                               ),
-                              label: Text(
-                                'Adicionar exercício neste plano',
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  color: colors.lime,
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                              child: TextButton.icon(
+                                onPressed: () => _addExercise(plan),
+                                icon: const Icon(
+                                  Icons.add,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
+                                label: Text(
+                                  'Adicionar exercício neste plano',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     );
                   },
@@ -373,7 +370,7 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
             onPressed: () => Navigator.pop(ctx, nameCtrl.text.trim()),
             style: ElevatedButton.styleFrom(
               backgroundColor: AdminThemeColors.of(context).lime,
-              foregroundColor: AdminThemeColors.of(context).bg,
+              foregroundColor: Colors.white,
             ),
             child: Text(
               AppStrings.save,
@@ -422,208 +419,200 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
               color: AdminThemeColors.of(context).text,
             ),
           ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<String>(
-                  initialValue: selectedDay,
-                  dropdownColor: AdminThemeColors.of(context).surface,
-                  style: GoogleFonts.inter(
-                    color: AdminThemeColors.of(context).text,
-                    fontSize: 14,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Dia da semana',
-                    labelStyle: GoogleFonts.inter(
-                      color: AdminThemeColors.of(context).muted,
-                    ),
-                    filled: true,
-                    fillColor: AdminThemeColors.of(context).bg,
-                  ),
-                  items: dayOptions
-                      .map(
-                        (day) => DropdownMenuItem(value: day, child: Text(day)),
-                      )
-                      .toList(),
-                  onChanged: (value) => setDialogState(
-                    () => selectedDay = value ?? dayOptions.first,
-                  ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: selectedDay,
+                dropdownColor: AdminThemeColors.of(context).surface,
+                style: GoogleFonts.inter(
+                  color: AdminThemeColors.of(context).text,
+                  fontSize: 14,
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: nome,
-                  style: GoogleFonts.inter(
-                    color: AdminThemeColors.of(context).text,
+                decoration: InputDecoration(
+                  labelText: 'Dia da semana',
+                  labelStyle: GoogleFonts.inter(
+                    color: AdminThemeColors.of(context).muted,
                   ),
-                  decoration: const InputDecoration(labelText: 'Nome'),
+                  filled: true,
+                  fillColor: AdminThemeColors.of(context).bg,
                 ),
-                const SizedBox(height: 12),
-                // Categoria com ícones
-                DropdownButtonFormField<String>(
-                  initialValue: selectedCategoria,
-                  dropdownColor: AdminThemeColors.of(context).surface,
-                  style: GoogleFonts.inter(
-                    color: AdminThemeColors.of(context).text,
-                    fontSize: 14,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Categoria',
-                    labelStyle: GoogleFonts.inter(
-                      color: AdminThemeColors.of(context).muted,
-                    ),
-                    filled: true,
-                    fillColor: AdminThemeColors.of(context).bg,
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'musculação',
-                      child: Text('🏋️ Musculação'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'funcional',
-                      child: Text('⚡ Funcional'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'pesos_livres',
-                      child: Text('🪨 Pesos Livres'),
-                    ),
-                    DropdownMenuItem(value: 'cardio', child: Text('🏃 Cardio')),
-                  ],
-                  onChanged: (v) => setDialogState(
-                    () => selectedCategoria = v ?? 'musculação',
-                  ),
+                items: dayOptions
+                    .map(
+                      (day) => DropdownMenuItem(value: day, child: Text(day)),
+                    )
+                    .toList(),
+                onChanged: (value) => setDialogState(
+                  () => selectedDay = value ?? dayOptions.first,
                 ),
-                const SizedBox(height: 12),
-                // Equipamento
-                DropdownButtonFormField<String>(
-                  initialValue: selectedEquipamento,
-                  dropdownColor: AdminThemeColors.of(context).surface,
-                  style: GoogleFonts.inter(
-                    color: AdminThemeColors.of(context).text,
-                    fontSize: 14,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Equipamento',
-                    labelStyle: GoogleFonts.inter(
-                      color: AdminThemeColors.of(context).muted,
-                    ),
-                    filled: true,
-                    fillColor: AdminThemeColors.of(context).bg,
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'outro', child: Text('🔧 Outro')),
-                    DropdownMenuItem(value: 'barra', child: Text('🏋️ Barra')),
-                    DropdownMenuItem(
-                      value: 'haltere',
-                      child: Text('💪 Haltere'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'kettlebell',
-                      child: Text('🔔 Kettlebell'),
-                    ),
-                    DropdownMenuItem(value: 'corda', child: Text('🪢 Corda')),
-                    DropdownMenuItem(
-                      value: 'peso_corporal',
-                      child: Text('🧘 Peso Corporal'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'banda',
-                      child: Text('🎗️ Banda Elástica'),
-                    ),
-                  ],
-                  onChanged: (v) =>
-                      setDialogState(() => selectedEquipamento = v ?? 'outro'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nome,
+                style: GoogleFonts.inter(
+                  color: AdminThemeColors.of(context).text,
                 ),
-                const SizedBox(height: 12),
-                // Campos específicos para funcional/pesos_livres
-                if (selectedCategoria == 'funcional' ||
-                    selectedCategoria == 'pesos_livres' ||
-                    selectedCategoria == 'cardio') ...[
-                  TextField(
-                    controller: duracao,
-                    keyboardType: TextInputType.number,
-                    style: GoogleFonts.inter(
-                      color: AdminThemeColors.of(context).text,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Duração (segundos)',
-                      hintText: 'Ex: 60 para corda',
-                    ),
+                decoration: const InputDecoration(labelText: 'Nome'),
+              ),
+              const SizedBox(height: 12),
+              // Categoria com ícones
+              DropdownButtonFormField<String>(
+                initialValue: selectedCategoria,
+                dropdownColor: AdminThemeColors.of(context).surface,
+                style: GoogleFonts.inter(
+                  color: AdminThemeColors.of(context).text,
+                  fontSize: 14,
+                ),
+                decoration: InputDecoration(
+                  labelText: 'Categoria',
+                  labelStyle: GoogleFonts.inter(
+                    color: AdminThemeColors.of(context).muted,
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: rounds,
-                    keyboardType: TextInputType.number,
-                    style: GoogleFonts.inter(
-                      color: AdminThemeColors.of(context).text,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Rounds',
-                      hintText: 'Ex: 3 rounds',
-                    ),
+                  filled: true,
+                  fillColor: AdminThemeColors.of(context).bg,
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'musculação',
+                    child: Text('🏋️ Musculação'),
                   ),
-                  const SizedBox(height: 12),
+                  DropdownMenuItem(
+                    value: 'funcional',
+                    child: Text('⚡ Funcional'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'pesos_livres',
+                    child: Text('🪨 Pesos Livres'),
+                  ),
+                  DropdownMenuItem(value: 'cardio', child: Text('🏃 Cardio')),
                 ],
-                // Campos específicos para musculação/pesos_livres
-                if (selectedCategoria == 'musculação' ||
-                    selectedCategoria == 'pesos_livres') ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: series,
-                          keyboardType: TextInputType.number,
-                          style: GoogleFonts.inter(
-                            color: AdminThemeColors.of(context).text,
-                          ),
-                          decoration: const InputDecoration(
-                            labelText: 'Séries',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: reps,
-                          keyboardType: TextInputType.number,
-                          style: GoogleFonts.inter(
-                            color: AdminThemeColors.of(context).text,
-                          ),
-                          decoration: const InputDecoration(labelText: 'Reps'),
-                        ),
-                      ),
-                    ],
+                onChanged: (v) =>
+                    setDialogState(() => selectedCategoria = v ?? 'musculação'),
+              ),
+              const SizedBox(height: 12),
+              // Equipamento
+              DropdownButtonFormField<String>(
+                initialValue: selectedEquipamento,
+                dropdownColor: AdminThemeColors.of(context).surface,
+                style: GoogleFonts.inter(
+                  color: AdminThemeColors.of(context).text,
+                  fontSize: 14,
+                ),
+                decoration: InputDecoration(
+                  labelText: 'Equipamento',
+                  labelStyle: GoogleFonts.inter(
+                    color: AdminThemeColors.of(context).muted,
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: carga,
-                    keyboardType: TextInputType.number,
-                    style: GoogleFonts.inter(
-                      color: AdminThemeColors.of(context).text,
-                    ),
-                    decoration: const InputDecoration(labelText: 'Carga (kg)'),
+                  filled: true,
+                  fillColor: AdminThemeColors.of(context).bg,
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'outro', child: Text('🔧 Outro')),
+                  DropdownMenuItem(value: 'barra', child: Text('🏋️ Barra')),
+                  DropdownMenuItem(value: 'haltere', child: Text('💪 Haltere')),
+                  DropdownMenuItem(
+                    value: 'kettlebell',
+                    child: Text('🔔 Kettlebell'),
                   ),
-                  const SizedBox(height: 12),
+                  DropdownMenuItem(value: 'corda', child: Text('🪢 Corda')),
+                  DropdownMenuItem(
+                    value: 'peso_corporal',
+                    child: Text('🧘 Peso Corporal'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'banda',
+                    child: Text('🎗️ Banda Elástica'),
+                  ),
                 ],
+                onChanged: (v) =>
+                    setDialogState(() => selectedEquipamento = v ?? 'outro'),
+              ),
+              const SizedBox(height: 12),
+              // Campos específicos para funcional/pesos_livres
+              if (selectedCategoria == 'funcional' ||
+                  selectedCategoria == 'pesos_livres' ||
+                  selectedCategoria == 'cardio') ...[
                 TextField(
-                  controller: descanso,
+                  controller: duracao,
                   keyboardType: TextInputType.number,
                   style: GoogleFonts.inter(
                     color: AdminThemeColors.of(context).text,
                   ),
-                  decoration: const InputDecoration(labelText: 'Descanso (s)'),
+                  decoration: const InputDecoration(
+                    labelText: 'Duração (segundos)',
+                    hintText: 'Ex: 60 para corda',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
-                  controller: obs,
+                  controller: rounds,
+                  keyboardType: TextInputType.number,
                   style: GoogleFonts.inter(
                     color: AdminThemeColors.of(context).text,
                   ),
-                  decoration: const InputDecoration(labelText: 'Observações'),
+                  decoration: const InputDecoration(
+                    labelText: 'Rounds',
+                    hintText: 'Ex: 3 rounds',
+                  ),
                 ),
+                const SizedBox(height: 12),
               ],
-            ),
+              // Campos específicos para musculação/pesos_livres
+              if (selectedCategoria == 'musculação' ||
+                  selectedCategoria == 'pesos_livres') ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: series,
+                        keyboardType: TextInputType.number,
+                        style: GoogleFonts.inter(
+                          color: AdminThemeColors.of(context).text,
+                        ),
+                        decoration: const InputDecoration(labelText: 'Séries'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: reps,
+                        keyboardType: TextInputType.number,
+                        style: GoogleFonts.inter(
+                          color: AdminThemeColors.of(context).text,
+                        ),
+                        decoration: const InputDecoration(labelText: 'Reps'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: carga,
+                  keyboardType: TextInputType.number,
+                  style: GoogleFonts.inter(
+                    color: AdminThemeColors.of(context).text,
+                  ),
+                  decoration: const InputDecoration(labelText: 'Carga (kg)'),
+                ),
+                const SizedBox(height: 12),
+              ],
+              TextField(
+                controller: descanso,
+                keyboardType: TextInputType.number,
+                style: GoogleFonts.inter(
+                  color: AdminThemeColors.of(context).text,
+                ),
+                decoration: const InputDecoration(labelText: 'Descanso (s)'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: obs,
+                style: GoogleFonts.inter(
+                  color: AdminThemeColors.of(context).text,
+                ),
+                decoration: const InputDecoration(labelText: 'Observações'),
+              ),
+            ],
           ),
           actions: [
             TextButton(
@@ -658,7 +647,7 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AdminThemeColors.of(context).lime,
-                foregroundColor: AdminThemeColors.of(context).bg,
+                foregroundColor: Colors.white,
               ),
               child: Text(
                 AppStrings.save,

@@ -15,9 +15,7 @@ import '../../../../data/models/payment_model.dart';
 import '../../../../data/models/user_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
-import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/app_notification.dart';
-import '../../../../shared/widgets/app_design_system.dart';
 import '../../../../core/services/sound_service.dart';
 import '../../../../core/config/notification_sounds.dart';
 import '../../../../shared/widgets/image_comparison_slider.dart';
@@ -76,18 +74,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           // Configura o som de notificação com a preferência do utilizador
           SoundService().setSound(user.notificationSound ?? defaultSoundAsset);
           return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 22, 20, 4),
-                child: AppPageIntro(
-                  eyebrow: 'A tua conta',
-                  title: 'Perfil e progresso',
-                  subtitle:
-                      'Mantém os teus dados e evolução sempre atualizados.',
-                ),
-              ),
-              Expanded(child: _buildProfileContent(user)),
-            ],
+            children: [Expanded(child: _buildProfileContent(user))],
           );
         },
         loading: () => const Center(
@@ -121,44 +108,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             const SizedBox(height: 24),
             _buildQuickMetrics(user),
             const SizedBox(height: 24),
+            // A evolução fica logo após as métricas para não ficar escondida
+            // no fim do perfil. O comparador continua disponível ao tocar.
+            _buildProgressComparisonCard(user, progressAsync),
+            const SizedBox(height: 18),
+            _buildProgressPhotos(user.uid, progressAsync),
+            const SizedBox(height: 24),
             _buildEditableFields(user),
             const SizedBox(height: 24),
             _buildSoundPicker(user),
             const SizedBox(height: 24),
-            Text(
-              AppStrings.weightEvolution,
-              style: GoogleFonts.montserrat(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AppColors.onSurface,
-              ),
-            ),
-            const SizedBox(height: 12),
-            progressAsync.when(
-              data: (progressList) {
-                if (progressList.isEmpty) {
-                  return const EmptyState(
-                    icon: Icons.show_chart,
-                    title: AppStrings.noProgressData,
-                  );
-                }
-                return _buildWeightChart(progressList);
-              },
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
-              ),
-              error: (_, __) => const Text(
-                'Erro ao carregar dados de progresso',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
-            const SizedBox(height: 24),
-            _buildProgressPhotos(user.uid, progressAsync),
-            const SizedBox(height: 16),
-            // ── Comparação Antes/Depois ──
-            _buildComparisonButton(user.uid, progressAsync),
-            const SizedBox(height: 24),
-            // ── Pagamentos e Faturas ──
             _buildPaymentsSection(user.uid),
           ],
         ),
@@ -185,46 +144,51 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
           ],
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.camera_alt,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Avaliação Pendente!',
-                    style: GoogleFonts.montserrat(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 430;
+            final info = Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'O teu personal trainer pediu a tua avaliação mensal.',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: Colors.white.withValues(alpha: 0.9),
-                    ),
+                  child: const Icon(
+                    Icons.camera_alt,
+                    color: Colors.white,
+                    size: 20,
                   ),
-                ],
-              ),
-            ),
-            ElevatedButton(
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Avaliação Pendente!',
+                        style: GoogleFonts.montserrat(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'O teu personal trainer pediu a tua avaliação mensal.',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: Colors.white.withValues(alpha: 0.9),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+            final submitButton = ElevatedButton(
               onPressed: () {
                 Navigator.push(
                   context,
@@ -239,10 +203,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 );
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: AppColors.primary,
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(0, 50),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 15,
+                ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(11),
                 ),
               ),
               child: Text(
@@ -252,8 +222,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   fontSize: 13,
                 ),
               ),
-            ),
-          ],
+            );
+            if (compact) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  info,
+                  const SizedBox(height: 12),
+                  Align(alignment: Alignment.centerRight, child: submitButton),
+                ],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(child: info),
+                const SizedBox(width: 12),
+                submitButton,
+              ],
+            );
+          },
         ),
       ),
     );
@@ -262,45 +249,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget _buildProfileHeader(UserModel user) {
     return Column(
       children: [
-        GestureDetector(
-          onTap: () => _changeProfilePhoto(user.uid),
-          child: Stack(
-            children: [
-              CircleAvatar(
-                radius: 50,
-                backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-                backgroundImage: user.fotoPerfil != null
-                    ? NetworkImage(user.fotoPerfil!)
-                    : null,
-                child: user.fotoPerfil == null
-                    ? Text(
-                        user.nome.isNotEmpty ? user.nome[0].toUpperCase() : '?',
-                        style: GoogleFonts.montserrat(
-                          fontSize: 36,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primary,
-                        ),
-                      )
-                    : null,
-              ),
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
+        CircleAvatar(
+          radius: 50,
+          backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+          backgroundImage: user.fotoPerfil != null
+              ? NetworkImage(user.fotoPerfil!)
+              : null,
+          child: user.fotoPerfil == null
+              ? Text(
+                  user.nome.isNotEmpty ? user.nome[0].toUpperCase() : '?',
+                  style: GoogleFonts.montserrat(
+                    fontSize: 36,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.primary,
-                    shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.camera_alt,
-                    size: 16,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
+                )
+              : null,
         ),
         const SizedBox(height: 12),
         Text(
@@ -324,32 +288,38 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildQuickMetrics(UserModel user) {
-    return Row(
-      children: [
-        Expanded(
-          child: _metricCard(
-            'Peso',
-            user.pesoAtual != null ? '${user.pesoAtual} kg' : '--',
-            Icons.monitor_weight,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _metricCard(
-            'Altura',
-            user.altura != null ? '${user.altura} cm' : '--',
-            Icons.height,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _metricCard(
-            'IMC',
-            user.imc != null ? user.imc!.toStringAsFixed(1) : '--',
-            Icons.calculate,
-          ),
-        ),
-      ],
+    final metrics = [
+      (
+        label: 'Peso',
+        value: user.pesoAtual != null ? '${user.pesoAtual} kg' : '--',
+        icon: Icons.monitor_weight,
+      ),
+      (
+        label: 'Altura',
+        value: user.altura != null ? '${user.altura} cm' : '--',
+        icon: Icons.height,
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const columns = 2;
+        final gap = 12.0;
+        final itemWidth = columns == 2
+            ? (constraints.maxWidth - gap) / columns
+            : (constraints.maxWidth - (gap * 2)) / columns;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final metric in metrics)
+              SizedBox(
+                width: itemWidth,
+                child: _metricCard(metric.label, metric.value, metric.icon),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -428,8 +398,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               'Altura',
               user.altura != null ? '${user.altura} cm' : 'Não definida',
             ),
-            if (user.imcCategory != null)
-              _infoRow('Categoria IMC', user.imcCategory!),
           ],
         ),
       ),
@@ -449,15 +417,162 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               fontSize: 14,
             ),
           ),
-          Text(
-            value,
-            style: GoogleFonts.inter(
-              fontWeight: FontWeight.w500,
-              color: AppColors.onSurface,
-              fontSize: 14,
+          Flexible(
+            child: Text(
+              value,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.end,
+              style: GoogleFonts.inter(
+                fontWeight: FontWeight.w500,
+                color: AppColors.onSurface,
+                fontSize: 14,
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildProgressComparisonCard(
+    UserModel user,
+    AsyncValue<List<ProgressModel>> progressAsync,
+  ) {
+    final comparisonUrls = progressAsync.maybeWhen(
+      data: (list) {
+        final withPhotos =
+            list
+                .where(
+                  (progress) =>
+                      progress.fotos.any((url) => url.trim().isNotEmpty),
+                )
+                .toList()
+              ..sort((a, b) => a.data.compareTo(b.data));
+
+        String? firstPhoto(ProgressModel progress) {
+          for (final url in progress.fotos) {
+            final trimmed = url.trim();
+            if (trimmed.isNotEmpty) return trimmed;
+          }
+          return null;
+        }
+
+        if (withPhotos.length >= 2) {
+          return (
+            before: firstPhoto(withPhotos.first),
+            after: firstPhoto(withPhotos.last),
+          );
+        }
+
+        // Mantém o comportamento anterior quando existe apenas um registo de
+        // progresso: a foto do perfil funciona como imagem inicial.
+        final progressPhoto = withPhotos.isEmpty
+            ? null
+            : firstPhoto(withPhotos.first);
+        final profilePhoto = user.fotoPerfil?.trim();
+        return (
+          before: profilePhoto == null || profilePhoto.isEmpty
+              ? null
+              : profilePhoto,
+          after: progressPhoto,
+        );
+      },
+      orElse: () => (before: null, after: null),
+    );
+    final initialUrl = comparisonUrls.before;
+    final latestUrl = comparisonUrls.after;
+    final hasPhotos =
+        initialUrl != null &&
+        initialUrl.isNotEmpty &&
+        latestUrl != null &&
+        latestUrl.isNotEmpty &&
+        initialUrl != latestUrl;
+
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: hasPhotos
+            ? () => _showProgressComparison(initialUrl!, latestUrl!)
+            : null,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: hasPhotos
+                  ? AppColors.primary.withValues(alpha: 0.34)
+                  : AppColors.outline,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.compare_arrows_rounded,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Progresso',
+                      style: GoogleFonts.montserrat(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      hasPhotos
+                          ? 'Compara as fotos e acompanha a tua evolução.'
+                          : 'O comparador ficará disponível após a primeira foto de progresso.',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextButton.icon(
+                      onPressed: hasPhotos
+                          ? () =>
+                                _showProgressComparison(initialUrl!, latestUrl!)
+                          : null,
+                      icon: const Icon(Icons.compare_arrows_rounded, size: 17),
+                      label: const Text('Comparar progresso'),
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 36),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                hasPhotos
+                    ? Icons.arrow_forward_ios_rounded
+                    : Icons.lock_outline_rounded,
+                size: 16,
+                color: AppColors.textSecondary,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -528,82 +643,120 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       orElse: () => <({String foto, DateTime data})>[],
     );
 
-    if (photos.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          AppStrings.progressPhotos,
-          style: GoogleFonts.montserrat(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: AppColors.onSurface,
-          ),
-        ),
-        const SizedBox(height: 12),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-          ),
-          itemCount: photos.length + 1,
-          itemBuilder: (_, index) {
-            if (index == photos.length) {
-              return GestureDetector(
-                onTap: () => _addProgressPhoto(userId),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: AppColors.primary.withValues(alpha: 0.3),
-                      width: 2,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.add_a_photo,
-                    color: AppColors.primary,
-                    size: 28,
-                  ),
-                ),
-              );
-            }
-            final photo = photos[index];
-            return GestureDetector(
-              onTap: () => _openPhotoViewer(photos, index),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: Image.network(
-                  photo.foto,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (_, child, progress) {
-                    if (progress == null) return child;
-                    return Container(
-                      color: AppColors.surfaceHigh,
-                      child: const Center(
-                        child: CircularProgressIndicator(
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    );
-                  },
-                  errorBuilder: (_, __, ___) => Container(
-                    color: AppColors.surfaceHigh,
-                    child: const Icon(
-                      Icons.broken_image,
-                      color: AppColors.error,
-                    ),
-                  ),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.photo_library_outlined,
+                color: AppColors.primary,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                AppStrings.progressPhotos,
+                style: GoogleFonts.montserrat(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.onSurface,
                 ),
               ),
-            );
-          },
-        ),
-      ],
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            photos.isEmpty
+                ? 'As tuas fotos de evolução aparecerão aqui.'
+                : 'Toca numa foto para a veres em detalhe.',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (photos.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceHigh,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: AppColors.outline.withValues(alpha: 0.7),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.photo_camera_back_outlined,
+                    size: 30,
+                    color: AppColors.textSecondary.withValues(alpha: 0.45),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Ainda não existem fotos de progresso.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+              ),
+              itemCount: photos.length,
+              itemBuilder: (_, index) {
+                final photo = photos[index];
+                return GestureDetector(
+                  onTap: () => _openPhotoViewer(photos, index),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: Image.network(
+                      photo.foto,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (_, child, progress) {
+                        if (progress == null) return child;
+                        return Container(
+                          color: AppColors.surfaceHigh,
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        );
+                      },
+                      errorBuilder: (_, __, ___) => Container(
+                        color: AppColors.surfaceHigh,
+                        child: const Icon(
+                          Icons.broken_image,
+                          color: AppColors.error,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
     );
   }
 
@@ -777,7 +930,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       context: context,
       builder: (ctx) => SimpleDialog(
         backgroundColor: AppColors.surfaceHigh,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Alterar foto',
           style: GoogleFonts.montserrat(
@@ -880,48 +1033,41 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     String userId,
     AsyncValue<List<ProgressModel>> progressAsync,
   ) {
-    final withPhotos = progressAsync.maybeWhen(
-      data: (list) => list.where((p) => p.fotos.isNotEmpty).toList(),
-      orElse: () => <ProgressModel>[],
-    );
-
-    if (withPhotos.length < 2) return const SizedBox.shrink();
-
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: () => _showProgressComparison(withPhotos),
-        icon: const Icon(Icons.compare, size: 16),
-        label: const Text('COMPARAR ANTES / DEPOIS'),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primary,
-          side: BorderSide(color: AppColors.primary.withValues(alpha: 0.5)),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-        ),
-      ),
-    );
+    // Mantido apenas para compatibilidade interna; a comparação agora é
+    // apresentada diretamente no cartão de evolução visual.
+    return const SizedBox.shrink();
   }
 
-  void _showProgressComparison(List<ProgressModel> withPhotos) {
-    final int beforeIdx = withPhotos.length - 1;
-    final int afterIdx = 0;
+  void _showProgressComparison(String initialUrl, String latestUrl) {
+    // O AlertDialog faz uma passagem de dimensões intrínsecas. Um
+    // LayoutBuilder diretamente no conteúdo não é compatível com essa
+    // passagem no Flutter Web, por isso calculamos o tamanho antes de abrir
+    // o diálogo e passamos limites concretos ao slider.
+    final screenSize = MediaQuery.sizeOf(context);
+    // O AlertDialog reserva cerca de 40 px de cada lado por defeito.
+    // Descontamos esse espaço para evitar overflow em ecrãs estreitos.
+    final availableWidth = (screenSize.width - 80).clamp(1.0, double.infinity);
+    final dialogWidth = availableWidth.clamp(1.0, 560.0).toDouble();
+    final sliderHeight = (dialogWidth * 1.08).clamp(220.0, 420.0).toDouble();
 
     showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.surfaceHigh,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          title: Row(
-            children: [
-              const Icon(Icons.compare, color: AppColors.primary, size: 20),
-              const SizedBox(width: 8),
-              Text(
+      animationStyle: const AnimationStyle(
+        duration: Duration(milliseconds: 260),
+        reverseDuration: Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      ),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceHigh,
+        scrollable: true,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.compare, color: AppColors.primary, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
                 'Comparação Antes / Depois',
                 style: GoogleFonts.montserrat(
                   color: AppColors.onSurface,
@@ -929,69 +1075,64 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   fontSize: 16,
                 ),
               ),
-            ],
-          ),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'ANTES',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.barlowCondensed(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'DEPOIS',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.barlowCondensed(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ImageComparisonSlider(
-                  beforeImage: withPhotos[beforeIdx].fotos.first,
-                  afterImage: withPhotos[afterIdx].fotos.first,
-                  height: 280,
-                  dividerColor: AppColors.primary,
-                ),
-                if (withPhotos[beforeIdx].peso != null &&
-                    withPhotos[afterIdx].peso != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Diferença: ${(withPhotos[afterIdx].peso! - withPhotos[beforeIdx].peso!).toStringAsFixed(1)} kg',
-                    style: GoogleFonts.montserrat(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Fechar'),
             ),
           ],
         ),
+        content: SizedBox(
+          width: dialogWidth,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'ANTES',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.barlowCondensed(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'DEPOIS',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.barlowCondensed(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: dialogWidth,
+                height: sliderHeight,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: ImageComparisonSlider(
+                    beforeImage: initialUrl,
+                    afterImage: latestUrl,
+                    height: sliderHeight,
+                    dividerColor: AppColors.primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Fechar'),
+          ),
+        ],
       ),
     );
   }
@@ -1155,7 +1296,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceHigh,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           AppStrings.editProfile,
           style: GoogleFonts.montserrat(
@@ -1300,7 +1441,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             style: TextButton.styleFrom(
-              foregroundColor: AppColors.onSurfaceVariant,
+              foregroundColor: Colors.white,
+              backgroundColor: AppColors.surfaceHighest.withValues(alpha: 0.42),
+              minimumSize: const Size(0, 48),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(11),
+              ),
             ),
             child: Text(
               AppStrings.cancel,
@@ -1311,9 +1458,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.textOnPrimary,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(0, 50),
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(11),
               ),
             ),
             child: Text(

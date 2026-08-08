@@ -94,5 +94,41 @@ void main() {
       expect(user.imc, isNull);
       expect(user.imcCategory, isNull);
     });
+
+    test('perfil inativo não tem acesso', () {
+      final user = UserModel(
+        uid: uid,
+        nome: nome,
+        email: email,
+        isActive: false,
+      );
+
+      expect(user.accessStatus, 'Inativo');
+      expect(user.isAccessAllowed, isFalse);
+    });
+
+    test('contrato futuro mantém acesso e é identificado como agendado', () {
+      final user = UserModel(
+        uid: uid,
+        nome: nome,
+        email: email,
+        contractEndsAt: DateTime.now().add(const Duration(days: 7)),
+      );
+
+      expect(user.accessStatus, 'Termina em breve');
+      expect(user.isAccessAllowed, isTrue);
+    });
+
+    test('contrato expirado bloqueia acesso', () {
+      final user = UserModel(
+        uid: uid,
+        nome: nome,
+        email: email,
+        contractEndsAt: DateTime.now().subtract(const Duration(minutes: 1)),
+      );
+
+      expect(user.accessStatus, 'Contrato terminado');
+      expect(user.isAccessAllowed, isFalse);
+    });
   });
 }

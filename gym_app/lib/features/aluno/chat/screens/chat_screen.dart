@@ -6,10 +6,12 @@ import 'package:riverpod/legacy.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../data/models/message_model.dart';
 import '../../../../data/models/group_model.dart';
+import '../../../../data/repositories/group_repository.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/app_notification.dart';
@@ -17,9 +19,9 @@ import '../../../../shared/widgets/audio_message_player.dart';
 import '../../../../shared/widgets/audio_record_button.dart';
 import '../../../../core/services/audio_recording_model.dart';
 import '../../../../shared/utils/audio_chat_message.dart';
+import '../../../../shared/utils/chat_attachment.dart';
 import '../../../../shared/utils/new_message_detector.dart';
 import 'group_chat_screen.dart';
-import '../../../../shared/widgets/app_design_system.dart';
 
 final chatMessagesProvider = StreamProvider.family<List<MessageModel>, String>((
   ref,
@@ -31,12 +33,28 @@ final chatMessagesProvider = StreamProvider.family<List<MessageModel>, String>((
 
 /// Provider estável dos grupos do aluno. Não criar providers dentro de build:
 /// cada rebuild recriava a consulta e podia entrar num ciclo de listeners.
+Future<List<GroupModel>> _loadStudentGroups(
+  GroupRepository repository,
+  String userId,
+) async {
+  if (userId.isEmpty) return const <GroupModel>[];
+
+  try {
+    // O timeout evita que a aba fique presa no loading quando a ligação ao
+    // Firestore está indisponível. Nesse caso a UI apresenta o estado vazio.
+    return await repository
+        .getMyGroups(userId)
+        .timeout(const Duration(seconds: 3));
+  } catch (_) {
+    return const <GroupModel>[];
+  }
+}
+
 final alunoGroupsProvider = FutureProvider.family<List<GroupModel>, String>((
   ref,
   userId,
 ) {
-  if (userId.isEmpty) return Future.value(const <GroupModel>[]);
-  return ref.read(groupRepositoryProvider).getMyGroups(userId);
+  return _loadStudentGroups(ref.read(groupRepositoryProvider), userId);
 });
 
 /// Ecrã de chat — Kinetic Dark.
@@ -66,7 +84,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
   final _focusNode = FocusNode();
+  final _imagePicker = ImagePicker();
   bool _isFocused = false;
+  bool _isRecording = false;
+  bool _scrollCallbackScheduled = false;
   Timer? _typingDebounce;
   bool _typingSent = false;
   String? _fetchedPartnerPhoto;
@@ -196,13 +217,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
+  void _scheduleScrollToBottom() {
+    if (_scrollCallbackScheduled) return;
+    _scrollCallbackScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollCallbackScheduled = false;
+      if (mounted) _scrollToBottom();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final userId = authState.user?.uid ?? '';
-    final otherId = widget.chatPartnerId ?? authState.user?.personalId ?? '';
+    // A aba do aluno começa sempre na lista de conversas. Só uma instância
+    // criada com chatPartnerId representa uma conversa aberta.
+    final isDirectConversation =
+        widget.chatPartnerId != null && widget.chatPartnerId!.isNotEmpty;
+    if (!isDirectConversation) {
+      return _buildChatList(userId);
+    }
 
-    if (otherId.isEmpty || otherId == userId) {
+    final otherId = widget.chatPartnerId!;
+    if (otherId == userId) {
       return _buildChatList(userId);
     }
 
@@ -216,6 +253,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         .watch(chatRepositoryProvider)
         .typingStream(salaId, userId);
     final userName = authState.user?.nome ?? '';
+    // A conversa principal do aluno é com a Sara Gameiro. No Admin, o nome
+    // real do aluno continua a chegar por chatPartnerName.
     final adminName = 'Sara Gameiro';
     final isStudent = !(authState.user?.isAdmin ?? false);
 
@@ -233,43 +272,58 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        // Botão explícito: esta conversa é uma rota independente no mobile.
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          tooltip: 'Voltar às conversas',
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        title: Row(
           children: [
-            Text(
-              otherName,
-              style: GoogleFonts.montserrat(
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
-                color: AppColors.onSurface,
-              ),
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+              backgroundImage: partnerPhoto != null
+                  ? NetworkImage(partnerPhoto)
+                  : null,
+              child: partnerPhoto == null
+                  ? Text(
+                      otherInitials,
+                      style: GoogleFonts.montserrat(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                      ),
+                    )
+                  : null,
             ),
-            Text(
-              otherSubtitle,
-              style: GoogleFonts.inter(
-                fontSize: 11,
-                color: AppColors.primary,
-                fontWeight: FontWeight.w500,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    otherName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.montserrat(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
+                  Text(
+                    otherSubtitle,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
-        ),
-        leading: CircleAvatar(
-          radius: 16,
-          backgroundColor: AppColors.primary.withValues(alpha: 0.15),
-          backgroundImage: partnerPhoto != null
-              ? NetworkImage(partnerPhoto)
-              : null,
-          child: partnerPhoto == null
-              ? Text(
-                  otherInitials,
-                  style: GoogleFonts.montserrat(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
-                  ),
-                )
-              : null,
         ),
       ),
       body: Column(
@@ -278,9 +332,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             child: messagesAsync.when(
               data: (messages) {
                 detectNewMessages(messages, userId, playSound: false);
-                WidgetsBinding.instance.addPostFrameCallback(
-                  (_) => _scrollToBottom(),
-                );
+                _scheduleScrollToBottom();
                 if (messages.isEmpty) {
                   return Center(
                     child: Text(
@@ -393,6 +445,98 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   Widget _buildMessageInput(String salaId, String userId) {
+    final messageControls = Row(
+      key: const ValueKey('message_composer'),
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        IconButton(
+          onPressed: () => _sendAttachment(salaId, userId),
+          icon: const Icon(Icons.attach_file_rounded),
+          color: AppColors.textSecondary,
+          tooltip: 'Enviar imagem',
+          style: IconButton.styleFrom(
+            backgroundColor: AppColors.surface,
+            minimumSize: const Size(44, 44),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: _isFocused
+                    ? AppColors.primary.withValues(alpha: 0.4)
+                    : AppColors.outline.withValues(alpha: 0.3),
+              ),
+              boxShadow: _isFocused
+                  ? [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.08),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: TextField(
+              controller: _textController,
+              focusNode: _focusNode,
+              maxLines: 4,
+              minLines: 1,
+              textCapitalization: TextCapitalization.sentences,
+              style: GoogleFonts.inter(
+                color: AppColors.onSurface,
+                fontSize: 14,
+              ),
+              decoration: InputDecoration(
+                hintText: AppStrings.typeMessage,
+                hintStyle: GoogleFonts.inter(
+                  color: AppColors.outlineVariant,
+                  fontSize: 14,
+                ),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: () => _sendMessage(salaId, userId),
+            child: Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.22),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.send_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
       decoration: BoxDecoration(
@@ -400,6 +544,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         border: Border(
           top: BorderSide(color: AppColors.outline.withValues(alpha: 0.5)),
         ),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
             color: AppColors.surfaceLowest.withValues(alpha: 0.35),
@@ -409,94 +554,49 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ],
       ),
       child: SafeArea(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(
-                    color: _isFocused
-                        ? AppColors.primary.withValues(alpha: 0.4)
-                        : AppColors.outline.withValues(alpha: 0.3),
-                  ),
-                  boxShadow: _isFocused
-                      ? [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(alpha: 0.08),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: TextField(
-                  controller: _textController,
-                  focusNode: _focusNode,
-                  maxLines: 4,
-                  minLines: 1,
-                  textCapitalization: TextCapitalization.sentences,
-                  style: GoogleFonts.inter(
-                    color: AppColors.onSurface,
-                    fontSize: 14,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: AppStrings.typeMessage,
-                    hintStyle: GoogleFonts.inter(
-                      color: AppColors.outlineVariant,
-                      fontSize: 14,
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            AudioRecordButton(
-              color: AppColors.surface,
-              iconColor: AppColors.primary,
-              onAudioReady: (audio) => _sendAudio(salaId, userId, audio),
-            ),
-            const SizedBox(width: 4),
-            Material(
-              color: Colors.transparent,
-              shape: const CircleBorder(),
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: () => _sendMessage(salaId, userId),
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppColors.primary, Color(0xFFD81B60)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SizedBox(
+              height: 54,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Positioned.fill(
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 54),
+                      child: IgnorePointer(
+                        ignoring: _isRecording,
+                        child: AnimatedOpacity(
+                          opacity: _isRecording ? 0 : 1,
+                          duration: const Duration(milliseconds: 160),
+                          child: messageControls,
+                        ),
                       ),
-                    ],
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.send_rounded,
-                    color: Colors.white,
-                    size: 18,
+                  Align(
+                    alignment: _isRecording
+                        ? Alignment.center
+                        : Alignment.centerRight,
+                    child: SizedBox(
+                      width: _isRecording ? constraints.maxWidth : 50,
+                      height: 54,
+                      child: AudioRecordButton(
+                        fullWidth: true,
+                        color: AppColors.surface,
+                        iconColor: AppColors.primary,
+                        onRecordingChanged: (recording) {
+                          if (mounted) setState(() => _isRecording = recording);
+                        },
+                        onAudioReady: (audio) =>
+                            _sendAudio(salaId, userId, audio),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -517,12 +617,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const AppPageIntro(
-              eyebrow: 'Comunicação',
-              title: 'Fala com a tua equipa',
-              subtitle: 'Mantém o contacto com o teu PT e acompanha os grupos.',
+            Text(
+              'Conversas',
+              style: GoogleFonts.montserrat(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: AppColors.onSurface,
+              ),
             ),
-            const SizedBox(height: 26),
+            const SizedBox(height: 22),
             // ── PT Chat ──
             if (hasPT) ...[
               Text(
@@ -624,7 +727,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   child: CircularProgressIndicator(color: AppColors.primary),
                 ),
               ),
-              error: (_, __) => const SizedBox.shrink(),
+              error: (_, __) => _buildEmptyGroupsState(
+                message: 'Não existem grupos disponíveis.',
+              ),
             ),
             if (!hasPT) ...[
               const SizedBox(height: 24),
@@ -661,6 +766,45 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyGroupsState({required String message}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.group_outlined,
+            size: 32,
+            color: AppColors.textSecondary.withValues(alpha: 0.3),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'O teu PT pode criar grupos para troca de horários.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              color: AppColors.textSecondary.withValues(alpha: 0.6),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -773,7 +917,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           child: Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppColors.outline),
             ),
             child: Row(
@@ -853,6 +997,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (diff.inHours < 24) return DateFormat('HH:mm').format(dt);
     if (diff.inDays < 7) return DateFormat('EEE', 'pt').format(dt);
     return DateFormat('dd/MM').format(dt);
+  }
+
+  Future<void> _sendAttachment(String salaId, String userId) async {
+    try {
+      final file = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 88,
+        maxWidth: 1800,
+      );
+      if (file == null) return;
+      final message = await createUploadedImageMessage(
+        storage: ref.read(storageDataSourceProvider),
+        senderId: userId,
+        chatId: salaId,
+        file: file,
+      );
+      await ref.read(chatRepositoryProvider).sendMessage(salaId, message);
+      _notifyChat(salaId, userId, '[Imagem]');
+    } catch (error) {
+      debugPrint('Erro ao enviar anexo: $error');
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Não foi possível enviar o anexo.',
+          type: NotificationType.error,
+        );
+      }
+    }
   }
 
   Future<void> _sendAudio(
@@ -1045,6 +1217,23 @@ class _MessageBubble extends StatelessWidget {
                               : AppColors.secondary,
                           inactiveColor: AppColors.textSecondary,
                           durationMs: message.audioDurationMs,
+                        )
+                      else if (message.isAttachment)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.network(
+                            message.attachmentUrl!,
+                            width: 210,
+                            height: 170,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const SizedBox(
+                              width: 210,
+                              height: 170,
+                              child: Center(
+                                child: Icon(Icons.broken_image_outlined),
+                              ),
+                            ),
+                          ),
                         )
                       else
                         Text(

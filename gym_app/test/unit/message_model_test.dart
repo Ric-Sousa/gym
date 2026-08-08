@@ -60,7 +60,10 @@ void main() {
       });
 
       expect(iso.timestamp, DateTime.parse('2026-07-23T14:30:00.000Z'));
-      expect(millis.timestamp, DateTime.fromMillisecondsSinceEpoch(1780000000000));
+      expect(
+        millis.timestamp,
+        DateTime.fromMillisecondsSinceEpoch(1780000000000),
+      );
     });
 
     test('toMap converte para mapa corretamente', () {
@@ -115,6 +118,25 @@ void main() {
       expect(audio.audioDurationMs, 4200);
       expect(audio.toMap()['audioUrl'], 'https://example.com/audio.m4a');
       expect(audio.toMap()['audioDurationMs'], 4200);
+    });
+
+    test('reconhece e serializa anexos de imagem', () {
+      final image = MessageModel.fromMap('image1', {
+        'remetenteId': remetenteId,
+        'texto': '',
+        'timestamp': timestamp,
+        'lida': false,
+        'attachmentUrl': 'https://example.com/image.jpg',
+        'attachmentName': 'image.jpg',
+        'attachmentType': 'image/jpeg',
+      });
+
+      expect(image.isAttachment, true);
+      expect(image.attachmentUrl, 'https://example.com/image.jpg');
+      expect(image.attachmentName, 'image.jpg');
+      expect(image.attachmentType, 'image/jpeg');
+      expect(image.toMap()['attachmentUrl'], 'https://example.com/image.jpg');
+      expect(image.toMap()['texto'], isEmpty);
     });
 
     test('construtor usa id vazio por padrão', () {

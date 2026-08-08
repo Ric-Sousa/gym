@@ -4,6 +4,7 @@ import 'package:riverpod/legacy.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import '../../../../core/config/app_colors.dart';
 import '../../../../data/models/group_model.dart';
@@ -14,6 +15,7 @@ import '../../../../shared/widgets/app_notification.dart';
 import '../../../../shared/widgets/audio_message_player.dart';
 import '../../../../shared/widgets/audio_record_button.dart';
 import '../../../../shared/utils/audio_chat_message.dart';
+import '../../../../shared/utils/chat_attachment.dart';
 import '../../../../shared/utils/new_message_detector.dart';
 import '../../../../shared/widgets/app_design_system.dart';
 
@@ -38,7 +40,10 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
     with NewMessageDetector {
   final _textCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
+  final _imagePicker = ImagePicker();
   bool _sending = false;
+  bool _isRecording = false;
+  bool _scrollCallbackScheduled = false;
   // Guardado localmente porque ref fica invalido no dispose
   StateController<bool>? _chatNotifier;
 
@@ -83,6 +88,11 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          tooltip: 'Voltar às conversas',
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
         leadingWidth: 56,
         titleSpacing: 0,
         title: Row(
@@ -255,7 +265,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
       );
     }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    _scheduleScrollToBottom();
 
     return ListView.builder(
       controller: _scrollCtrl,
@@ -274,6 +284,15 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
         curve: Curves.easeOut,
       );
     }
+  }
+
+  void _scheduleScrollToBottom() {
+    if (_scrollCallbackScheduled) return;
+    _scrollCallbackScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollCallbackScheduled = false;
+      if (mounted) _scrollToBottom();
+    });
   }
 
   Widget _messageBubble(MessageModel msg, MessageModel? previous) {
@@ -351,6 +370,23 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                               : AppColors.textSecondary,
                           durationMs: msg.audioDurationMs,
                         )
+                      : msg.isAttachment
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Image.network(
+                            msg.attachmentUrl!,
+                            width: 210,
+                            height: 170,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const SizedBox(
+                              width: 210,
+                              height: 170,
+                              child: Center(
+                                child: Icon(Icons.broken_image_outlined),
+                              ),
+                            ),
+                          ),
+                        )
                       : Text(
                           msg.texto,
                           style: GoogleFonts.inter(
@@ -383,6 +419,94 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
   }
 
   Widget _buildInputBar() {
+    final messageControls = Row(
+      key: const ValueKey('group_message_controls'),
+      children: [
+        IconButton(
+          onPressed: _sending ? null : _sendAttachment,
+          icon: const Icon(Icons.attach_file_rounded),
+          color: AppColors.textSecondary,
+          tooltip: 'Enviar imagem',
+          style: IconButton.styleFrom(
+            backgroundColor: AppColors.surfaceHigh,
+            minimumSize: const Size(44, 44),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(
+          child: TextField(
+            controller: _textCtrl,
+            style: GoogleFonts.inter(color: AppColors.onSurface, fontSize: 14),
+            decoration: InputDecoration(
+              hintText: 'Mensagem...',
+              hintStyle: GoogleFonts.inter(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 18,
+                vertical: 12,
+              ),
+              filled: true,
+              fillColor: AppColors.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: AppColors.outline.withValues(alpha: 0.35),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: AppColors.outline.withValues(alpha: 0.35),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: AppColors.primary.withValues(alpha: 0.55),
+                  width: 1.4,
+                ),
+              ),
+            ),
+            textInputAction: TextInputAction.send,
+            onSubmitted: (_) => _sendMessage(),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Container(
+          width: 50,
+          height: 50,
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.24),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 50, height: 50),
+            icon: _sending
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.send, color: Colors.white, size: 18),
+            onPressed: _sending ? null : _sendMessage,
+          ),
+        ),
+      ],
+    );
+
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
       decoration: BoxDecoration(
@@ -390,6 +514,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
         border: Border(
           top: BorderSide(color: AppColors.outline.withValues(alpha: 0.5)),
         ),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
             color: AppColors.surfaceLowest.withValues(alpha: 0.35),
@@ -399,94 +524,84 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
         ],
       ),
       child: SafeArea(
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _textCtrl,
-                style: GoogleFonts.inter(
-                  color: AppColors.onSurface,
-                  fontSize: 14,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Mensagem...',
-                  hintStyle: GoogleFonts.inter(
-                    color: AppColors.textSecondary,
-                    fontSize: 14,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 12,
-                  ),
-                  filled: true,
-                  fillColor: AppColors.surface,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(22),
-                    borderSide: BorderSide(
-                      color: AppColors.outline.withValues(alpha: 0.35),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SizedBox(
+              height: 54,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Positioned.fill(
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 54),
+                      child: IgnorePointer(
+                        ignoring: _isRecording,
+                        child: AnimatedOpacity(
+                          opacity: _isRecording ? 0 : 1,
+                          duration: const Duration(milliseconds: 160),
+                          child: messageControls,
+                        ),
+                      ),
                     ),
                   ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(22),
-                    borderSide: BorderSide(
-                      color: AppColors.outline.withValues(alpha: 0.35),
+                  Align(
+                    alignment: _isRecording
+                        ? Alignment.center
+                        : Alignment.centerRight,
+                    child: SizedBox(
+                      width: _isRecording ? constraints.maxWidth : 50,
+                      height: 54,
+                      child: AudioRecordButton(
+                        fullWidth: true,
+                        color: AppColors.surfaceHigh,
+                        iconColor: AppColors.primary,
+                        enabled: !_sending,
+                        onRecordingChanged: (recording) {
+                          if (mounted) setState(() => _isRecording = recording);
+                        },
+                        onAudioReady: _sendAudio,
+                      ),
                     ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(22),
-                    borderSide: BorderSide(
-                      color: AppColors.primary.withValues(alpha: 0.55),
-                      width: 1.4,
-                    ),
-                  ),
-                ),
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _sendMessage(),
-              ),
-            ),
-            AudioRecordButton(
-              color: AppColors.surfaceHigh,
-              iconColor: AppColors.primary,
-              onAudioReady: _sendAudio,
-            ),
-            const SizedBox(width: 4),
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.24),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
-              child: IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints.tightFor(
-                  width: 44,
-                  height: 44,
-                ),
-                icon: _sending
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.send, color: Colors.white, size: 18),
-                onPressed: _sending ? null : _sendMessage,
-              ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
+  }
+
+  Future<void> _sendAttachment() async {
+    try {
+      final file = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 88,
+        maxWidth: 1800,
+      );
+      if (file == null) return;
+      setState(() => _sending = true);
+      final message = await createUploadedImageMessage(
+        storage: ref.read(storageDataSourceProvider),
+        senderId: _userId,
+        chatId: widget.group.id,
+        file: file,
+      );
+      await ref
+          .read(groupRepositoryProvider)
+          .sendMessage(widget.group.id, message.toMap());
+      _notifyGroup();
+    } catch (_) {
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Não foi possível enviar o anexo.',
+          type: NotificationType.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   Future<void> _sendAudio(RecordedAudio audio) async {

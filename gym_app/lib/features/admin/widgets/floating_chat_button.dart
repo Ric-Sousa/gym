@@ -578,6 +578,8 @@ class _ConversationListTile extends StatelessWidget {
                                 ? 'Inicia a conversa'
                                 : (lastMsg.isAudio
                                       ? 'Mensagem de áudio'
+                                      : lastMsg.isAttachment
+                                      ? 'Imagem anexada'
                                       : lastMsg.texto)),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -682,6 +684,8 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
   final ScrollController _scrollController = ScrollController();
   bool _isMarkingAsRead = false;
   bool _didInitialScroll = false;
+  bool _isRecording = false;
+  bool _scrollCallbackScheduled = false;
   DateTime? _lastVisibleMessageTimestamp;
   DateTime? _pendingReadAt;
   Timer? _readRetryTimer;
@@ -772,6 +776,20 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
         curve: Curves.easeOut,
       );
     }
+  }
+
+  void _scheduleScrollToBottom({bool jump = false}) {
+    if (_scrollCallbackScheduled) return;
+    _scrollCallbackScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollCallbackScheduled = false;
+      if (!mounted || !_scrollController.hasClients) return;
+      if (jump) {
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      } else {
+        _scrollToBottom();
+      }
+    });
   }
 
   Future<void> _sendAudio(RecordedAudio audio) async {
@@ -1004,13 +1022,7 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
                         _scrollController.position.maxScrollExtent - 100;
                 if (!_didInitialScroll || nearBottom) {
                   _didInitialScroll = true;
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (_scrollController.hasClients) {
-                      _scrollController.jumpTo(
-                        _scrollController.position.maxScrollExtent,
-                      );
-                    }
-                  });
+                  _scheduleScrollToBottom(jump: true);
                 }
 
                 if (messages.isEmpty) {
@@ -1099,76 +1111,130 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
           ),
           child: SafeArea(
             top: false,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    constraints: const BoxConstraints(maxHeight: 120),
-                    child: TextField(
-                      controller: _msgController,
-                      minLines: 1,
-                      maxLines: 3,
-                      textCapitalization: TextCapitalization.sentences,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _sendMessage(),
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        color: AdminThemeColors.of(context).text,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'Escreve uma mensagem...',
-                        hintStyle: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: AdminThemeColors.of(context).muted,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        filled: true,
-                        fillColor: AdminThemeColors.of(context).surface,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide(
-                            color: AdminThemeColors.of(
-                              context,
-                            ).lime.withValues(alpha: 0.4),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SizedBox(
+                  height: 54,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      Positioned.fill(
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 52),
+                          child: IgnorePointer(
+                            ignoring: _isRecording,
+                            child: AnimatedOpacity(
+                              opacity: _isRecording ? 0 : 1,
+                              duration: const Duration(milliseconds: 160),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      constraints: const BoxConstraints(
+                                        maxHeight: 120,
+                                      ),
+                                      child: TextField(
+                                        controller: _msgController,
+                                        minLines: 1,
+                                        maxLines: 3,
+                                        textCapitalization:
+                                            TextCapitalization.sentences,
+                                        textInputAction: TextInputAction.send,
+                                        onSubmitted: (_) => _sendMessage(),
+                                        style: GoogleFonts.inter(
+                                          fontSize: 13,
+                                          color: AdminThemeColors.of(
+                                            context,
+                                          ).text,
+                                        ),
+                                        decoration: InputDecoration(
+                                          hintText: 'Escreve uma mensagem...',
+                                          hintStyle: GoogleFonts.inter(
+                                            fontSize: 13,
+                                            color: AdminThemeColors.of(
+                                              context,
+                                            ).muted,
+                                          ),
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                                horizontal: 16,
+                                                vertical: 10,
+                                              ),
+                                          filled: true,
+                                          fillColor: AdminThemeColors.of(
+                                            context,
+                                          ).surface,
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              24,
+                                            ),
+                                            borderSide: BorderSide.none,
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              24,
+                                            ),
+                                            borderSide: BorderSide(
+                                              color: AdminThemeColors.of(
+                                                context,
+                                              ).lime.withValues(alpha: 0.4),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Material(
+                                    color: AdminThemeColors.of(context).lime,
+                                    shape: const CircleBorder(),
+                                    child: InkWell(
+                                      onTap: _sendMessage,
+                                      customBorder: const CircleBorder(),
+                                      child: Container(
+                                        width: 42,
+                                        height: 42,
+                                        alignment: Alignment.center,
+                                        child: Icon(
+                                          Icons.send_rounded,
+                                          color: AdminThemeColors.of(
+                                            context,
+                                          ).bg,
+                                          size: 19,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                AudioRecordButton(
-                  color: AdminThemeColors.of(context).surface,
-                  iconColor: AdminThemeColors.of(context).lime,
-                  onAudioReady: _sendAudio,
-                ),
-                const SizedBox(width: 4),
-                Material(
-                  color: AdminThemeColors.of(context).lime,
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    onTap: _sendMessage,
-                    customBorder: const CircleBorder(),
-                    child: Container(
-                      width: 42,
-                      height: 42,
-                      alignment: Alignment.center,
-                      child: Icon(
-                        Icons.send_rounded,
-                        color: AdminThemeColors.of(context).bg,
-                        size: 19,
+                      Align(
+                        alignment: _isRecording
+                            ? Alignment.center
+                            : Alignment.centerRight,
+                        child: SizedBox(
+                          width: _isRecording ? constraints.maxWidth : 44,
+                          height: 54,
+                          child: AudioRecordButton(
+                            fullWidth: true,
+                            color: AdminThemeColors.of(context).surface,
+                            iconColor: AdminThemeColors.of(context).lime,
+                            onRecordingChanged: (recording) {
+                              if (mounted) {
+                                setState(() => _isRecording = recording);
+                              }
+                            },
+                            onAudioReady: _sendAudio,
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ),
-              ],
+                );
+              },
             ),
           ),
         ),
@@ -1351,6 +1417,44 @@ class _ChatBubble extends StatelessWidget {
                   activeColor: theme.lime,
                   inactiveColor: theme.muted,
                   durationMs: msg.audioDurationMs,
+                )
+              else if (msg.isAttachment)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.network(
+                    msg.attachmentUrl!,
+                    width: 220,
+                    height: 170,
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, progress) {
+                      if (progress == null) return child;
+                      return SizedBox(
+                        width: 220,
+                        height: 170,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: theme.lime,
+                            value: progress.expectedTotalBytes == null
+                                ? null
+                                : progress.cumulativeBytesLoaded /
+                                      progress.expectedTotalBytes!,
+                          ),
+                        ),
+                      );
+                    },
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 220,
+                      height: 170,
+                      color: theme.surface,
+                      alignment: Alignment.center,
+                      child: Icon(
+                        Icons.broken_image_outlined,
+                        color: theme.muted,
+                        size: 30,
+                      ),
+                    ),
+                  ),
                 )
               else
                 Text(

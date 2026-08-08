@@ -12,5 +12,8 @@ class AudioRecordingService {
 
   Future<RecordedAudio?> stop() => _implementation.stop();
 
+  /// Stops the native recorder and discards the captured audio.
+  Future<void> cancel() => _implementation.cancel();
+
   Future<void> dispose() => _implementation.dispose();
 }

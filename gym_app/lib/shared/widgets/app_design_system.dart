@@ -7,11 +7,12 @@ import '../../core/config/admin_theme.dart';
 class AppDesignTokens {
   AppDesignTokens._();
 
-  static const radiusSmall = 12.0;
-  static const radiusMedium = 20.0;
-  static const radiusLarge = 28.0;
+  // Same proportions used by the Admin workspace.
+  static const radiusSmall = 11.0;
+  static const radiusMedium = 16.0;
+  static const radiusLarge = 24.0;
   static const pageGap = 20.0;
-  static const sectionGap = 28.0;
+  static const sectionGap = 22.0;
 }
 
 /// Superfície principal para secções de produto.
@@ -61,11 +62,89 @@ class AppSurface extends StatelessWidget {
       child: child,
     );
 
-    if (onTap == null) return content;
+    final animatedContent = ScrollReveal(child: content);
+    if (onTap == null) return animatedContent;
     return Material(
       color: Colors.transparent,
       borderRadius: borderRadius,
-      child: InkWell(onTap: onTap, borderRadius: borderRadius, child: content),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: borderRadius,
+        child: animatedContent,
+      ),
+    );
+  }
+}
+
+/// Revela conteúdo quando entra na área visível de um scroll.
+/// Não depende de plugins externos e pode ser usado dentro de qualquer
+/// ScrollView/ListView existente.
+class ScrollReveal extends StatefulWidget {
+  final Widget child;
+  final Duration duration;
+  final Duration delay;
+  final Offset beginOffset;
+
+  const ScrollReveal({
+    super.key,
+    required this.child,
+    this.duration = const Duration(milliseconds: 420),
+    this.delay = Duration.zero,
+    this.beginOffset = const Offset(0, 0.08),
+  });
+
+  @override
+  State<ScrollReveal> createState() => _ScrollRevealState();
+}
+
+class _ScrollRevealState extends State<ScrollReveal> {
+  bool _visible = false;
+  bool _visibilityScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkVisibility());
+  }
+
+  bool _checkVisibility() {
+    if (!mounted || _visible) return _visible;
+    final renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) return false;
+    final top = renderObject.localToGlobal(Offset.zero).dy;
+    final bottom = top + renderObject.size.height;
+    final height = MediaQuery.sizeOf(context).height;
+    if (bottom > 0 && top < height && !_visibilityScheduled) {
+      _visibilityScheduled = true;
+      Future<void>.delayed(widget.delay, () {
+        if (!mounted) return;
+        if (!_visible) setState(() => _visible = true);
+        _visibilityScheduled = false;
+      });
+    }
+    return _visible;
+  }
+
+  bool _onScroll(ScrollNotification notification) {
+    _checkVisibility();
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return NotificationListener<ScrollNotification>(
+      onNotification: _onScroll,
+      child: AnimatedOpacity(
+        opacity: _visible ? 1 : 0,
+        duration: widget.duration,
+        curve: Curves.easeOutCubic,
+        child: AnimatedSlide(
+          offset: _visible ? Offset.zero : widget.beginOffset,
+          duration: widget.duration,
+          curve: Curves.easeOutCubic,
+          child: widget.child,
+        ),
+      ),
     );
   }
 }
@@ -220,6 +299,34 @@ class AppStatusPill extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Mantém todas as páginas montadas sem pintar páginas invisíveis.
+/// A troca de aba é imediata para evitar que árvores pesadas (chat, calendário
+/// e formulários) concorram pelo frame durante a navegação.
+class AnimatedIndexedStack extends StatelessWidget {
+  final int index;
+  final List<Widget> children;
+
+  const AnimatedIndexedStack({
+    super.key,
+    required this.index,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        for (var i = 0; i < children.length; i++)
+          Offstage(
+            offstage: i != index,
+            child: TickerMode(enabled: i == index, child: children[i]),
+          ),
+      ],
     );
   }
 }
@@ -499,12 +606,19 @@ class AdminWorkspaceHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = AdminThemeColors.of(context);
     return Container(
-      padding: const EdgeInsets.fromLTRB(32, 22, 32, 18),
+      padding: const EdgeInsets.fromLTRB(32, 20, 28, 18),
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(
           bottom: BorderSide(color: colors.border.withValues(alpha: 0.75)),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: colors.shadow,
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -512,13 +626,41 @@ class AdminWorkspaceHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: GoogleFonts.montserrat(
-                    fontSize: 21,
-                    fontWeight: FontWeight.w800,
-                    color: colors.text,
-                  ),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.limeDim,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        'ADMIN',
+                        style: GoogleFonts.inter(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.1,
+                          color: colors.lime,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.montserrat(
+                          fontSize: 21,
+                          fontWeight: FontWeight.w800,
+                          color: colors.text,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 4),
                 Text(

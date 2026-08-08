@@ -32,32 +32,68 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     final trainerId = adminAuthState.user!.uid;
-    await tester.pumpWidget(createTestApp(
-      overrides: [
-        authProvider.overrideWith((ref) => MockAuthNotifier(adminAuthState)),
-        fcmServiceProvider.overrideWith((ref) => mockFcm),
-        alunosListProvider.overrideWith(
-          (ref) => Future.value(<UserModel>[]),
-        ),
-        adminDashboardStatsProvider.overrideWith(
-          (ref) => Future.value(
-            const AdminDashboardStats(
-              totalAlunos: 0,
-              activeAlunos: 0,
-              sessoesMes: 0,
-              sessoesTotal: 0,
+    await tester.pumpWidget(
+      createTestApp(
+        overrides: [
+          authProvider.overrideWith((ref) => MockAuthNotifier(adminAuthState)),
+          fcmServiceProvider.overrideWith((ref) => mockFcm),
+          alunosListProvider.overrideWith((ref) => Future.value(<UserModel>[])),
+          adminDashboardStatsProvider.overrideWith(
+            (ref) => Future.value(
+              const AdminDashboardStats(
+                totalAlunos: 0,
+                activeAlunos: 0,
+                sessoesMes: 0,
+                sessoesTotal: 0,
+              ),
             ),
           ),
-        ),
-        adminTrainerBookingsProvider(trainerId).overrideWith(
-          (ref) => Stream.value(<BookingModel>[]),
-        ),
-        adminStudentNamesProvider(trainerId).overrideWith(
-          (ref) => Future.value(<String, String>{}),
-        ),
-      ],
-      child: const AdminPanelScreen(),
-    ));
+          adminTrainerBookingsProvider(
+            trainerId,
+          ).overrideWith((ref) => Stream.value(<BookingModel>[])),
+          adminStudentNamesProvider(
+            trainerId,
+          ).overrideWith((ref) => Future.value(<String, String>{})),
+        ],
+        child: const AdminPanelScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> _pumpMobileAdmin(WidgetTester tester) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final trainerId = adminAuthState.user!.uid;
+    await tester.pumpWidget(
+      createTestApp(
+        overrides: [
+          authProvider.overrideWith((ref) => MockAuthNotifier(adminAuthState)),
+          fcmServiceProvider.overrideWith((ref) => mockFcm),
+          alunosListProvider.overrideWith((ref) => Future.value(<UserModel>[])),
+          adminDashboardStatsProvider.overrideWith(
+            (ref) => Future.value(
+              const AdminDashboardStats(
+                totalAlunos: 0,
+                activeAlunos: 0,
+                sessoesMes: 0,
+                sessoesTotal: 0,
+              ),
+            ),
+          ),
+          adminTrainerBookingsProvider(
+            trainerId,
+          ).overrideWith((ref) => Stream.value(<BookingModel>[])),
+          adminStudentNamesProvider(
+            trainerId,
+          ).overrideWith((ref) => Future.value(<String, String>{})),
+        ],
+        child: const AdminPanelScreen(),
+      ),
+    );
     await tester.pumpAndSettle();
   }
 
@@ -98,7 +134,9 @@ void main() {
 
     // ─── Agenda Tests ──────────────────────────────────────
 
-    testWidgets('dashboard renders AGENDA DA SEMANA card title', (tester) async {
+    testWidgets('dashboard renders AGENDA DA SEMANA card title', (
+      tester,
+    ) async {
       await _pumpLargeAdmin(tester);
       expect(find.text('AGENDA DA SEMANA'), findsOneWidget);
     });
@@ -108,13 +146,33 @@ void main() {
       expect(find.text('Agenda'), findsOneWidget);
     });
 
-    testWidgets('navigating to Agenda view renders AGENDA title', (tester) async {
+    testWidgets('navigating to Agenda view renders AGENDA title', (
+      tester,
+    ) async {
       await _pumpLargeAdmin(tester);
       // Tocar no item Agenda da sidebar
       await tester.tap(find.text('Agenda'));
       await tester.pumpAndSettle();
       // A view de agenda deve mostrar o título 'AGENDA'
       expect(find.text('AGENDA'), findsWidgets);
+    });
+
+    testWidgets('mobile drawer and Agenda fit a 320px viewport', (
+      tester,
+    ) async {
+      await _pumpMobileAdmin(tester);
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(find.byIcon(Icons.menu));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Agenda'), findsOneWidget);
+
+      await tester.tap(find.text('Agenda'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Agenda'), findsWidgets);
+      expect(tester.takeException(), isNull);
     });
   });
 }

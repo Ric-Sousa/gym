@@ -15,7 +15,6 @@ import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/app_notification.dart';
-import '../../../../shared/widgets/app_design_system.dart';
 
 final workoutPlansProvider =
     FutureProvider.family<List<WorkoutPlanModel>, String>((ref, userId) {
@@ -60,6 +59,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
   bool _initialized = false;
   String? _selectedWorkoutDay;
   bool _showPlanDetails = false;
+  int? _expandedPlanIndex;
   final Map<String, bool> _expandedExercises = {};
 
   @override
@@ -113,8 +113,8 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     _activeLog = log;
   }
 
-  Future<void> _saveLog() async {
-    if (_activeLog == null || _saving) return;
+  Future<void> _saveLog({bool readOnly = false}) async {
+    if (readOnly || _activeLog == null || _saving) return;
     _saving = true;
     final userId = ref.read(authProvider).user?.uid ?? '';
     final dateKey = DateFormat(
@@ -130,7 +130,12 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     _saving = false;
   }
 
-  void _toggleSerie(ExerciseLog exercise, int serieIdx) {
+  void _toggleSerie(
+    ExerciseLog exercise,
+    int serieIdx, {
+    bool readOnly = false,
+  }) {
+    if (readOnly) return;
     setState(() {
       final updatedSeries = exercise.series.toList();
       final s = updatedSeries[serieIdx];
@@ -144,15 +149,17 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       );
       _activeLog = _activeLog!.copyWith(exercicios: updatedExercises);
     });
-    _saveLog();
+    _saveLog(readOnly: readOnly);
   }
 
   void _updateSerieData(
     ExerciseLog exercise,
     int serieIdx,
     String field,
-    String value,
-  ) {
+    String value, {
+    bool readOnly = false,
+  }) {
+    if (readOnly) return;
     final numValue = double.tryParse(value.replaceAll(',', '.'));
     setState(() {
       final updatedSeries = exercise.series.toList();
@@ -178,7 +185,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       );
       _activeLog = _activeLog!.copyWith(exercicios: updatedExercises);
     });
-    _saveLog();
+    _saveLog(readOnly: readOnly);
   }
 
   void _startRestTimer(
@@ -221,7 +228,8 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     });
   }
 
-  Future<void> _completeWorkout() async {
+  Future<void> _completeWorkout({bool readOnly = false}) async {
+    if (readOnly) return;
     final userId = ref.read(authProvider).user?.uid ?? '';
     final today = DateFormat(AppConstants.dateFormat).format(DateTime.now());
     final dateKey = DateFormat(
@@ -265,7 +273,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       isScrollControlled: true,
       backgroundColor: AppColors.surfaceHigh,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => _VideoPlayerSheet(videoUrl: url, title: exerciseName),
     );
@@ -277,7 +285,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       isScrollControlled: true,
       backgroundColor: AppColors.surfaceHigh,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => DraggableScrollableSheet(
         expand: false,
@@ -389,16 +397,14 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
         children: [
           if (!(_showPlanDetails && _selectedWorkoutDay != null))
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 22, 20, 16),
-              child: AppPageIntro(
-                eyebrow: 'Plano de treino',
-                title: 'Treina com intenção',
-                subtitle:
-                    'Executa cada série, acompanha o descanso e regista a evolução.',
-                action: IconButton(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 2),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: IconButton(
                   onPressed: () => _showWorkoutHistory(userId),
                   icon: const Icon(Icons.history),
                   tooltip: AppStrings.workoutHistory,
+                  color: AppColors.textSecondary,
                 ),
               ),
             ),
@@ -485,7 +491,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                     Text(
                       assignedPlans.isEmpty
                           ? 'Ainda não tens planos atribuídos'
-                          : '${assignedPlans.length} plano(s) disponível(is) · toca para explorar',
+                          : '${assignedPlans.length} plano(s) disponível(is) · seleciona um plano abaixo',
                       style: GoogleFonts.inter(
                         color: AppColors.textSecondary,
                         fontSize: 12,
@@ -517,71 +523,209 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
               0,
               (sum, day) => sum + day.exercicios.length,
             );
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Material(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(16),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
-                  onTap: () => setState(() {
-                    _selectedPlanIndex = plans.indexOf(item);
-                    _selectedWorkoutDay = null;
-                    _showPlanDetails = true;
-                    _activeLog = null;
-                    _initialized = false;
-                  }),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Material(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    child: InkWell(
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.outline),
-                    ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: AppColors.surfaceHigh,
-                          child: Text(
-                            String.fromCharCode(65 + entry.key),
-                            style: GoogleFonts.inter(
-                              color: AppColors.onSurface,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
+                      onTap: () => setState(() {
+                        final planIndex = plans.indexOf(item);
+                        _expandedPlanIndex = _expandedPlanIndex == planIndex
+                            ? null
+                            : planIndex;
+                      }),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.outline),
                         ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                item.nome,
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              backgroundColor: AppColors.surfaceHigh,
+                              child: Text(
+                                String.fromCharCode(65 + entry.key),
                                 style: GoogleFonts.inter(
                                   color: AppColors.onSurface,
                                   fontWeight: FontWeight.w800,
-                                  fontSize: 16,
                                 ),
                               ),
-                              const SizedBox(height: 5),
-                              Text(
-                                '${item.dias.where((day) => day.exercicios.isNotEmpty).length} treinos · $totalExercises exercícios',
-                                style: GoogleFonts.inter(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
-                                ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.nome,
+                                    style: GoogleFonts.inter(
+                                      color: AppColors.onSurface,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    '${item.dias.where((day) => day.exercicios.isNotEmpty).length} treinos · $totalExercises exercícios',
+                                    style: GoogleFonts.inter(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                            Icon(
+                              _expandedPlanIndex == plans.indexOf(item)
+                                  ? Icons.keyboard_arrow_up_rounded
+                                  : Icons.keyboard_arrow_down_rounded,
+                              color: AppColors.textSecondary,
+                            ),
+                          ],
                         ),
-                        const Icon(
-                          Icons.chevron_right,
-                          color: AppColors.textSecondary,
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 320),
+                  curve: Curves.easeOutCubic,
+                  alignment: Alignment.topCenter,
+                  child: _expandedPlanIndex == plans.indexOf(item)
+                      ? Container(
+                          margin: const EdgeInsets.only(top: 6),
+                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceHigh,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: AppColors.outlineVariant),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Text(
+                                  'Sub-planos deste plano',
+                                  style: GoogleFonts.inter(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              ...item.dias
+                                  .where((day) => day.exercicios.isNotEmpty)
+                                  .map(
+                                    (day) => Padding(
+                                      padding: const EdgeInsets.only(bottom: 8),
+                                      child: Material(
+                                        color: AppColors.surface,
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: InkWell(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          onTap: () => setState(() {
+                                            _selectedPlanIndex = plans.indexOf(
+                                              item,
+                                            );
+                                            _selectedWorkoutDay =
+                                                day.subPlanoId.isEmpty
+                                                ? day.diaSemana
+                                                : day.subPlanoId;
+                                            _showPlanDetails = true;
+                                            _expandedPlanIndex = null;
+                                            _activeLog = null;
+                                            _initialized = false;
+                                            _expandedExercises.clear();
+                                          }),
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 11,
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  width: 32,
+                                                  height: 32,
+                                                  alignment: Alignment.center,
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.primary
+                                                        .withValues(
+                                                          alpha: 0.12,
+                                                        ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          10,
+                                                        ),
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.fitness_center,
+                                                    color: AppColors.primary,
+                                                    size: 16,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 10),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Text(
+                                                        day.displayName,
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style:
+                                                            GoogleFonts.inter(
+                                                              color: AppColors
+                                                                  .onSurface,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w700,
+                                                              fontSize: 13,
+                                                            ),
+                                                      ),
+                                                      const SizedBox(height: 3),
+                                                      Text(
+                                                        '${day.diaSemana.isEmpty ? 'Sem dia definido' : day.diaSemana} · ${day.exercicios.length} exercícios',
+                                                        style: GoogleFonts.inter(
+                                                          color: AppColors
+                                                              .textSecondary,
+                                                          fontSize: 11,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                                const Icon(
+                                                  Icons
+                                                      .arrow_forward_ios_rounded,
+                                                  color:
+                                                      AppColors.textSecondary,
+                                                  size: 14,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                            ],
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
             );
           }),
       ],
@@ -642,25 +786,25 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
 
     if (selectedDay != null) {
       final isToday = _weekdayKey(selectedDay.diaSemana) == _weekdayKey(today);
+      final readOnly = !isToday;
       return Column(
         children: [
           Expanded(
-            child: isToday
-                ? _buildExecutionView(
-                    selectedDay,
-                    plan,
-                    userId,
-                    isMobile,
-                    onBack: () {
-                      setState(() {
-                        _selectedWorkoutDay = null;
-                        _activeLog = null;
-                        _initialized = false;
-                        _expandedExercises.clear();
-                      });
-                    },
-                  )
-                : _buildWorkoutPreview(selectedDay),
+            child: _buildExecutionView(
+              selectedDay,
+              plan,
+              userId,
+              isMobile,
+              readOnly: readOnly,
+              onBack: () {
+                setState(() {
+                  _selectedWorkoutDay = null;
+                  _activeLog = null;
+                  _initialized = false;
+                  _expandedExercises.clear();
+                });
+              },
+            ),
           ),
         ],
       );
@@ -844,6 +988,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
   List<Widget> _buildExecutionContext(
     WorkoutDay workout, {
     VoidCallback? onBack,
+    bool readOnly = false,
   }) {
     final now = DateTime.now();
     final weekday = DateFormat('EEEE', 'pt').format(now);
@@ -964,9 +1109,11 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                   ),
                   const SizedBox(width: 5),
                   Text(
-                    'Hoje',
+                    readOnly ? 'Dia alternativo' : 'Hoje',
                     style: GoogleFonts.inter(
-                      color: AppColors.textSecondary,
+                      color: readOnly
+                          ? AppColors.warning
+                          : AppColors.textSecondary,
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
                     ),
@@ -1155,6 +1302,40 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     );
   }
 
+  Widget _buildAlternateDayNotice(WorkoutDay workout) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.info_outline_rounded,
+            size: 18,
+            color: AppColors.warning,
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              'Este é um dia alternativo do plano. Podes consultar todos os exercícios, mas a execução e o registo ficam disponíveis no dia agendado.',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppColors.warning,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _previewMetric(IconData icon, String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -1212,9 +1393,13 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     String userId,
     bool isMobile, {
     VoidCallback? onBack,
+    bool readOnly = false,
   }) {
-    // Check for existing log
-    final logAsync = ref.watch(todayWorkoutLogProvider(userId));
+    // Um dia alternativo é apenas consulta: não depende do registo de hoje
+    // nem pode restaurar/sobrescrever o treino que está agendado para hoje.
+    final AsyncValue<WorkoutLogModel?> logAsync = readOnly
+        ? const AsyncData<WorkoutLogModel?>(null)
+        : ref.watch(todayWorkoutLogProvider(userId));
 
     return logAsync.when(
       data: (existingLog) {
@@ -1230,7 +1415,8 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                     )
                     .length ==
                 1;
-        if (existingLog != null &&
+        if (!readOnly &&
+            existingLog != null &&
             !_initialized &&
             samePlan &&
             (sameSubPlan || legacyLogIsUnambiguous)) {
@@ -1259,7 +1445,12 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                 isMobile ? 100 : 120,
               ),
               children: [
-                ..._buildExecutionContext(todayWorkout, onBack: onBack),
+                ..._buildExecutionContext(
+                  todayWorkout,
+                  onBack: onBack,
+                  readOnly: readOnly,
+                ),
+                if (readOnly) _buildAlternateDayNotice(todayWorkout),
                 ..._activeLog!.exercicios.asMap().entries.map((entry) {
                   final exerciseLog = entry.value;
                   final plannedExercise = _plannedExerciseForLog(
@@ -1275,19 +1466,25 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                           repeticoes: 0,
                         ),
                     isMobile,
+                    readOnly: readOnly,
                     exerciseKey: '${entry.key}_${exerciseLog.nome}',
                   );
                 }),
               ],
             ),
             // Rest timer overlay
-            if (_isResting) _buildRestTimerOverlay(),
-            // Bottom progress bar
+            if (_isResting && !readOnly) _buildRestTimerOverlay(),
+            // Mantém a mesma estrutura visual, mas sem qualquer ação de registo.
             Positioned(
               bottom: 0,
               left: 0,
               right: 0,
-              child: _buildBottomBar(progress, seriesDone, seriesTotal),
+              child: _buildBottomBar(
+                progress,
+                seriesDone,
+                seriesTotal,
+                readOnly: readOnly,
+              ),
             ),
           ],
         );
@@ -1345,7 +1542,8 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     });
   }
 
-  void _addSerie(ExerciseLog exercise) {
+  void _addSerie(ExerciseLog exercise, {bool readOnly = false}) {
+    if (readOnly) return;
     final updatedExercises = _activeLog!.exercicios.toList();
     final exIdx = updatedExercises.indexOf(exercise);
     final nextNumber = exercise.series.isEmpty
@@ -1373,6 +1571,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     Exercise plannedExercise,
     bool isMobile, {
     required String exerciseKey,
+    bool readOnly = false,
   }) {
     final allDone = exerciseLog.todasConcluidas;
     final isFuncional =
@@ -1385,7 +1584,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: allDone
               ? AppColors.success.withValues(alpha: 0.55)
@@ -1396,7 +1595,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
         children: [
           InkWell(
             onTap: () => _toggleExerciseExpanded(exerciseKey),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
               child: Row(
@@ -1494,10 +1693,12 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                     '${plannedExercise.descanso}s',
                     'descanso',
                     AppColors.info,
-                    onTap: () => _startRestTimer(
-                      plannedExercise.descanso,
-                      plannedExercise.nome,
-                    ),
+                    onTap: readOnly
+                        ? null
+                        : () => _startRestTimer(
+                            plannedExercise.descanso,
+                            plannedExercise.nome,
+                          ),
                   ),
                 ),
               ],
@@ -1533,11 +1734,13 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                   width: double.infinity,
                   height: 34,
                   child: OutlinedButton.icon(
-                    onPressed: () => _startRestTimer(
-                      plannedExercise.duracao!,
-                      plannedExercise.nome,
-                      mode: 'EXERCÍCIO',
-                    ),
+                    onPressed: readOnly
+                        ? null
+                        : () => _startRestTimer(
+                            plannedExercise.duracao!,
+                            plannedExercise.nome,
+                            mode: 'EXERCÍCIO',
+                          ),
                     icon: const Icon(Icons.play_arrow_rounded, size: 16),
                     label: Text(
                       'Iniciar ${plannedExercise.duracao}s',
@@ -1547,12 +1750,18 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                       ),
                     ),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.success,
-                      side: BorderSide(
-                        color: AppColors.success.withValues(alpha: 0.45),
+                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.surfaceHighest.withValues(
+                        alpha: 0.42,
+                      ),
+                      side: const BorderSide(color: Colors.transparent),
+                      minimumSize: const Size(0, 48),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 13,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(11),
                       ),
                     ),
                   ),
@@ -1561,7 +1770,11 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
             if (isFuncional)
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                child: _buildFuncionalCard(exerciseLog, plannedExercise),
+                child: _buildFuncionalCard(
+                  exerciseLog,
+                  plannedExercise,
+                  readOnly: readOnly,
+                ),
               )
             else
               Padding(
@@ -1633,6 +1846,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                                 controller: repCtrl,
                                 label: 'Repetições',
                                 keyboardType: TextInputType.number,
+                                readOnly: readOnly,
                                 onChanged: (value) => _updateSerieData(
                                   exerciseLog,
                                   serieIdx,
@@ -1650,6 +1864,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                                     const TextInputType.numberWithOptions(
                                       decimal: true,
                                     ),
+                                readOnly: readOnly,
                                 onChanged: (value) => _updateSerieData(
                                   exerciseLog,
                                   serieIdx,
@@ -1660,7 +1875,13 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                             ),
                             const SizedBox(width: 6),
                             GestureDetector(
-                              onTap: () => _toggleSerie(exerciseLog, serieIdx),
+                              onTap: readOnly
+                                  ? null
+                                  : () => _toggleSerie(
+                                      exerciseLog,
+                                      serieIdx,
+                                      readOnly: readOnly,
+                                    ),
                               child: Container(
                                 width: 26,
                                 height: 26,
@@ -1694,7 +1915,9 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                       width: double.infinity,
                       height: 42,
                       child: OutlinedButton.icon(
-                        onPressed: () => _addSerie(exerciseLog),
+                        onPressed: readOnly
+                            ? null
+                            : () => _addSerie(exerciseLog, readOnly: readOnly),
                         icon: const Icon(Icons.add, size: 17),
                         label: Text(
                           'Adicionar série',
@@ -1704,12 +1927,18 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                           ),
                         ),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.textSecondary,
-                          side: const BorderSide(
-                            color: AppColors.outlineVariant,
+                          foregroundColor: Colors.white,
+                          backgroundColor: AppColors.surfaceHighest.withValues(
+                            alpha: 0.42,
+                          ),
+                          side: const BorderSide(color: Colors.transparent),
+                          minimumSize: const Size(0, 48),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 13,
                           ),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(9),
+                            borderRadius: BorderRadius.circular(11),
                           ),
                         ),
                       ),
@@ -1822,12 +2051,14 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     required String label,
     required TextInputType keyboardType,
     required ValueChanged<String> onChanged,
+    bool readOnly = false,
   }) {
     return SizedBox(
       height: 38,
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
+        readOnly: readOnly,
         textAlign: TextAlign.center,
         style: GoogleFonts.inter(color: AppColors.onSurface, fontSize: 11),
         decoration: InputDecoration(
@@ -1842,11 +2073,11 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
           filled: true,
           fillColor: AppColors.surfaceHigh,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(7),
+            borderRadius: BorderRadius.circular(11),
             borderSide: const BorderSide(color: AppColors.outlineVariant),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(7),
+            borderRadius: BorderRadius.circular(11),
             borderSide: const BorderSide(color: AppColors.outlineVariant),
           ),
           focusedBorder: OutlineInputBorder(
@@ -1887,7 +2118,11 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     return parts.join(' • ');
   }
 
-  Widget _buildFuncionalCard(ExerciseLog exerciseLog, Exercise exercise) {
+  Widget _buildFuncionalCard(
+    ExerciseLog exerciseLog,
+    Exercise exercise, {
+    bool readOnly = false,
+  }) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1924,7 +2159,9 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
             width: double.infinity,
             height: 44,
             child: ElevatedButton.icon(
-              onPressed: () => _toggleFuncionalComplete(exerciseLog),
+              onPressed: readOnly
+                  ? null
+                  : () => _toggleFuncionalComplete(exerciseLog),
               icon: Icon(
                 exerciseLog.todasConcluidas
                     ? Icons.check_circle
@@ -1945,8 +2182,14 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                     ? AppColors.success
                     : AppColors.primary,
                 foregroundColor: Colors.white,
+                minimumSize: const Size(0, 50),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 15,
+                ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(11),
                 ),
               ),
             ),
@@ -1973,7 +2216,8 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     );
   }
 
-  void _toggleFuncionalComplete(ExerciseLog exercise) {
+  void _toggleFuncionalComplete(ExerciseLog exercise, {bool readOnly = false}) {
+    if (readOnly) return;
     setState(() {
       final updatedExercises = _activeLog!.exercicios.toList();
       final exIdx = updatedExercises.indexOf(exercise);
@@ -1989,7 +2233,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       );
       _activeLog = _activeLog!.copyWith(exercicios: updatedExercises);
     });
-    _saveLog();
+    _saveLog(readOnly: readOnly);
   }
 
   Widget _buildRestTimerOverlay() {
@@ -2073,7 +2317,12 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     );
   }
 
-  Widget _buildBottomBar(double progress, int seriesDone, int seriesTotal) {
+  Widget _buildBottomBar(
+    double progress,
+    int seriesDone,
+    int seriesTotal, {
+    bool readOnly = false,
+  }) {
     final allDone = progress >= 1.0;
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
@@ -2127,7 +2376,9 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
               width: double.infinity,
               height: 44,
               child: ElevatedButton.icon(
-                onPressed: allDone ? () => _completeWorkout() : null,
+                onPressed: !readOnly && allDone
+                    ? () => _completeWorkout(readOnly: readOnly)
+                    : null,
                 icon: const Icon(Icons.emoji_events),
                 label: Text(
                   allDone ? 'CONCLUIR TREINO! 💪' : 'Completa todas as séries',
@@ -2140,11 +2391,15 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                   backgroundColor: allDone
                       ? AppColors.primary
                       : AppColors.outline,
-                  foregroundColor: allDone
-                      ? AppColors.textOnPrimary
-                      : AppColors.textSecondary,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(0, 50),
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 15,
+                  ),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(11),
                   ),
                 ),
               ),

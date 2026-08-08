@@ -13,11 +13,19 @@ class AuthRepository {
   AuthRepository({
     required AuthDataSource authDataSource,
     required ConnectivityService connectivityService,
-  })  : _authDataSource = authDataSource,
-        _connectivityService = connectivityService;
+  }) : _authDataSource = authDataSource,
+       _connectivityService = connectivityService;
 
   User? get currentUser => _authDataSource.currentUser;
   Stream<User?> get authStateChanges => _authDataSource.authStateChanges;
+
+  /// Observa o perfil para detetar desativação ou término agendado em tempo real.
+  Stream<UserModel> userStream(String uid) {
+    return _authDataSource.userDocStream(uid).map((doc) {
+      if (!doc.exists) throw const DocumentNotFoundFailure();
+      return UserModel.fromMap(uid, doc.data()! as Map<String, dynamic>);
+    });
+  }
 
   /// Inicia sessão com e-mail e palavra-passe.
   /// Retorna o UserModel do Firestore após autenticação bem-sucedida.
@@ -37,7 +45,19 @@ class AuthRepository {
     final uid = userCredential.user!.uid;
     try {
       final userDoc = await _authDataSource.getUserDoc(uid);
-      final userModel = UserModel.fromMap(uid, userDoc.data()! as Map<String, dynamic>);
+      final userModel = UserModel.fromMap(
+        uid,
+        userDoc.data()! as Map<String, dynamic>,
+      );
+      if (!userModel.isAccessAllowed) {
+        await _authDataSource.signOut();
+        throw AuthFailure(
+          message: userModel.accessStatus == 'Contrato terminado'
+              ? 'O teu contrato terminou. Contacta o administrador.'
+              : 'O teu perfil está inativo. Contacta o administrador.',
+          code: 'account-inactive',
+        );
+      }
       return (userModel, userCredential);
     } on DocumentNotFoundException {
       // Logout se o documento de utilizador não existir
@@ -53,9 +73,22 @@ class AuthRepository {
   /// Usado quando o Firebase Auth restaura a sessão (ex: F5 no browser).
   Future<UserModel> getUserModel() async {
     final user = _authDataSource.currentUser;
-    if (user == null) throw const AuthFailure(message: 'Sem sessão ativa', code: 'no-session');
+    if (user == null)
+      throw const AuthFailure(message: 'Sem sessão ativa', code: 'no-session');
     final userDoc = await _authDataSource.getUserDoc(user.uid);
-    return UserModel.fromMap(user.uid, userDoc.data()! as Map<String, dynamic>);
+    final userModel = UserModel.fromMap(
+      user.uid,
+      userDoc.data()! as Map<String, dynamic>,
+    );
+    if (!userModel.isAccessAllowed) {
+      throw AuthFailure(
+        message: userModel.accessStatus == 'Contrato terminado'
+            ? 'O teu contrato terminou. Contacta o administrador.'
+            : 'O teu perfil está inativo. Contacta o administrador.',
+        code: 'account-inactive',
+      );
+    }
+    return userModel;
   }
 
   /// Termina sessão.

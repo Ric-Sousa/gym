@@ -52,6 +52,39 @@ class FirestoreDataSource {
     }
   }
 
+  /// Obtém a nota privada do administrador para um cliente.
+  Future<String> getAdminNote(String uid) async {
+    try {
+      final doc = await _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(uid)
+          .collection('adminData')
+          .doc('profile')
+          .get();
+      return (doc.data()?['note'] as String?) ?? '';
+    } on FirebaseException catch (e) {
+      throw ServerException(message: e.message ?? 'Erro ao obter nota');
+    }
+  }
+
+  /// Guarda a nota privada do administrador para um cliente.
+  Future<void> setAdminNote(String uid, String note, {String? adminId}) async {
+    try {
+      await _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(uid)
+          .collection('adminData')
+          .doc('profile')
+          .set({
+            'note': note,
+            'updatedAt': DateTime.now(),
+            if (adminId != null) 'updatedBy': adminId,
+          }, SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      throw ServerException(message: e.message ?? 'Erro ao guardar nota');
+    }
+  }
+
   /// Stream de um utilizador.
   Stream<UserModel> userStream(String uid) {
     return _firestore
@@ -323,6 +356,52 @@ class FirestoreDataSource {
     }
   }
 
+  /// Verifica se o plano do aluno foi atribuído a partir de um plano global.
+  /// Dados antigos sem marcador continuam compatíveis quando o documento
+  /// coincide com o identificador/nome legado recebido pelo chamador.
+  Future<DateTime?> getWorkoutPlanAssignedAt(
+    String userId,
+    String planId,
+  ) async {
+    try {
+      final doc = await _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(userId)
+          .collection(AppConstants.workoutPlanSubcollection)
+          .doc(planId)
+          .get();
+      if (!doc.exists) return null;
+      final value = doc.data()?['assignedAt'];
+      if (value is Timestamp) return value.toDate();
+      if (value is DateTime) return value;
+      if (value != null) return DateTime.tryParse(value.toString());
+      return null;
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao obter data de atribuição',
+      );
+    }
+  }
+
+  /// Verifica se o plano do aluno foi atribuído a partir de um plano global.
+  Future<bool> isGlobalWorkoutPlanAssigned(String userId, String planId) async {
+    try {
+      final doc = await _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(userId)
+          .collection(AppConstants.workoutPlanSubcollection)
+          .doc(planId)
+          .get();
+      if (!doc.exists) return false;
+      final data = doc.data() ?? <String, dynamic>{};
+      return data['assignedPlanId'] == planId || data['assignedAt'] != null;
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao verificar atribuição do plano',
+      );
+    }
+  }
+
   /// Lista todos os planos de treino do aluno.
   Future<List<WorkoutPlanModel>> getAllWorkoutPlans(String userId) async {
     try {
@@ -423,6 +502,8 @@ class FirestoreDataSource {
       batch.set(roomRef, {
         'lastMessage': (messageMap['texto'] as String?)?.isNotEmpty == true
             ? messageMap['texto']
+            : messageMap['attachmentUrl'] != null
+            ? 'Imagem anexada'
             : 'Mensagem de áudio',
 
         'lastTimestamp': DateTime.now(),

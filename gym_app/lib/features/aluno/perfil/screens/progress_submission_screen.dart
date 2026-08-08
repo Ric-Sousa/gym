@@ -78,15 +78,23 @@ class _ProgressSubmissionScreenState
         controlsBuilder: (context, details) {
           return Padding(
             padding: const EdgeInsets.only(top: 20),
-            child: Row(
+            child: Wrap(
+              spacing: 12,
+              runSpacing: 10,
               children: [
                 ElevatedButton(
                   onPressed: details.onStepContinue,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 50),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 15,
+                    ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(11),
                     ),
                   ),
                   child: Text(
@@ -94,12 +102,25 @@ class _ProgressSubmissionScreenState
                     style: GoogleFonts.inter(fontWeight: FontWeight.w600),
                   ),
                 ),
-                const SizedBox(width: 12),
                 TextButton(
                   onPressed: details.onStepCancel,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    backgroundColor: AppColors.surfaceHighest.withValues(
+                      alpha: 0.42,
+                    ),
+                    minimumSize: const Size(0, 48),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 13,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                  ),
                   child: Text(
                     _currentStep > 0 ? 'Voltar' : 'Cancelar',
-                    style: GoogleFonts.inter(color: AppColors.textSecondary),
+                    style: GoogleFonts.inter(fontWeight: FontWeight.w700),
                   ),
                 ),
               ],
@@ -490,6 +511,7 @@ class _ProgressSubmissionScreenState
       context: context,
       builder: (ctx) => SimpleDialog(
         backgroundColor: AppColors.surfaceHigh,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Adicionar foto',
           style: GoogleFonts.montserrat(

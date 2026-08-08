@@ -12,6 +12,7 @@ import '../../../data/models/message_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../shared/providers/global_providers.dart';
 import '../../../shared/widgets/admin_responsive_dialog.dart';
+import '../../../shared/widgets/admin_design_system.dart';
 import '../../../shared/providers/admin_providers.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/aluno/chat/screens/group_chat_screen.dart';
@@ -228,11 +229,27 @@ class AdminMessagesView extends ConsumerWidget {
     final groupsAsync = ref.watch(adminGroupsProvider);
     final isMobile = MediaQuery.of(context).size.width < 900;
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(isMobile ? 16 : 36),
+    return AdminPageFrame(
+      padding: EdgeInsets.fromLTRB(
+        isMobile ? 16 : AdminDesignTokens.pageHorizontal,
+        isMobile ? 16 : AdminDesignTokens.pageTop,
+        isMobile ? 16 : AdminDesignTokens.pageHorizontal,
+        isMobile ? 24 : AdminDesignTokens.pageBottom,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          AdminPageHeader(
+            title: 'Mensagens',
+            subtitle: 'Acompanha conversas individuais e grupos de alunos.',
+            icon: Icons.forum_outlined,
+            action: ElevatedButton.icon(
+              onPressed: () => _showCreateGroupDialog(context, ref),
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('Novo grupo'),
+            ),
+          ),
+          const SizedBox(height: 26),
           // ── Grupos ──
           LayoutBuilder(
             builder: (context, constraints) {
@@ -259,43 +276,11 @@ class AdminMessagesView extends ConsumerWidget {
                   ),
                 ],
               );
-              final createButton = ElevatedButton.icon(
-                onPressed: () => _showCreateGroupDialog(context, ref),
-                icon: const Icon(Icons.add, size: 16),
-                label: Text(
-                  'CRIAR GRUPO',
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.04,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AdminThemeColors.of(context).lime,
-                  foregroundColor: AdminThemeColors.of(context).bg,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                ),
-              );
-
               if (stacked) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [heading, const SizedBox(height: 14), createButton],
-                );
+                return heading;
               }
 
-              return Row(
-                children: [
-                  Expanded(child: heading),
-                  createButton,
-                ],
-              );
+              return heading;
             },
           ),
           const SizedBox(height: 12),
@@ -304,15 +289,8 @@ class AdminMessagesView extends ConsumerWidget {
               if (groups.isEmpty) {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 24),
-                  child: Container(
+                  child: AdminSurface(
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AdminThemeColors.of(context).surface,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AdminThemeColors.of(context).border,
-                      ),
-                    ),
                     child: Row(
                       children: [
                         Icon(
@@ -338,76 +316,68 @@ class AdminMessagesView extends ConsumerWidget {
                   for (final g in groups)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: InkWell(
+                      child: AdminSurface(
+                        padding: const EdgeInsets.all(12),
                         onTap: () => showDialog<void>(
                           context: context,
                           builder: (_) => Dialog(
-                            child: SizedBox(
-                              width: isMobile
-                                  ? MediaQuery.of(context).size.width - 24
-                                  : 420,
-                              height: MediaQuery.of(context).size.height * 0.72,
-                              child: GroupChatScreen(
-                                group: g,
-                                isAdminChat: true,
+                            backgroundColor: Colors.transparent,
+                            insetPadding: const EdgeInsets.all(16),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(24),
+                              child: SizedBox(
+                                width: isMobile
+                                    ? MediaQuery.of(context).size.width - 24
+                                    : 420,
+                                height:
+                                    MediaQuery.of(context).size.height * 0.72,
+                                child: GroupChatScreen(
+                                  group: g,
+                                  isAdminChat: true,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AdminThemeColors.of(context).surface,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: AdminThemeColors.of(context).border,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: AdminThemeColors.of(context).limeDim,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Icon(
+                                Icons.group,
+                                color: AdminThemeColors.of(context).lime,
+                                size: 18,
+                              ),
                             ),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  color: AdminThemeColors.of(context).limeDim,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Icon(
-                                  Icons.group,
-                                  color: AdminThemeColors.of(context).lime,
-                                  size: 18,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      g.nome,
-                                      style: GoogleFonts.inter(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13,
-                                        color: AdminThemeColors.of(
-                                          context,
-                                        ).text,
-                                      ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    g.nome,
+                                    style: GoogleFonts.inter(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                      color: AdminThemeColors.of(context).text,
                                     ),
-                                    Text(
-                                      '${g.membros.length} membros',
-                                      style: GoogleFonts.inter(
-                                        fontSize: 11,
-                                        color: AdminThemeColors.of(
-                                          context,
-                                        ).muted,
-                                      ),
+                                  ),
+                                  Text(
+                                    '${g.membros.length} membros',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      color: AdminThemeColors.of(context).muted,
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -635,7 +605,7 @@ Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
                   },
             style: ElevatedButton.styleFrom(
               backgroundColor: AdminThemeColors.of(context).lime,
-              foregroundColor: AdminThemeColors.of(context).bg,
+              foregroundColor: Colors.white,
             ),
             child: Text(
               'Criar',
@@ -689,21 +659,16 @@ class _ConversationTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: AdminThemeColors.of(context).surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AdminThemeColors.of(context).border),
-        boxShadow: [
-          BoxShadow(
-            color: AdminThemeColors.of(context).shadow,
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AdminThemeColors.of(context).border.withValues(alpha: 0.7),
+        ),
       ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
               // Avatar
@@ -783,6 +748,8 @@ class _ConversationTile extends StatelessWidget {
                           ? 'Inicia a conversa'
                           : (lastMsg.isAudio
                                 ? 'Mensagem de áudio'
+                                : lastMsg.isAttachment
+                                ? 'Imagem anexada'
                                 : lastMsg.texto),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,

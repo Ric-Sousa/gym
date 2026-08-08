@@ -70,6 +70,30 @@ class WorkoutRepository {
     }
   }
 
+  /// Obtém a data de atribuição do plano global ao aluno.
+  Future<DateTime?> getPlanAssignedAt(String userId, String planId) async {
+    try {
+      return await _firestoreDataSource.getWorkoutPlanAssignedAt(
+        userId,
+        planId,
+      );
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
+  }
+
+  /// Confirma se existe uma atribuição explícita de um plano global.
+  Future<bool> isGlobalPlanAssigned(String userId, String planId) async {
+    try {
+      return await _firestoreDataSource.isGlobalWorkoutPlanAssigned(
+        userId,
+        planId,
+      );
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
+  }
+
   /// Lista todos os planos de treino do aluno.
   Future<List<WorkoutPlanModel>> getAllPlans(String userId) async {
     try {
