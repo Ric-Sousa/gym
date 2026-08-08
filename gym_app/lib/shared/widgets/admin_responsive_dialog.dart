@@ -3,9 +3,6 @@ import '../../core/config/admin_theme.dart';
 import '../../core/config/app_strings.dart';
 
 /// Modal responsivo e consistente para a área administrativa.
-///
-/// Mantém o conteúdo rolável em ecrãs pequenos, limita a altura em desktop e
-/// centraliza o padrão visual dos formulários e confirmações do admin.
 class AdminResponsiveDialog extends StatelessWidget {
   final String title;
   final String? subtitle;
@@ -27,8 +24,7 @@ class AdminResponsiveDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = AdminThemeColors.of(context);
-    final width = MediaQuery.sizeOf(context).width;
-    final isCompact = width < 600;
+    final isCompact = MediaQuery.sizeOf(context).width < 600;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -37,57 +33,68 @@ class AdminResponsiveDialog extends StatelessWidget {
         horizontal: isCompact ? 12 : 28,
         vertical: isCompact ? 16 : 28,
       ),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: maxWidth,
-          maxHeight: MediaQuery.sizeOf(context).height * 0.9,
-        ),
-        child: Material(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(isCompact ? 20 : 26),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _DialogHeader(
-                title: title,
-                subtitle: subtitle,
-                icon: icon,
-                onClose: () => Navigator.of(context).pop(),
-              ),
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.fromLTRB(
-                    isCompact ? 18 : 26,
-                    4,
-                    isCompact ? 18 : 26,
-                    22,
-                  ),
-                  child: child,
+      shadowColor: Colors.black.withValues(alpha: 0.42),
+      surfaceTintColor: Colors.transparent,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.94, end: 1),
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        builder: (context, scale, child) =>
+            Transform.scale(scale: scale, child: child),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: maxWidth,
+            maxHeight: MediaQuery.sizeOf(context).height * 0.9,
+          ),
+          child: Material(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(isCompact ? 22 : 28),
+            clipBehavior: Clip.antiAlias,
+            elevation: 18,
+            shadowColor: Colors.black.withValues(alpha: 0.32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _DialogHeader(
+                  title: title,
+                  subtitle: subtitle,
+                  icon: icon,
+                  onClose: () => Navigator.of(context).pop(),
                 ),
-              ),
-              if (actions.isNotEmpty) ...[
-                Divider(height: 1, color: colors.border),
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    isCompact ? 16 : 22,
-                    14,
-                    isCompact ? 16 : 22,
-                    isCompact ? 16 : 20,
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(
+                      isCompact ? 18 : 26,
+                      4,
+                      isCompact ? 18 : 26,
+                      22,
+                    ),
+                    child: child,
                   ),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Wrap(
-                      alignment: WrapAlignment.end,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 10,
-                      runSpacing: 8,
-                      children: actions,
+                ),
+                if (actions.isNotEmpty) ...[
+                  Divider(height: 1, color: colors.border),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      isCompact ? 16 : 22,
+                      14,
+                      isCompact ? 16 : 22,
+                      isCompact ? 16 : 20,
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Wrap(
+                        alignment: WrapAlignment.end,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 10,
+                        runSpacing: 8,
+                        children: actions,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -112,7 +119,7 @@ class _DialogHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = AdminThemeColors.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 20, 14, 16),
+      padding: const EdgeInsets.fromLTRB(24, 22, 16, 18),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -122,7 +129,7 @@ class _DialogHeader extends StatelessWidget {
               height: 42,
               decoration: BoxDecoration(
                 color: colors.limeDim,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(15),
               ),
               child: Icon(icon, color: colors.lime, size: 20),
             ),
@@ -174,8 +181,7 @@ class _DialogHeader extends StatelessWidget {
   }
 }
 
-/// Versão compatível com a API de [AlertDialog], mas com layout responsivo.
-/// Pode ser usada nos formulários existentes sem alterar a lógica dos modais.
+/// Versão compatível com a API de [AlertDialog], mas responsiva.
 class AdminResponsiveAlertDialog extends StatelessWidget {
   final Widget? title;
   final Widget? content;
@@ -198,6 +204,7 @@ class AdminResponsiveAlertDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = AdminThemeColors.of(context);
     final compact = MediaQuery.sizeOf(context).width < 600;
+
     return Dialog(
       backgroundColor: Colors.transparent,
       elevation: 0,
@@ -205,90 +212,101 @@ class AdminResponsiveAlertDialog extends StatelessWidget {
         horizontal: compact ? 12 : 28,
         vertical: compact ? 16 : 28,
       ),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 620,
-          maxHeight: MediaQuery.sizeOf(context).height * 0.9,
-        ),
-        child: Material(
-          color: backgroundColor ?? colors.surface,
-          shape:
-              shape ??
-              RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(compact ? 20 : 26),
-                side: BorderSide(color: colors.border),
-              ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 20, 14, 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: DefaultTextStyle(
-                        style: TextStyle(
-                          color: colors.text,
-                          fontSize: 19,
-                          fontWeight: FontWeight.w800,
-                        ),
-                        child: title ?? const SizedBox.shrink(),
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: AppStrings.cancel,
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: Icon(
-                        Icons.close_rounded,
-                        color: colors.muted,
-                        size: 20,
-                      ),
-                      style: IconButton.styleFrom(
-                        backgroundColor: colors.surface2,
-                        minimumSize: const Size(38, 38),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ],
+      shadowColor: Colors.black.withValues(alpha: 0.42),
+      surfaceTintColor: Colors.transparent,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.94, end: 1),
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        builder: (context, scale, child) =>
+            Transform.scale(scale: scale, child: child),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 620,
+            maxHeight: MediaQuery.sizeOf(context).height * 0.9,
+          ),
+          child: Material(
+            color: backgroundColor ?? colors.surface,
+            shape:
+                shape ??
+                RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(compact ? 22 : 28),
+                  side: BorderSide(color: colors.border.withValues(alpha: 0.9)),
                 ),
-              ),
-              Flexible(
-                child: SingleChildScrollView(
-                  padding:
-                      contentPadding ??
-                      EdgeInsets.fromLTRB(
-                        compact ? 18 : 26,
-                        0,
-                        compact ? 18 : 26,
-                        22,
-                      ),
-                  child: content ?? const SizedBox.shrink(),
-                ),
-              ),
-              if (actions.isNotEmpty) ...[
-                Divider(height: 1, color: colors.border),
+            elevation: 18,
+            shadowColor: Colors.black.withValues(alpha: 0.32),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    compact ? 16 : 22,
-                    14,
-                    compact ? 16 : 22,
-                    compact ? 16 : 20,
-                  ),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Wrap(
-                      alignment: WrapAlignment.end,
-                      spacing: 10,
-                      runSpacing: 8,
-                      children: actions,
-                    ),
+                  padding: const EdgeInsets.fromLTRB(24, 22, 16, 18),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: DefaultTextStyle(
+                          style: TextStyle(
+                            color: colors.text,
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                          ),
+                          child: title ?? const SizedBox.shrink(),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: AppStrings.cancel,
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: colors.muted,
+                          size: 20,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: colors.surface2,
+                          minimumSize: const Size(38, 38),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding:
+                        contentPadding ??
+                        EdgeInsets.fromLTRB(
+                          compact ? 18 : 26,
+                          0,
+                          compact ? 18 : 26,
+                          22,
+                        ),
+                    child: content ?? const SizedBox.shrink(),
+                  ),
+                ),
+                if (actions.isNotEmpty) ...[
+                  Divider(height: 1, color: colors.border),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      compact ? 16 : 22,
+                      14,
+                      compact ? 16 : 22,
+                      compact ? 16 : 20,
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: Wrap(
+                        alignment: WrapAlignment.end,
+                        spacing: 10,
+                        runSpacing: 8,
+                        children: actions,
+                      ),
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -332,23 +350,20 @@ class AdminDialogSection extends StatelessWidget {
   }
 }
 
-/// Estilo de botão secundário usado no rodapé dos modais.
 ButtonStyle adminDialogCancelStyle(BuildContext context) {
-  final colors = AdminThemeColors.of(context);
   return TextButton.styleFrom(
-    foregroundColor: colors.muted,
+    foregroundColor: Colors.white,
     minimumSize: const Size(92, 44),
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
   );
 }
 
-/// Estilo de botão principal usado no rodapé dos modais.
 ButtonStyle adminDialogPrimaryStyle(BuildContext context) {
   final colors = AdminThemeColors.of(context);
   return ElevatedButton.styleFrom(
     backgroundColor: colors.lime,
-    foregroundColor: colors.bg,
+    foregroundColor: Colors.white,
     minimumSize: const Size(110, 44),
     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

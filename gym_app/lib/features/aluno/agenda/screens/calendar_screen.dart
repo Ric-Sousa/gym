@@ -151,7 +151,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
                   color: isSelected ? AppColors.primary : AppColors.surface,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: isToday && !isSelected
                         ? AppColors.primary
@@ -451,7 +451,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceHigh,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Marcar aula?',
           style: GoogleFonts.montserrat(
@@ -475,6 +475,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
+              minimumSize: const Size(0, 50),
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(11),
+              ),
             ),
             child: const Text('Marcar'),
           ),
@@ -585,7 +591,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceHigh,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Cancelar pedido?',
           style: GoogleFonts.montserrat(
@@ -607,6 +613,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
+              minimumSize: const Size(0, 50),
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(11),
+              ),
             ),
             child: const Text('Cancelar Pedido'),
           ),
@@ -666,7 +678,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceHigh,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Cancelar aula?',
           style: GoogleFonts.montserrat(
@@ -688,6 +700,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
+              minimumSize: const Size(0, 50),
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(11),
+              ),
             ),
             child: const Text('Cancelar Aula'),
           ),

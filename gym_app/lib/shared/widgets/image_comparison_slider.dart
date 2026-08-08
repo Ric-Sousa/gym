@@ -3,13 +3,13 @@ import 'package:flutter/material.dart';
 
 /// Comparador visual de progresso antes/depois.
 ///
-/// As imagens ocupam a mesma área e a imagem "Antes" é apenas recortada à
-/// esquerda do divisor. Assim, o arrasto não altera as proporções das fotos.
-/// O cartão e os metadados são opcionais para manter a API compatível com os
-/// usos mais simples do widget.
+/// As duas imagens ocupam a mesma área e permanecem fixas. A imagem "Antes"
+/// é apenas recortada à esquerda do divisor, permitindo comparar as fotos em
+/// tempo real durante o arrasto.
 class ImageComparisonSlider extends StatefulWidget {
   final String beforeImage;
   final String afterImage;
+  final double width;
   final double height;
   final Color? dividerColor;
 
@@ -31,6 +31,7 @@ class ImageComparisonSlider extends StatefulWidget {
     super.key,
     required this.beforeImage,
     required this.afterImage,
+    required this.width,
     this.height = 300,
     this.dividerColor,
     this.beforeLabel = 'Antes',
@@ -90,13 +91,34 @@ class _ImageComparisonSliderState extends State<ImageComparisonSlider> {
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
-      errorBuilder: (_, _, _) => Container(
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          color: fallbackColor,
+          alignment: Alignment.center,
+          child: const SizedBox(
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white70,
+            ),
+          ),
+        );
+      },
+      errorBuilder: (_, __, ___) => Container(
         color: fallbackColor,
         alignment: Alignment.center,
-        child: const Icon(
-          Icons.broken_image_outlined,
-          color: Colors.white54,
-          size: 48,
+        child: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.broken_image_outlined, color: Colors.white54, size: 44),
+            SizedBox(height: 8),
+            Text(
+              'Imagem indisponível',
+              style: TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+          ],
         ),
       ),
     );
@@ -203,207 +225,197 @@ class _ImageComparisonSliderState extends State<ImageComparisonSlider> {
     final dividerColor = widget.dividerColor ?? Colors.white;
     final cardColor = widget.cardColor ?? const Color(0xFF202020);
     final hasFooter = widget.instructionText != null;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        // O cartão tem 10 px de padding lateral; o divisor é calculado na
-        // largura real da área da fotografia para continuar geometricamente
-        // centrado no cartão.
-        final contentWidth =
-            (width - (_cardBorderWidth * 2) - (_cardTopPadding * 2))
-                .clamp(0.0, double.infinity)
-                .toDouble();
-        final totalHeight = widget.height.clamp(120.0, double.infinity).toDouble();
-        final imageHeight = hasFooter
-            ? (totalHeight -
-                      (_cardBorderWidth * 2) -
-                      _cardTopPadding -
-                      _footerHeight)
-                .clamp(64.0, double.infinity)
-                .toDouble()
-            : (totalHeight -
-                      (_cardBorderWidth * 2) -
-                      _cardTopPadding)
-                .clamp(64.0, double.infinity)
-                .toDouble();
-        const handleRadius = _handleSize / 2;
-        final usableWidth = contentWidth.isFinite && contentWidth > 0;
-        final canKeepHandleInside = usableWidth && contentWidth >= _handleSize;
-        final minPosition = canKeepHandleInside
-            ? handleRadius / contentWidth
-            : 0.5;
-        final maxPosition = canKeepHandleInside ? 1 - minPosition : 0.5;
-        final effectivePosition = usableWidth
-            ? _sliderPosition.clamp(minPosition, maxPosition).toDouble()
-            : 0.5;
-        final dividerX = usableWidth ? contentWidth * effectivePosition : 0.0;
-        final handleLeft = usableWidth ? dividerX - handleRadius : 0.0;
-        final labelsVisible = widget.alwaysShowLabels || _isDragging;
-        final chipMaxWidth = ((contentWidth - 40) / 2)
-            .clamp(64.0, 145.0)
+    final width = widget.width.clamp(1.0, double.infinity).toDouble();
+    final contentWidth =
+        (width - (_cardBorderWidth * 2) - (_cardTopPadding * 2))
+            .clamp(1.0, double.infinity)
             .toDouble();
+    final totalHeight = widget.height.clamp(120.0, double.infinity).toDouble();
+    final imageHeight = hasFooter
+        ? (totalHeight -
+                  (_cardBorderWidth * 2) -
+                  _cardTopPadding -
+                  _footerHeight)
+              .clamp(64.0, double.infinity)
+              .toDouble()
+        : (totalHeight - (_cardBorderWidth * 2) - _cardTopPadding)
+              .clamp(64.0, double.infinity)
+              .toDouble();
+    final canKeepHandleInside = contentWidth >= _handleSize;
+    final minPosition = canKeepHandleInside
+        ? (_handleSize / 2) / contentWidth
+        : 0.5;
+    final maxPosition = canKeepHandleInside ? 1 - minPosition : 0.5;
+    final effectivePosition = _sliderPosition
+        .clamp(minPosition, maxPosition)
+        .toDouble();
+    final dividerX = contentWidth * effectivePosition;
+    final handleLeft = dividerX - (_handleSize / 2);
+    final labelsVisible = widget.alwaysShowLabels || _isDragging;
+    final chipMaxWidth = ((contentWidth - 40) / 2)
+        .clamp(64.0, 145.0)
+        .toDouble();
 
-        return SizedBox(
-          width: width,
-          height: totalHeight,
-          child: Semantics(
-            container: true,
-            slider: true,
-            label: 'Comparação de imagens antes e depois',
-            value: '${(_sliderPosition * 100).round()}% ${widget.beforeLabel}',
-            increasedValue: 'Mais imagem ${widget.beforeLabel}',
-            decreasedValue: 'Mais imagem ${widget.afterLabel}',
-            onIncrease: () => _moveBy(0.05),
-            onDecrease: () => _moveBy(-0.05),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(
-                _cardTopPadding,
-                _cardTopPadding,
-                _cardTopPadding,
-                0,
+    return SizedBox(
+      width: width,
+      height: totalHeight,
+      child: Semantics(
+        container: true,
+        slider: true,
+        label: 'Comparação de imagens antes e depois',
+        value: '${(_sliderPosition * 100).round()}% ${widget.beforeLabel}',
+        increasedValue: 'Mais imagem ${widget.beforeLabel}',
+        decreasedValue: 'Mais imagem ${widget.afterLabel}',
+        onIncrease: () => _moveBy(0.05),
+        onDecrease: () => _moveBy(-0.05),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(
+            _cardTopPadding,
+            _cardTopPadding,
+            _cardTopPadding,
+            0,
+          ),
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(_cardRadius),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.22),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
               ),
-              decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(_cardRadius),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.22),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  SizedBox(
-                    height: imageHeight,
-                    width: double.infinity,
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.resizeLeftRight,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        dragStartBehavior: DragStartBehavior.start,
-                        onHorizontalDragStart: _startDragging,
-                        onHorizontalDragUpdate: (details) =>
-                            _updatePosition(details, contentWidth),
-                        onHorizontalDragEnd: _stopDragging,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(_imageRadius),
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  _image(
-                                    url: widget.afterImage,
-                                    fallbackColor: Colors.grey.shade900,
-                                  ),
-                                  ClipRect(
-                                    clipper: _BeforeImageClipper(effectivePosition),
-                                    child: _image(
-                                      url: widget.beforeImage,
-                                      fallbackColor: Colors.grey.shade800,
-                                    ),
+            ],
+          ),
+          child: Column(
+            children: [
+              SizedBox(
+                height: imageHeight,
+                width: contentWidth,
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.resizeLeftRight,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    dragStartBehavior: DragStartBehavior.start,
+                    onHorizontalDragStart: _startDragging,
+                    onHorizontalDragUpdate: (details) =>
+                        _updatePosition(details, contentWidth),
+                    onHorizontalDragEnd: _stopDragging,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(_imageRadius),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              _image(
+                                url: widget.afterImage,
+                                fallbackColor: Colors.grey.shade900,
+                              ),
+                              ClipRect(
+                                clipper: _BeforeImageClipper(effectivePosition),
+                                child: _image(
+                                  url: widget.beforeImage,
+                                  fallbackColor: Colors.grey.shade800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        AnimatedOpacity(
+                          opacity: labelsVisible ? 1 : 0,
+                          duration: const Duration(milliseconds: 180),
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                _metadataChip(
+                                  label: widget.beforeLabel,
+                                  date: widget.beforeDate,
+                                  detail: widget.beforeDetail,
+                                  alignment: Alignment.topLeft,
+                                  accent: dividerColor,
+                                  maxWidth: chipMaxWidth,
+                                ),
+                                _metadataChip(
+                                  label: widget.afterLabel,
+                                  date: widget.afterDate,
+                                  detail: widget.afterDetail,
+                                  alignment: Alignment.topRight,
+                                  accent: dividerColor,
+                                  maxWidth: chipMaxWidth,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          key: const ValueKey('image-comparison-divider'),
+                          left: dividerX - _dividerWidth / 2,
+                          top: 0,
+                          bottom: 0,
+                          child: IgnorePointer(
+                            child: Container(
+                              width: _dividerWidth,
+                              color: dividerColor,
+                              foregroundDecoration: BoxDecoration(
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.25),
+                                    blurRadius: 5,
                                   ),
                                 ],
                               ),
                             ),
-                            AnimatedOpacity(
-                              opacity: labelsVisible ? 1 : 0,
-                              duration: const Duration(milliseconds: 180),
-                              child: Padding(
-                                padding: const EdgeInsets.all(14),
-                                child: Stack(
-                                  fit: StackFit.expand,
-                                  children: [
-                                    _metadataChip(
-                                      label: widget.beforeLabel,
-                                      date: widget.beforeDate,
-                                      detail: widget.beforeDetail,
-                                      alignment: Alignment.topLeft,
-                                      accent: dividerColor,
-                                      maxWidth: chipMaxWidth,
-                                    ),
-                                    _metadataChip(
-                                      label: widget.afterLabel,
-                                      date: widget.afterDate,
-                                      detail: widget.afterDetail,
-                                      alignment: Alignment.topRight,
-                                      accent: dividerColor,
-                                      maxWidth: chipMaxWidth,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              key: const ValueKey('image-comparison-divider'),
-                              left: dividerX - _dividerWidth / 2,
-                              top: 0,
-                              bottom: 0,
-                              child: IgnorePointer(
-                                child: Container(
-                                  width: _dividerWidth,
-                                  color: dividerColor,
-                                  foregroundDecoration: BoxDecoration(
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.25),
-                                        blurRadius: 5,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              key: const ValueKey('image-comparison-handle'),
-                              left: handleLeft,
-                              top: imageHeight / 2 - handleRadius,
-                              child: IgnorePointer(child: _buildHandle(dividerColor)),
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
+                        Positioned(
+                          key: const ValueKey('image-comparison-handle'),
+                          left: handleLeft,
+                          top: imageHeight / 2 - (_handleSize / 2),
+                          child: IgnorePointer(
+                            child: _buildHandle(dividerColor),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  if (hasFooter)
-                    SizedBox(
-                      height: _footerHeight,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.swipe_rounded,
-                            size: 18,
-                            color: Colors.white.withValues(alpha: 0.48),
-                          ),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              widget.instructionText!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.48),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
+                ),
               ),
-            ),
+              if (hasFooter)
+                SizedBox(
+                  height: _footerHeight,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.swipe_rounded,
+                        size: 18,
+                        color: Colors.white.withValues(alpha: 0.48),
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          widget.instructionText!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.48),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
@@ -415,11 +427,11 @@ class _BeforeImageClipper extends CustomClipper<Rect> {
 
   @override
   Rect getClip(Size size) => Rect.fromLTRB(
-        0,
-        0,
-        size.width * position.clamp(0.0, 1.0).toDouble(),
-        size.height,
-      );
+    0,
+    0,
+    size.width * position.clamp(0.0, 1.0).toDouble(),
+    size.height,
+  );
 
   @override
   bool shouldReclip(_BeforeImageClipper oldClipper) =>

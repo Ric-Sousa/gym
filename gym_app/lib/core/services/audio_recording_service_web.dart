@@ -50,5 +50,12 @@ class AudioRecordingService {
     return 'webm';
   }
 
+  Future<void> cancel() async {
+    final blobUrl = await _recorder.stop();
+    if (blobUrl != null && blobUrl.isNotEmpty) {
+      html.Url.revokeObjectUrl(blobUrl);
+    }
+  }
+
   Future<void> dispose() => _recorder.dispose();
 }

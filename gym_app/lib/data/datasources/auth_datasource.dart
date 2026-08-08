@@ -19,6 +19,11 @@ class AuthDataSource {
   /// Stream de alterações de estado de autenticação.
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
+  /// Stream do documento Firestore do utilizador autenticado.
+  Stream<DocumentSnapshot> userDocStream(String uid) {
+    return _firestore.collection('users').doc(uid).snapshots();
+  }
+
   /// Inicia sessão com e-mail e palavra-passe.
   Future<UserCredential> signInWithEmailAndPassword({
     required String email,

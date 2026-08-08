@@ -18,6 +18,16 @@ service cloud.firestore {
       return isAuth() && request.auth.uid == uid;
     }
 
+    function isActiveOwner(uid) {
+      return isOwner(uid) &&
+        get(/databases/$(database)/documents/users/$(uid)).data.get('isActive', true) == true &&
+        (
+          !get(/databases/$(database)/documents/users/$(uid)).data.keys().hasAny(['contractEndsAt']) ||
+          get(/databases/$(database)/documents/users/$(uid)).data.get('contractEndsAt', null) == null ||
+          get(/databases/$(database)/documents/users/$(uid)).data.get('contractEndsAt', request.time) > request.time
+        );
+    }
+
     // ══════════════════════════════════════════════════════
     // GLOBAL WORKOUT PLAN LIBRARY
     // ══════════════════════════════════════════════════════
@@ -30,36 +40,51 @@ service cloud.firestore {
     // ══════════════════════════════════════════════════════
     match /users/{uid} {
 
-      // Admins can read/write any user; owners can read/write their own
-      allow read, write: if isAdmin() || isOwner(uid);
+      // O próprio utilizador pode ler o estado do perfil para que o cliente
+      // consiga mostrar a razão do bloqueio; apenas perfis ativos podem escrever.
+      allow read: if isAdmin() || isOwner(uid);
+      allow update: if isAdmin() || (
+        isActiveOwner(uid) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'nome', 'pesoAtual', 'altura', 'fotoPerfil', 'genero',
+          'notificationSound', 'soundEnabled', 'ultimaAtividade',
+          'hasPendingProgress', 'progressRequestedAt', 'fcmToken'
+        ])
+      );
+      allow create: if isAdmin();
+
+      // Notas internas nunca são visíveis ao aluno.
+      match /adminData/{docId} {
+        allow read, write: if isAdmin();
+      }
 
       // ── DIARY subcollection ──────────────────────
       match /diario/{date} {
-        allow read, write: if isAdmin() || isOwner(uid);
+        allow read, write: if isAdmin() || isActiveOwner(uid);
       }
 
       // ── NUTRITION PLAN subcollection ─────────────
       match /planoNutricao/{diaSemana} {
-        allow read: if isAdmin() || isOwner(uid);
+        allow read: if isAdmin() || isActiveOwner(uid);
         allow write: if isAdmin(); // only admin writes nutrition plans
       }
 
       // ── WORKOUT PLAN subcollection ───────────────
       match /planoTreino/{nome} {
-        allow read: if isAdmin() || isOwner(uid);
+        allow read: if isAdmin() || isActiveOwner(uid);
         allow write: if isAdmin(); // only admin writes workout plans
       }
 
       // ── WORKOUT LOGS subcollection ─────────────────
       match /workoutLogs/{date} {
-        allow read, write: if isAdmin() || isOwner(uid);
+        allow read, write: if isAdmin() || isActiveOwner(uid);
       }
 
       // ── PROGRESS subcollection ───────────────────
       match /progresso/{docId} {
-        allow read: if isAdmin() || isOwner(uid);
-        allow create: if isOwner(uid); // user can create progress entries
-        allow update: if isAdmin() || isOwner(uid);
+        allow read: if isAdmin() || isActiveOwner(uid);
+        allow create: if isActiveOwner(uid); // user can create progress entries
+        allow update: if isAdmin() || isActiveOwner(uid);
       }
     }
 
@@ -68,12 +93,12 @@ service cloud.firestore {
     // ══════════════════════════════════════════════════════
     match /chat/{salaId} {
       // Qualquer utilizador autenticado pode ler, criar e atualizar salas de chat
-      allow read, create, update: if isAuth();
+      allow read, create, update: if isAdmin() || isActiveOwner(request.auth.uid);
       // Ninguém pode apagar salas de chat ou mensagens (persistência garantida)
       allow delete: if false;
 
       match /mensagens/{msgId} {
-        allow read, create: if isAuth();
+        allow read, create: if isAdmin() || isActiveOwner(request.auth.uid);
         // Apenas o admin marca mensagens como lidas. O get() permite adicionar
         // lida a mensagens antigas que ainda não possuíam esse campo.
         allow update: if isAdmin() &&
@@ -89,7 +114,7 @@ service cloud.firestore {
     // FOODS collection (global, admin-only write)
     // ══════════════════════════════════════════════════════
     match /alimentos/{docId} {
-      allow read: if isAuth();
+      allow read: if isAdmin() || isActiveOwner(request.auth.uid);
       allow write: if isAdmin();
     }
 
@@ -97,7 +122,7 @@ service cloud.firestore {
     // EXERCISES collection (global, admin-only write)
     // ══════════════════════════════════════════════════════
     match /exercicios/{docId} {
-      allow read: if isAuth();
+      allow read: if isAdmin() || isActiveOwner(request.auth.uid);
       allow write: if isAdmin();
     }
 
@@ -109,23 +134,20 @@ service cloud.firestore {
       // e o trainer vê as dele pelo próprio UID.
       // Admin vê todas.
       // Usa .get('field', '') para nunca falhar com campos em falta.
-      allow read: if isAuth() && (
-        isAdmin() ||
+      allow read: if isAdmin() || (isActiveOwner(request.auth.uid) && (
         resource.data.studentId == request.auth.uid ||
         resource.data.trainerId == request.auth.uid ||
         resource.data.trainerId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('personalId', '')
-      );
+      ));
       // Aluno pode criar marcações (status='pending'); admin pode criar/atualizar qualquer
-      allow create: if isAuth() && (
-        isAdmin() ||
+      allow create: if isAdmin() || (isActiveOwner(request.auth.uid) &&
         request.resource.data.studentId == request.auth.uid
       );
       // Admin, o próprio aluno OU o trainer pode atualizar (ex: cancelar, concluir)
-      allow update: if isAuth() && (
-        isAdmin() ||
+      allow update: if isAdmin() || (isActiveOwner(request.auth.uid) && (
         resource.data.studentId == request.auth.uid ||
         resource.data.trainerId == request.auth.uid
-      );
+      ));
       // Só admin pode apagar
       allow delete: if isAdmin();
     }
@@ -135,8 +157,7 @@ service cloud.firestore {
     // ══════════════════════════════════════════════════════
     match /pagamentos/{docId} {
       // Aluno vê os seus próprios pagamentos; admin vê todos
-      allow read: if isAuth() && (
-        isAdmin() ||
+      allow read: if isAdmin() || (isActiveOwner(request.auth.uid) &&
         resource.data.userId == request.auth.uid
       );
       // Só admin pode criar/atualizar pagamentos
@@ -148,25 +169,21 @@ service cloud.firestore {
     // ══════════════════════════════════════════════════════
     match /grupos/{groupId} {
       // Qualquer utilizador autenticado pode ler grupos onde é membro
-      allow read: if isAuth() && (
-        isAdmin() ||
+      allow read: if isAdmin() || (isActiveOwner(request.auth.uid) &&
         request.auth.uid in resource.data.membros
       );
       // Admin pode criar/atualizar grupos
-      allow create, update: if isAuth() && (
-        isAdmin() ||
+      allow create, update: if isAdmin() || (isActiveOwner(request.auth.uid) &&
         request.auth.uid in request.resource.data.membros
       );
       allow delete: if isAdmin();
 
       // ── GROUP MESSAGES subcollection ─────────
       match /mensagens/{msgId} {
-        allow read: if isAuth() && (
-          isAdmin() ||
+        allow read: if isAdmin() || (isActiveOwner(request.auth.uid) &&
           request.auth.uid in get(/databases/$(database)/documents/grupos/$(groupId)).data.membros
         );
-        allow create: if isAuth() && (
-          isAdmin() ||
+        allow create: if isAdmin() || (isActiveOwner(request.auth.uid) &&
           request.auth.uid in get(/databases/$(database)/documents/grupos/$(groupId)).data.membros
         );
         allow update, delete: if false; // mensagens imutáveis

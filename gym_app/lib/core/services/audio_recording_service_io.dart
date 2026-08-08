@@ -43,5 +43,13 @@ class AudioRecordingService {
     );
   }
 
+  Future<void> cancel() async {
+    final path = await _recorder.stop();
+    _path = null;
+    if (path == null || path.isEmpty) return;
+    final file = File(path);
+    if (await file.exists()) await file.delete();
+  }
+
   Future<void> dispose() => _recorder.dispose();
 }

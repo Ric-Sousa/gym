@@ -19,6 +19,7 @@ import '../../../data/models/booking_model.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../shared/providers/global_providers.dart';
 import '../../../shared/widgets/admin_responsive_dialog.dart';
+import '../../../shared/widgets/admin_design_system.dart';
 import '../../../shared/providers/admin_providers.dart';
 import '../../../shared/utils/booking_notifications.dart';
 import '../../../shared/widgets/image_comparison_slider.dart';
@@ -30,7 +31,6 @@ import '../../../core/services/sound_service.dart';
 import '../../../core/config/notification_sounds.dart';
 import '../../admin/widgets/floating_chat_button.dart';
 import '../../admin/widgets/admin_messages_view.dart';
-import '../../../shared/widgets/app_design_system.dart';
 import '../../../features/aluno/chat/screens/chat_screen.dart';
 import '../../../features/aluno/perfil/screens/profile_screen.dart';
 
@@ -72,6 +72,7 @@ class AdminPanelScreen extends ConsumerStatefulWidget {
 class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
   AdminView _view = AdminView.dashboard;
   UserModel? _selectedClient;
+  bool _openSelectedClientChat = false;
   bool _fcmInitialized = false;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
@@ -97,6 +98,7 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
     setState(() {
       _view = v;
       _selectedClient = null;
+      _openSelectedClientChat = false;
     });
     // Fecha drawer em mobile
     if (_isMobile && _scaffoldKey.currentState?.isDrawerOpen == true) {
@@ -105,55 +107,6 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
   }
 
   bool get _isMobile => MediaQuery.of(context).size.width < 900;
-
-  String get _workspaceTitle {
-    if (_selectedClient != null) return _selectedClient!.nome;
-    switch (_view) {
-      case AdminView.dashboard:
-        return 'Visão geral';
-      case AdminView.clients:
-        return 'Clientes';
-      case AdminView.workouts:
-        return 'Treinos';
-      case AdminView.exercises:
-        return 'Biblioteca de exercícios';
-      case AdminView.foods:
-        return 'Biblioteca de alimentos';
-      case AdminView.messages:
-        return 'Mensagens';
-      case AdminView.payments:
-        return 'Pagamentos';
-      case AdminView.agenda:
-        return 'Agenda';
-      case AdminView.settings:
-        return 'Definições';
-    }
-  }
-
-  String get _workspaceSubtitle {
-    if (_selectedClient != null)
-      return 'Perfil, progresso e acompanhamento do cliente';
-    switch (_view) {
-      case AdminView.dashboard:
-        return 'Acompanha a evolução do teu negócio num só lugar';
-      case AdminView.clients:
-        return 'Pesquisa e gere todos os teus clientes';
-      case AdminView.workouts:
-        return 'Cria planos, exercícios e atribuições';
-      case AdminView.exercises:
-        return 'Constrói planos de treino consistentes';
-      case AdminView.foods:
-        return 'Organiza a biblioteca de alimentos e refeições';
-      case AdminView.messages:
-        return 'Mantém o contacto próximo com os teus alunos';
-      case AdminView.payments:
-        return 'Controla pagamentos e estado das subscrições';
-      case AdminView.agenda:
-        return 'Planeia sessões e horários da semana';
-      case AdminView.settings:
-        return 'Preferências e configuração da aplicação';
-    }
-  }
 
   Widget _buildSidebar() {
     return _AdminSidebar(
@@ -174,6 +127,15 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AdminThemeColors.of(context);
+    final baseTheme = Theme.of(context);
+    return Theme(
+      data: buildWorkspaceTheme(baseTheme, colors),
+      child: _buildAdminShell(),
+    );
+  }
+
+  Widget _buildAdminShell() {
     if (_isMobile) {
       return Scaffold(
         key: _scaffoldKey,
@@ -239,10 +201,14 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
             _selectedClient != null
                 ? _ClientDetailView(
                     client: _selectedClient!,
+                    initialTab: _openSelectedClientChat ? 'chat' : 'overview',
                     isMobile: true,
                     onBack: () {
                       ref.read(isAdminInChatProvider.notifier).state = false;
-                      setState(() => _selectedClient = null);
+                      setState(() {
+                        _selectedClient = null;
+                        _openSelectedClientChat = false;
+                      });
                     },
                   )
                 : _buildView(),
@@ -268,21 +234,23 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
           Expanded(
             child: Column(
               children: [
-                AdminWorkspaceHeader(
-                  title: _workspaceTitle,
-                  subtitle: _workspaceSubtitle,
-                ),
                 Expanded(
                   child: Stack(
                     children: [
                       _selectedClient != null
                           ? _ClientDetailView(
                               client: _selectedClient!,
+                              initialTab: _openSelectedClientChat
+                                  ? 'chat'
+                                  : 'overview',
                               isMobile: false,
                               onBack: () {
                                 ref.read(isAdminInChatProvider.notifier).state =
                                     false;
-                                setState(() => _selectedClient = null);
+                                setState(() {
+                                  _selectedClient = null;
+                                  _openSelectedClientChat = false;
+                                });
                               },
                             )
                           : _buildView(),
@@ -332,6 +300,7 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
         return AdminMessagesView(
           onSelect: (aluno) => setState(() {
             _selectedClient = aluno;
+            _openSelectedClientChat = true;
             _view = AdminView.clients;
           }),
         );
@@ -365,7 +334,7 @@ class _AdminSidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     final logoSection = Column(
       children: [
-        const SizedBox(height: 28),
+        const SizedBox(height: 22),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
@@ -415,87 +384,96 @@ class _AdminSidebar extends StatelessWidget {
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
           ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
       ],
     );
 
+    final colors = AdminThemeColors.of(context);
     return Container(
-      width: isMobile ? 284 : 236,
+      width: isMobile ? double.infinity : 224,
+      margin: EdgeInsets.zero,
       decoration: BoxDecoration(
-        color: AdminThemeColors.of(context).surface,
-        boxShadow: [
-          BoxShadow(
-            color: AdminThemeColors.of(context).shadow,
-            blurRadius: 12,
-            offset: const Offset(2, 0),
-          ),
-        ],
+        color: colors.surface,
+        border: isMobile
+            ? null
+            : Border(
+                right: BorderSide(color: colors.border.withValues(alpha: 0.7)),
+              ),
       ),
       child: Column(
         children: [
           logoSection,
-          // Nav items
-          _NavItem(
-            icon: Icons.dashboard_outlined,
-            activeIcon: Icons.dashboard,
-            label: 'Dashboard',
-            active: currentView == AdminView.dashboard && !isClientDetail,
-            onTap: () => onNavigate(AdminView.dashboard),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  // Nav items
+                  _NavItem(
+                    icon: Icons.dashboard_outlined,
+                    activeIcon: Icons.dashboard,
+                    label: 'Dashboard',
+                    active:
+                        currentView == AdminView.dashboard && !isClientDetail,
+                    onTap: () => onNavigate(AdminView.dashboard),
+                  ),
+                  _NavCategory(label: 'GESTÃO'),
+                  _NavItem(
+                    icon: Icons.people_outline,
+                    activeIcon: Icons.people,
+                    label: 'Clientes',
+                    active: currentView == AdminView.clients && !isClientDetail,
+                    onTap: () => onNavigate(AdminView.clients),
+                  ),
+                  _NavItem(
+                    icon: Icons.fitness_center_outlined,
+                    activeIcon: Icons.fitness_center,
+                    label: 'Treinos',
+                    active: currentView == AdminView.workouts,
+                    onTap: () => onNavigate(AdminView.workouts),
+                  ),
+                  _NavItem(
+                    icon: Icons.library_books_outlined,
+                    activeIcon: Icons.library_books,
+                    label: 'Exercícios',
+                    active: currentView == AdminView.exercises,
+                    onTap: () => onNavigate(AdminView.exercises),
+                  ),
+                  _NavItem(
+                    icon: Icons.restaurant_outlined,
+                    activeIcon: Icons.restaurant,
+                    label: 'Alimentos',
+                    active: currentView == AdminView.foods,
+                    onTap: () => onNavigate(AdminView.foods),
+                  ),
+                  _NavCategory(label: 'FINANÇAS'),
+                  _NavItem(
+                    icon: Icons.payment_outlined,
+                    activeIcon: Icons.payment,
+                    label: 'Pagamentos',
+                    active: currentView == AdminView.payments,
+                    onTap: () => onNavigate(AdminView.payments),
+                  ),
+                  _NavCategory(label: 'AGENDA'),
+                  _NavItem(
+                    icon: Icons.calendar_today_outlined,
+                    activeIcon: Icons.calendar_today,
+                    label: 'Agenda',
+                    active: currentView == AdminView.agenda,
+                    onTap: () => onNavigate(AdminView.agenda),
+                  ),
+                  _NavCategory(label: 'DEFINIÇÕES'),
+                  _NavItem(
+                    icon: Icons.settings_outlined,
+                    activeIcon: Icons.settings,
+                    label: 'Definições',
+                    active: currentView == AdminView.settings,
+                    onTap: () => onNavigate(AdminView.settings),
+                  ),
+                ],
+              ),
+            ),
           ),
-          _NavCategory(label: 'GESTÃO'),
-          _NavItem(
-            icon: Icons.people_outline,
-            activeIcon: Icons.people,
-            label: 'Clientes',
-            active: currentView == AdminView.clients && !isClientDetail,
-            onTap: () => onNavigate(AdminView.clients),
-          ),
-          _NavItem(
-            icon: Icons.fitness_center_outlined,
-            activeIcon: Icons.fitness_center,
-            label: 'Treinos',
-            active: currentView == AdminView.workouts,
-            onTap: () => onNavigate(AdminView.workouts),
-          ),
-          _NavItem(
-            icon: Icons.library_books_outlined,
-            activeIcon: Icons.library_books,
-            label: 'Exercícios',
-            active: currentView == AdminView.exercises,
-            onTap: () => onNavigate(AdminView.exercises),
-          ),
-          _NavItem(
-            icon: Icons.restaurant_outlined,
-            activeIcon: Icons.restaurant,
-            label: 'Alimentos',
-            active: currentView == AdminView.foods,
-            onTap: () => onNavigate(AdminView.foods),
-          ),
-          _NavCategory(label: 'FINANÇAS'),
-          _NavItem(
-            icon: Icons.payment_outlined,
-            activeIcon: Icons.payment,
-            label: 'Pagamentos',
-            active: currentView == AdminView.payments,
-            onTap: () => onNavigate(AdminView.payments),
-          ),
-          _NavCategory(label: 'AGENDA'),
-          _NavItem(
-            icon: Icons.calendar_today_outlined,
-            activeIcon: Icons.calendar_today,
-            label: 'Agenda',
-            active: currentView == AdminView.agenda,
-            onTap: () => onNavigate(AdminView.agenda),
-          ),
-          _NavCategory(label: 'DEFINIÇÕES'),
-          _NavItem(
-            icon: Icons.settings_outlined,
-            activeIcon: Icons.settings,
-            label: 'Definições',
-            active: currentView == AdminView.settings,
-            onTap: () => onNavigate(AdminView.settings),
-          ),
-          const Spacer(),
           // Logout
           Padding(
             padding: const EdgeInsets.all(16),
@@ -538,13 +516,13 @@ class _NavCategory extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 6),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 6),
       child: Text(
         label,
-        style: GoogleFonts.barlowCondensed(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.12,
+        style: GoogleFonts.inter(
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.1,
           color: AdminThemeColors.of(context).muted,
         ),
       ),
@@ -580,7 +558,7 @@ class _NavItem extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
                 Icon(
@@ -636,45 +614,33 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
     final statsAsync = ref.watch(adminDashboardStatsProvider);
     final alunosAsync = ref.watch(alunosListProvider);
 
-    final isMobile = MediaQuery.of(context).size.width < 900;
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(
-        isMobile ? 16 : 40,
-        isMobile ? 20 : 40,
-        isMobile ? 16 : 40,
-        isMobile ? 28 : 44,
-      ),
+    final colors = AdminThemeColors.of(context);
+    return AdminPageFrame(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('DASHBOARD', style: _adminDisplay(context, isMobile ? 28 : 40)),
-          const SizedBox(height: 4),
-          Text(
-            DateFormat('EEEE, d MMMM yyyy', 'pt').format(DateTime.now()),
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              color: AdminThemeColors.of(context).muted,
-            ),
+          AdminPageHeader(
+            title: 'DASHBOARD',
+            subtitle: DateFormat(
+              'EEEE, d MMMM yyyy',
+              'pt',
+            ).format(DateTime.now()),
+            icon: Icons.space_dashboard_outlined,
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
           statsAsync.when(
             data: (stats) => _buildStats(stats),
             loading: () => _buildStatsLoading(),
             error: (_, __) => _buildStatsLoading(),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
           alunosAsync.when(
             data: (alunos) => _buildDashboardColumns(alunos),
-            loading: () => Center(
-              child: CircularProgressIndicator(
-                color: AdminThemeColors.of(context).lime,
-              ),
-            ),
+            loading: () =>
+                Center(child: CircularProgressIndicator(color: colors.lime)),
             error: (_, __) => Text(
-              'Erro',
-              style: GoogleFonts.inter(
-                color: AdminThemeColors.of(context).muted,
-              ),
+              'Não foi possível carregar os dados.',
+              style: GoogleFonts.inter(color: colors.muted),
             ),
           ),
         ],
@@ -683,47 +649,55 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
   }
 
   Widget _buildStats(AdminDashboardStats stats) {
+    final colors = AdminThemeColors.of(context);
     final items = [
       (
-        'Clientes Totais',
-        stats.totalAlunos,
-        Icons.people,
-        AdminThemeColors.of(context).lime,
+        'Clientes',
+        stats.totalAlunos.toString(),
+        Icons.people_outline,
+        colors.lime,
       ),
       (
-        'Ativos (30d)',
-        stats.activeAlunos,
-        Icons.trending_up,
-        AdminThemeColors.of(context).blue,
+        'Ativos 30d',
+        stats.activeAlunos.toString(),
+        Icons.trending_up_rounded,
+        colors.blue,
       ),
       (
-        'Sessões Mês',
-        stats.sessoesMes,
-        Icons.calendar_today,
-        AdminThemeColors.of(context).orange,
+        'Sessões mês',
+        stats.sessoesMes.toString(),
+        Icons.calendar_today_outlined,
+        colors.orange,
       ),
       (
-        'Sessões Totais',
-        stats.sessoesTotal,
-        Icons.emoji_events,
-        AdminThemeColors.of(context).purple,
+        'Sessões totais',
+        stats.sessoesTotal.toString(),
+        Icons.insights_rounded,
+        colors.purple,
       ),
     ];
     return LayoutBuilder(
       builder: (_, constraints) {
-        final cols = constraints.maxWidth > 800
+        final columns = constraints.maxWidth >= 900
             ? 4
-            : (constraints.maxWidth > 450 ? 2 : 1);
+            : (constraints.maxWidth >= 520 ? 2 : 1);
+        final width = (constraints.maxWidth - 14 * (columns - 1)) / columns;
         return Wrap(
           spacing: 14,
           runSpacing: 14,
-          children: items.map((s) {
-            final width = (constraints.maxWidth - 14 * (cols - 1)) / cols;
-            return SizedBox(
-              width: width,
-              child: _statCard(s.$1, s.$2.toString(), s.$3, s.$4),
-            );
-          }).toList(),
+          children: items
+              .map(
+                (item) => SizedBox(
+                  width: width,
+                  child: AdminMetric(
+                    label: item.$1,
+                    value: item.$2,
+                    icon: item.$3,
+                    accent: item.$4,
+                  ),
+                ),
+              )
+              .toList(),
         );
       },
     );
@@ -777,58 +751,7 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
   }
 
   Widget _statCard(String label, String value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: AdminThemeColors.of(context).surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AdminThemeColors.of(context).border),
-        boxShadow: [
-          BoxShadow(
-            color: AdminThemeColors.of(context).shadow,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                label.toUpperCase(),
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  color: AdminThemeColors.of(context).muted,
-                  letterSpacing: 0.04,
-                ),
-              ),
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, size: 18, color: color),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: GoogleFonts.barlowCondensed(
-              fontSize: 42,
-              fontWeight: FontWeight.w900,
-              color: AdminThemeColors.of(context).text,
-              height: 1,
-            ),
-          ),
-        ],
-      ),
-    );
+    return AdminMetric(label: label, value: value, icon: icon, accent: color);
   }
 
   Widget _buildDashboardColumns(List<UserModel> alunos) {
@@ -884,35 +807,44 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
         children: [
           Padding(
             padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.people,
-                  color: AdminThemeColors.of(context).lime,
-                  size: 16,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'CLIENTES',
-                  style: GoogleFonts.barlowCondensed(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.03,
-                    color: AdminThemeColors.of(context).text,
-                  ),
-                ),
-                const Spacer(),
-                TextButton(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 280;
+                final heading = Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.people,
+                      color: AdminThemeColors.of(context).lime,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'CLIENTES',
+                      style: GoogleFonts.barlowCondensed(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.03,
+                        color: AdminThemeColors.of(context).text,
+                      ),
+                    ),
+                  ],
+                );
+                final action = TextButton(
                   onPressed: () {},
                   child: Text(
                     'Ver todos',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: AdminThemeColors.of(context).lime,
-                    ),
+                    style: GoogleFonts.inter(fontSize: 12, color: Colors.white),
                   ),
-                ),
-              ],
+                );
+                if (compact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [heading, action],
+                  );
+                }
+                return Row(children: [heading, const Spacer(), action]);
+              },
             ),
           ),
           Divider(height: 1, color: AdminThemeColors.of(context).border),
@@ -926,7 +858,7 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
                     size: 48,
                     color: AdminThemeColors.of(context).muted,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   Text(
                     'Nenhum aluno cadastrado',
                     style: GoogleFonts.inter(
@@ -1306,294 +1238,210 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AdminThemeColors.of(context);
+    final isMobile = MediaQuery.sizeOf(context).width < 900;
     final alunosAsync = ref.watch(alunosSearchProvider(_search));
 
-    final isMobile = MediaQuery.of(context).size.width < 900;
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(
-        isMobile ? 16 : 40,
-        isMobile ? 20 : 40,
-        isMobile ? 16 : 40,
-        isMobile ? 28 : 44,
+        isMobile ? 16 : 28,
+        isMobile ? 16 : 24,
+        isMobile ? 16 : 28,
+        isMobile ? 24 : 32,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (isMobile) ...[
-            Text('CLIENTES', style: _adminDisplay(context, 28)),
-            Text(
-              '${alunosAsync.asData?.value.length ?? 0} clientes cadastrados',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                color: AdminThemeColors.of(context).muted,
-              ),
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _showCreateStudentDialog,
-                icon: const Icon(Icons.add, size: 16),
-                label: Text(
-                  'NOVO CLIENTE',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.02,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AdminThemeColors.of(context).lime,
-                  foregroundColor: AdminThemeColors.of(context).bg,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Clientes',
+                      style: GoogleFonts.inter(
+                        fontSize: isMobile ? 24 : 30,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.8,
+                        color: colors.text,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${alunosAsync.asData?.value.length ?? 0} perfis na tua base de clientes',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: colors.muted,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ] else ...[
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('CLIENTES', style: _adminDisplay(context, 40)),
-                      Text(
-                        '${alunosAsync.asData?.value.length ?? 0} clientes cadastrados',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: AdminThemeColors.of(context).muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: _showCreateStudentDialog,
-                  icon: const Icon(Icons.add, size: 16),
-                  label: Text(
-                    'NOVO CLIENTE',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.02,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AdminThemeColors.of(context).lime,
-                    foregroundColor: AdminThemeColors.of(context).bg,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 28),
-          // Search + filters
-          if (isMobile)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  height: 40,
-                  child: TextField(
-                    onChanged: (v) => setState(() => _search = v),
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      color: AdminThemeColors.of(context).text,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Buscar cliente...',
-                      hintStyle: GoogleFonts.inter(
-                        fontSize: 13,
-                        color: AdminThemeColors.of(context).muted,
-                      ),
-                      prefixIcon: Icon(
-                        Icons.search,
-                        size: 16,
-                        color: AdminThemeColors.of(context).muted,
-                      ),
-                      filled: true,
-                      fillColor: AdminThemeColors.of(context).surface,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(
-                          color: AdminThemeColors.of(context).border,
-                        ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(
-                          color: AdminThemeColors.of(context).border,
-                        ),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: ['all', 'active', 'inactive'].map((f) {
-                    final active = _filter == f;
-                    final labels = {
-                      'all': 'Todos',
-                      'active': 'Ativo',
-                      'inactive': 'Inativo',
-                    };
-                    return GestureDetector(
-                      onTap: () => setState(() => _filter = f),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: active
-                              ? AdminThemeColors.of(context).surface2
-                              : AdminThemeColors.of(context).surface,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: AdminThemeColors.of(context).border,
-                          ),
-                        ),
-                        child: Text(
-                          labels[f]!,
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: active
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                            color: active
-                                ? AdminThemeColors.of(context).text
-                                : AdminThemeColors.of(context).muted,
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-            )
-          else
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                SizedBox(
-                  width: 280,
-                  height: 40,
-                  child: TextField(
-                    onChanged: (v) => setState(() => _search = v),
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      color: AdminThemeColors.of(context).text,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Buscar cliente...',
-                      hintStyle: GoogleFonts.inter(
-                        fontSize: 13,
-                        color: AdminThemeColors.of(context).muted,
-                      ),
-                      prefixIcon: Icon(
-                        Icons.search,
-                        size: 16,
-                        color: AdminThemeColors.of(context).muted,
-                      ),
-                      filled: true,
-                      fillColor: AdminThemeColors.of(context).surface,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(
-                          color: AdminThemeColors.of(context).border,
-                        ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(
-                          color: AdminThemeColors.of(context).border,
-                        ),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                    ),
-                  ),
-                ),
-                ...['all', 'active', 'inactive'].map((f) {
-                  final active = _filter == f;
-                  final labels = {
-                    'all': 'Todos',
-                    'active': 'Ativo',
-                    'inactive': 'Inativo',
-                  };
-                  return GestureDetector(
-                    onTap: () => setState(() => _filter = f),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: active
-                            ? AdminThemeColors.of(context).surface2
-                            : AdminThemeColors.of(context).surface,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: AdminThemeColors.of(context).border,
-                        ),
-                      ),
-                      child: Text(
-                        labels[f]!,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: active
-                              ? FontWeight.w600
-                              : FontWeight.w400,
-                          color: active
-                              ? AdminThemeColors.of(context).text
-                              : AdminThemeColors.of(context).muted,
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ],
-            ),
+              if (!isMobile) _newClientButton(compact: true),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _buildClientsToolbar(isMobile, colors),
           const SizedBox(height: 16),
-          _viewToggle(),
-          const SizedBox(height: 24),
           alunosAsync.when(
             data: (alunos) =>
                 _viewMode == 'list' ? _buildList(alunos) : _buildGrid(alunos),
-            loading: () => Center(
-              child: CircularProgressIndicator(
-                color: AdminThemeColors.of(context).lime,
+            loading: () => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 72),
+              child: Center(
+                child: CircularProgressIndicator(color: colors.lime),
               ),
             ),
-            error: (_, __) => Text(
-              'Erro',
-              style: GoogleFonts.inter(
-                color: AdminThemeColors.of(context).muted,
-              ),
+            error: (_, __) => _clientsErrorState(colors),
+          ),
+          if (isMobile) ...[
+            const SizedBox(height: 16),
+            SizedBox(width: double.infinity, child: _newClientButton()),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _newClientButton({bool compact = false}) {
+    final colors = AdminThemeColors.of(context);
+    return ElevatedButton.icon(
+      onPressed: _showCreateStudentDialog,
+      icon: const Icon(Icons.add_rounded, size: 17),
+      label: Text(compact ? 'Novo cliente' : 'Adicionar cliente'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: colors.lime,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 14 : 18,
+          vertical: compact ? 10 : 13,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
+        textStyle: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+
+  Widget _buildClientsToolbar(bool isMobile, AdminThemeColors colors) {
+    final filterLabel = switch (_filter) {
+      'active' => 'Ativos',
+      'inactive' => 'Inativos',
+      _ => 'Todos',
+    };
+    final search = SizedBox(
+      height: 42,
+      child: TextField(
+        onChanged: (value) => setState(() => _search = value),
+        style: GoogleFonts.inter(fontSize: 13, color: colors.text),
+        decoration: InputDecoration(
+          hintText: 'Pesquisar por nome ou email',
+          hintStyle: GoogleFonts.inter(fontSize: 12, color: colors.muted),
+          prefixIcon: Icon(Icons.search_rounded, size: 18, color: colors.muted),
+          filled: true,
+          fillColor: colors.surface,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(11),
+            borderSide: BorderSide(color: colors.border),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(11),
+            borderSide: BorderSide(color: colors.border),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(11),
+            borderSide: BorderSide(color: colors.lime, width: 1.2),
+          ),
+        ),
+      ),
+    );
+    final filter = PopupMenuButton<String>(
+      tooltip: 'Filtrar clientes',
+      onSelected: (value) => setState(() => _filter = value),
+      itemBuilder: (_) => const [
+        PopupMenuItem(value: 'all', child: Text('Todos os clientes')),
+        PopupMenuItem(value: 'active', child: Text('Apenas ativos')),
+        PopupMenuItem(value: 'inactive', child: Text('Apenas inativos')),
+      ],
+      child: Container(
+        height: 42,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(color: colors.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.filter_list_rounded, size: 17, color: colors.muted),
+            const SizedBox(width: 7),
+            Text(
+              filterLabel,
+              style: GoogleFonts.inter(fontSize: 12, color: colors.text),
             ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 17,
+              color: colors.muted,
+            ),
+          ],
+        ),
+      ),
+    );
+    final view = _viewToggle();
+
+    if (isMobile) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          search,
+          const SizedBox(height: 8),
+          filter,
+          const SizedBox(height: 8),
+          Align(alignment: Alignment.centerLeft, child: view),
+        ],
+      );
+    }
+    return Row(
+      children: [
+        Expanded(child: search),
+        const SizedBox(width: 8),
+        filter,
+        const SizedBox(width: 8),
+        view,
+      ],
+    );
+  }
+
+  Widget _clientsErrorState(AdminThemeColors colors) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 56, horizontal: 24),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.cloud_off_rounded, size: 32, color: colors.muted),
+          const SizedBox(height: 10),
+          Text(
+            'Não foi possível carregar os clientes',
+            style: GoogleFonts.inter(
+              color: colors.text,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Tenta atualizar a página novamente.',
+            style: GoogleFonts.inter(fontSize: 12, color: colors.muted),
           ),
         ],
       ),
@@ -1630,7 +1478,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: selected ? colors.surface2 : Colors.transparent,
-          borderRadius: BorderRadius.circular(9),
+          borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -1653,14 +1501,8 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
 
   List<UserModel> _filteredClients(List<UserModel> alunos) {
     return alunos.where((a) {
-      if (_filter == 'active') {
-        return a.ultimaAtividade != null &&
-            DateTime.now().difference(a.ultimaAtividade!).inDays < 30;
-      }
-      if (_filter == 'inactive') {
-        return a.ultimaAtividade == null ||
-            DateTime.now().difference(a.ultimaAtividade!).inDays >= 30;
-      }
+      if (_filter == 'active') return a.isAccessAllowed;
+      if (_filter == 'inactive') return !a.isAccessAllowed;
       return true;
     }).toList();
   }
@@ -1679,7 +1521,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                 size: 48,
                 color: AdminThemeColors.of(context).muted,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               Text(
                 'Nenhum cliente encontrado',
                 style: GoogleFonts.inter(
@@ -1714,26 +1556,38 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
     final colors = AdminThemeColors.of(context);
 
     if (filtered.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 60),
-        child: Center(
-          child: Column(
-            children: [
-              Icon(Icons.person_search, size: 48, color: colors.muted),
-              const SizedBox(height: 12),
-              Text(
-                'Nenhum cliente encontrado',
-                style: GoogleFonts.inter(color: colors.muted),
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 58, horizontal: 24),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.border),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.person_outline_rounded, size: 34, color: colors.muted),
+            const SizedBox(height: 10),
+            Text(
+              'Nenhum cliente encontrado',
+              style: GoogleFonts.inter(
+                color: colors.text,
+                fontWeight: FontWeight.w600,
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Altera a pesquisa ou o filtro selecionado.',
+              style: GoogleFonts.inter(fontSize: 12, color: colors.muted),
+            ),
+          ],
         ),
       );
     }
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 560) {
+        if (constraints.maxWidth < 620) {
           return Container(
             decoration: BoxDecoration(
               color: colors.surface,
@@ -1743,34 +1597,32 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
             clipBehavior: Clip.antiAlias,
             child: Column(
               children: filtered.asMap().entries.map((entry) {
-                final isLast = entry.key == filtered.length - 1;
-                return _clientListCompactRow(entry.value, isLast);
+                return _clientListCompactRow(
+                  entry.value,
+                  entry.key == filtered.length - 1,
+                );
               }).toList(),
             ),
           );
         }
 
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: constraints.maxWidth,
-            child: Container(
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: colors.border),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                children: [
-                  _clientListHeader(),
-                  ...filtered.asMap().entries.map((entry) {
-                    final isLast = entry.key == filtered.length - 1;
-                    return _clientListRow(entry.value, isLast);
-                  }),
-                ],
-              ),
-            ),
+        return Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: colors.border),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              _clientListHeader(),
+              ...filtered.asMap().entries.map((entry) {
+                return _clientListRow(
+                  entry.value,
+                  entry.key == filtered.length - 1,
+                );
+              }),
+            ],
           ),
         );
       },
@@ -1783,6 +1635,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
         ? 'Data de entrada: —'
         : 'Entrada: ${DateFormat('dd/MM/yyyy').format(aluno.createdAt!)}';
     final plan = aluno.tipoCliente == 'online' ? 'Online' : 'Presencial';
+    final accessLabel = aluno.accessStatus;
 
     return Material(
       color: colors.surface,
@@ -1825,7 +1678,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '$date · Plano: $plan',
+                      '$date · Plano: $plan · $accessLabel',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(
@@ -1836,13 +1689,27 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                   ],
                 ),
               ),
-              IconButton(
-                tooltip: 'Eliminar cliente',
-                onPressed: () => _confirmDeleteStudent(aluno),
-                icon: const Icon(
-                  Icons.delete_outline,
-                  size: 17,
-                  color: Colors.red,
+              PopupMenuButton<String>(
+                tooltip: 'Ações do cliente',
+                onSelected: (action) {
+                  if (action == 'delete') _confirmDeleteStudent(aluno);
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline, size: 17, color: Colors.red),
+                        SizedBox(width: 8),
+                        Text('Eliminar cliente'),
+                      ],
+                    ),
+                  ),
+                ],
+                icon: Icon(
+                  Icons.more_horiz_rounded,
+                  size: 19,
+                  color: colors.muted,
                 ),
               ),
             ],
@@ -1859,10 +1726,10 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
       child: Row(
         children: [
-          const SizedBox(width: 42),
+          const SizedBox(width: 36),
           Expanded(child: _listHeaderText('CLIENTE')),
-          SizedBox(width: 130, child: _listHeaderText('ENTRADA')),
-          SizedBox(width: 130, child: _listHeaderText('PLANO')),
+          SizedBox(width: 118, child: _listHeaderText('ENTRADA')),
+          SizedBox(width: 160, child: _listHeaderText('PLANO / ACESSO')),
           const SizedBox(width: 42),
         ],
       ),
@@ -1887,13 +1754,18 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
         ? '—'
         : DateFormat('dd/MM/yyyy').format(aluno.createdAt!);
     final isOnline = aluno.tipoCliente == 'online';
+    final accessColor = aluno.accessStatus == 'Ativo'
+        ? colors.lime
+        : aluno.accessStatus == 'Termina em breve'
+        ? colors.orange
+        : colors.danger;
 
     return Material(
       color: colors.surface,
       child: InkWell(
         onTap: () => widget.onSelect(aluno),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           decoration: BoxDecoration(
             border: isLast
                 ? null
@@ -1902,7 +1774,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
           child: Row(
             children: [
               CircleAvatar(
-                radius: 21,
+                radius: 18,
                 backgroundColor: colors.surface2,
                 child: Text(
                   aluno.nome.isNotEmpty ? aluno.nome[0].toUpperCase() : '?',
@@ -1941,48 +1813,83 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                 ),
               ),
               SizedBox(
-                width: 130,
+                width: 118,
                 child: Text(
                   date,
                   style: GoogleFonts.inter(fontSize: 12, color: colors.muted),
                 ),
               ),
               SizedBox(
-                width: 130,
+                width: 160,
                 child: Align(
                   alignment: Alignment.centerLeft,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isOnline
-                          ? colors.lime.withValues(alpha: 0.12)
-                          : colors.surface2,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      isOnline ? 'Online' : 'Presencial',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: isOnline ? colors.lime : colors.text,
+                  child: Wrap(
+                    spacing: 5,
+                    runSpacing: 4,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isOnline
+                              ? colors.lime.withValues(alpha: 0.12)
+                              : colors.surface2,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          isOnline ? 'Online' : 'Presencial',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: isOnline ? colors.lime : colors.text,
+                          ),
+                        ),
                       ),
-                    ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: accessColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          aluno.accessStatus,
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: accessColor,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-              SizedBox(
-                width: 42,
-                child: IconButton(
-                  tooltip: 'Eliminar cliente',
-                  onPressed: () => _confirmDeleteStudent(aluno),
-                  icon: const Icon(
-                    Icons.delete_outline,
-                    size: 17,
-                    color: Colors.red,
+              PopupMenuButton<String>(
+                tooltip: 'Ações do cliente',
+                onSelected: (action) {
+                  if (action == 'delete') _confirmDeleteStudent(aluno);
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline, size: 17, color: Colors.red),
+                        SizedBox(width: 8),
+                        Text('Eliminar cliente'),
+                      ],
+                    ),
                   ),
+                ],
+                icon: Icon(
+                  Icons.more_horiz_rounded,
+                  size: 19,
+                  color: colors.muted,
                 ),
               ),
             ],
@@ -2087,7 +1994,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                   _miniStat('IMC', aluno.imc?.toStringAsFixed(1) ?? '--'),
                 ].map((e) => Expanded(child: e)).toList(),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               Row(
                 children: [
                   Icon(
@@ -2158,6 +2065,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
     final emailCtrl = TextEditingController();
     final passwordCtrl = TextEditingController();
     String genero = 'feminino';
+    bool isActive = true;
     bool obscurePassword = true;
     bool loading = false;
 
@@ -2202,7 +2110,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 TextField(
                   controller: emailCtrl,
                   keyboardType: TextInputType.emailAddress,
@@ -2224,7 +2132,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 // Password
                 TextField(
                   controller: passwordCtrl,
@@ -2259,7 +2167,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   initialValue: genero,
                   decoration: InputDecoration(
@@ -2292,6 +2200,30 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                   ],
                   onChanged: (v) =>
                       setDialogState(() => genero = v ?? 'feminino'),
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: isActive,
+                  activeColor: AdminThemeColors.of(context).lime,
+                  title: Text(
+                    'Perfil ativo',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AdminThemeColors.of(context).text,
+                    ),
+                  ),
+                  subtitle: Text(
+                    isActive
+                        ? 'O cliente poderá entrar na aplicação.'
+                        : 'O acesso ficará bloqueado até ser reativado.',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AdminThemeColors.of(context).muted,
+                    ),
+                  ),
+                  onChanged: (value) => setDialogState(() => isActive = value),
                 ),
                 if (loading) ...[
                   const SizedBox(height: 16),
@@ -2342,6 +2274,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                           'email': emailCtrl.text.trim(),
                           'personalId': adminId,
                           'genero': genero,
+                          'isActive': isActive,
                           'authToken': token ?? '',
                         };
                         if (pw.isNotEmpty) body['password'] = pw;
@@ -2409,7 +2342,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                     },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AdminThemeColors.of(context).lime,
-                foregroundColor: AdminThemeColors.of(context).bg,
+                foregroundColor: Colors.white,
               ),
               child: Text(
                 'Criar',
@@ -2542,10 +2475,12 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
 class _ClientDetailView extends ConsumerStatefulWidget {
   final UserModel client;
   final VoidCallback onBack;
+  final String initialTab;
   final bool isMobile;
   const _ClientDetailView({
     required this.client,
     required this.onBack,
+    this.initialTab = 'overview',
     this.isMobile = false,
   });
 
@@ -2554,15 +2489,287 @@ class _ClientDetailView extends ConsumerStatefulWidget {
 }
 
 class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
-  String _tab = 'overview';
+  late String _tab;
   bool _requestingProgress = false;
   bool _personalIdSet = false;
+  late bool _isActive;
+  DateTime? _contractEndsAt;
+  String _adminNote = '';
+  bool _loadingAccountAction = false;
+  bool _loadingNote = true;
+  bool _savingNote = false;
+  late final TextEditingController _noteController;
 
   @override
   void initState() {
     super.initState();
+    _tab = widget.initialTab;
+    _isActive = widget.client.isActive;
+    _contractEndsAt = widget.client.contractEndsAt;
+    _noteController = TextEditingController();
     // Garante que o personalId é definido assim que o admin abre o perfil do aluno.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _ensurePersonalId());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensurePersonalId();
+      _loadAdminNote();
+    });
+  }
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadAdminNote() async {
+    try {
+      final note = await ref
+          .read(userRepositoryProvider)
+          .getAdminNote(widget.client.uid);
+      if (!mounted) return;
+      setState(() {
+        _adminNote = note;
+        _noteController.text = note;
+        _loadingNote = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingNote = false);
+    }
+  }
+
+  Future<void> _saveAdminNote() async {
+    setState(() => _savingNote = true);
+    try {
+      final adminId = FirebaseAuth.instance.currentUser?.uid;
+      await ref
+          .read(userRepositoryProvider)
+          .setAdminNote(
+            widget.client.uid,
+            _noteController.text.trim(),
+            adminId: adminId,
+          );
+      if (!mounted) return;
+      setState(() {
+        _adminNote = _noteController.text.trim();
+        _savingNote = false;
+      });
+      showAppNotification(
+        context,
+        'Nota guardada.',
+        type: NotificationType.success,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _savingNote = false);
+      showAppNotification(
+        context,
+        'Não foi possível guardar a nota.',
+        type: NotificationType.error,
+      );
+    }
+  }
+
+  Future<void> _setProfileActive(bool value) async {
+    setState(() => _loadingAccountAction = true);
+    try {
+      await ref.read(userRepositoryProvider).updateUser(widget.client.uid, {
+        'isActive': value,
+        if (value) ...{
+          'deactivatedAt': FieldValue.delete(),
+          'contractEndsAt': FieldValue.delete(),
+        },
+        if (!value) 'deactivatedAt': DateTime.now(),
+      });
+      if (!mounted) return;
+      ref.invalidate(alunosListProvider);
+      ref.invalidate(alunosSearchProvider(''));
+      setState(() {
+        _isActive = value;
+        if (value) _contractEndsAt = null;
+        _loadingAccountAction = false;
+      });
+      showAppNotification(
+        context,
+        value
+            ? 'Perfil ativado.'
+            : 'Perfil desativado. O acesso foi bloqueado.',
+        type: NotificationType.success,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingAccountAction = false);
+      showAppNotification(
+        context,
+        'Não foi possível atualizar o perfil.',
+        type: NotificationType.error,
+      );
+    }
+  }
+
+  bool get _hasScheduledContract =>
+      _isActive && _contractEndsAt?.isAfter(DateTime.now()) == true;
+
+  Future<void> _handleAccessAction() async {
+    if (_hasScheduledContract) {
+      await _cancelScheduledContract();
+      return;
+    }
+    await _setProfileActive(!_isActive);
+  }
+
+  Future<void> _cancelScheduledContract() async {
+    setState(() => _loadingAccountAction = true);
+    try {
+      await ref.read(userRepositoryProvider).updateUser(widget.client.uid, {
+        'contractEndsAt': FieldValue.delete(),
+        'deactivatedAt': FieldValue.delete(),
+        'isActive': true,
+      });
+      if (!mounted) return;
+      ref.invalidate(alunosListProvider);
+      ref.invalidate(alunosSearchProvider(''));
+      setState(() {
+        _contractEndsAt = null;
+        _isActive = true;
+        _loadingAccountAction = false;
+      });
+      showAppNotification(
+        context,
+        'Término agendado cancelado. O perfil continua ativo.',
+        type: NotificationType.success,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingAccountAction = false);
+      showAppNotification(
+        context,
+        'Não foi possível cancelar o término agendado.',
+        type: NotificationType.error,
+      );
+    }
+  }
+
+  Future<void> _terminateContract() async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AdminResponsiveAlertDialog(
+        backgroundColor: AdminThemeColors.of(context).surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: AdminThemeColors.of(context).border),
+        ),
+        title: Text(
+          'Terminar contrato',
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w800,
+            color: AdminThemeColors.of(context).text,
+          ),
+        ),
+        content: Text(
+          'Escolhe quando o acesso de ${widget.client.nome} deve terminar. Os dados do cliente serão mantidos.',
+          style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, 'cancel'),
+            child: const Text('Cancelar'),
+          ),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.end,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => Navigator.pop(dialogContext, 'now'),
+                icon: const Icon(Icons.block_outlined, size: 17),
+                label: const Text('Terminar agora'),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => Navigator.pop(dialogContext, 'later'),
+                icon: const Icon(Icons.schedule, size: 17),
+                label: const Text('Escolher data'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || choice == null || choice == 'cancel') return;
+    DateTime? endsAt;
+    if (choice == 'later') {
+      final today = DateTime.now();
+      final date = await showDatePicker(
+        context: context,
+        firstDate: DateTime(today.year, today.month, today.day),
+        lastDate: DateTime(today.year + 5),
+        initialDate: _contractEndsAt?.isAfter(today) == true
+            ? _contractEndsAt!
+            : today.add(const Duration(days: 30)),
+        helpText: 'Escolher dia de término',
+        cancelText: 'Cancelar',
+        confirmText: 'Continuar',
+      );
+      if (!mounted || date == null) return;
+      final time = await showTimePicker(
+        context: context,
+        initialTime: _contractEndsAt != null
+            ? TimeOfDay.fromDateTime(_contractEndsAt!)
+            : TimeOfDay.now(),
+        helpText: 'Escolher hora de término',
+        cancelText: 'Cancelar',
+        confirmText: 'Confirmar',
+      );
+      if (!mounted || time == null) return;
+      endsAt = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
+      );
+      if (!endsAt.isAfter(DateTime.now())) {
+        showAppNotification(
+          context,
+          'Escolhe uma data e hora futuras.',
+          type: NotificationType.error,
+        );
+        return;
+      }
+    } else {
+      endsAt = DateTime.now();
+    }
+
+    setState(() => _loadingAccountAction = true);
+    try {
+      await ref.read(userRepositoryProvider).updateUser(widget.client.uid, {
+        'contractEndsAt': endsAt,
+        'isActive': choice == 'later',
+        if (choice != 'later') 'deactivatedAt': endsAt,
+      });
+      if (!mounted) return;
+      ref.invalidate(alunosListProvider);
+      ref.invalidate(alunosSearchProvider(''));
+      setState(() {
+        _contractEndsAt = endsAt;
+        _isActive = choice == 'later';
+        _loadingAccountAction = false;
+      });
+      showAppNotification(
+        context,
+        choice == 'later'
+            ? 'Contrato agendado para ${DateFormat('dd/MM/yyyy HH:mm').format(endsAt!)}.'
+            : 'Contrato terminado. O acesso foi bloqueado.',
+        type: NotificationType.success,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingAccountAction = false);
+      showAppNotification(
+        context,
+        'Não foi possível terminar o contrato.',
+        type: NotificationType.error,
+      );
+    }
   }
 
   /// Garante que o aluno tem o personalId definido para o chat funcionar.
@@ -2584,7 +2791,21 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
     } catch (_) {}
   }
 
-  EdgeInsets get _pad => EdgeInsets.all(widget.isMobile ? 16 : 36);
+  EdgeInsets get _pad => EdgeInsets.fromLTRB(
+    widget.isMobile ? 12 : 22,
+    widget.isMobile ? 12 : 16,
+    widget.isMobile ? 12 : 22,
+    widget.isMobile ? 20 : 28,
+  );
+
+  BorderRadius get _detailRadius =>
+      BorderRadius.circular(widget.isMobile ? 14 : 16);
+
+  BoxShadow _detailShadow(AdminThemeColors colors) => BoxShadow(
+    color: colors.shadow.withValues(alpha: 0.26),
+    blurRadius: 10,
+    offset: const Offset(0, 3),
+  );
 
   Widget _requestProgressButton(UserModel client) {
     final isMobile = widget.isMobile;
@@ -2610,7 +2831,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
       ),
       style: ElevatedButton.styleFrom(
         backgroundColor: AdminThemeColors.of(context).lime,
-        foregroundColor: AdminThemeColors.of(context).bg,
+        foregroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         padding: EdgeInsets.symmetric(
           horizontal: isMobile ? 8 : 12,
@@ -2677,24 +2898,24 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
               ],
             ),
           ),
-          const SizedBox(height: 24),
-          // Header
-          _buildClientHeader(c),
-          const SizedBox(height: 20),
-          // Tabs — scrollable on mobile
+          const SizedBox(height: 12),
+          _buildClientProfileStrip(c),
+          const SizedBox(height: 8),
+          _buildAccountSummary(c),
+          const SizedBox(height: 10),
           _buildTabs(),
-          const SizedBox(height: 20),
+          const SizedBox(height: 10),
           if (_tab == 'overview') _buildOverview(),
           if (_tab == 'progresso') _buildProgressTab(),
           if (_tab == 'workout') ...[
             _buildLoadProgressionChart(),
-            const SizedBox(height: 20),
+            const SizedBox(height: 14),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 color: AdminThemeColors.of(context).surface,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: AdminThemeColors.of(context).border),
               ),
               child: Row(
@@ -2731,6 +2952,1020 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
               ),
             ),
           if (_tab == 'agenda') _buildAgendaTab(c),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAccountManagement(UserModel c) {
+    final colors = AdminThemeColors.of(context);
+    final scheduled =
+        _contractEndsAt != null &&
+        _contractEndsAt!.isAfter(DateTime.now()) &&
+        _isActive;
+    final statusColor = !_isActive
+        ? colors.danger
+        : scheduled
+        ? colors.orange
+        : colors.lime;
+
+    Widget statusPill() => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: statusColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: statusColor.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            scheduled
+                ? Icons.schedule
+                : (_isActive ? Icons.check_circle : Icons.block),
+            size: 14,
+            color: statusColor,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            scheduled
+                ? 'Termina ${DateFormat('dd/MM HH:mm').format(_contractEndsAt!)}'
+                : (_isActive ? 'Perfil ativo' : 'Perfil inativo'),
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: statusColor,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 720;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: EdgeInsets.all(widget.isMobile ? 14 : 18),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: colors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        'GESTÃO DO CLIENTE',
+                        style: GoogleFonts.barlowCondensed(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: colors.text,
+                          letterSpacing: 0.04,
+                        ),
+                      ),
+                      statusPill(),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Flex(
+                    direction: compact ? Axis.vertical : Axis.horizontal,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: compact ? 0 : 1,
+                        child: _loadingNote
+                            ? Text(
+                                'A carregar nota privada...',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: colors.muted,
+                                ),
+                              )
+                            : TextField(
+                                controller: _noteController,
+                                minLines: 2,
+                                maxLines: 4,
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: colors.text,
+                                ),
+                                decoration: InputDecoration(
+                                  labelText: 'Nota interna',
+                                  hintText:
+                                      'Adiciona uma observação privada sobre este cliente...',
+                                  prefixIcon: const Icon(
+                                    Icons.sticky_note_2_outlined,
+                                    size: 18,
+                                  ),
+                                  filled: true,
+                                  fillColor: colors.bg,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: colors.border,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                      ),
+                      SizedBox(
+                        width: compact ? 0 : 12,
+                        height: compact ? 10 : 0,
+                      ),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: _savingNote || _loadingNote
+                                ? null
+                                : _saveAdminNote,
+                            icon: _savingNote
+                                ? const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.save_outlined, size: 16),
+                            label: const Text('Guardar nota'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _loadingAccountAction
+                                ? null
+                                : _handleAccessAction,
+                            icon: Icon(
+                              _hasScheduledContract
+                                  ? Icons.event_busy_outlined
+                                  : (_isActive
+                                        ? Icons.pause_circle_outline
+                                        : Icons.play_circle_outline),
+                              size: 17,
+                            ),
+                            label: Text(
+                              _hasScheduledContract
+                                  ? 'Cancelar término'
+                                  : (_isActive
+                                        ? 'Desativar perfil'
+                                        : 'Ativar perfil'),
+                            ),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: _loadingAccountAction
+                                ? null
+                                : _terminateContract,
+                            icon: const Icon(
+                              Icons.assignment_late_outlined,
+                              size: 17,
+                            ),
+                            label: const Text('Terminar contrato'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: colors.orange,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  if (_adminNote.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Nota privada guardada',
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        color: colors.muted,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildClientProfileStrip(UserModel c) {
+    final colors = AdminThemeColors.of(context);
+    final isMobile = widget.isMobile;
+    final initials = c.nome.trim().isEmpty
+        ? '?'
+        : c.nome
+              .trim()
+              .split(RegExp(r'\s+'))
+              .take(2)
+              .map((part) => part[0])
+              .join()
+              .toUpperCase();
+    final statusColor = c.isAccessAllowed ? colors.lime : colors.danger;
+
+    Widget metric(String label, String value) => Padding(
+      padding: const EdgeInsets.only(right: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: GoogleFonts.inter(
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.7,
+              color: colors.muted,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: colors.text,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final identity = Row(
+      children: [
+        CircleAvatar(
+          radius: 22,
+          backgroundColor: colors.limeDim,
+          child: Text(
+            initials,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: colors.lime,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                c.nome,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.35,
+                  color: colors.text,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                c.email,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(fontSize: 11, color: colors.muted),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                children: [
+                  Text(
+                    c.isOnline ? 'ONLINE' : 'PRESENCIAL',
+                    style: GoogleFonts.inter(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.7,
+                      color: colors.muted,
+                    ),
+                  ),
+                  Text('•', style: TextStyle(fontSize: 9, color: colors.muted)),
+                  Text(
+                    c.accessStatus.toUpperCase(),
+                    style: GoogleFonts.inter(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.7,
+                      color: statusColor,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    final metrics = Wrap(
+      spacing: 0,
+      runSpacing: 10,
+      children: [
+        metric('Peso', '${c.pesoAtual?.toStringAsFixed(1) ?? '--'} kg'),
+        metric('Altura', '${c.altura?.toStringAsFixed(0) ?? '--'} cm'),
+        metric('IMC', c.imc?.toStringAsFixed(1) ?? '--'),
+      ],
+    );
+
+    final actions = Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        _requestProgressButton(c),
+        IconButton(
+          tooltip: 'Reset password',
+          onPressed: () => _resetStudentPassword(c),
+          icon: Icon(Icons.lock_reset_rounded, size: 18, color: colors.orange),
+          style: IconButton.styleFrom(
+            backgroundColor: colors.orange.withValues(alpha: 0.1),
+            minimumSize: const Size(38, 38),
+          ),
+        ),
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = isMobile || constraints.maxWidth < 980;
+        return Container(
+          padding: EdgeInsets.all(isMobile ? 14 : 16),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: colors.border),
+          ),
+          child: stacked
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    identity,
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(child: metrics),
+                        const SizedBox(width: 10),
+                        actions,
+                      ],
+                    ),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Expanded(flex: 5, child: identity),
+                    Container(width: 1, height: 38, color: colors.border),
+                    const SizedBox(width: 18),
+                    Expanded(flex: 4, child: metrics),
+                    const SizedBox(width: 12),
+                    actions,
+                  ],
+                ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAccountSummary(UserModel c) {
+    final colors = AdminThemeColors.of(context);
+    final scheduled =
+        _contractEndsAt != null &&
+        _contractEndsAt!.isAfter(DateTime.now()) &&
+        _isActive;
+    final statusColor = !_isActive
+        ? colors.danger
+        : scheduled
+        ? colors.orange
+        : colors.lime;
+    final statusText = scheduled
+        ? 'Termina ${DateFormat('dd/MM HH:mm').format(_contractEndsAt!)}'
+        : (_isActive ? 'Acesso ativo' : 'Acesso bloqueado');
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colors.border),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final narrow = constraints.maxWidth < 980;
+          final note = _loadingNote
+              ? Text(
+                  'A carregar nota...',
+                  style: GoogleFonts.inter(fontSize: 11, color: colors.muted),
+                )
+              : TextField(
+                  controller: _noteController,
+                  minLines: narrow ? 2 : 1,
+                  maxLines: narrow ? 3 : 1,
+                  style: GoogleFonts.inter(fontSize: 11, color: colors.text),
+                  decoration: InputDecoration(
+                    hintText: 'Nota interna privada',
+                    prefixIcon: Icon(
+                      Icons.sticky_note_2_outlined,
+                      size: 16,
+                      color: colors.muted,
+                    ),
+                    filled: true,
+                    fillColor: colors.bg,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(color: colors.border),
+                    ),
+                  ),
+                );
+          final actions = Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _savingNote || _loadingNote ? null : _saveAdminNote,
+                icon: _savingNote
+                    ? const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save_outlined, size: 14),
+                label: const Text('Guardar nota'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  backgroundColor:
+                      Theme.of(context).brightness == Brightness.light
+                      ? colors.text.withValues(alpha: 0.68)
+                      : colors.surface2.withValues(alpha: 0.18),
+                  side: BorderSide(color: Colors.transparent),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  minimumSize: const Size(0, 48),
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: _loadingAccountAction ? null : _handleAccessAction,
+                icon: Icon(
+                  _hasScheduledContract
+                      ? Icons.event_busy_outlined
+                      : (_isActive
+                            ? Icons.pause_circle_outline
+                            : Icons.play_circle_outline),
+                  size: 15,
+                ),
+                label: Text(
+                  _hasScheduledContract
+                      ? 'Cancelar término'
+                      : (_isActive ? 'Desativar' : 'Ativar'),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  backgroundColor:
+                      Theme.of(context).brightness == Brightness.light
+                      ? colors.text.withValues(alpha: 0.68)
+                      : colors.surface2.withValues(alpha: 0.18),
+                  side: BorderSide(color: Colors.transparent),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  minimumSize: const Size(0, 48),
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: _loadingAccountAction ? null : _terminateContract,
+                icon: const Icon(Icons.assignment_late_outlined, size: 15),
+                label: const Text('Terminar contrato'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: colors.orange,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 11,
+                  ),
+                  minimumSize: const Size(0, 46),
+                ),
+              ),
+            ],
+          );
+          final status = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 7),
+              Text(
+                statusText,
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: statusColor,
+                ),
+              ),
+            ],
+          );
+          if (narrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.tune_rounded, size: 16, color: colors.muted),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        'Gestão do cliente',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: colors.text,
+                        ),
+                      ),
+                    ),
+                    status,
+                  ],
+                ),
+                const SizedBox(height: 10),
+                note,
+                const SizedBox(height: 8),
+                actions,
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(Icons.tune_rounded, size: 16, color: colors.muted),
+              const SizedBox(width: 7),
+              Text(
+                'Gestão',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: colors.text,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(child: note),
+              const SizedBox(width: 10),
+              status,
+              const SizedBox(width: 10),
+              actions,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCompactClientHeader(UserModel c) {
+    final colors = AdminThemeColors.of(context);
+    final isCompact = widget.isMobile;
+    final initials = c.nome.trim().isEmpty
+        ? '?'
+        : c.nome
+              .trim()
+              .split(RegExp(r'\s+'))
+              .take(2)
+              .map((part) => part[0])
+              .join()
+              .toUpperCase();
+
+    Widget badge(String label, Color color, IconData icon) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withValues(alpha: 0.22)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: color),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: EdgeInsets.all(isCompact ? 12 : 14),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: _detailRadius,
+        border: Border.all(color: colors.border),
+        boxShadow: [_detailShadow(colors)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: isCompact ? 22 : 25,
+                backgroundColor: colors.limeDim,
+                child: Text(
+                  initials,
+                  style: GoogleFonts.inter(
+                    fontSize: isCompact ? 13 : 15,
+                    fontWeight: FontWeight.w800,
+                    color: colors.lime,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      c.nome,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: isCompact ? 17 : 19,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
+                        color: colors.text,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      c.email,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: colors.muted,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 5,
+                      runSpacing: 5,
+                      children: [
+                        badge(
+                          c.isOnline ? 'Online' : 'Presencial',
+                          c.isOnline ? colors.blue : colors.lime,
+                          c.isOnline ? Icons.wifi : Icons.fitness_center,
+                        ),
+                        badge(
+                          c.accessStatus,
+                          c.isAccessAllowed ? colors.lime : colors.danger,
+                          c.isAccessAllowed ? Icons.check_circle : Icons.block,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: colors.bg.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final metrics = Row(
+                  children: [
+                    Expanded(
+                      child: _compactClientMetric(
+                        colors,
+                        'Peso',
+                        '${c.pesoAtual?.toStringAsFixed(1) ?? '--'} kg',
+                      ),
+                    ),
+                    _compactMetricDivider(colors),
+                    Expanded(
+                      child: _compactClientMetric(
+                        colors,
+                        'Altura',
+                        '${c.altura?.toStringAsFixed(0) ?? '--'} cm',
+                      ),
+                    ),
+                    _compactMetricDivider(colors),
+                    Expanded(
+                      child: _compactClientMetric(
+                        colors,
+                        'IMC',
+                        c.imc?.toStringAsFixed(1) ?? '--',
+                      ),
+                    ),
+                  ],
+                );
+                if (isCompact || constraints.maxWidth < 560) return metrics;
+                return Row(
+                  children: [
+                    Expanded(child: metrics),
+                    const SizedBox(width: 12),
+                    _requestProgressButton(c),
+                  ],
+                );
+              },
+            ),
+          ),
+          if (isCompact) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                _requestProgressButton(c),
+                TextButton.icon(
+                  onPressed: () => _resetStudentPassword(c),
+                  icon: Icon(Icons.lock_reset, size: 14, color: colors.orange),
+                  label: const Text('Reset password'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    minimumSize: const Size(0, 42),
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => _resetStudentPassword(c),
+                icon: Icon(Icons.lock_reset, size: 14, color: colors.orange),
+                label: Text(
+                  'Reset password',
+                  style: GoogleFonts.inter(fontSize: 11, color: Colors.white),
+                ),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  minimumSize: const Size(0, 42),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _compactClientMetric(dynamic colors, String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: GoogleFonts.inter(
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+            color: colors.muted,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: colors.text,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _compactMetricDivider(dynamic colors) {
+    return Container(
+      width: 1,
+      height: 24,
+      margin: const EdgeInsets.symmetric(horizontal: 8),
+      color: colors.border,
+    );
+  }
+
+  Widget _buildCompactAccountManagement(UserModel c) {
+    final colors = AdminThemeColors.of(context);
+    final scheduled =
+        _contractEndsAt != null &&
+        _contractEndsAt!.isAfter(DateTime.now()) &&
+        _isActive;
+    final statusColor = !_isActive
+        ? colors.danger
+        : scheduled
+        ? colors.orange
+        : colors.lime;
+    final statusText = scheduled
+        ? 'Termina ${DateFormat('dd/MM HH:mm').format(_contractEndsAt!)}'
+        : (_isActive ? 'Acesso ativo' : 'Acesso bloqueado');
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: _detailRadius,
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.tune_rounded, size: 16, color: colors.muted),
+              const SizedBox(width: 7),
+              Text(
+                'Gestão rápida',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: colors.text,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  statusText,
+                  style: GoogleFonts.inter(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: statusColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stacked = constraints.maxWidth < 760;
+              final note = _loadingNote
+                  ? Text(
+                      'A carregar nota...',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: colors.muted,
+                      ),
+                    )
+                  : TextField(
+                      controller: _noteController,
+                      minLines: stacked ? 2 : 1,
+                      maxLines: stacked ? 3 : 2,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: colors.text,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Nota interna privada...',
+                        prefixIcon: const Icon(
+                          Icons.sticky_note_2_outlined,
+                          size: 16,
+                        ),
+                        filled: true,
+                        fillColor: colors.bg,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: colors.border),
+                        ),
+                      ),
+                    );
+              final actions = Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _savingNote || _loadingNote
+                        ? null
+                        : _saveAdminNote,
+                    icon: _savingNote
+                        ? const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.save_outlined, size: 14),
+                    label: const Text('Guardar'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      backgroundColor:
+                          Theme.of(context).brightness == Brightness.light
+                          ? colors.text.withValues(alpha: 0.68)
+                          : colors.surface2.withValues(alpha: 0.18),
+                      side: BorderSide(color: Colors.transparent),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      minimumSize: const Size(0, 48),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _loadingAccountAction
+                        ? null
+                        : _handleAccessAction,
+                    icon: Icon(
+                      _hasScheduledContract
+                          ? Icons.event_busy_outlined
+                          : (_isActive
+                                ? Icons.pause_circle_outline
+                                : Icons.play_circle_outline),
+                      size: 15,
+                    ),
+                    label: Text(
+                      _hasScheduledContract
+                          ? 'Cancelar término'
+                          : (_isActive ? 'Desativar' : 'Ativar'),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      backgroundColor:
+                          Theme.of(context).brightness == Brightness.light
+                          ? colors.text.withValues(alpha: 0.68)
+                          : colors.surface2.withValues(alpha: 0.18),
+                      side: BorderSide(color: Colors.transparent),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      minimumSize: const Size(0, 48),
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: _loadingAccountAction
+                        ? null
+                        : _terminateContract,
+                    icon: const Icon(Icons.assignment_late_outlined, size: 15),
+                    label: const Text('Terminar contrato'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: colors.orange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      minimumSize: const Size(0, 48),
+                    ),
+                  ),
+                ],
+              );
+              if (stacked) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [note, const SizedBox(height: 8), actions],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: note),
+                  const SizedBox(width: 10),
+                  actions,
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
@@ -2838,16 +4073,19 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                         style: GoogleFonts.inter(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
-                          color: AdminThemeColors.of(context).orange,
+                          color: Colors.white,
                         ),
                       ),
                       style: TextButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        backgroundColor: AdminThemeColors.of(
+                          context,
+                        ).surface2.withValues(alpha: 0.18),
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 0,
-                          vertical: 4,
+                          horizontal: 12,
+                          vertical: 9,
                         ),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        minimumSize: const Size(0, 44),
                       ),
                     ),
                   ],
@@ -3072,8 +4310,8 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
       },
       child: Container(
         padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 10 : 16,
-          vertical: isMobile ? 8 : 10,
+          horizontal: isMobile ? 8 : 10,
+          vertical: isMobile ? 6 : 7,
         ),
         decoration: BoxDecoration(
           color: active
@@ -3101,7 +4339,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
               Text(
                 label,
                 style: GoogleFonts.inter(
-                  fontSize: isMobile ? 11 : 13,
+                  fontSize: isMobile ? 10 : 12,
                   fontWeight: active ? FontWeight.w600 : FontWeight.w400,
                   color: active
                       ? AdminThemeColors.of(context).lime
@@ -3166,7 +4404,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               ...prog.map(
                 (p) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),
@@ -3257,15 +4495,15 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(flex: 3, child: _buildWeightChart()),
-                  const SizedBox(width: 20),
-                  SizedBox(width: 280, child: _buildInfoCards(c)),
+                  const SizedBox(width: 14),
+                  SizedBox(width: 250, child: _buildInfoCards(c)),
                 ],
               );
             }
             return Column(
               children: [
                 _buildWeightChart(),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 _buildInfoCards(c),
               ],
             );
@@ -3413,7 +4651,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                     size: 48,
                     color: AdminThemeColors.of(context).muted,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   Text(
                     'Nenhum registo de progresso',
                     style: GoogleFonts.inter(
@@ -3522,7 +4760,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
           ),
           // Medidas
           if (progress.medidas.isNotEmpty) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 16,
               runSpacing: 8,
@@ -3539,7 +4777,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
           ],
           // Fotos
           if (progress.fotos.isNotEmpty) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -3599,7 +4837,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
           ),
         ),
         style: OutlinedButton.styleFrom(
-          foregroundColor: AdminThemeColors.of(context).lime,
+          foregroundColor: Colors.white,
           side: BorderSide(
             color: AdminThemeColors.of(context).lime.withValues(alpha: 0.5),
           ),
@@ -3652,16 +4890,23 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                 ImageComparisonSlider(
                   beforeImage: withPhotos[beforeIdx].fotos.first,
                   afterImage: withPhotos[afterIdx].fotos.first,
+                  width:
+                      (MediaQuery.sizeOf(context).width -
+                              (MediaQuery.sizeOf(context).width < 600
+                                  ? 60
+                                  : 108))
+                          .clamp(1.0, 560.0)
+                          .toDouble(),
                   height: 360,
                   dividerColor: AdminThemeColors.of(context).lime,
                   beforeLabel: 'Inicial',
                   afterLabel: 'Atual',
-                  beforeDate: DateFormat('dd/MM/yyyy').format(
-                    withPhotos[beforeIdx].data,
-                  ),
-                  afterDate: DateFormat('dd/MM/yyyy').format(
-                    withPhotos[afterIdx].data,
-                  ),
+                  beforeDate: DateFormat(
+                    'dd/MM/yyyy',
+                  ).format(withPhotos[beforeIdx].data),
+                  afterDate: DateFormat(
+                    'dd/MM/yyyy',
+                  ).format(withPhotos[afterIdx].data),
                   beforeDetail: withPhotos[beforeIdx].peso == null
                       ? null
                       : '${withPhotos[beforeIdx].peso!.toStringAsFixed(1)} kg',
@@ -3671,7 +4916,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                   cardColor: AdminThemeColors.of(context).surface,
                   handleColor: Colors.white,
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 // Seletores
                 Text(
                   'Seleciona as datas:',
@@ -3806,7 +5051,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                     size: 48,
                     color: AdminThemeColors.of(context).muted,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   Text(
                     'Nenhuma aula marcada',
                     style: GoogleFonts.inter(
@@ -4087,7 +5332,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
           ('IMC', c.imc?.toStringAsFixed(1) ?? '--'),
           ('Categoria', c.imcCategory ?? '--'),
         ]),
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
         _infoCard('Contacto', [
           ('Email', c.email),
           ('ID', '${c.uid.substring(0, 8)}...'),
@@ -4098,18 +5343,12 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
 
   Widget _infoCard(String title, List<(String, String)> rows) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AdminThemeColors.of(context).surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(13),
         border: Border.all(color: AdminThemeColors.of(context).border),
-        boxShadow: [
-          BoxShadow(
-            color: AdminThemeColors.of(context).shadow,
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: [_detailShadow(AdminThemeColors.of(context))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4123,10 +5362,10 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
               color: AdminThemeColors.of(context).muted,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           ...rows.map(
             (r) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
+              padding: const EdgeInsets.symmetric(vertical: 2),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -4187,100 +5426,24 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
   @override
   Widget build(BuildContext context) {
     final exercisesAsync = ref.watch(adminExercisesProvider);
+    final isMobile = MediaQuery.sizeOf(context).width < 900;
 
-    final isMobile = MediaQuery.of(context).size.width < 900;
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(
-        isMobile ? 16 : 40,
-        isMobile ? 20 : 40,
-        isMobile ? 16 : 40,
-        isMobile ? 28 : 44,
-      ),
+    return AdminPageFrame(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (isMobile) ...[
-            Text('BIBLIOTECA DE EXERCÍCIOS', style: _adminDisplay(context, 28)),
-            Text(
-              '${exercisesAsync.asData?.value.length ?? 0} exercícios',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                color: AdminThemeColors.of(context).muted,
-              ),
+          AdminPageHeader(
+            title: 'Exercícios',
+            subtitle:
+                '${exercisesAsync.asData?.value.length ?? 0} exercícios na biblioteca',
+            icon: Icons.fitness_center_outlined,
+            action: ElevatedButton.icon(
+              onPressed: _showAddExerciseDialog,
+              icon: const Icon(Icons.add_rounded, size: 17),
+              label: const Text('Novo exercício'),
             ),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _showAddExerciseDialog,
-                icon: const Icon(Icons.add, size: 16),
-                label: Text(
-                  'NOVO EXERCÍCIO',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AdminThemeColors.of(context).lime,
-                  foregroundColor: AdminThemeColors.of(context).bg,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                ),
-              ),
-            ),
-          ] else ...[
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'BIBLIOTECA DE EXERCÍCIOS',
-                        style: _adminDisplay(context, 40),
-                      ),
-                      Text(
-                        '${exercisesAsync.asData?.value.length ?? 0} exercícios',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: AdminThemeColors.of(context).muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: _showAddExerciseDialog,
-                  icon: const Icon(Icons.add, size: 16),
-                  label: Text(
-                    'NOVO EXERCÍCIO',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AdminThemeColors.of(context).lime,
-                    foregroundColor: AdminThemeColors.of(context).bg,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 24),
+          ),
+          const SizedBox(height: 20),
           // Search
           SizedBox(
             width: isMobile ? double.infinity : 360,
@@ -4432,7 +5595,7 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
                           size: 48,
                           color: AdminThemeColors.of(context).muted,
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 8),
                         Text(
                           'Nenhum exercício encontrado',
                           style: GoogleFonts.inter(
@@ -4608,7 +5771,7 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   initialValue: selectedGrupo,
                   dropdownColor: AdminThemeColors.of(context).surface,
@@ -4643,7 +5806,7 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
                   onChanged: (v) =>
                       setDialogState(() => selectedGrupo = v ?? 'Peito'),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   initialValue: selectedCategoria,
                   dropdownColor: AdminThemeColors.of(context).surface,
@@ -4676,7 +5839,7 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
                     () => selectedCategoria = v ?? 'musculação',
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 TextField(
                   controller: equipCtrl,
                   style: GoogleFonts.inter(
@@ -4727,7 +5890,7 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AdminThemeColors.of(context).lime,
-                foregroundColor: AdminThemeColors.of(context).bg,
+                foregroundColor: Colors.white,
               ),
               child: Text(
                 'Adicionar',
@@ -4756,100 +5919,23 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
   @override
   Widget build(BuildContext context) {
     final foodsAsync = ref.watch(adminFoodsSearchProvider(_search));
-    final isMobile = MediaQuery.of(context).size.width < 900;
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(
-        isMobile ? 16 : 40,
-        isMobile ? 20 : 40,
-        isMobile ? 16 : 40,
-        isMobile ? 28 : 44,
-      ),
+    return AdminPageFrame(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (isMobile) ...[
-            Text('BIBLIOTECA DE ALIMENTOS', style: _adminDisplay(context, 28)),
-            Text(
-              '${foodsAsync.asData?.value.length ?? 0} alimentos',
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                color: AdminThemeColors.of(context).muted,
-              ),
+          AdminPageHeader(
+            title: 'Alimentos',
+            subtitle:
+                '${foodsAsync.asData?.value.length ?? 0} alimentos na biblioteca',
+            icon: Icons.restaurant_outlined,
+            action: ElevatedButton.icon(
+              onPressed: _showAddFoodDialog,
+              icon: const Icon(Icons.add_rounded, size: 17),
+              label: const Text('Novo alimento'),
             ),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _showAddFoodDialog,
-                icon: const Icon(Icons.add, size: 16),
-                label: Text(
-                  'NOVO ALIMENTO',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AdminThemeColors.of(context).lime,
-                  foregroundColor: AdminThemeColors.of(context).bg,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                ),
-              ),
-            ),
-          ] else ...[
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'BIBLIOTECA DE ALIMENTOS',
-                        style: _adminDisplay(context, 40),
-                      ),
-                      Text(
-                        '${foodsAsync.asData?.value.length ?? 0} alimentos',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          color: AdminThemeColors.of(context).muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: _showAddFoodDialog,
-                  icon: const Icon(Icons.add, size: 16),
-                  label: Text(
-                    'NOVO ALIMENTO',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AdminThemeColors.of(context).lime,
-                    foregroundColor: AdminThemeColors.of(context).bg,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 24),
+          ),
+          const SizedBox(height: 20),
           SizedBox(
             width: 360,
             height: 40,
@@ -4905,7 +5991,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                           size: 48,
                           color: AdminThemeColors.of(context).muted,
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 8),
                         Text(
                           'Nenhum alimento encontrado',
                           style: GoogleFonts.inter(
@@ -5136,7 +6222,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 TextField(
                   controller: calCtrl,
                   keyboardType: TextInputType.number,
@@ -5155,7 +6241,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     Expanded(
@@ -5237,7 +6323,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   initialValue: selectedCat,
                   dropdownColor: AdminThemeColors.of(context).surface,
@@ -5309,7 +6395,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AdminThemeColors.of(context).lime,
-                foregroundColor: AdminThemeColors.of(context).bg,
+                foregroundColor: Colors.white,
               ),
               child: Text(
                 'Adicionar',
@@ -5338,97 +6424,21 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
   @override
   Widget build(BuildContext context) {
     final paymentsAsync = ref.watch(adminAllPaymentsProvider);
-    final isMobile = MediaQuery.of(context).size.width < 900;
-
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(
-        isMobile ? 16 : 40,
-        isMobile ? 20 : 40,
-        isMobile ? 16 : 40,
-        isMobile ? 28 : 44,
-      ),
+    return AdminPageFrame(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'PAGAMENTOS',
-                      style: _adminDisplay(context, isMobile ? 28 : 40),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Gestão de pagamentos e faturas via Stripe',
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        color: AdminThemeColors.of(context).muted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              if (!isMobile)
-                ElevatedButton.icon(
-                  onPressed: _creating
-                      ? null
-                      : () => _showCreatePaymentDialog(),
-                  icon: const Icon(Icons.add, size: 16),
-                  label: Text(
-                    'NOVO PAGAMENTO',
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.02,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AdminThemeColors.of(context).lime,
-                    foregroundColor: AdminThemeColors.of(context).bg,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          if (isMobile) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _creating ? null : () => _showCreatePaymentDialog(),
-                icon: const Icon(Icons.add, size: 16),
-                label: Text(
-                  'NOVO PAGAMENTO',
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.02,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AdminThemeColors.of(context).lime,
-                  foregroundColor: AdminThemeColors.of(context).bg,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                ),
-              ),
+          AdminPageHeader(
+            title: 'Pagamentos',
+            subtitle: 'Gestão de pagamentos e faturas via Stripe',
+            icon: Icons.payments_outlined,
+            action: ElevatedButton.icon(
+              onPressed: _creating ? null : () => _showCreatePaymentDialog(),
+              icon: const Icon(Icons.add_rounded, size: 17),
+              label: const Text('Novo pagamento'),
             ),
-          ],
-          const SizedBox(height: 24),
+          ),
+          const SizedBox(height: 20),
           paymentsAsync.when(
             data: (payments) => _buildPaymentsTable(payments),
             loading: () => Center(
@@ -5480,7 +6490,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                 size: 48,
                 color: AdminThemeColors.of(context).muted,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               Text(
                 'Nenhum pagamento registado',
                 style: GoogleFonts.inter(
@@ -5876,7 +6886,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                       size: 48,
                       color: AdminThemeColors.of(context).lime,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     Text(
                       'Sessão de checkout criada!',
                       style: GoogleFonts.inter(
@@ -5941,7 +6951,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                           .toList(),
                       onChanged: (v) => setDialogState(() => selectedAluno = v),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     TextField(
                       controller: valorCtrl,
                       keyboardType: const TextInputType.numberWithOptions(
@@ -5966,7 +6976,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     TextField(
                       controller: descCtrl,
                       style: GoogleFonts.inter(
@@ -6043,7 +7053,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                       },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AdminThemeColors.of(context).lime,
-                  foregroundColor: AdminThemeColors.of(context).bg,
+                  foregroundColor: Colors.white,
                 ),
                 child: Text(
                   'Criar Sessão',
@@ -6080,16 +7090,20 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
   Widget build(BuildContext context) {
     final bookingsAsync = ref.watch(adminTrainerBookingsProvider(_trainerId));
     final namesAsync = ref.watch(adminStudentNamesProvider(_trainerId));
-    final isMobile = MediaQuery.of(context).size.width < 900;
+    final isMobile = MediaQuery.sizeOf(context).width < 900;
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(isMobile ? 16 : 36),
+    return AdminPageFrame(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          AdminPageHeader(
+            title: 'Agenda',
+            subtitle: 'Planeia e acompanha as sessões da semana',
+            icon: Icons.calendar_month_outlined,
+          ),
+          const SizedBox(height: 18),
           Row(
             children: [
-              Text('AGENDA', style: _adminDisplay(context, isMobile ? 24 : 36)),
               const Spacer(),
               IconButton(
                 icon: Icon(
@@ -6216,18 +7230,25 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AdminThemeColors.of(context).border),
       ),
-      child: Column(
-        children: [
-          _buildWeekHeader(weekDays, today, isMobile, colWidth),
-          if (isMobile)
-            SingleChildScrollView(
+      child: isMobile
+          ? SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              child: SizedBox(width: 700, child: gridBody),
+              child: SizedBox(
+                width: gridWidth,
+                child: Column(
+                  children: [
+                    _buildWeekHeader(weekDays, today, true, colWidth),
+                    gridBody,
+                  ],
+                ),
+              ),
             )
-          else
-            gridBody,
-        ],
-      ),
+          : Column(
+              children: [
+                _buildWeekHeader(weekDays, today, false, colWidth),
+                gridBody,
+              ],
+            ),
     );
   }
 
@@ -6493,7 +7514,7 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
               ),
               child: Text(
                 'Aceitar',
-                style: TextStyle(color: AdminThemeColors.of(context).bg),
+                style: const TextStyle(color: Colors.white),
               ),
             ),
           ],
@@ -6640,34 +7661,20 @@ class _AdminSettingsView extends ConsumerWidget {
     final authState = ref.watch(authProvider);
     final userId = authState.user?.uid ?? '';
     final userAsync = ref.watch(userProfileProvider(userId));
-    final isMobile = MediaQuery.of(context).size.width < 900;
 
     return userAsync.when(
       data: (user) {
         SoundService().setSound(user.notificationSound ?? defaultSoundAsset);
-        return SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(
-            isMobile ? 16 : 40,
-            isMobile ? 20 : 40,
-            isMobile ? 16 : 40,
-            isMobile ? 28 : 44,
-          ),
+        return AdminPageFrame(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'DEFINIÇÕES',
-                style: _adminDisplay(context, isMobile ? 28 : 40),
+              AdminPageHeader(
+                title: 'Definições',
+                subtitle: 'Configura o teu perfil e preferências',
+                icon: Icons.tune_outlined,
               ),
-              const SizedBox(height: 4),
-              Text(
-                'Configura o teu perfil e preferências',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: AdminThemeColors.of(context).muted,
-                ),
-              ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 22),
               _buildProfileCard(context, ref, user),
               const SizedBox(height: 24),
               _buildSoundPicker(context, ref, user),
@@ -6744,10 +7751,7 @@ class _AdminSettingsView extends ConsumerWidget {
                 ),
                 label: Text(
                   'Senha',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: AdminThemeColors.of(context).orange,
-                  ),
+                  style: GoogleFonts.inter(fontSize: 12, color: Colors.white),
                 ),
               ),
             ],
@@ -6823,7 +7827,7 @@ class _AdminSettingsView extends ConsumerWidget {
                       user.role == 'admin' ? 'Administrador' : 'Aluno',
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: AdminThemeColors.of(context).lime,
+                        color: Colors.white,
                       ),
                     ),
                   ],
@@ -7093,7 +8097,7 @@ class _AdminSettingsView extends ConsumerWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               TextField(
                 controller: emailCtrl,
                 keyboardType: TextInputType.emailAddress,
@@ -7132,7 +8136,7 @@ class _AdminSettingsView extends ConsumerWidget {
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AdminThemeColors.of(context).lime,
-              foregroundColor: AdminThemeColors.of(context).bg,
+              foregroundColor: Colors.white,
             ),
             child: Text(
               'Guardar',

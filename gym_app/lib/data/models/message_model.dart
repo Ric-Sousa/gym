@@ -20,6 +20,7 @@ class MessageModel {
 
     return DateTime.fromMillisecondsSinceEpoch(0);
   }
+
   final String id;
   final String remetenteId;
   final String texto;
@@ -27,6 +28,9 @@ class MessageModel {
   final bool lida;
   final String? audioUrl;
   final int? audioDurationMs;
+  final String? attachmentUrl;
+  final String? attachmentName;
+  final String? attachmentType;
 
   const MessageModel({
     this.id = '',
@@ -36,9 +40,14 @@ class MessageModel {
     this.lida = false,
     this.audioUrl,
     this.audioDurationMs,
+    this.attachmentUrl,
+    this.attachmentName,
+    this.attachmentType,
   });
 
   bool get isAudio => audioUrl != null && audioUrl!.isNotEmpty;
+  bool get isAttachment =>
+      attachmentUrl != null && attachmentUrl!.trim().isNotEmpty;
 
   factory MessageModel.fromMap(String id, Map<String, dynamic> map) {
     final timestamp = _parseTimestamp(map['timestamp']);
@@ -50,6 +59,9 @@ class MessageModel {
       lida: map['lida'] as bool? ?? false,
       audioUrl: map['audioUrl'] as String?,
       audioDurationMs: (map['audioDurationMs'] as num?)?.toInt(),
+      attachmentUrl: map['attachmentUrl'] as String?,
+      attachmentName: map['attachmentName'] as String?,
+      attachmentType: map['attachmentType'] as String?,
     );
   }
 
@@ -61,6 +73,12 @@ class MessageModel {
       'lida': lida,
       if (audioUrl != null && audioUrl!.isNotEmpty) 'audioUrl': audioUrl,
       if (audioDurationMs != null) 'audioDurationMs': audioDurationMs,
+      if (attachmentUrl != null && attachmentUrl!.isNotEmpty)
+        'attachmentUrl': attachmentUrl,
+      if (attachmentName != null && attachmentName!.isNotEmpty)
+        'attachmentName': attachmentName,
+      if (attachmentType != null && attachmentType!.isNotEmpty)
+        'attachmentType': attachmentType,
     };
   }
 
@@ -72,6 +90,9 @@ class MessageModel {
     bool? lida,
     String? audioUrl,
     int? audioDurationMs,
+    String? attachmentUrl,
+    String? attachmentName,
+    String? attachmentType,
   }) {
     return MessageModel(
       id: id ?? this.id,
@@ -81,6 +102,9 @@ class MessageModel {
       lida: lida ?? this.lida,
       audioUrl: audioUrl ?? this.audioUrl,
       audioDurationMs: audioDurationMs ?? this.audioDurationMs,
+      attachmentUrl: attachmentUrl ?? this.attachmentUrl,
+      attachmentName: attachmentName ?? this.attachmentName,
+      attachmentType: attachmentType ?? this.attachmentType,
     );
   }
 }

@@ -1,0 +1,36 @@
+import 'dart:typed_data';
+
+import 'package:image_picker/image_picker.dart';
+import 'package:uuid/uuid.dart';
+
+import '../../data/datasources/storage_datasource.dart';
+import '../../data/models/message_model.dart';
+
+Future<MessageModel> createUploadedImageMessage({
+  required StorageDataSource storage,
+  required String senderId,
+  required String chatId,
+  required XFile file,
+}) async {
+  final bytes = Uint8List.fromList(await file.readAsBytes());
+  final extension = file.name.contains('.')
+      ? file.name.split('.').last.toLowerCase()
+      : 'jpg';
+  final contentType = file.mimeType ?? 'image/$extension';
+  final path =
+      'chat_attachments/$chatId/${senderId}_${const Uuid().v4()}.$extension';
+  final url = await storage.uploadFile(
+    path: path,
+    fileBytes: bytes,
+    contentType: contentType,
+  );
+
+  return MessageModel(
+    remetenteId: senderId,
+    texto: '',
+    timestamp: DateTime.now(),
+    attachmentUrl: url,
+    attachmentName: file.name,
+    attachmentType: contentType,
+  );
+}

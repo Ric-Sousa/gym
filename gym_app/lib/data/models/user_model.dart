@@ -19,6 +19,16 @@ class UserModel {
   final String? notificationSound; // asset path do som de notificação
   final bool soundEnabled; // se os sons de notificação estão ativos
 
+  /// Controla se o aluno pode utilizar a aplicação.
+  /// Perfis antigos continuam ativos por defeito.
+  final bool isActive;
+
+  /// Data/hora em que o contrato termina. Até lá o acesso mantém-se ativo.
+  final DateTime? contractEndsAt;
+
+  /// Data/hora em que o perfil foi desativado manualmente.
+  final DateTime? deactivatedAt;
+
   const UserModel({
     required this.uid,
     required this.nome,
@@ -36,6 +46,9 @@ class UserModel {
     this.tipoCliente = 'presencial',
     this.notificationSound,
     this.soundEnabled = true,
+    this.isActive = true,
+    this.contractEndsAt,
+    this.deactivatedAt,
   });
 
   /// Cria a partir do documento Firestore.
@@ -63,7 +76,20 @@ class UserModel {
       tipoCliente: map['tipoCliente'] as String? ?? 'presencial',
       notificationSound: map['notificationSound'] as String?,
       soundEnabled: map['soundEnabled'] as bool? ?? true,
+      isActive: map['isActive'] as bool? ?? true,
+      contractEndsAt: _dateFromMap(map['contractEndsAt']),
+      deactivatedAt: _dateFromMap(map['deactivatedAt']),
     );
+  }
+
+  static DateTime? _dateFromMap(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    try {
+      return (value as dynamic).toDate() as DateTime;
+    } catch (_) {
+      return DateTime.tryParse(value.toString());
+    }
   }
 
   /// Converte para mapa (para escrita no Firestore).
@@ -86,6 +112,9 @@ class UserModel {
       if (notificationSound != null) 'notificationSound': notificationSound,
       if (!soundEnabled)
         'soundEnabled': false, // só escreve se for false (poupa writes)
+      'isActive': isActive,
+      if (contractEndsAt != null) 'contractEndsAt': contractEndsAt,
+      if (deactivatedAt != null) 'deactivatedAt': deactivatedAt,
     };
   }
 
@@ -109,6 +138,11 @@ class UserModel {
     String? tipoCliente,
     String? notificationSound,
     bool? soundEnabled,
+    bool? isActive,
+    DateTime? contractEndsAt,
+    DateTime? deactivatedAt,
+    bool clearContractEndsAt = false,
+    bool clearDeactivatedAt = false,
   }) {
     return UserModel(
       uid: uid,
@@ -127,6 +161,13 @@ class UserModel {
       tipoCliente: tipoCliente ?? this.tipoCliente,
       notificationSound: notificationSound ?? this.notificationSound,
       soundEnabled: soundEnabled ?? this.soundEnabled,
+      isActive: isActive ?? this.isActive,
+      contractEndsAt: clearContractEndsAt
+          ? null
+          : (contractEndsAt ?? this.contractEndsAt),
+      deactivatedAt: clearDeactivatedAt
+          ? null
+          : (deactivatedAt ?? this.deactivatedAt),
     );
   }
 
@@ -158,6 +199,21 @@ class UserModel {
   bool get isAdmin => role == 'admin';
   bool get isAluno => role == 'aluno';
   bool get isOnline => tipoCliente == 'online';
+
+  /// O acesso pode terminar por desativação manual ou pela data de contrato.
+  bool get isAccessAllowed =>
+      isAdmin ||
+      (isActive &&
+          (contractEndsAt == null || contractEndsAt!.isAfter(DateTime.now())));
+
+  String get accessStatus {
+    if (!isActive) return 'Inativo';
+    if (contractEndsAt != null && !contractEndsAt!.isAfter(DateTime.now())) {
+      return 'Contrato terminado';
+    }
+    if (contractEndsAt != null) return 'Termina em breve';
+    return 'Ativo';
+  }
 
   String get tipoClienteDisplay {
     if (tipoCliente == 'online') return '💻 Online';

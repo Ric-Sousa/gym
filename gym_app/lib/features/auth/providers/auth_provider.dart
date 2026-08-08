@@ -47,6 +47,8 @@ class AuthState {
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthRepository _authRepository;
   StreamSubscription<User?>? _authSubscription;
+  StreamSubscription<UserModel>? _profileSubscription;
+  Timer? _accessTimer;
 
   AuthNotifier(this._authRepository) : super(const AuthState()) {
     _listenAuthChanges();
@@ -64,6 +66,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
               status: AuthStatus.authenticated,
               user: userModel,
               firebaseUser: user,
+            );
+            _watchProfile(userModel.uid);
+            _startAccessTimer();
+          } on AuthFailure catch (e) {
+            await _authRepository.signOut();
+            state = AuthState(
+              status: AuthStatus.error,
+              errorMessage: e.message,
             );
           } catch (_) {
             // Se falhar ao carregar o UserModel, faz logout
@@ -93,6 +103,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
         user: userModel,
         firebaseUser: userCredential.user,
       );
+      _watchProfile(userModel.uid);
+      _startAccessTimer();
     } on AuthFailure catch (e) {
       state = state.copyWith(status: AuthStatus.error, errorMessage: e.message);
     } on NetworkFailure {
@@ -108,8 +120,46 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  void _startAccessTimer() {
+    _accessTimer?.cancel();
+    final user = state.user;
+    if (user == null || user.isAdmin || user.contractEndsAt == null) return;
+
+    final delay = user.contractEndsAt!.difference(DateTime.now());
+    if (delay.isNegative || delay == Duration.zero) {
+      signOut();
+      return;
+    }
+
+    _accessTimer = Timer(delay, () {
+      if (state.user != null && !state.user!.isAccessAllowed) {
+        signOut();
+      }
+    });
+  }
+
+  void _watchProfile(String uid) {
+    _profileSubscription?.cancel();
+    _profileSubscription = _authRepository.userStream(uid).listen((
+      userModel,
+    ) async {
+      if (!userModel.isAccessAllowed) {
+        await signOut();
+        return;
+      }
+      if (state.status == AuthStatus.authenticated) {
+        state = state.copyWith(user: userModel);
+        _startAccessTimer();
+      }
+    }, onError: (_) {});
+  }
+
   /// Termina sessão.
   Future<void> signOut() async {
+    await _profileSubscription?.cancel();
+    _profileSubscription = null;
+    _accessTimer?.cancel();
+    _accessTimer = null;
     await _authRepository.signOut();
     state = const AuthState(status: AuthStatus.unauthenticated);
   }
@@ -139,6 +189,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
   @override
   void dispose() {
     _authSubscription?.cancel();
+    _profileSubscription?.cancel();
+    _accessTimer?.cancel();
     super.dispose();
   }
 }

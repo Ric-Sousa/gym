@@ -12,6 +12,7 @@ void main() {
             child: ImageComparisonSlider(
               beforeImage: 'https://example.com/before.jpg',
               afterImage: 'https://example.com/after.jpg',
+              width: 320,
               height: 200,
             ),
           ),
@@ -39,8 +40,7 @@ void main() {
   ) async {
     await tester.pumpWidget(buildTestWidget());
 
-    final handleFinder =
-        find.byKey(const ValueKey('image-comparison-handle'));
+    final handleFinder = find.byKey(const ValueKey('image-comparison-handle'));
     final initialHandle = tester.getRect(handleFinder);
     final sliderRect = tester.getRect(find.byType(ImageComparisonSlider));
     final gesture = await tester.startGesture(

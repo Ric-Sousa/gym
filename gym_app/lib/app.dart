@@ -18,6 +18,27 @@ import 'shared/providers/global_providers.dart';
 import 'shared/widgets/sound_preference_sync.dart';
 import 'shared/widgets/app_page_frame.dart';
 import 'shared/widgets/app_design_system.dart';
+import 'shared/widgets/admin_design_system.dart';
+
+class _FadePageTransitionsBuilder extends PageTransitionsBuilder {
+  const _FadePageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    return FadeTransition(opacity: curved, child: child);
+  }
+}
 
 /// App root widget.
 class PersonalFitApp extends ConsumerWidget {
@@ -34,182 +55,181 @@ class PersonalFitApp extends ConsumerWidget {
     // Aplica a preferência de som do utilizador autenticado (admin/aluno)
     // assim que o perfil carrega e desbloqueia o áudio no primeiro gesto em
     // qualquer parte da app — não apenas no chat.
+    final lightTheme = _buildKineticDarkTheme(genero).copyWith(
+      brightness: Brightness.light,
+      colorScheme: ColorScheme.light(
+        primary: AppColors.adminLightLime,
+        onPrimary: AppColors.adminLightText,
+        surface: AppColors.adminLightSurface,
+        onSurface: AppColors.adminLightText,
+        outline: AppColors.adminLightBorder,
+      ),
+      scaffoldBackgroundColor: AppColors.adminLightBg,
+      appBarTheme: _buildKineticDarkTheme(genero).appBarTheme.copyWith(
+        backgroundColor: AppColors.adminLightSurface,
+        foregroundColor: AppColors.adminLightText,
+        titleTextStyle: GoogleFonts.montserrat(
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          color: AppColors.adminLightText,
+        ),
+        iconTheme: const IconThemeData(color: AppColors.adminLightText),
+        actionsIconTheme: const IconThemeData(color: AppColors.adminLightMuted),
+      ),
+      cardTheme: CardThemeData(
+        color: AppColors.adminLightSurface,
+        elevation: 0,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.adminLightBorder),
+        ),
+        margin: const EdgeInsets.only(bottom: 16),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.adminLightSurface,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 16,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.adminLightBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.adminLightBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(
+            color: AppColors.adminLightLime,
+            width: 1.5,
+          ),
+        ),
+        labelStyle: GoogleFonts.inter(color: AppColors.adminLightMuted),
+        floatingLabelStyle: GoogleFonts.inter(
+          fontWeight: FontWeight.w600,
+          color: AppColors.adminLightLime,
+        ),
+        hintStyle: GoogleFonts.inter(color: AppColors.adminLightMuted),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.adminLightLime,
+          foregroundColor: AppColors.adminLightText,
+          minimumSize: const Size(0, 48),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w700),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.adminLightText,
+          side: const BorderSide(color: AppColors.adminLightBorder),
+          minimumSize: const Size(0, 46),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: AppColors.adminLightSurface2,
+        labelStyle: GoogleFonts.inter(
+          fontSize: 12,
+          color: AppColors.adminLightText,
+        ),
+        selectedColor: AppColors.adminLightLime,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        side: const BorderSide(color: AppColors.adminLightBorder),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      ),
+      listTileTheme: ListTileThemeData(
+        tileColor: AppColors.adminLightSurface,
+        textColor: AppColors.adminLightText,
+        iconColor: AppColors.adminLightText,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        minVerticalPadding: 8,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: AppColors.adminLightSurface,
+        indicatorColor: AppColors.adminLightLimeDim,
+        height: 78,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        labelTextStyle: WidgetStatePropertyAll(
+          GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: AppColors.adminLightText,
+          ),
+        ),
+        iconTheme: const WidgetStatePropertyAll(
+          IconThemeData(color: AppColors.adminLightMuted),
+        ),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: AppColors.adminLightSurface,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppColors.adminLightSurface,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.adminLightBorder),
+        ),
+        titleTextStyle: GoogleFonts.montserrat(
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+          color: AppColors.adminLightText,
+        ),
+        contentTextStyle: GoogleFonts.inter(
+          fontSize: 14,
+          height: 1.45,
+          color: AppColors.adminLightMuted,
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: AppColors.adminLightText,
+        contentTextStyle: GoogleFonts.inter(
+          color: AppColors.adminLightSurface,
+          fontSize: 14,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        behavior: SnackBarBehavior.floating,
+      ),
+      extensions: [AdminThemeColors.light],
+    );
+    final darkTheme = _buildKineticDarkTheme(
+      genero,
+    ).copyWith(extensions: [AdminThemeColors.dark]);
+    // Apply the same workspace component rules to both areas. The color
+    // extension remains the source of truth for each existing palette.
+    final workspaceLightTheme = buildWorkspaceTheme(
+      lightTheme,
+      AdminThemeColors.light,
+    );
+    final workspaceDarkTheme = buildWorkspaceTheme(
+      darkTheme,
+      AdminThemeColors.dark,
+    );
+
     return SoundPreferenceSync(
       child: MaterialApp(
         key: ValueKey(genero ?? 'default'),
         title: AppStrings.appName,
         debugShowCheckedModeBanner: false,
-        theme: _buildKineticDarkTheme(genero).copyWith(
-          brightness: Brightness.light,
-          colorScheme: ColorScheme.light(
-            primary: AppColors.adminLightLime,
-            onPrimary: AppColors.adminLightText,
-            surface: AppColors.adminLightSurface,
-            onSurface: AppColors.adminLightText,
-            outline: AppColors.adminLightBorder,
-          ),
-          scaffoldBackgroundColor: AppColors.adminLightBg,
-          appBarTheme: _buildKineticDarkTheme(genero).appBarTheme.copyWith(
-            backgroundColor: AppColors.adminLightSurface,
-            foregroundColor: AppColors.adminLightText,
-            titleTextStyle: GoogleFonts.montserrat(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: AppColors.adminLightText,
-            ),
-            iconTheme: const IconThemeData(color: AppColors.adminLightText),
-            actionsIconTheme: const IconThemeData(
-              color: AppColors.adminLightMuted,
-            ),
-          ),
-          cardTheme: CardThemeData(
-            color: AppColors.adminLightSurface,
-            elevation: 0,
-            clipBehavior: Clip.antiAlias,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: const BorderSide(color: AppColors.adminLightBorder),
-            ),
-            margin: const EdgeInsets.only(bottom: 16),
-          ),
-          inputDecorationTheme: InputDecorationTheme(
-            filled: true,
-            fillColor: AppColors.adminLightSurface,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 18,
-              vertical: 16,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: AppColors.adminLightBorder),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: AppColors.adminLightBorder),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(
-                color: AppColors.adminLightLime,
-                width: 1.5,
-              ),
-            ),
-            labelStyle: GoogleFonts.inter(color: AppColors.adminLightMuted),
-            floatingLabelStyle: GoogleFonts.inter(
-              fontWeight: FontWeight.w600,
-              color: AppColors.adminLightLime,
-            ),
-            hintStyle: GoogleFonts.inter(color: AppColors.adminLightMuted),
-          ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.adminLightLime,
-              foregroundColor: AppColors.adminLightText,
-              minimumSize: const Size(0, 48),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-              textStyle: GoogleFonts.inter(fontWeight: FontWeight.w700),
-            ),
-          ),
-          outlinedButtonTheme: OutlinedButtonThemeData(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.adminLightText,
-              side: const BorderSide(color: AppColors.adminLightBorder),
-              minimumSize: const Size(0, 46),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-          ),
-          chipTheme: ChipThemeData(
-            backgroundColor: AppColors.adminLightSurface2,
-            labelStyle: GoogleFonts.inter(
-              fontSize: 12,
-              color: AppColors.adminLightText,
-            ),
-            selectedColor: AppColors.adminLightLime,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            side: const BorderSide(color: AppColors.adminLightBorder),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          ),
-          listTileTheme: ListTileThemeData(
-            tileColor: AppColors.adminLightSurface,
-            textColor: AppColors.adminLightText,
-            iconColor: AppColors.adminLightText,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 4,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-            minVerticalPadding: 8,
-          ),
-          navigationBarTheme: NavigationBarThemeData(
-            backgroundColor: AppColors.adminLightSurface,
-            indicatorColor: AppColors.adminLightLimeDim,
-            height: 78,
-            elevation: 0,
-            surfaceTintColor: Colors.transparent,
-            labelTextStyle: WidgetStatePropertyAll(
-              GoogleFonts.inter(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: AppColors.adminLightText,
-              ),
-            ),
-            iconTheme: const WidgetStatePropertyAll(
-              IconThemeData(color: AppColors.adminLightMuted),
-            ),
-          ),
-          bottomSheetTheme: const BottomSheetThemeData(
-            backgroundColor: AppColors.adminLightSurface,
-            clipBehavior: Clip.antiAlias,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-          ),
-          dialogTheme: DialogThemeData(
-            backgroundColor: AppColors.adminLightSurface,
-            insetPadding: const EdgeInsets.symmetric(
-              horizontal: 20,
-              vertical: 24,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-              side: const BorderSide(color: AppColors.adminLightBorder),
-            ),
-            titleTextStyle: GoogleFonts.montserrat(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: AppColors.adminLightText,
-            ),
-            contentTextStyle: GoogleFonts.inter(
-              fontSize: 14,
-              height: 1.45,
-              color: AppColors.adminLightMuted,
-            ),
-          ),
-          snackBarTheme: SnackBarThemeData(
-            backgroundColor: AppColors.adminLightText,
-            contentTextStyle: GoogleFonts.inter(
-              color: AppColors.adminLightSurface,
-              fontSize: 14,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-            behavior: SnackBarBehavior.floating,
-          ),
-          extensions: [AdminThemeColors.light],
-        ),
-        darkTheme: _buildKineticDarkTheme(
-          genero,
-        ).copyWith(extensions: [AdminThemeColors.dark]),
+        theme: workspaceLightTheme,
+        darkTheme: workspaceDarkTheme,
         themeMode: adminThemeMode,
         home: _buildHome(authState),
       ),
@@ -265,6 +285,16 @@ class PersonalFitApp extends ConsumerWidget {
 
     return ThemeData(
       useMaterial3: true,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: <TargetPlatform, PageTransitionsBuilder>{
+          TargetPlatform.android: _FadePageTransitionsBuilder(),
+          TargetPlatform.iOS: _FadePageTransitionsBuilder(),
+          TargetPlatform.macOS: _FadePageTransitionsBuilder(),
+          TargetPlatform.windows: _FadePageTransitionsBuilder(),
+          TargetPlatform.linux: _FadePageTransitionsBuilder(),
+          TargetPlatform.fuchsia: _FadePageTransitionsBuilder(),
+        },
+      ),
       brightness: Brightness.dark,
       scaffoldBackgroundColor: AppColors.background,
       splashColor: AppColors.primary.withValues(alpha: 0.12),
@@ -708,7 +738,12 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
       setState(() => _currentIndex = index);
       // O IndexedStack mantém os ecrãs montados. O estado do chat tem de
       // acompanhar a aba visível, e não o ciclo de vida do widget.
-      ref.read(isAlunoInChatProvider.notifier).state = index == 4;
+      final inChat = index == 4;
+      Future.microtask(() {
+        if (mounted) {
+          ref.read(isAlunoInChatProvider.notifier).state = inChat;
+        }
+      });
     }
 
     final content = AppPageFrame(
