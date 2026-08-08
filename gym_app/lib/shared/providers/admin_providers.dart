@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod/legacy.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../data/models/nutrition_plan_model.dart';
@@ -17,40 +18,44 @@ import 'global_providers.dart';
 // ─── Admin Theme Toggle ─────────────────────────────────────────
 
 /// Provider para o modo escuro/claro do painel admin.
-final adminThemeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.dark);
+final adminThemeModeProvider = StateProvider<ThemeMode>(
+  (ref) => ThemeMode.dark,
+);
 
 /// Provider que expõe a paleta admin atual (dark ou light).
 final adminColorsProvider = Provider<AdminThemeColors>((ref) {
   final mode = ref.watch(adminThemeModeProvider);
-  return mode == ThemeMode.dark ? AdminThemeColors.dark : AdminThemeColors.light;
+  return mode == ThemeMode.dark
+      ? AdminThemeColors.dark
+      : AdminThemeColors.light;
 });
 
 /// Provider do plano nutricional do aluno (admin view).
 final adminNutritionPlanProvider =
-    FutureProvider.family<NutritionPlanModel?, (String, String)>(
-  (ref, params) {
-    final (userId, diaSemana) = params;
-    return ref.read(nutritionRepositoryProvider).getPlan(userId, diaSemana);
-  },
-);
+    FutureProvider.family<NutritionPlanModel?, (String, String)>((ref, params) {
+      final (userId, diaSemana) = params;
+      return ref.read(nutritionRepositoryProvider).getPlan(userId, diaSemana);
+    });
 
 /// Provider do plano de treino do aluno (admin view).
 final adminWorkoutPlansProvider =
     FutureProvider.family<List<WorkoutPlanModel>, String>((ref, userId) {
-  return ref.read(workoutRepositoryProvider).getAllPlans(userId);
-});
+      return ref.read(workoutRepositoryProvider).getAllPlans(userId);
+    });
 
 /// Provider de progresso (admin view).
 final adminProgressProvider =
     FutureProvider.family<List<ProgressModel>, String>((ref, userId) {
-  return ref.read(progressRepositoryProvider).getHistory(userId);
-});
+      return ref.read(progressRepositoryProvider).getHistory(userId);
+    });
 
 /// Provider de logs de treino para gráfico de progressão de cargas (admin).
 final adminWorkoutLogsProvider =
     FutureProvider.family<List<WorkoutLogModel>, String>((ref, userId) {
-  return ref.read(workoutLogRepositoryProvider).getHistory(userId, limit: 30);
-});
+      return ref
+          .read(workoutLogRepositoryProvider)
+          .getHistory(userId, limit: 30);
+    });
 
 // ─── Dashboard Analytics ──────────────────────────────────────────
 
@@ -69,8 +74,9 @@ class AdminDashboardStats {
   });
 }
 
-final adminDashboardStatsProvider =
-    FutureProvider<AdminDashboardStats>((ref) async {
+final adminDashboardStatsProvider = FutureProvider<AdminDashboardStats>((
+  ref,
+) async {
   final firestore = FirebaseFirestore.instance;
   final now = DateTime.now();
   final startOfMonth = DateTime(now.year, now.month, 1);
@@ -128,7 +134,9 @@ final adminDashboardStatsProvider =
 
 // ─── Exercises ────────────────────────────────────────────────────
 
-final adminExercisesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) {
+final adminExercisesProvider = FutureProvider<List<Map<String, dynamic>>>((
+  ref,
+) {
   return ref.read(workoutRepositoryProvider).getExercises();
 });
 
@@ -138,38 +146,41 @@ final adminFoodsProvider = FutureProvider<List<FoodModel>>((ref) {
   return ref.read(nutritionRepositoryProvider).getAllFoods();
 });
 
-final adminFoodsSearchProvider =
-    FutureProvider.family<List<FoodModel>, String>((ref, query) {
-  if (query.isEmpty) return ref.read(nutritionRepositoryProvider).getAllFoods();
-  return ref.read(nutritionRepositoryProvider).searchFoods(query);
-});
+final adminFoodsSearchProvider = FutureProvider.family<List<FoodModel>, String>(
+  (ref, query) {
+    if (query.isEmpty)
+      return ref.read(nutritionRepositoryProvider).getAllFoods();
+    return ref.read(nutritionRepositoryProvider).searchFoods(query);
+  },
+);
 
 // ─── Payments ─────────────────────────────────────────────────────
 
 /// Provider de todos os pagamentos (admin).
-final adminAllPaymentsProvider =
-    FutureProvider<List<PaymentModel>>((ref) {
+final adminAllPaymentsProvider = FutureProvider<List<PaymentModel>>((ref) {
   return ref.read(paymentRepositoryProvider).getAllPayments();
 });
 
 /// Provider de pagamentos de um aluno específico (admin).
 final adminUserPaymentsProvider =
     FutureProvider.family<List<PaymentModel>, String>((ref, userId) {
-  return ref.read(paymentRepositoryProvider).getPayments(userId);
-});
+      return ref.read(paymentRepositoryProvider).getPayments(userId);
+    });
 
 /// Provider de agenda do trainer (admin) — Stream para atualizações em tempo real.
 final adminTrainerBookingsProvider =
     StreamProvider.family<List<BookingModel>, String>((ref, trainerId) {
-  if (trainerId.isEmpty) return Stream.value([]);
-  return ref.read(bookingRepositoryProvider).watchTrainerBookings(trainerId);
-});
+      if (trainerId.isEmpty) return Stream.value([]);
+      return ref
+          .read(bookingRepositoryProvider)
+          .watchTrainerBookings(trainerId);
+    });
 
 /// Provider de progressão de cargas para clientes online.
 final onlineProgressionProvider =
     FutureProvider.family<List<ProgressionData>, String>((ref, userId) {
-  return ref.read(workoutRepositoryProvider).getProgression(userId);
-});
+      return ref.read(workoutRepositoryProvider).getProgression(userId);
+    });
 
 /// Provider de todos os grupos (admin).
 final adminGroupsProvider = FutureProvider<List<GroupModel>>((ref) {
@@ -179,11 +190,11 @@ final adminGroupsProvider = FutureProvider<List<GroupModel>>((ref) {
 /// Provider de nomes de alunos para a agenda (batch fetch).
 final adminStudentNamesProvider =
     FutureProvider.family<Map<String, String>, String>((ref, trainerId) async {
-  if (trainerId.isEmpty) return {};
-  // Lê os bookings atuais (StreamProvider) — se estiver em loading/error, retorna vazio
-  final bookingsAsync = ref.read(adminTrainerBookingsProvider(trainerId));
-  final bookings = bookingsAsync.valueOrNull ?? [];
-  final uids = bookings.map((b) => b.studentId).toSet().toList();
-  if (uids.isEmpty) return {};
-  return ref.read(userRepositoryProvider).getUserNames(uids);
-});
+      if (trainerId.isEmpty) return {};
+      // Lê os bookings atuais (StreamProvider) — se estiver em loading/error, retorna vazio
+      final bookingsAsync = ref.read(adminTrainerBookingsProvider(trainerId));
+      final bookings = bookingsAsync.asData?.value ?? [];
+      final uids = bookings.map((b) => b.studentId).toSet().toList();
+      if (uids.isEmpty) return {};
+      return ref.read(userRepositoryProvider).getUserNames(uids);
+    });

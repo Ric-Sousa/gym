@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod/legacy.dart';
 import '../../../core/errors/failures.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/repositories/auth_repository.dart';
@@ -34,11 +34,8 @@ class AuthState {
     return AuthState(
       status: status ?? this.status,
       user: clearUser ? null : (user ?? this.user),
-      firebaseUser: clearUser
-          ? null
-          : (firebaseUser ?? this.firebaseUser),
-      errorMessage:
-          clearError ? null : (errorMessage ?? this.errorMessage),
+      firebaseUser: clearUser ? null : (firebaseUser ?? this.firebaseUser),
+      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );
   }
 
@@ -97,10 +94,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         firebaseUser: userCredential.user,
       );
     } on AuthFailure catch (e) {
-      state = state.copyWith(
-        status: AuthStatus.error,
-        errorMessage: e.message,
-      );
+      state = state.copyWith(status: AuthStatus.error, errorMessage: e.message);
     } on NetworkFailure {
       state = state.copyWith(
         status: AuthStatus.error,
@@ -138,10 +132,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (fbUser == null) return;
     try {
       final userModel = await _authRepository.getUserModel();
-      state = state.copyWith(
-        user: userModel,
-        status: AuthStatus.authenticated,
-      );
+      state = state.copyWith(user: userModel, status: AuthStatus.authenticated);
     } catch (_) {}
   }
 
@@ -153,8 +144,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
 }
 
 /// Provider do AuthNotifier.
-final authProvider =
-    StateNotifierProvider.autoDispose<AuthNotifier, AuthState>((ref) {
-  final authRepository = ref.watch(authRepositoryProvider);
-  return AuthNotifier(authRepository);
-});
+final authProvider = StateNotifierProvider.autoDispose<AuthNotifier, AuthState>(
+  (ref) {
+    final authRepository = ref.watch(authRepositoryProvider);
+    return AuthNotifier(authRepository);
+  },
+);

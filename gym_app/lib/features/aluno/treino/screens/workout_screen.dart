@@ -14,23 +14,27 @@ import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/app_notification.dart';
+import '../../../../shared/widgets/app_design_system.dart';
 
 final workoutPlansProvider =
     FutureProvider.family<List<WorkoutPlanModel>, String>((ref, userId) {
-  return ref.read(workoutRepositoryProvider).getAllPlans(userId);
-});
+      return ref.read(workoutRepositoryProvider).getAllPlans(userId);
+    });
 
-final todayWorkoutDiaryProvider =
-    StreamProvider.family<DiaryModel?, String>((ref, userId) {
+final todayWorkoutDiaryProvider = StreamProvider.family<DiaryModel?, String>((
+  ref,
+  userId,
+) {
   final today = DateFormat(AppConstants.dateFormat).format(DateTime.now());
   return ref.read(diaryRepositoryProvider).diaryEntryStream(userId, today);
 });
 
-final todayWorkoutLogProvider =
-    FutureProvider.family<WorkoutLogModel?, String>((ref, userId) {
-  final today = DateFormat(AppConstants.dateFormat).format(DateTime.now());
-  return ref.read(workoutLogRepositoryProvider).getLog(userId, today);
-});
+final todayWorkoutLogProvider = FutureProvider.family<WorkoutLogModel?, String>(
+  (ref, userId) {
+    final today = DateFormat(AppConstants.dateFormat).format(DateTime.now());
+    return ref.read(workoutLogRepositoryProvider).getLog(userId, today);
+  },
+);
 
 /// Ecrã de treino — Execução interativa com registo de séries, timer e vídeos.
 class WorkoutScreen extends ConsumerStatefulWidget {
@@ -70,7 +74,11 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       '${exNome}_s${serieNum}_$field';
 
   TextEditingController _getController(
-      String exNome, int serieNum, String field, String? initialValue) {
+    String exNome,
+    int serieNum,
+    String field,
+    String? initialValue,
+  ) {
     final key = _seriesKey(exNome, serieNum, field);
     final map = field == 'carga' ? _cargaControllers : _repControllers;
     if (!map.containsKey(key)) {
@@ -90,11 +98,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       diaSemana: todayWorkout.diaSemana,
       foco: todayWorkout.foco,
       exercicios: todayWorkout.exercicios.map((e) {
-        return ExerciseLog.fromExercise(
-          e.nome,
-          e.series,
-          e.grupoMuscular,
-        );
+        return ExerciseLog.fromExercise(e.nome, e.series, e.grupoMuscular);
       }).toList(),
     );
   }
@@ -108,8 +112,9 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     if (_activeLog == null || _saving) return;
     _saving = true;
     final userId = ref.read(authProvider).user?.uid ?? '';
-    final dateKey = DateFormat(AppConstants.workoutLogDateFormat)
-        .format(_activeLog!.data);
+    final dateKey = DateFormat(
+      AppConstants.workoutLogDateFormat,
+    ).format(_activeLog!.data);
     try {
       await ref
           .read(workoutLogRepositoryProvider)
@@ -138,18 +143,26 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
   }
 
   void _updateSerieData(
-      ExerciseLog exercise, int serieIdx, String field, String value) {
+    ExerciseLog exercise,
+    int serieIdx,
+    String field,
+    String value,
+  ) {
     final numValue = double.tryParse(value.replaceAll(',', '.'));
     setState(() {
       final updatedSeries = exercise.series.toList();
       final s = updatedSeries[serieIdx];
       if (field == 'carga') {
-        updatedSeries[serieIdx] =
-            s.copyWith(carga: numValue, clearCarga: value.isEmpty);
+        updatedSeries[serieIdx] = s.copyWith(
+          carga: numValue,
+          clearCarga: value.isEmpty,
+        );
       } else {
         final reps = int.tryParse(value);
         updatedSeries[serieIdx] = s.copyWith(
-            repeticoes: reps, clearRepeticoes: value.isEmpty);
+          repeticoes: reps,
+          clearRepeticoes: value.isEmpty,
+        );
       }
       final updatedExercises = _activeLog!.exercicios.toList();
       final exIdx = updatedExercises.indexOf(exercise);
@@ -163,7 +176,11 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     _saveLog();
   }
 
-  void _startRestTimer(int seconds, String exerciseName, {String mode = 'DESCANSO'}) {
+  void _startRestTimer(
+    int seconds,
+    String exerciseName, {
+    String mode = 'DESCANSO',
+  }) {
     _restTimer?.cancel();
     setState(() {
       _restSecondsRemaining = seconds;
@@ -202,8 +219,9 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
   Future<void> _completeWorkout() async {
     final userId = ref.read(authProvider).user?.uid ?? '';
     final today = DateFormat(AppConstants.dateFormat).format(DateTime.now());
-    final dateKey =
-        DateFormat(AppConstants.workoutLogDateFormat).format(DateTime.now());
+    final dateKey = DateFormat(
+      AppConstants.workoutLogDateFormat,
+    ).format(DateTime.now());
 
     try {
       // Guarda log final
@@ -219,13 +237,19 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       });
 
       if (mounted) {
-        showAppNotification(context, 'Treino concluído! 💪🔥',
-            type: NotificationType.success);
+        showAppNotification(
+          context,
+          'Treino concluído! 💪🔥',
+          type: NotificationType.success,
+        );
       }
     } catch (_) {
       if (mounted) {
-        showAppNotification(context, AppStrings.networkError,
-            type: NotificationType.error);
+        showAppNotification(
+          context,
+          AppStrings.networkError,
+          type: NotificationType.error,
+        );
       }
     }
   }
@@ -290,8 +314,9 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                       itemCount: logs.length,
                       itemBuilder: (_, i) {
                         final log = logs[i];
-                        final dateStr = DateFormat('dd/MM/yyyy')
-                            .format(log.data);
+                        final dateStr = DateFormat(
+                          'dd/MM/yyyy',
+                        ).format(log.data);
                         final seriesDone = log.seriesConcluidas;
                         final seriesTotal = log.seriesTotais;
                         final duration = log.duracaoMinutos > 0
@@ -313,8 +338,9 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                           ),
                           title: Text(
                             '$dateStr — ${log.diaSemana}',
-                            style:
-                                GoogleFonts.inter(color: AppColors.onSurface),
+                            style: GoogleFonts.inter(
+                              color: AppColors.onSurface,
+                            ),
                           ),
                           subtitle: Text(
                             '${log.planoSemana} • $seriesDone/$seriesTotal séries$duration',
@@ -354,42 +380,50 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(
-          AppStrings.workoutPlan,
-          style: GoogleFonts.montserrat(
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 16),
+            child: AppPageIntro(
+              eyebrow: 'Plano de treino',
+              title: 'Treina com intenção',
+              subtitle:
+                  'Executa cada série, acompanha o descanso e regista a evolução.',
+              action: IconButton(
+                onPressed: () => _showWorkoutHistory(userId),
+                icon: const Icon(Icons.history),
+                tooltip: AppStrings.workoutHistory,
+              ),
+            ),
           ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.history),
-            onPressed: () => _showWorkoutHistory(userId),
-            tooltip: AppStrings.workoutHistory,
+          Expanded(
+            child: plansAsync.when(
+              data: (plans) {
+                if (plans.isEmpty) {
+                  return const EmptyState(
+                    icon: Icons.fitness_center,
+                    title: AppStrings.noWorkoutAssigned,
+                  );
+                }
+                return _buildWorkoutContent(plans, userId, isMobile);
+              },
+              loading: () => const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              ),
+              error: (_, __) =>
+                  const EmptyState(icon: Icons.error_outline, title: 'Erro'),
+            ),
           ),
         ],
-      ),
-      body: plansAsync.when(
-        data: (plans) {
-          if (plans.isEmpty) {
-            return const EmptyState(
-              icon: Icons.fitness_center,
-              title: AppStrings.noWorkoutAssigned,
-            );
-          }
-          return _buildWorkoutContent(plans, userId, isMobile);
-        },
-        loading: () => const Center(
-            child: CircularProgressIndicator(color: AppColors.primary)),
-        error: (_, __) =>
-            const EmptyState(icon: Icons.error_outline, title: 'Erro'),
       ),
     );
   }
 
   Widget _buildWorkoutContent(
-      List<WorkoutPlanModel> plans, String userId, bool isMobile) {
+    List<WorkoutPlanModel> plans,
+    String userId,
+    bool isMobile,
+  ) {
     final todayWeekday = AppStrings.daysOfWeek[DateTime.now().weekday - 1];
     final plan = plans[_selectedPlanIndex.clamp(0, plans.length - 1)];
     final todayWorkout = plan.getWorkoutForDay(todayWeekday);
@@ -441,7 +475,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                             : AppColors.outline,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                   );
@@ -486,7 +520,11 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
   }
 
   Widget _buildExecutionView(
-      WorkoutDay todayWorkout, WorkoutPlanModel plan, String userId, bool isMobile) {
+    WorkoutDay todayWorkout,
+    WorkoutPlanModel plan,
+    String userId,
+    bool isMobile,
+  ) {
     // Check for existing log
     final logAsync = ref.watch(todayWorkoutLogProvider(userId));
 
@@ -500,8 +538,8 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
 
         if (_activeLog == null) {
           return const Center(
-              child:
-                  CircularProgressIndicator(color: AppColors.primary));
+            child: CircularProgressIndicator(color: AppColors.primary),
+          );
         }
 
         final progress = _activeLog!.progresso;
@@ -541,16 +579,22 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
         );
       },
       loading: () => const Center(
-          child: CircularProgressIndicator(color: AppColors.primary)),
+        child: CircularProgressIndicator(color: AppColors.primary),
+      ),
       error: (_, __) => const Center(
-          child: Text('Erro', style: TextStyle(color: AppColors.textSecondary))),
+        child: Text('Erro', style: TextStyle(color: AppColors.textSecondary)),
+      ),
     );
   }
 
   Widget _buildExerciseCard(
-      ExerciseLog exerciseLog, Exercise plannedExercise, bool isMobile) {
+    ExerciseLog exerciseLog,
+    Exercise plannedExercise,
+    bool isMobile,
+  ) {
     final allDone = exerciseLog.todasConcluidas;
-    final isFuncional = plannedExercise.categoria == 'funcional' ||
+    final isFuncional =
+        plannedExercise.categoria == 'funcional' ||
         plannedExercise.categoria == 'cardio' ||
         plannedExercise.duracao != null;
 
@@ -558,7 +602,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: allDone ? AppColors.success : AppColors.outline,
           width: allDone ? 2 : 1,
@@ -588,9 +632,12 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
           isFuncional
               ? _funcionalSubtitle(plannedExercise, exerciseLog)
               : '${exerciseLog.seriesConcluidas}/${exerciseLog.totalSeries} séries • '
-                '${plannedExercise.series}x${plannedExercise.repeticoes}'
-                '${plannedExercise.cargaSugerida != null ? ' • ${plannedExercise.cargaSugerida}kg' : ''}',
-          style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary),
+                    '${plannedExercise.series}x${plannedExercise.repeticoes}'
+                    '${plannedExercise.cargaSugerida != null ? ' • ${plannedExercise.cargaSugerida}kg' : ''}',
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: AppColors.textSecondary,
+          ),
         ),
         children: [
           Padding(
@@ -599,9 +646,11 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Action buttons row
-                Row(
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
-                    if (plannedExercise.videoURL != null) ...[
+                    if (plannedExercise.videoURL != null)
                       _actionChip(
                         Icons.play_circle_outline,
                         'Vídeo',
@@ -611,8 +660,6 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                           plannedExercise.nome,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                    ],
                     _actionChip(
                       Icons.timer_outlined,
                       'Descanso ${plannedExercise.descanso}s',
@@ -622,8 +669,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                         plannedExercise.nome,
                       ),
                     ),
-                    if (isFuncional && plannedExercise.duracao != null) ...[
-                      const SizedBox(width: 8),
+                    if (isFuncional && plannedExercise.duracao != null)
                       _actionChip(
                         Icons.play_arrow,
                         'Timer ${plannedExercise.duracao}s',
@@ -634,7 +680,6 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                           mode: 'EXERCÍCIO',
                         ),
                       ),
-                    ],
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -644,38 +689,46 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                 ] else ...[
                   // Series table header
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceHigh,
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       children: [
                         SizedBox(
                           width: isMobile ? 36 : 44,
-                          child: Text('Série',
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textSecondary,
-                              )),
+                          child: Text(
+                            'Série',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
                         ),
                         Expanded(
-                          child: Text('Carga (kg)',
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textSecondary,
-                              )),
+                          child: Text(
+                            'Carga (kg)',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
                         ),
                         Expanded(
-                          child: Text('Reps',
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textSecondary,
-                              )),
+                          child: Text(
+                            'Reps',
+                            style: GoogleFonts.inter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
                         ),
                         const SizedBox(width: 40),
                       ],
@@ -686,18 +739,27 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                   ...exerciseLog.series.asMap().entries.map((entry) {
                     final s = entry.value;
                     final serieIdx = entry.key;
-                    final cargaCtrl =
-                        _getController(exerciseLog.nome, s.numero, 'carga',
-                            s.carga?.toString());
-                    final repCtrl = _getController(exerciseLog.nome, s.numero,
-                        'rep', s.repeticoes?.toString());
+                    final cargaCtrl = _getController(
+                      exerciseLog.nome,
+                      s.numero,
+                      'carga',
+                      s.carga?.toString(),
+                    );
+                    final repCtrl = _getController(
+                      exerciseLog.nome,
+                      s.numero,
+                      'rep',
+                      s.repeticoes?.toString(),
+                    );
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 4),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(8),
                         color: s.concluida
                             ? AppColors.success.withValues(alpha: 0.08)
                             : Colors.transparent,
@@ -723,7 +785,8 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                                 controller: cargaCtrl,
                                 keyboardType:
                                     const TextInputType.numberWithOptions(
-                                        decimal: true),
+                                      decimal: true,
+                                    ),
                                 textAlign: TextAlign.center,
                                 style: GoogleFonts.inter(
                                   fontSize: 13,
@@ -731,28 +794,38 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                                 ),
                                 decoration: InputDecoration(
                                   contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 8),
+                                    horizontal: 6,
+                                    vertical: 8,
+                                  ),
                                   isDense: true,
                                   border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(4),
+                                    borderRadius: BorderRadius.circular(8),
                                     borderSide: const BorderSide(
-                                        color: AppColors.outline),
+                                      color: AppColors.outline,
+                                    ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(4),
+                                    borderRadius: BorderRadius.circular(8),
                                     borderSide: const BorderSide(
-                                        color: AppColors.outline),
+                                      color: AppColors.outline,
+                                    ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(4),
+                                    borderRadius: BorderRadius.circular(8),
                                     borderSide: const BorderSide(
-                                        color: AppColors.primary, width: 2),
+                                      color: AppColors.primary,
+                                      width: 2,
+                                    ),
                                   ),
                                   filled: true,
                                   fillColor: AppColors.surfaceHigh,
                                 ),
                                 onChanged: (v) => _updateSerieData(
-                                    exerciseLog, serieIdx, 'carga', v),
+                                  exerciseLog,
+                                  serieIdx,
+                                  'carga',
+                                  v,
+                                ),
                               ),
                             ),
                           ),
@@ -770,35 +843,44 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                                 ),
                                 decoration: InputDecoration(
                                   contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 8),
+                                    horizontal: 6,
+                                    vertical: 8,
+                                  ),
                                   isDense: true,
                                   border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(4),
+                                    borderRadius: BorderRadius.circular(8),
                                     borderSide: const BorderSide(
-                                        color: AppColors.outline),
+                                      color: AppColors.outline,
+                                    ),
                                   ),
                                   enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(4),
+                                    borderRadius: BorderRadius.circular(8),
                                     borderSide: const BorderSide(
-                                        color: AppColors.outline),
+                                      color: AppColors.outline,
+                                    ),
                                   ),
                                   focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(4),
+                                    borderRadius: BorderRadius.circular(8),
                                     borderSide: const BorderSide(
-                                        color: AppColors.primary, width: 2),
+                                      color: AppColors.primary,
+                                      width: 2,
+                                    ),
                                   ),
                                   filled: true,
                                   fillColor: AppColors.surfaceHigh,
                                 ),
                                 onChanged: (v) => _updateSerieData(
-                                    exerciseLog, serieIdx, 'rep', v),
+                                  exerciseLog,
+                                  serieIdx,
+                                  'rep',
+                                  v,
+                                ),
                               ),
                             ),
                           ),
                           const SizedBox(width: 4),
                           GestureDetector(
-                            onTap: () =>
-                                _toggleSerie(exerciseLog, serieIdx),
+                            onTap: () => _toggleSerie(exerciseLog, serieIdx),
                             child: Container(
                               width: 32,
                               height: 32,
@@ -815,8 +897,11 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                                 ),
                               ),
                               child: s.concluida
-                                  ? const Icon(Icons.check,
-                                      size: 18, color: Colors.white)
+                                  ? const Icon(
+                                      Icons.check,
+                                      size: 18,
+                                      color: Colors.white,
+                                    )
                                   : const SizedBox(),
                             ),
                           ),
@@ -831,15 +916,19 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: AppColors.info.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                          color: AppColors.info.withValues(alpha: 0.2)),
+                        color: AppColors.info.withValues(alpha: 0.2),
+                      ),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.info_outline,
-                            size: 16, color: AppColors.info),
+                        const Icon(
+                          Icons.info_outline,
+                          size: 16,
+                          color: AppColors.info,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -874,7 +963,13 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     final parts = <String>[];
     if (ex.duracao != null) parts.add('${ex.duracao}s');
     if (ex.rounds != null) parts.add('${ex.rounds} rounds');
-    parts.add(ex.equipamento == 'corda' ? '🪢 Corda' : ex.equipamento == 'kettlebell' ? '🔔 Kettlebell' : '⚡ Funcional');
+    parts.add(
+      ex.equipamento == 'corda'
+          ? '🪢 Corda'
+          : ex.equipamento == 'kettlebell'
+          ? '🔔 Kettlebell'
+          : '⚡ Funcional',
+    );
     return parts.join(' • ');
   }
 
@@ -883,20 +978,30 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceHigh,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         children: [
           // Info row
           Row(
             children: [
-              _funcionalInfoChip(Icons.timer, '${exercise.duracao ?? exercise.descanso}s'),
+              _funcionalInfoChip(
+                Icons.timer,
+                '${exercise.duracao ?? exercise.descanso}s',
+              ),
               const SizedBox(width: 10),
               if (exercise.rounds != null) ...[
                 _funcionalInfoChip(Icons.repeat, '${exercise.rounds} rounds'),
                 const SizedBox(width: 10),
               ],
-              _funcionalInfoChip(Icons.fitness_center, exercise.equipamento == 'corda' ? 'Corda' : exercise.equipamento == 'kettlebell' ? 'Kettlebell' : 'Funcional'),
+              _funcionalInfoChip(
+                Icons.fitness_center,
+                exercise.equipamento == 'corda'
+                    ? 'Corda'
+                    : exercise.equipamento == 'kettlebell'
+                    ? 'Kettlebell'
+                    : 'Funcional',
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -907,12 +1012,19 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
             child: ElevatedButton.icon(
               onPressed: () => _toggleFuncionalComplete(exerciseLog),
               icon: Icon(
-                exerciseLog.todasConcluidas ? Icons.check_circle : Icons.play_circle_outline,
+                exerciseLog.todasConcluidas
+                    ? Icons.check_circle
+                    : Icons.play_circle_outline,
                 size: 20,
               ),
               label: Text(
-                exerciseLog.todasConcluidas ? 'CONCLUÍDO ✅' : 'MARCAR COMO CONCLUÍDO',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 13),
+                exerciseLog.todasConcluidas
+                    ? 'CONCLUÍDO ✅'
+                    : 'MARCAR COMO CONCLUÍDO',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: exerciseLog.todasConcluidas
@@ -920,7 +1032,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                     : AppColors.primary,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),
@@ -936,7 +1048,13 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       children: [
         Icon(icon, size: 14, color: AppColors.textSecondary),
         const SizedBox(width: 4),
-        Text(label, style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary)),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            color: AppColors.textSecondary,
+          ),
+        ),
       ],
     );
   }
@@ -947,7 +1065,9 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       final exIdx = updatedExercises.indexOf(exercise);
       // Toggle todas as séries
       final allDone = exercise.todasConcluidas;
-      final updatedSeries = exercise.series.map((s) => s.copyWith(concluida: !allDone)).toList();
+      final updatedSeries = exercise.series
+          .map((s) => s.copyWith(concluida: !allDone))
+          .toList();
       updatedExercises[exIdx] = ExerciseLog(
         nome: exercise.nome,
         grupoMuscular: exercise.grupoMuscular,
@@ -959,14 +1079,18 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
   }
 
   Widget _actionChip(
-      IconData icon, String label, Color color, VoidCallback onTap) {
+    IconData icon,
+    String label,
+    Color color,
+    VoidCallback onTap,
+  ) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Row(
@@ -1030,10 +1154,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                     height: 120,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.primary,
-                        width: 4,
-                      ),
+                      border: Border.all(color: AppColors.primary, width: 4),
                     ),
                     child: Center(
                       child: Text(
@@ -1078,9 +1199,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.surfaceHigh,
-        border: const Border(
-          top: BorderSide(color: AppColors.outline),
-        ),
+        border: const Border(top: BorderSide(color: AppColors.outline)),
       ),
       child: SafeArea(
         child: Column(
@@ -1100,13 +1219,14 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                 const SizedBox(width: 8),
                 Expanded(
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(3),
+                    borderRadius: BorderRadius.circular(6),
                     child: LinearProgressIndicator(
                       value: progress,
                       minHeight: 6,
                       backgroundColor: AppColors.outline,
                       valueColor: const AlwaysStoppedAnimation<Color>(
-                          AppColors.primary),
+                        AppColors.primary,
+                      ),
                     ),
                   ),
                 ),
@@ -1137,13 +1257,14 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      allDone ? AppColors.primary : AppColors.outline,
+                  backgroundColor: allDone
+                      ? AppColors.primary
+                      : AppColors.outline,
                   foregroundColor: allDone
                       ? AppColors.textOnPrimary
                       : AppColors.textSecondary,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
               ),
@@ -1175,14 +1296,16 @@ class _VideoPlayerSheetState extends State<_VideoPlayerSheet> {
   void initState() {
     super.initState();
     _controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl))
-      ..initialize().then((_) {
-        if (mounted) {
-          setState(() => _initialized = true);
-          _controller.play();
-        }
-      }).catchError((_) {
-        if (mounted) setState(() => _error = true);
-      });
+      ..initialize()
+          .then((_) {
+            if (mounted) {
+              setState(() => _initialized = true);
+              _controller.play();
+            }
+          })
+          .catchError((_) {
+            if (mounted) setState(() => _error = true);
+          });
   }
 
   @override
@@ -1221,14 +1344,16 @@ class _VideoPlayerSheetState extends State<_VideoPlayerSheet> {
               padding: const EdgeInsets.all(24),
               child: Column(
                 children: [
-                  const Icon(Icons.videocam_off,
-                      size: 48, color: AppColors.textSecondary),
+                  const Icon(
+                    Icons.videocam_off,
+                    size: 48,
+                    color: AppColors.textSecondary,
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     'Não foi possível carregar o vídeo.\nAbre no browser:',
                     textAlign: TextAlign.center,
-                    style:
-                        GoogleFonts.inter(color: AppColors.textSecondary),
+                    style: GoogleFonts.inter(color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -1290,17 +1415,15 @@ class _VideoControls extends StatelessWidget {
             IconButton(
               icon: const Icon(Icons.replay_10, color: Colors.white, size: 28),
               onPressed: () {
-                final newPos =
-                    value.position - const Duration(seconds: 10);
-                controller
-                    .seekTo(newPos < Duration.zero ? Duration.zero : newPos);
+                final newPos = value.position - const Duration(seconds: 10);
+                controller.seekTo(
+                  newPos < Duration.zero ? Duration.zero : newPos,
+                );
               },
             ),
             IconButton(
               icon: Icon(
-                value.isPlaying
-                    ? Icons.pause_circle
-                    : Icons.play_circle,
+                value.isPlaying ? Icons.pause_circle : Icons.play_circle,
                 color: Colors.white,
                 size: 44,
               ),
@@ -1315,11 +1438,10 @@ class _VideoControls extends StatelessWidget {
             IconButton(
               icon: const Icon(Icons.forward_10, color: Colors.white, size: 28),
               onPressed: () {
-                final newPos =
-                    value.position + const Duration(seconds: 10);
-                controller.seekTo(newPos > value.duration
-                    ? value.duration
-                    : newPos);
+                final newPos = value.position + const Duration(seconds: 10);
+                controller.seekTo(
+                  newPos > value.duration ? value.duration : newPos,
+                );
               },
             ),
           ],

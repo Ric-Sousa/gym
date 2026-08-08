@@ -36,22 +36,29 @@ class CircularProgressWidget extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.outline),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.surfaceLowest.withValues(alpha: 0.35),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           // Círculo de progresso
           SizedBox(
-            width: 100,
-            height: 100,
+            width: 104,
+            height: 104,
             child: Stack(
               alignment: Alignment.center,
               children: [
                 SizedBox(
-                  width: 100,
-                  height: 100,
+                  width: 104,
+                  height: 104,
                   child: CircularProgressIndicator(
                     value: clampedValue,
                     strokeWidth: 8,
@@ -116,7 +123,7 @@ class CircularProgressWidget extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: color.withValues(alpha: 0.5)),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 6),
                 ),

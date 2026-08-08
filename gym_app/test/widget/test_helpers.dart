@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod/legacy.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:gym_app/data/models/user_model.dart';
 import 'package:gym_app/features/auth/providers/auth_provider.dart';
@@ -7,7 +8,8 @@ import 'package:gym_app/core/config/admin_theme.dart';
 
 /// Mock AuthNotifier para testes de widget.
 /// Permite controlar o estado de autenticação sem Firebase.
-class MockAuthNotifier extends StateNotifier<AuthState> implements AuthNotifier {
+class MockAuthNotifier extends StateNotifier<AuthState>
+    implements AuthNotifier {
   MockAuthNotifier(super.state);
 
   @override
@@ -61,10 +63,10 @@ Future<void> initLocaleForTests() async {
 /// Cria um ProviderScope + MaterialApp para testes de widget.
 Widget createTestApp({
   required Widget child,
-  List<Override> overrides = const [],
+  List<dynamic> overrides = const [],
 }) {
   return ProviderScope(
-    overrides: overrides,
+    overrides: overrides.cast(),
     child: MaterialApp(
       theme: ThemeData(
         brightness: Brightness.dark,

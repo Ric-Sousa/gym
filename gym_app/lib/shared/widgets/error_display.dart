@@ -23,13 +23,29 @@ class ErrorDisplay extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 56, color: AppColors.error.withValues(alpha: 0.7)),
-            const SizedBox(height: 16),
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.errorContainer.withValues(alpha: 0.28),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppColors.error.withValues(alpha: 0.25),
+                ),
+              ),
+              child: Icon(
+                icon,
+                size: 40,
+                color: AppColors.error.withValues(alpha: 0.85),
+              ),
+            ),
+            const SizedBox(height: 20),
             Text(
               message,
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 15,
+                height: 1.4,
                 color: AppColors.onSurface,
               ),
             ),

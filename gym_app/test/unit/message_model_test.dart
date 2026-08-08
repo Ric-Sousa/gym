@@ -38,6 +38,31 @@ void main() {
       expect(message.lida, false);
     });
 
+    test('fromMap não quebra quando timestamp está ausente', () {
+      final message = MessageModel.fromMap(id, {
+        'remetenteId': remetenteId,
+        'texto': texto,
+      });
+
+      expect(message.timestamp, DateTime.fromMillisecondsSinceEpoch(0));
+    });
+
+    test('fromMap aceita timestamp ISO e milissegundos', () {
+      final iso = MessageModel.fromMap(id, {
+        'remetenteId': remetenteId,
+        'texto': texto,
+        'timestamp': '2026-07-23T14:30:00.000Z',
+      });
+      final millis = MessageModel.fromMap(id, {
+        'remetenteId': remetenteId,
+        'texto': texto,
+        'timestamp': 1780000000000,
+      });
+
+      expect(iso.timestamp, DateTime.parse('2026-07-23T14:30:00.000Z'));
+      expect(millis.timestamp, DateTime.fromMillisecondsSinceEpoch(1780000000000));
+    });
+
     test('toMap converte para mapa corretamente', () {
       final date = DateTime(2026, 7, 23, 14, 30);
       final message = MessageModel(
@@ -72,6 +97,24 @@ void main() {
       expect(updated.texto, 'Tudo bem!');
       expect(updated.lida, true);
       expect(updated.timestamp, date);
+    });
+
+    test('suporta mensagens de áudio sem quebrar mensagens de texto', () {
+      final audioTimestamp = MockTimestamp(DateTime(2026, 7, 23, 15, 0));
+      final audio = MessageModel.fromMap('audio1', {
+        'remetenteId': remetenteId,
+        'texto': '',
+        'timestamp': audioTimestamp,
+        'lida': false,
+        'audioUrl': 'https://example.com/audio.m4a',
+        'audioDurationMs': 4200,
+      });
+
+      expect(audio.isAudio, true);
+      expect(audio.audioUrl, 'https://example.com/audio.m4a');
+      expect(audio.audioDurationMs, 4200);
+      expect(audio.toMap()['audioUrl'], 'https://example.com/audio.m4a');
+      expect(audio.toMap()['audioDurationMs'], 4200);
     });
 
     test('construtor usa id vazio por padrão', () {

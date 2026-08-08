@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,105 +12,290 @@ import '../../../../data/models/diary_model.dart';
 import '../../../../data/models/workout_plan_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
+import '../../../../shared/providers/chat_notification_providers.dart';
 import '../../../../shared/widgets/star_rating.dart';
 import '../../../aluno/agenda/screens/calendar_screen.dart';
 import '../../../../shared/widgets/offline_banner.dart';
 import '../../../../shared/widgets/app_notification.dart';
+import '../../../../shared/widgets/app_design_system.dart';
 
-
-/// Provider que monitora mensagens nao lidas do aluno para tocar som de notificacao.
-final alunoUnreadCountProvider = StreamProvider.family<int, String>((ref, userId) {
+/// Provider que monitora mensagens nao lidas do aluno para o contador visual.
+/// A reprodução sonora usa os providers estáveis de
+/// `chat_notification_providers.dart`.
+/// Observa as subcoleções de cada sala; o documento pai é atualizado antes da
+/// mensagem e, por isso, não é uma fonte suficiente para detetar novas mensagens.
+final alunoUnreadCountProvider = StreamProvider.family<int, String>((
+  ref,
+  userId,
+) {
   if (userId.isEmpty) return Stream.value(0);
+
   final firestore = FirebaseFirestore.instance;
-  return firestore
+  final controller = StreamController<int>();
+  final counts = <String, int>{};
+  final initializedRooms = <String>{};
+  final roomSubscriptions =
+      <String, StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>{};
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? roomsSubscription;
+  var activeRoomIds = <String>{};
+  var initialRoomsDiscovered = false;
+  var initialValueEmitted = false;
+
+  void emitTotal() {
+    if (!controller.isClosed) {
+      controller.add(
+        counts.values.fold<int>(0, (total, value) => total + value),
+      );
+    }
+  }
+
+  void emitWhenReady() {
+    if (!initialRoomsDiscovered ||
+        !activeRoomIds.every(initializedRooms.contains)) {
+      return;
+    }
+    initialValueEmitted = true;
+    emitTotal();
+  }
+
+  void watchRoom(String roomId) {
+    if (roomSubscriptions.containsKey(roomId)) return;
+    roomSubscriptions[roomId] = firestore
+        .collection(AppConstants.chatCollection)
+        .doc(roomId)
+        .collection(AppConstants.messagesSubcollection)
+        .snapshots()
+        .listen(
+          (snap) {
+            initializedRooms.add(roomId);
+            counts[roomId] = snap.docs.where((message) {
+              final data = message.data();
+              return data['lida'] != true && data['remetenteId'] != userId;
+            }).length;
+            if (initialValueEmitted) {
+              emitTotal();
+            } else {
+              emitWhenReady();
+            }
+          },
+          onError: (_) {
+            initializedRooms.add(roomId);
+            counts[roomId] = 0;
+            if (initialValueEmitted) {
+              emitTotal();
+            } else {
+              emitWhenReady();
+            }
+          },
+        );
+  }
+
+  roomsSubscription = firestore
       .collection(AppConstants.chatCollection)
       .where(FieldPath.documentId, isGreaterThanOrEqualTo: 'chat_')
       .where(FieldPath.documentId, isLessThanOrEqualTo: 'chat_\uf8ff')
       .snapshots()
-      .asyncMap((snap) async {
-        int count = 0;
-        for (final doc in snap.docs) {
-          if (!doc.id.contains(userId)) continue;
-          final data = doc.data();
-          final lastSenderId = data['lastSenderId'] as String? ?? '';
-          if (lastSenderId.isEmpty || lastSenderId == userId) continue;
-          // Conta mensagens nao lidas na subcolecao (get() em vez de count() — aggregate query nao suporta NOT_EQUAL no web)
-          try {
-            final unreadSnap = await firestore
-                .collection(AppConstants.chatCollection)
-                .doc(doc.id)
-                .collection(AppConstants.messagesSubcollection)
-                .where('lida', isEqualTo: false)
-                .where('remetenteId', isNotEqualTo: userId)
-                .get();
-            count += unreadSnap.docs.length;
-          } catch (_) {
-            // Silencioso — count() nao funciona no web com NOT_EQUAL
+      .listen(
+        (snap) {
+          final currentIds = snap.docs
+              .where((doc) => doc.id.contains(userId))
+              .map((doc) => doc.id)
+              .toSet();
+          activeRoomIds = currentIds;
+
+          for (final oldId in roomSubscriptions.keys.toList()) {
+            if (!currentIds.contains(oldId)) {
+              roomSubscriptions.remove(oldId)?.cancel();
+              counts.remove(oldId);
+              initializedRooms.remove(oldId);
+            }
+          }
+          for (final roomId in currentIds) {
+            watchRoom(roomId);
+          }
+
+          if (!initialRoomsDiscovered) {
+            initialRoomsDiscovered = true;
+            if (currentIds.isEmpty) {
+              initialValueEmitted = true;
+              emitTotal();
+            } else {
+              emitWhenReady();
+            }
+          } else if (initialValueEmitted) {
+            emitTotal();
+          }
+        },
+        onError: (_) {
+          if (!initialRoomsDiscovered) {
+            initialRoomsDiscovered = true;
+            initialValueEmitted = true;
+          }
+          emitTotal();
+        },
+      );
+
+  ref.onDispose(() {
+    roomsSubscription?.cancel();
+    for (final subscription in roomSubscriptions.values) {
+      subscription.cancel();
+    }
+    controller.close();
+  });
+
+  return controller.stream;
+});
+
+/// Conta mensagens novas dos grupos do aluno.
+/// Cada subcoleção mantém o seu listener, para que uma mensagem nova altere
+/// o contador mesmo quando o documento pai do grupo não muda.
+final alunoGroupUnreadCountProvider = StreamProvider.family<int, String>((
+  ref,
+  userId,
+) {
+  if (userId.isEmpty) return Stream.value(0);
+
+  final firestore = FirebaseFirestore.instance;
+  final controller = StreamController<int>();
+  final counts = <String, int>{};
+  final initializedGroups = <String>{};
+  var activeGroupIds = <String>{};
+  final messageSubscriptions =
+      <String, StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>{};
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? groupsSubscription;
+
+  void emitTotal() {
+    if (!controller.isClosed) {
+      controller.add(
+        counts.values.fold<int>(0, (total, value) => total + value),
+      );
+    }
+  }
+
+  void watchGroup(String groupId) {
+    if (messageSubscriptions.containsKey(groupId)) return;
+    messageSubscriptions[groupId] = firestore
+        .collection(AppConstants.groupsCollection)
+        .doc(groupId)
+        .collection(AppConstants.groupMessagesSubcollection)
+        .snapshots()
+        .listen(
+          (snap) {
+            initializedGroups.add(groupId);
+            counts[groupId] = snap.docs.where((message) {
+              final data = message.data();
+              return data['lida'] != true && data['remetenteId'] != userId;
+            }).length;
+            if (activeGroupIds.every(initializedGroups.contains)) {
+              emitTotal();
+            }
+          },
+          onError: (_) {
+            initializedGroups.add(groupId);
+            counts[groupId] = 0;
+            emitTotal();
+          },
+        );
+  }
+
+  groupsSubscription = firestore
+      .collection(AppConstants.groupsCollection)
+      .where('membros', arrayContains: userId)
+      .snapshots()
+      .listen((snap) {
+        final currentIds = snap.docs.map((doc) => doc.id).toSet();
+        activeGroupIds = currentIds;
+        for (final oldId in messageSubscriptions.keys.toList()) {
+          if (!currentIds.contains(oldId)) {
+            messageSubscriptions.remove(oldId)?.cancel();
+            counts.remove(oldId);
           }
         }
-        return count;
-      })
-      .handleError((_, __) => 0);
+        initializedGroups.removeWhere((id) => !currentIds.contains(id));
+        for (final groupId in currentIds) {
+          watchGroup(groupId);
+        }
+        // Só emite depois de todos os grupos existentes terem entregue a sua
+        // primeira fotografia. Assim o contador inicial não parece uma mensagem
+        // nova quando o Home é montado.
+        if (currentIds.isEmpty ||
+            currentIds.every(initializedGroups.contains)) {
+          emitTotal();
+        }
+      }, onError: (_) => emitTotal());
+
+  ref.onDispose(() {
+    groupsSubscription?.cancel();
+    for (final subscription in messageSubscriptions.values) {
+      subscription.cancel();
+    }
+    controller.close();
+  });
+
+  return controller.stream;
 });
 
 /// Provider do plano de treino de hoje (se existir).
-final todayWorkoutPlanProvider = FutureProvider.family<WorkoutDay?, String>(
-  (ref, userId) async {
-    final workoutRepo = ref.watch(workoutRepositoryProvider);
-    final plans = await workoutRepo.getAllPlans(userId);
-    if (plans.isEmpty) return null;
+final todayWorkoutPlanProvider = FutureProvider.family<WorkoutDay?, String>((
+  ref,
+  userId,
+) async {
+  final workoutRepo = ref.watch(workoutRepositoryProvider);
+  final plans = await workoutRepo.getAllPlans(userId);
+  if (plans.isEmpty) return null;
 
-    final weekday = DateTime.now().weekday - 1;
-    final diaSemana = AppStrings.daysOfWeek[weekday];
+  final weekday = DateTime.now().weekday - 1;
+  final diaSemana = AppStrings.daysOfWeek[weekday];
 
-    // Procura um treino para hoje em qualquer plano
-    for (final plan in plans) {
-      final workout = plan.getWorkoutForDay(diaSemana);
-      if (workout != null && workout.exercicios.isNotEmpty) {
-        return workout;
-      }
+  // Procura um treino para hoje em qualquer plano
+  for (final plan in plans) {
+    final workout = plan.getWorkoutForDay(diaSemana);
+    if (workout != null && workout.exercicios.isNotEmpty) {
+      return workout;
     }
-    return null;
-  },
-);
+  }
+  return null;
+});
 
 /// Provider do histórico semanal (últimos 7 dias).
-final weeklyHistoryProvider = FutureProvider.family<List<DiaryModel>, String>(
-  (ref, userId) async {
-    final diaryRepo = ref.watch(diaryRepositoryProvider);
-    final history = await diaryRepo.getHistory(userId, limit: 7);
-    // Ordena mais antigo primeiro
-    history.sort((a, b) => a.data.compareTo(b.data));
-    return history;
-  },
-);
+final weeklyHistoryProvider = FutureProvider.family<List<DiaryModel>, String>((
+  ref,
+  userId,
+) async {
+  final diaryRepo = ref.watch(diaryRepositoryProvider);
+  final history = await diaryRepo.getHistory(userId, limit: 7);
+  // Ordena mais antigo primeiro
+  history.sort((a, b) => a.data.compareTo(b.data));
+  return history;
+});
 
 final todayDateProvider = Provider<String>((ref) {
   return DateFormat(AppConstants.dateFormat).format(DateTime.now());
 });
 
-final todayDiaryProvider = StreamProvider.family<DiaryModel?, String>(
-  (ref, userId) {
-    final repo = ref.watch(diaryRepositoryProvider);
-    final today = DateFormat(AppConstants.dateFormat).format(DateTime.now());
-    return repo.diaryEntryStream(userId, today);
-  },
-);
+final todayDiaryProvider = StreamProvider.family<DiaryModel?, String>((
+  ref,
+  userId,
+) {
+  final repo = ref.watch(diaryRepositoryProvider);
+  final today = DateFormat(AppConstants.dateFormat).format(DateTime.now());
+  return repo.diaryEntryStream(userId, today);
+});
 
 /// Provider de todos os planos de treino (para cruzar com o grafico semanal).
-final weeklyWorkoutPlansProvider = FutureProvider.family<List<WorkoutPlanModel>, String>(
-  (ref, userId) async {
-    final workoutRepo = ref.watch(workoutRepositoryProvider);
-    return await workoutRepo.getAllPlans(userId);
-  },
-);
+final weeklyWorkoutPlansProvider =
+    FutureProvider.family<List<WorkoutPlanModel>, String>((ref, userId) async {
+      final workoutRepo = ref.watch(workoutRepositoryProvider);
+      return await workoutRepo.getAllPlans(userId);
+    });
 
-final ensureDiaryProvider = FutureProvider.family<void, String>(
-  (ref, userId) async {
-    final today = DateFormat(AppConstants.dateFormat).format(DateTime.now());
-    return ref.read(diaryRepositoryProvider).ensureDiaryExists(userId, today);
-  },
-);
+final ensureDiaryProvider = FutureProvider.family<void, String>((
+  ref,
+  userId,
+) async {
+  final today = DateFormat(AppConstants.dateFormat).format(DateTime.now());
+  return ref.read(diaryRepositoryProvider).ensureDiaryExists(userId, today);
+});
 
 /// Dashboard do aluno — Kinetic Dark + Glassmorphism (Stitch).
 class AlunoHomeScreen extends ConsumerStatefulWidget {
@@ -136,16 +322,14 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
     final userId = authState.user?.uid ?? '';
     final isOffline = ref.watch(connectivityStreamProvider).value ?? false;
 
-    // Toca som de notificacao quando chegam novas mensagens e o aluno nao esta no chat
-    ref.listen(alunoUnreadCountProvider(userId), (prev, next) {
-      if (!mounted) return; // widget pode estar a ser disposed
-      if (prev == null) return; // skip initial load
-      final prevCount = prev.value ?? 0;
-      final nextCount = next.value ?? 0;
-      final soundEnabled = ref.read(authProvider).user?.soundEnabled ?? true;
-      if (nextCount > prevCount && !ref.read(isAlunoInChatProvider) && soundEnabled) {
-        SoundService().playNotificationChime();
-      }
+    // O som reage a documentos adicionados, não a alterações de contador.
+    // Assim a primeira mensagem e mensagens consecutivas com o mesmo horário
+    // são tratadas exatamente uma vez.
+    ref.listen(stableAlunoChatNotificationProvider(userId), (_, next) {
+      next.whenData((_) => _playIncomingSound());
+    });
+    ref.listen(stableAlunoGroupNotificationProvider(userId), (_, next) {
+      next.whenData((_) => _playIncomingSound());
     });
 
     return Scaffold(
@@ -158,6 +342,12 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
         ],
       ),
     );
+  }
+
+  void _playIncomingSound() {
+    if (!mounted || ref.read(isAlunoInChatProvider)) return;
+    if (!(ref.read(authProvider).user?.soundEnabled ?? true)) return;
+    SoundService().playNotificationChime();
   }
 
   PreferredSizeWidget _buildAppBar() {
@@ -180,7 +370,10 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                border: Border.all(color: AppColors.primaryFixed.withValues(alpha: 0.3), width: 2),
+                border: Border.all(
+                  color: AppColors.primaryFixed.withValues(alpha: 0.3),
+                  width: 2,
+                ),
                 shape: BoxShape.circle,
               ),
               child: foto != null
@@ -198,24 +391,43 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
             ),
           ),
           const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Bem-vindo de volta,',
-                style: GoogleFonts.inter(fontSize: 11, color: AppColors.onSurfaceVariant),
-              ),
-              Text(
-                'Olá, $nome!',
-                style: GoogleFonts.montserrat(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.onSurface, height: 1.2),
-              ),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Bem-vindo de volta,',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
+                Text(
+                  'Olá, $nome!',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.montserrat(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.onSurface,
+                    height: 1.2,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.notifications_outlined, color: AppColors.primaryFixed, size: 22),
+          icon: const Icon(
+            Icons.notifications_outlined,
+            color: AppColors.primaryFixed,
+            size: 22,
+          ),
           onPressed: () {},
         ),
         const SizedBox(width: 8),
@@ -229,16 +441,23 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
     final todayDiary = ref.watch(todayDiaryProvider(userId));
     return todayDiary.when(
       data: (diary) => diary == null
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            )
           : _buildDashboard(userId, diary, isOffline),
-      loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+      loading: () => const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      ),
       error: (_, __) => Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.error_outline, size: 48, color: AppColors.error),
             const SizedBox(height: 16),
-            Text('Erro ao carregar dados', style: GoogleFonts.inter(color: AppColors.textSecondary)),
+            Text(
+              'Erro ao carregar dados',
+              style: GoogleFonts.inter(color: AppColors.textSecondary),
+            ),
             ElevatedButton(
               onPressed: () => ref.invalidate(todayDiaryProvider(userId)),
               child: const Text(AppStrings.retry),
@@ -250,7 +469,11 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
   }
 
   Widget _buildDashboard(String userId, DiaryModel diary, bool isOffline) {
-    final waterPct = (diary.agua / AppConstants.dailyWaterGoalMl).clamp(0.0, 1.0);
+    final waterPct = (diary.agua / AppConstants.dailyWaterGoalMl).clamp(
+      0.0,
+      1.0,
+    );
+    final nome = ref.read(authProvider).user?.nome.split(' ').first ?? 'Aluno';
     return RefreshIndicator(
       onRefresh: () async {
         ref.invalidate(todayDiaryProvider(userId));
@@ -261,31 +484,53 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
       color: AppColors.primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 42),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Hero Session Card ────────────────────────────
+            AppPageIntro(
+              eyebrow: DateFormat('EEEE, d MMMM', 'pt').format(DateTime.now()),
+              title: 'O teu foco, $nome',
+              subtitle:
+                  'Um passo consistente hoje vale mais do que a perfeição amanhã.',
+            ),
+            const SizedBox(height: AppDesignTokens.sectionGap),
             _buildHeroCard(userId),
-            const SizedBox(height: 16),
-
-            // ── Bento Grid Stats ─────────────────────────────
-            _buildBentoGrid(diary, waterPct, isOffline, userId),
-            const SizedBox(height: 20),
-
-            // ── Weekly Activity Bars ─────────────────────────
+            const SizedBox(height: AppDesignTokens.pageGap),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth >= 820) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _buildBentoGrid(
+                          diary,
+                          waterPct,
+                          isOffline,
+                          userId,
+                        ),
+                      ),
+                      const SizedBox(width: AppDesignTokens.pageGap),
+                      Expanded(child: _buildNutritionBrief(diary)),
+                    ],
+                  );
+                }
+                return Column(
+                  children: [
+                    _buildBentoGrid(diary, waterPct, isOffline, userId),
+                    const SizedBox(height: AppDesignTokens.pageGap),
+                    _buildNutritionBrief(diary),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: AppDesignTokens.pageGap),
             _buildWeeklyActivity(userId),
-            const SizedBox(height: 20),
-
-            // ── Nutrition Brief ──────────────────────────────
-            _buildNutritionBrief(diary),
-            const SizedBox(height: 20),
-
-            // ── Próximas Aulas ──────────────────────────
+            const SizedBox(height: AppDesignTokens.pageGap),
             _buildUpcomingSessions(userId),
-            const SizedBox(height: 20),
-            // ── Rating + Workout done ────────────────────────
+            const SizedBox(height: AppDesignTokens.pageGap),
             _buildBottomSection(userId, diary),
-            const SizedBox(height: 40),
           ],
         ),
       ),
@@ -301,114 +546,154 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
 
     return workoutAsync.when(
       data: (todayWorkout) {
-        final hasWorkout = todayWorkout != null && todayWorkout.exercicios.isNotEmpty;
+        final hasWorkout =
+            todayWorkout != null && todayWorkout.exercicios.isNotEmpty;
         final workoutName = hasWorkout
             ? todayWorkout.foco.isNotEmpty
-                ? todayWorkout.foco.toUpperCase()
-                : 'TREINO DE HOJE'
+                  ? todayWorkout.foco.toUpperCase()
+                  : 'TREINO DE HOJE'
             : null;
         final exerciseCount = hasWorkout ? todayWorkout.exercicios.length : 0;
 
         return ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           child: Container(
             decoration: BoxDecoration(
               color: AppColors.surfaceHigh.withValues(alpha: 0.85),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.outline.withValues(alpha: 0.5)),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppColors.outline.withValues(alpha: 0.5),
+              ),
               boxShadow: [
-                BoxShadow(color: AppColors.primary.withValues(alpha: 0.15), blurRadius: 20),
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.15),
+                  blurRadius: 20,
+                ),
               ],
             ),
             child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border(
-                    left: BorderSide(
-                      color: hasWorkout ? AppColors.primaryFixed : AppColors.onSurfaceVariant,
-                      width: 4,
-                    ),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border(
+                  left: BorderSide(
+                    color: hasWorkout
+                        ? AppColors.primaryFixed
+                        : AppColors.onSurfaceVariant,
+                    width: 4,
                   ),
                 ),
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              ),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color:
+                              (hasWorkout
+                                      ? AppColors.primaryFixed
+                                      : AppColors.onSurfaceVariant)
+                                  .withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color:
+                                (hasWorkout
+                                        ? AppColors.primaryFixed
+                                        : AppColors.onSurfaceVariant)
+                                    .withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: Text(
+                          'HOJE',
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.1,
+                            color: hasWorkout
+                                ? AppColors.primaryFixed
+                                : AppColors.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      Icon(
+                        hasWorkout
+                            ? Icons.fitness_center
+                            : Icons.self_improvement,
+                        color:
+                            (hasWorkout
+                                    ? AppColors.primaryFixed
+                                    : AppColors.onSurfaceVariant)
+                                .withValues(alpha: 0.3),
+                        size: 60,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    hasWorkout ? workoutName! : 'DIA DE DESCANSO',
+                    style: GoogleFonts.montserrat(
+                      fontSize: 34,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.02,
+                      color: Colors.white,
+                      height: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    hasWorkout
+                        ? '$exerciseCount exercícios • Foco em ${todayWorkout.foco.isNotEmpty ? todayWorkout.foco.toLowerCase() : 'força'}.'
+                        : 'Aproveita para alongar e recuperar.',
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (hasWorkout)
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: (hasWorkout ? AppColors.primaryFixed : AppColors.onSurfaceVariant).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: (hasWorkout ? AppColors.primaryFixed : AppColors.onSurfaceVariant).withValues(alpha: 0.2),
-                            ),
-                          ),
-                          child: Text(
-                            'HOJE',
+                        ElevatedButton.icon(
+                          onPressed: () {},
+                          icon: const Icon(Icons.play_arrow, size: 18),
+                          label: Text(
+                            'INICIAR TREINO',
                             style: GoogleFonts.inter(
-                              fontSize: 10,
+                              fontSize: 13,
                               fontWeight: FontWeight.w700,
-                              letterSpacing: 0.1,
-                              color: hasWorkout ? AppColors.primaryFixed : AppColors.onSurfaceVariant,
+                              letterSpacing: 0.03,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryFixed,
+                            foregroundColor: AppColors.onPrimaryContainer,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
                             ),
                           ),
                         ),
-                        const Spacer(),
-                        Icon(
-                          hasWorkout ? Icons.fitness_center : Icons.self_improvement,
-                          color: (hasWorkout ? AppColors.primaryFixed : AppColors.onSurfaceVariant).withValues(alpha: 0.3),
-                          size: 60,
-                        ),
+                        _muscleChip('${todayWorkout.exercicios.length} ex.'),
+                        _muscleChip(todayWorkout.diaSemana),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      hasWorkout ? workoutName! : 'DIA DE DESCANSO',
-                      style: GoogleFonts.montserrat(
-                        fontSize: 34,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.02,
-                        color: Colors.white,
-                        height: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      hasWorkout
-                          ? '$exerciseCount exercícios • Foco em ${todayWorkout.foco.isNotEmpty ? todayWorkout.foco.toLowerCase() : 'força'}.'
-                          : 'Aproveita para alongar e recuperar.',
-                      style: GoogleFonts.inter(fontSize: 14, color: AppColors.onSurfaceVariant),
-                    ),
-                    const SizedBox(height: 16),
-                    if (hasWorkout)
-                      Row(
-                        children: [
-                          ElevatedButton.icon(
-                            onPressed: () {},
-                            icon: const Icon(Icons.play_arrow, size: 18),
-                            label: Text(
-                              'INICIAR TREINO',
-                              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.03),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primaryFixed,
-                              foregroundColor: AppColors.onPrimaryContainer,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Flexible(child: _muscleChip('${todayWorkout.exercicios.length} ex.')),
-                          const SizedBox(width: 6),
-                          Flexible(child: _muscleChip(todayWorkout.diaSemana)),
-                        ],
-                      ),
-                  ],
-                ),
+                ],
               ),
             ),
+          ),
         );
       },
       loading: () => _buildHeroCardSkeleton(),
@@ -418,12 +703,12 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
 
   Widget _buildHeroCardSkeleton() {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         height: 180,
         decoration: BoxDecoration(
           color: AppColors.surfaceHigh.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.outline.withValues(alpha: 0.5)),
         ),
         child: const Center(
@@ -438,9 +723,15 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: AppColors.surfaceHighest,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(10),
       ),
-      child: Text(label, style: GoogleFonts.inter(fontSize: 11, color: AppColors.secondaryFixedDim)),
+      child: Text(
+        label,
+        style: GoogleFonts.inter(
+          fontSize: 11,
+          color: AppColors.secondaryFixedDim,
+        ),
+      ),
     );
   }
 
@@ -448,46 +739,54 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
   // BENTO GRID
   // ═══════════════════════════════════════════════════════════════
 
-  Widget _buildBentoGrid(DiaryModel diary, double waterPct, bool isOffline, String userId) {
-    return LayoutBuilder(builder: (_, constraints) {
-      final halfW = (constraints.maxWidth - 12) / 2;
-      return Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        children: [
-          _glassStatCard(
-            width: halfW,
-            icon: Icons.local_fire_department,
-            iconColor: AppColors.primaryFixed,
-            label: 'CALORIAS',
-            value: diary.totalCalorias.toStringAsFixed(0),
-            unit: 'kcal',
-            height: 140,
-          ),
-          _glassStatCard(
-            width: halfW,
-            icon: Icons.water_drop,
-            iconColor: AppColors.primaryFixed,
-            label: 'HIDRATAÇÃO',
-            value: (diary.agua / 1000).toStringAsFixed(1),
-            unit: '/ ${(AppConstants.dailyWaterGoalMl / 1000).toStringAsFixed(0)}L',
-            progress: waterPct,
-            height: 140,
-            onTap: isOffline ? null : () => _addWater(userId),
-          ),
-          _glassStatCard(
-            width: constraints.maxWidth,
-            icon: Icons.timer,
-            iconColor: AppColors.primaryFixed,
-            label: 'TEMPO EM ATIVIDADE',
-            value: '48',
-            unit: 'minutos',
-            subtitle: '+12% vs ontem',
-            height: 100,
-          ),
-        ],
-      );
-    });
+  Widget _buildBentoGrid(
+    DiaryModel diary,
+    double waterPct,
+    bool isOffline,
+    String userId,
+  ) {
+    return LayoutBuilder(
+      builder: (_, constraints) {
+        final halfW = (constraints.maxWidth - 12) / 2;
+        return Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            _glassStatCard(
+              width: halfW,
+              icon: Icons.local_fire_department,
+              iconColor: AppColors.primaryFixed,
+              label: 'CALORIAS',
+              value: diary.totalCalorias.toStringAsFixed(0),
+              unit: 'kcal',
+              height: 140,
+            ),
+            _glassStatCard(
+              width: halfW,
+              icon: Icons.water_drop,
+              iconColor: AppColors.primaryFixed,
+              label: 'HIDRATAÇÃO',
+              value: (diary.agua / 1000).toStringAsFixed(1),
+              unit:
+                  '/ ${(AppConstants.dailyWaterGoalMl / 1000).toStringAsFixed(0)}L',
+              progress: waterPct,
+              height: 140,
+              onTap: isOffline ? null : () => _addWater(userId),
+            ),
+            _glassStatCard(
+              width: constraints.maxWidth,
+              icon: Icons.timer,
+              iconColor: AppColors.primaryFixed,
+              label: 'TEMPO EM ATIVIDADE',
+              value: '48',
+              unit: 'minutos',
+              subtitle: '+12% vs ontem',
+              height: 100,
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Widget _glassStatCard({
@@ -503,58 +802,88 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
     VoidCallback? onTap,
   }) {
     final card = ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         width: width,
         height: height,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.surfaceHigh.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
         ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (subtitle != null)
-                Row(
-                  children: [
-                    Icon(icon, color: iconColor, size: 22),
-                    const Spacer(),
-                    Text(subtitle, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: iconColor)),
-                  ],
-                )
-              else
-                Icon(icon, color: iconColor, size: 22),
-              const Spacer(),
-              Text(label, style: GoogleFonts.inter(fontSize: 10, color: AppColors.onSurfaceVariant, letterSpacing: 0.05)),
-              const SizedBox(height: 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (subtitle != null)
               Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(value, style: GoogleFonts.montserrat(fontSize: 22, fontWeight: FontWeight.w700, color: Colors.white, height: 1)),
-                  const SizedBox(width: 4),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 2),
-                    child: Text(unit, style: GoogleFonts.inter(fontSize: 12, color: AppColors.secondaryFixedDim)),
+                  Icon(icon, color: iconColor, size: 22),
+                  const Spacer(),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: iconColor,
+                    ),
                   ),
                 ],
+              )
+            else
+              Icon(icon, color: iconColor, size: 22),
+            const Spacer(),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                color: AppColors.onSurfaceVariant,
+                letterSpacing: 0.05,
               ),
-              if (progress != null) ...[
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(2),
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    backgroundColor: AppColors.surfaceHighest,
-                    valueColor: const AlwaysStoppedAnimation(AppColors.primaryFixed),
-                    minHeight: 3,
+            ),
+            const SizedBox(height: 2),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  value,
+                  style: GoogleFonts.montserrat(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 2),
+                  child: Text(
+                    unit,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: AppColors.secondaryFixedDim,
+                    ),
                   ),
                 ),
               ],
+            ),
+            if (progress != null) ...[
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  backgroundColor: AppColors.surfaceHighest,
+                  valueColor: const AlwaysStoppedAnimation(
+                    AppColors.primaryFixed,
+                  ),
+                  minHeight: 3,
+                ),
+              ),
             ],
-          ),
+          ],
         ),
+      ),
     );
     if (onTap != null) {
       return GestureDetector(onTap: onTap, child: card);
@@ -573,12 +902,12 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
     final today = DateTime.now().weekday - 1;
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: AppColors.surfaceHigh.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
         ),
         child: Column(
@@ -586,141 +915,184 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
           children: [
             Row(
               children: [
-                Text('Atividade Semanal',
-                      style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.white)),
-                  const Spacer(),
-                  const Icon(Icons.bar_chart, color: AppColors.onSurfaceVariant, size: 20),
-                ],
-              ),
-              const SizedBox(height: 20),
-              historyAsync.when(
-                data: (history) {
-                  final plans = workoutPlansAsync.valueOrNull ?? [];
+                Text(
+                  'Atividade Semanal',
+                  style: GoogleFonts.montserrat(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                const Spacer(),
+                const Icon(
+                  Icons.bar_chart,
+                  color: AppColors.onSurfaceVariant,
+                  size: 20,
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            historyAsync.when(
+              data: (history) {
+                final plans = workoutPlansAsync.asData?.value ?? [];
 
-                  // Map diary entries to day buckets (0=Mon..6=Sun)
-                  final calPerDay = List.filled(7, 0.0);
-                  final diaryPerDay = List<DiaryModel?>.filled(7, null);
-                  final now = DateTime.now();
-                  final weekStart = DateTime(now.year, now.month, now.day - (now.weekday - 1));
+                // Map diary entries to day buckets (0=Mon..6=Sun)
+                final calPerDay = List.filled(7, 0.0);
+                final diaryPerDay = List<DiaryModel?>.filled(7, null);
+                final now = DateTime.now();
+                final weekStart = DateTime(
+                  now.year,
+                  now.month,
+                  now.day - (now.weekday - 1),
+                );
 
-                  for (final entry in history) {
-                    try {
-                      final date = DateTime.parse(entry.data);
-                      final diff = date.difference(weekStart).inDays;
-                      if (diff >= 0 && diff < 7) {
-                        calPerDay[diff] += entry.totalCalorias;
-                        diaryPerDay[diff] = entry;
-                      }
-                    } catch (_) {}
-                  }
+                for (final entry in history) {
+                  try {
+                    final date = DateTime.parse(entry.data);
+                    final diff = date.difference(weekStart).inDays;
+                    if (diff >= 0 && diff < 7) {
+                      calPerDay[diff] += entry.totalCalorias;
+                      diaryPerDay[diff] = entry;
+                    }
+                  } catch (_) {}
+                }
 
-                  // Find workout for each day of the week
-                  final workoutPerDay = List<WorkoutDay?>.filled(7, null);
-                  for (final plan in plans) {
-                    for (int i = 0; i < 7; i++) {
-                      if (workoutPerDay[i] == null) {
-                        final diaSemana = AppStrings.daysOfWeek[i];
-                        workoutPerDay[i] = plan.getWorkoutForDay(diaSemana);
-                      }
+                // Find workout for each day of the week
+                final workoutPerDay = List<WorkoutDay?>.filled(7, null);
+                for (final plan in plans) {
+                  for (int i = 0; i < 7; i++) {
+                    if (workoutPerDay[i] == null) {
+                      final diaSemana = AppStrings.daysOfWeek[i];
+                      workoutPerDay[i] = plan.getWorkoutForDay(diaSemana);
                     }
                   }
+                }
 
-                  final maxCal = calPerDay.isEmpty
-                      ? 1.0
-                      : calPerDay.reduce((a, b) => a > b ? a : b).clamp(1.0, 5000.0);
+                final maxCal = calPerDay.isEmpty
+                    ? 1.0
+                    : calPerDay
+                          .reduce((a, b) => a > b ? a : b)
+                          .clamp(1.0, 5000.0);
 
-                  return SizedBox(
-                    height: 160,
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: List.generate(7, (i) {
-                        final isToday = i == today;
-                        final h = (calPerDay[i] / maxCal).clamp(0.04, 1.0);
-                        final cals = calPerDay[i];
-                        final dayDate = weekStart.add(Duration(days: i));
-                        return Expanded(
-                          child: Padding(
-                            padding: EdgeInsets.only(right: i < 6 ? 4 : 0),
-                            child: GestureDetector(
-                              onTap: () => _showDayDetails(
-                                context,
-                                dayIndex: i,
-                                dayDate: dayDate,
-                                diary: diaryPerDay[i],
-                                workout: workoutPerDay[i],
-                              ),
-                              child: Column(
-                                children: [
-                                  // Calorias no topo
-                                  if (cals > 0)
-                                    SizedBox(
-                                      height: 16,
-                                      child: Center(
-                                        child: Text(
-                                          cals.toStringAsFixed(0),
-                                          style: GoogleFonts.inter(
-                                            fontSize: 9,
-                                            fontWeight: isToday ? FontWeight.w700 : FontWeight.w400,
-                                            color: isToday ? AppColors.primaryFixed : AppColors.onSurfaceVariant,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  const SizedBox(height: 4),
-                                  // Barra com altura proporcional
-                                  Expanded(
-                                    child: Align(
-                                      alignment: Alignment.bottomCenter,
-                                      child: FractionallySizedBox(
-                                        heightFactor: h,
-                                        child: AnimatedContainer(
-                                          duration: const Duration(milliseconds: 600),
-                                          decoration: BoxDecoration(
-                                            color: isToday ? AppColors.primaryFixed : AppColors.surfaceHighest,
-                                            borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
-                                            boxShadow: isToday
-                                                ? [BoxShadow(color: AppColors.primaryFixed.withValues(alpha: 0.4), blurRadius: 12)]
-                                                : null,
-                                          ),
+                return SizedBox(
+                  height: 160,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: List.generate(7, (i) {
+                      final isToday = i == today;
+                      final h = (calPerDay[i] / maxCal).clamp(0.04, 1.0);
+                      final cals = calPerDay[i];
+                      final dayDate = weekStart.add(Duration(days: i));
+                      return Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(right: i < 6 ? 4 : 0),
+                          child: GestureDetector(
+                            onTap: () => _showDayDetails(
+                              context,
+                              dayIndex: i,
+                              dayDate: dayDate,
+                              diary: diaryPerDay[i],
+                              workout: workoutPerDay[i],
+                            ),
+                            child: Column(
+                              children: [
+                                // Calorias no topo
+                                if (cals > 0)
+                                  SizedBox(
+                                    height: 16,
+                                    child: Center(
+                                      child: Text(
+                                        cals.toStringAsFixed(0),
+                                        style: GoogleFonts.inter(
+                                          fontSize: 9,
+                                          fontWeight: isToday
+                                              ? FontWeight.w700
+                                              : FontWeight.w400,
+                                          color: isToday
+                                              ? AppColors.primaryFixed
+                                              : AppColors.onSurfaceVariant,
                                         ),
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    labels[i],
-                                    style: GoogleFonts.inter(
-                                      fontSize: 10,
-                                      fontWeight: isToday ? FontWeight.w700 : FontWeight.w400,
-                                      color: isToday ? AppColors.primaryFixed : AppColors.secondaryFixedDim,
+                                const SizedBox(height: 4),
+                                // Barra com altura proporcional
+                                Expanded(
+                                  child: Align(
+                                    alignment: Alignment.bottomCenter,
+                                    child: FractionallySizedBox(
+                                      heightFactor: h,
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 600,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: isToday
+                                              ? AppColors.primaryFixed
+                                              : AppColors.surfaceHighest,
+                                          borderRadius:
+                                              const BorderRadius.vertical(
+                                                top: Radius.circular(2),
+                                              ),
+                                          boxShadow: isToday
+                                              ? [
+                                                  BoxShadow(
+                                                    color: AppColors
+                                                        .primaryFixed
+                                                        .withValues(alpha: 0.4),
+                                                    blurRadius: 12,
+                                                  ),
+                                                ]
+                                              : null,
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ],
-                              ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  labels[i],
+                                  style: GoogleFonts.inter(
+                                    fontSize: 10,
+                                    fontWeight: isToday
+                                        ? FontWeight.w700
+                                        : FontWeight.w400,
+                                    color: isToday
+                                        ? AppColors.primaryFixed
+                                        : AppColors.secondaryFixedDim,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        );
-                      }),
-                    ),
-                  );
-                },
-                loading: () => const SizedBox(
-                  height: 100,
-                  child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                        ),
+                      );
+                    }),
+                  ),
+                );
+              },
+              loading: () => const SizedBox(
+                height: 100,
+                child: Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
                 ),
-                error: (_, __) => SizedBox(
-                  height: 100,
-                  child: Center(
-                    child: Text(
-                      'Sem dados da semana',
-                      style: GoogleFonts.inter(color: AppColors.onSurfaceVariant, fontSize: 13),
+              ),
+              error: (_, __) => SizedBox(
+                height: 100,
+                child: Center(
+                  child: Text(
+                    'Sem dados da semana',
+                    style: GoogleFonts.inter(
+                      color: AppColors.onSurfaceVariant,
+                      fontSize: 13,
                     ),
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
+      ),
     );
   }
 
@@ -742,11 +1114,16 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
       isScrollControlled: true,
       builder: (ctx) {
         return Container(
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.75),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.75,
+          ),
           decoration: BoxDecoration(
             color: AppColors.surfaceHigh,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            border: Border.all(color: AppColors.outline.withValues(alpha: 0.5), width: 1),
+            border: Border.all(
+              color: AppColors.outline.withValues(alpha: 0.5),
+              width: 1,
+            ),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -798,7 +1175,11 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                           ),
                           IconButton(
                             onPressed: () => Navigator.pop(ctx),
-                            icon: const Icon(Icons.close, color: AppColors.onSurfaceVariant, size: 22),
+                            icon: const Icon(
+                              Icons.close,
+                              color: AppColors.onSurfaceVariant,
+                              size: 22,
+                            ),
                           ),
                         ],
                       ),
@@ -808,11 +1189,20 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                         Center(
                           child: Column(
                             children: [
-                              Icon(Icons.inbox_outlined, size: 48, color: AppColors.onSurfaceVariant.withValues(alpha: 0.4)),
+                              Icon(
+                                Icons.inbox_outlined,
+                                size: 48,
+                                color: AppColors.onSurfaceVariant.withValues(
+                                  alpha: 0.4,
+                                ),
+                              ),
                               const SizedBox(height: 12),
                               Text(
                                 'Sem registos neste dia',
-                                style: GoogleFonts.inter(fontSize: 15, color: AppColors.onSurfaceVariant),
+                                style: GoogleFonts.inter(
+                                  fontSize: 15,
+                                  color: AppColors.onSurfaceVariant,
+                                ),
                               ),
                             ],
                           ),
@@ -823,14 +1213,26 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                       // ── Stats Row ───────────────────────
                       if (diary != null) ...[
                         const SizedBox(height: 16),
-                        Row(
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
                           children: [
-                            _detailStatChip(Icons.local_fire_department, AppColors.calories, '${diary.totalCalorias.toStringAsFixed(0)} kcal'),
-                            const SizedBox(width: 8),
-                            _detailStatChip(Icons.water_drop, AppColors.primaryFixed, '${(diary.agua / 1000).toStringAsFixed(1)}L'),
-                            const SizedBox(width: 8),
+                            _detailStatChip(
+                              Icons.local_fire_department,
+                              AppColors.calories,
+                              '${diary.totalCalorias.toStringAsFixed(0)} kcal',
+                            ),
+                            _detailStatChip(
+                              Icons.water_drop,
+                              AppColors.primaryFixed,
+                              '${(diary.agua / 1000).toStringAsFixed(1)}L',
+                            ),
                             if (diary.avaliacao > 0)
-                              _detailStatChip(Icons.star, AppColors.starFilled, '${diary.avaliacao}/5'),
+                              _detailStatChip(
+                                Icons.star,
+                                AppColors.starFilled,
+                                '${diary.avaliacao}/5',
+                              ),
                           ],
                         ),
                         const SizedBox(height: 16),
@@ -846,17 +1248,26 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
 
                       // ── Treino ──────────────────────────
                       if (workout != null && workout.exercicios.isNotEmpty) ...[
-                        _detailSectionHeader(Icons.fitness_center, 'Treino${workout.foco.isNotEmpty ? ' • ${workout.foco.toUpperCase()}' : ''}'),
+                        _detailSectionHeader(
+                          Icons.fitness_center,
+                          'Treino${workout.foco.isNotEmpty ? ' • ${workout.foco.toUpperCase()}' : ''}',
+                        ),
                         const SizedBox(height: 8),
-                        ...workout.exercicios.map((ex) => _detailExerciseTile(ex)),
-                      ] else if (workout != null && workout.exercicios.isEmpty) ...[
+                        ...workout.exercicios.map(
+                          (ex) => _detailExerciseTile(ex),
+                        ),
+                      ] else if (workout != null &&
+                          workout.exercicios.isEmpty) ...[
                         _detailSectionHeader(Icons.fitness_center, 'Treino'),
                         const SizedBox(height: 8),
                         Padding(
                           padding: const EdgeInsets.only(left: 12),
                           child: Text(
                             'Dia de descanso',
-                            style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant),
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: AppColors.onSurfaceVariant,
+                            ),
                           ),
                         ),
                       ],
@@ -886,7 +1297,14 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
         children: [
           Icon(icon, size: 14, color: color),
           const SizedBox(width: 5),
-          Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
         ],
       ),
     );
@@ -899,7 +1317,11 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
         const SizedBox(width: 8),
         Text(
           title,
-          style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primaryFixed),
+          style: GoogleFonts.inter(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: AppColors.primaryFixed,
+          ),
         ),
       ],
     );
@@ -915,11 +1337,15 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: AppColors.surfaceHighest,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
               meal.tipo,
-              style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.onSurface),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.onSurface,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -936,7 +1362,10 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                     padding: const EdgeInsets.only(top: 2),
                     child: Text(
                       meal.alimentos.join(', '),
-                      style: GoogleFonts.inter(fontSize: 11, color: AppColors.onSurfaceVariant),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: AppColors.onSurfaceVariant,
+                      ),
                     ),
                   ),
               ],
@@ -945,7 +1374,11 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
           const SizedBox(width: 8),
           Text(
             '${meal.calorias.toStringAsFixed(0)} kcal',
-            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.calories),
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.calories,
+            ),
           ),
         ],
       ),
@@ -969,18 +1402,29 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
           Expanded(
             child: Text(
               ex.nome,
-              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white),
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Colors.white,
+              ),
             ),
           ),
           Text(
             '${ex.series}x${ex.repeticoes}',
-            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.secondaryFixedDim),
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.secondaryFixedDim,
+            ),
           ),
           if (ex.cargaSugerida != null) ...[
             const SizedBox(width: 8),
             Text(
               '${ex.cargaSugerida!.toStringAsFixed(0)}kg',
-              style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant),
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppColors.onSurfaceVariant,
+              ),
             ),
           ],
         ],
@@ -997,21 +1441,38 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
 
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(child: _nutritionCard(
-              icon: Icons.restaurant,
-              title: lastMeal != null ? 'Última Refeição' : 'Sem refeições',
-              subtitle: lastMeal?.descricao ?? 'Regista a tua primeira refeição',
-            )),
-            const SizedBox(width: 12),
-            Expanded(child: _nutritionCard(
-              icon: Icons.insights,
-              title: 'Meta de Proteína',
-              subtitle: '${diary.totalCalorias > 0 ? (diary.totalCalorias * 0.3 / 4).toStringAsFixed(0) : 0}g / 180g atingidos',
-              progress: diary.totalCalorias > 0 ? ((diary.totalCalorias * 0.3 / 4) / 180).clamp(0.0, 1.0) : 0.0,
-            )),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final cards = [
+              _nutritionCard(
+                icon: Icons.restaurant,
+                title: lastMeal != null ? 'Última Refeição' : 'Sem refeições',
+                subtitle:
+                    lastMeal?.descricao ?? 'Regista a tua primeira refeição',
+              ),
+              _nutritionCard(
+                icon: Icons.insights,
+                title: 'Meta de Proteína',
+                subtitle:
+                    '${diary.totalCalorias > 0 ? (diary.totalCalorias * 0.3 / 4).toStringAsFixed(0) : 0}g / 180g atingidos',
+                progress: diary.totalCalorias > 0
+                    ? ((diary.totalCalorias * 0.3 / 4) / 180).clamp(0.0, 1.0)
+                    : 0.0,
+              ),
+            ];
+            if (constraints.maxWidth < 430) {
+              return Column(
+                children: [cards[0], const SizedBox(height: 12), cards[1]],
+              );
+            }
+            return Row(
+              children: [
+                Expanded(child: cards[0]),
+                const SizedBox(width: 12),
+                Expanded(child: cards[1]),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 12),
         _glassSection(
@@ -1020,33 +1481,82 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.restaurant, color: AppColors.calories, size: 18),
+                  const Icon(
+                    Icons.restaurant,
+                    color: AppColors.calories,
+                    size: 18,
+                  ),
                   const SizedBox(width: 8),
-                  Text(AppStrings.mealsTitle, style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.onSurface)),
+                  Text(
+                    AppStrings.mealsTitle,
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
                   const Spacer(),
-                  Text('${diary.totalCalorias.toStringAsFixed(0)} kcal',
-                      style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, color: AppColors.calories, fontSize: 15)),
+                  Text(
+                    '${diary.totalCalorias.toStringAsFixed(0)} kcal',
+                    style: GoogleFonts.montserrat(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.calories,
+                      fontSize: 15,
+                    ),
+                  ),
                 ],
               ),
               if (diary.refeicoes.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 const Divider(color: AppColors.outline),
                 const SizedBox(height: 8),
-                ...diary.refeicoes.take(2).map((meal) => Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(color: AppColors.surfaceHighest, borderRadius: BorderRadius.circular(4)),
-                            child: Text(meal.tipo, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.onSurface)),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(child: Text(meal.descricao, style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant), overflow: TextOverflow.ellipsis)),
-                          Text('${meal.calorias.toStringAsFixed(0)} kcal', style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary)),
-                        ],
+                ...diary.refeicoes
+                    .take(2)
+                    .map(
+                      (meal) => Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceHighest,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                meal.tipo,
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.onSurface,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                meal.descricao,
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: AppColors.onSurfaceVariant,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              '${meal.calorias.toStringAsFixed(0)} kcal',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    )),
+                    ),
               ],
             ],
           ),
@@ -1062,56 +1572,122 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
     double? progress,
   }) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.surfaceHigh.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
         ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceHighest,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: AppColors.primaryFixed, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
+        child: LayoutBuilder(
+          builder: (_, constraints) {
+            final text = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            );
+            final progressWidget = progress == null
+                ? null
+                : SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: CircularProgressIndicator(
+                            value: progress,
+                            strokeWidth: 3,
+                            backgroundColor: AppColors.surfaceHighest,
+                            valueColor: const AlwaysStoppedAnimation(
+                              AppColors.primaryFixed,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '${(progress * 100).toStringAsFixed(0)}%',
+                          style: GoogleFonts.inter(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primaryFixed,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+
+            if (constraints.maxWidth < 220) {
+              return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
-                  const SizedBox(height: 2),
-                  Text(subtitle, style: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurfaceVariant)),
-                ],
-              ),
-            ),
-            if (progress != null)
-              SizedBox(
-                width: 40,
-                height: 40,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    SizedBox(
-                      width: 40, height: 40,
-                      child: CircularProgressIndicator(
-                        value: progress,
-                        strokeWidth: 3,
-                        backgroundColor: AppColors.surfaceHighest,
-                        valueColor: const AlwaysStoppedAnimation(AppColors.primaryFixed),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceHighest,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          icon,
+                          color: AppColors.primaryFixed,
+                          size: 18,
+                        ),
                       ),
-                    ),
-                    Text('${(progress * 100).toStringAsFixed(0)}%', style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.primaryFixed)),
-                  ],
+                      if (progressWidget != null) ...[
+                        const Spacer(),
+                        progressWidget,
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  text,
+                ],
+              );
+            }
+
+            return Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceHighest,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: AppColors.primaryFixed, size: 18),
                 ),
-              ),
-          ],
+                const SizedBox(width: 12),
+                Expanded(child: text),
+                if (progressWidget != null) ...[
+                  const SizedBox(width: 8),
+                  progressWidget,
+                ],
+              ],
+            );
+          },
         ),
       ),
     );
@@ -1126,9 +1702,19 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          Text(AppStrings.dayRating, style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.onSurface)),
+          Text(
+            AppStrings.dayRating,
+            style: GoogleFonts.inter(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: AppColors.onSurface,
+            ),
+          ),
           const SizedBox(height: 10),
-          StarRating(rating: diary.avaliacao, onChanged: (rating) => _setRating(userId, rating)),
+          StarRating(
+            rating: diary.avaliacao,
+            onChanged: (rating) => _setRating(userId, rating),
+          ),
         ],
       ),
     );
@@ -1136,12 +1722,12 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
 
   Widget _glassSection({required EdgeInsets padding, required Widget child}) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: padding,
         decoration: BoxDecoration(
           color: AppColors.surfaceHigh.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
         ),
         child: child,
@@ -1159,34 +1745,58 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
 
     return bookingsAsync.when(
       data: (bookings) {
-        final upcoming = bookings
-            .where((b) => b.isConfirmed || b.isPending)
-            .where((b) => b.data.isAfter(DateTime.now()))
-            .toList()
-          ..sort((a, b) => a.data.compareTo(b.data));
+        final upcoming =
+            bookings
+                .where((b) => b.isConfirmed || b.isPending)
+                .where((b) => b.data.isAfter(DateTime.now()))
+                .toList()
+              ..sort((a, b) => a.data.compareTo(b.data));
 
         return ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: AppColors.surfaceHigh.withValues(alpha: 0.85),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppColors.outline.withValues(alpha: 0.4),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.calendar_today, color: AppColors.primaryFixed, size: 18),
+                    const Icon(
+                      Icons.calendar_today,
+                      color: AppColors.primaryFixed,
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
-                    Text('Próximas Aulas',
-                        style: GoogleFonts.montserrat(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+                    Text(
+                      'Próximas Aulas',
+                      style: GoogleFonts.montserrat(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
                     const Spacer(),
                     TextButton(
-                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CalendarScreen())),
-                      child: Text('Ver agenda', style: GoogleFonts.inter(fontSize: 12, color: AppColors.primaryFixed)),
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CalendarScreen(),
+                        ),
+                      ),
+                      child: Text(
+                        'Ver agenda',
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: AppColors.primaryFixed,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -1194,56 +1804,101 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      Icon(Icons.event_busy, size: 20, color: AppColors.onSurfaceVariant.withValues(alpha: 0.4)),
+                      Icon(
+                        Icons.event_busy,
+                        size: 20,
+                        color: AppColors.onSurfaceVariant.withValues(
+                          alpha: 0.4,
+                        ),
+                      ),
                       const SizedBox(width: 8),
-                      Text('Nenhuma aula marcada', style: GoogleFonts.inter(fontSize: 13, color: AppColors.onSurfaceVariant)),
+                      Text(
+                        'Nenhuma aula marcada',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      ),
                     ],
                   ),
                 ] else ...[
                   const SizedBox(height: 8),
-                  ...upcoming.take(3).map((b) => Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 50,
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                              decoration: BoxDecoration(
-                                color: b.isConfirmed
-                                    ? AppColors.primary.withValues(alpha: 0.12)
-                                    : AppColors.calories.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Column(
-                                children: [
-                                  Text(b.horaFormatada,
+                  ...upcoming
+                      .take(3)
+                      .map(
+                        (b) => Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 50,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: b.isConfirmed
+                                      ? AppColors.primary.withValues(
+                                          alpha: 0.12,
+                                        )
+                                      : AppColors.calories.withValues(
+                                          alpha: 0.12,
+                                        ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      b.horaFormatada,
                                       style: GoogleFonts.montserrat(
-                                          fontWeight: FontWeight.w700, fontSize: 13,
-                                          color: b.isConfirmed ? AppColors.primary : AppColors.calories)),
-                                ],
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                        color: b.isConfirmed
+                                            ? AppColors.primary
+                                            : AppColors.calories,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    b.tipo == 'online' ? '💻 Online' : '🏋️ Presencial',
-                                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
-                                  ),
-                                  Text(
-                                    DateFormat('EEE, d MMM', 'pt').format(b.data),
-                                    style: GoogleFonts.inter(fontSize: 11, color: AppColors.onSurfaceVariant),
-                                  ),
-                                ],
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      b.tipo == 'online'
+                                          ? '💻 Online'
+                                          : '🏋️ Presencial',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    Text(
+                                      DateFormat(
+                                        'EEE, d MMM',
+                                        'pt',
+                                      ).format(b.data),
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        color: AppColors.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            Text('${b.duracaoMinutos}min',
-                                style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary)),
-                          ],
+                              Text(
+                                '${b.duracaoMinutos}min',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      )),
+                      ),
                 ],
               ],
             ),
@@ -1262,9 +1917,16 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
   Future<void> _addWater(String userId) async {
     final today = DateFormat(AppConstants.dateFormat).format(DateTime.now());
     try {
-      await ref.read(diaryRepositoryProvider).addWater(userId, today, AppConstants.waterIncrementMl);
+      await ref
+          .read(diaryRepositoryProvider)
+          .addWater(userId, today, AppConstants.waterIncrementMl);
     } catch (_) {
-      if (mounted) showAppNotification(context, AppStrings.networkError, type: NotificationType.error);
+      if (mounted)
+        showAppNotification(
+          context,
+          AppStrings.networkError,
+          type: NotificationType.error,
+        );
     }
   }
 

@@ -17,20 +17,23 @@ import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/app_notification.dart';
+import '../../../../shared/widgets/app_design_system.dart';
 import '../../../../core/services/sound_service.dart';
 import '../../../../core/config/notification_sounds.dart';
 import '../../../../shared/widgets/image_comparison_slider.dart';
 import 'progress_submission_screen.dart';
 
-final userProfileProvider =
-    StreamProvider.family<UserModel, String>((ref, uid) {
+final userProfileProvider = StreamProvider.family<UserModel, String>((
+  ref,
+  uid,
+) {
   return ref.read(userRepositoryProvider).userStream(uid);
 });
 
 final progressHistoryProvider =
     FutureProvider.family<List<ProgressModel>, String>((ref, userId) {
-  return ref.read(progressRepositoryProvider).getHistory(userId);
-});
+      return ref.read(progressRepositoryProvider).getHistory(userId);
+    });
 
 /// Ecrã de perfil — Kinetic Dark.
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -72,13 +75,29 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         data: (user) {
           // Configura o som de notificação com a preferência do utilizador
           SoundService().setSound(user.notificationSound ?? defaultSoundAsset);
-          return _buildProfileContent(user);
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 22, 20, 4),
+                child: AppPageIntro(
+                  eyebrow: 'A tua conta',
+                  title: 'Perfil e progresso',
+                  subtitle:
+                      'Mantém os teus dados e evolução sempre atualizados.',
+                ),
+              ),
+              Expanded(child: _buildProfileContent(user)),
+            ],
+          );
         },
-        loading: () =>
-            const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+        loading: () => const Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
         error: (_, __) => const Center(
-          child: Text('Erro ao carregar perfil',
-              style: TextStyle(color: AppColors.textSecondary)),
+          child: Text(
+            'Erro ao carregar perfil',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
         ),
       ),
     );
@@ -125,8 +144,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 }
                 return _buildWeightChart(progressList);
               },
-              loading: () =>
-                  const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+              loading: () => const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              ),
               error: (_, __) => const Text(
                 'Erro ao carregar dados de progresso',
                 style: TextStyle(color: AppColors.textSecondary),
@@ -172,7 +192,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               height: 40,
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: const Icon(
                 Icons.camera_alt,
@@ -222,7 +242,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 backgroundColor: Colors.white,
                 foregroundColor: AppColors.primary,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
               child: Text(
@@ -272,7 +292,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     color: AppColors.primary,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.camera_alt, size: 16, color: Colors.white),
+                  child: const Icon(
+                    Icons.camera_alt,
+                    size: 16,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ],
@@ -334,7 +358,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.outline),
       ),
       child: Column(
@@ -366,7 +390,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.outline),
       ),
       child: Padding(
@@ -450,20 +474,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.outline),
       ),
       child: LineChart(
         LineChartData(
-          gridData: const FlGridData(
-            show: false,
-          ),
+          gridData: const FlGridData(show: false),
           titlesData: const FlTitlesData(show: false),
           borderData: FlBorderData(show: false),
           minX: 0,
           maxX: (weightEntries.length - 1).toDouble(),
-          minY: weightEntries.map((e) => e.peso!).reduce((a, b) => a < b ? a : b) - 5,
-          maxY: weightEntries.map((e) => e.peso!).reduce((a, b) => a > b ? a : b) + 5,
+          minY:
+              weightEntries
+                  .map((e) => e.peso!)
+                  .reduce((a, b) => a < b ? a : b) -
+              5,
+          maxY:
+              weightEntries
+                  .map((e) => e.peso!)
+                  .reduce((a, b) => a > b ? a : b) +
+              5,
           lineBarsData: [
             LineChartBarData(
               spots: weightEntries
@@ -488,7 +518,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildProgressPhotos(
-      String userId, AsyncValue<List<ProgressModel>> progressAsync) {
+    String userId,
+    AsyncValue<List<ProgressModel>> progressAsync,
+  ) {
     final photos = progressAsync.maybeWhen(
       data: (list) => list
           .expand((p) => p.fotos.map((f) => (foto: f, data: p.data)))
@@ -526,7 +558,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 child: Container(
                   decoration: BoxDecoration(
                     color: AppColors.primary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                       color: AppColors.primary.withValues(alpha: 0.3),
                       width: 2,
@@ -544,7 +576,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             return GestureDetector(
               onTap: () => _openPhotoViewer(photos, index),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(14),
                 child: Image.network(
                   photo.foto,
                   fit: BoxFit.cover,
@@ -553,13 +585,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     return Container(
                       color: AppColors.surfaceHigh,
                       child: const Center(
-                        child: CircularProgressIndicator(color: AppColors.primary),
+                        child: CircularProgressIndicator(
+                          color: AppColors.primary,
+                        ),
                       ),
                     );
                   },
                   errorBuilder: (_, __, ___) => Container(
                     color: AppColors.surfaceHigh,
-                    child: const Icon(Icons.broken_image, color: AppColors.error),
+                    child: const Icon(
+                      Icons.broken_image,
+                      color: AppColors.error,
+                    ),
                   ),
                 ),
               ),
@@ -572,11 +609,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   /// Abre o visualizador de fotos em full-screen com zoom e navegação.
   void _openPhotoViewer(
-      List<({String foto, DateTime data})> photos, int initialIndex) {
+    List<({String foto, DateTime data})> photos,
+    int initialIndex,
+  ) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => _PhotoViewer(photos: photos, initialIndex: initialIndex),
+        builder: (_) =>
+            _PhotoViewer(photos: photos, initialIndex: initialIndex),
       ),
     );
   }
@@ -587,7 +627,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.outline),
       ),
       child: Padding(
@@ -626,20 +666,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   color: isSelected
                       ? AppColors.primary.withValues(alpha: 0.08)
                       : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 child: InkWell(
                   onTap: () => _selectSound(user, option),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(14),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 10,
+                    ),
                     child: Row(
                       children: [
                         Icon(
                           isSelected
                               ? Icons.radio_button_checked
                               : Icons.radio_button_unchecked,
-                          color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.textSecondary,
                           size: 20,
                         ),
                         const SizedBox(width: 10),
@@ -648,7 +693,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             option.name,
                             style: GoogleFonts.inter(
                               fontSize: 14,
-                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                              fontWeight: isSelected
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
                               color: AppColors.onSurface,
                             ),
                           ),
@@ -676,7 +723,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               width: 36,
                               height: 36,
                               decoration: BoxDecoration(
-                                color: AppColors.primary.withValues(alpha: 0.12),
+                                color: AppColors.primary.withValues(
+                                  alpha: 0.12,
+                                ),
                                 shape: BoxShape.circle,
                               ),
                               child: const Icon(
@@ -707,9 +756,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     // Guarda no Firestore
     try {
-      await ref
-          .read(userRepositoryProvider)
-          .updateUser(user.uid, {'notificationSound': option.asset});
+      await ref.read(userRepositoryProvider).updateUser(user.uid, {
+        'notificationSound': option.asset,
+      });
       ref.invalidate(userProfileProvider(user.uid));
     } catch (_) {
       // Se falhar, reverte para o anterior
@@ -743,8 +792,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               children: [
                 const Icon(Icons.camera_alt, color: AppColors.primary),
                 const SizedBox(width: 12),
-                Text('Câmara',
-                    style: GoogleFonts.inter(color: AppColors.onSurface)),
+                Text(
+                  'Câmara',
+                  style: GoogleFonts.inter(color: AppColors.onSurface),
+                ),
               ],
             ),
           ),
@@ -754,8 +805,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               children: [
                 const Icon(Icons.photo_library, color: AppColors.primary),
                 const SizedBox(width: 12),
-                Text('Galeria',
-                    style: GoogleFonts.inter(color: AppColors.onSurface)),
+                Text(
+                  'Galeria',
+                  style: GoogleFonts.inter(color: AppColors.onSurface),
+                ),
               ],
             ),
           ),
@@ -779,12 +832,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       final url = await ref
           .read(progressRepositoryProvider)
           .uploadProfilePhoto(userId, Uint8List.fromList(bytes));
-      await ref
-          .read(userRepositoryProvider)
-          .updateUser(userId, {'fotoPerfil': url});
+      await ref.read(userRepositoryProvider).updateUser(userId, {
+        'fotoPerfil': url,
+      });
     } catch (_) {
       if (mounted) {
-        showAppNotification(context, AppStrings.uploadError, type: NotificationType.error);
+        showAppNotification(
+          context,
+          AppStrings.uploadError,
+          type: NotificationType.error,
+        );
       }
     }
   }
@@ -810,16 +867,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       });
     } catch (_) {
       if (mounted) {
-        showAppNotification(context, AppStrings.uploadError, type: NotificationType.error);
+        showAppNotification(
+          context,
+          AppStrings.uploadError,
+          type: NotificationType.error,
+        );
       }
     }
   }
 
   Widget _buildComparisonButton(
-      String userId, AsyncValue<List<ProgressModel>> progressAsync) {
+    String userId,
+    AsyncValue<List<ProgressModel>> progressAsync,
+  ) {
     final withPhotos = progressAsync.maybeWhen(
-      data: (list) =>
-          list.where((p) => p.fotos.isNotEmpty).toList(),
+      data: (list) => list.where((p) => p.fotos.isNotEmpty).toList(),
       orElse: () => <ProgressModel>[],
     );
 
@@ -834,7 +896,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.primary,
           side: BorderSide(color: AppColors.primary.withValues(alpha: 0.5)),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           padding: const EdgeInsets.symmetric(vertical: 12),
         ),
       ),
@@ -850,16 +914,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: AppColors.surfaceHigh,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           title: Row(
             children: [
               const Icon(Icons.compare, color: AppColors.primary, size: 20),
               const SizedBox(width: 8),
-              Text('Comparação Antes / Depois',
-                  style: GoogleFonts.montserrat(
-                      color: AppColors.onSurface,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16)),
+              Text(
+                'Comparação Antes / Depois',
+                style: GoogleFonts.montserrat(
+                  color: AppColors.onSurface,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+              ),
             ],
           ),
           content: SizedBox(
@@ -870,21 +939,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: Text('ANTES',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.barlowCondensed(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textSecondary)),
+                      child: Text(
+                        'ANTES',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.barlowCondensed(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text('DEPOIS',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.barlowCondensed(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primary)),
+                      child: Text(
+                        'DEPOIS',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.barlowCondensed(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primary,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -901,9 +976,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   Text(
                     'Diferença: ${(withPhotos[afterIdx].peso! - withPhotos[beforeIdx].peso!).toStringAsFixed(1)} kg',
                     style: GoogleFonts.montserrat(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primary),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                    ),
                   ),
                 ],
               ],
@@ -964,14 +1040,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     };
 
     final statusColor = statusColors[payment.status] ?? AppColors.textSecondary;
-    final statusLabel = statusLabels[payment.status] ?? payment.status.toUpperCase();
+    final statusLabel =
+        statusLabels[payment.status] ?? payment.status.toUpperCase();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.outline),
       ),
       child: Row(
@@ -981,7 +1058,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             height: 40,
             decoration: BoxDecoration(
               color: statusColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
               payment.isPaid ? Icons.receipt : Icons.pending,
@@ -1029,7 +1106,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   statusLabel,
@@ -1045,8 +1122,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           if (payment.faturaUrl != null) ...[
             const SizedBox(width: 8),
             IconButton(
-              icon: const Icon(Icons.picture_as_pdf, color: AppColors.primary, size: 22),
-              onPressed: () => launchUrl(Uri.parse(payment.faturaUrl!), mode: LaunchMode.externalApplication),
+              icon: const Icon(
+                Icons.picture_as_pdf,
+                color: AppColors.primary,
+                size: 22,
+              ),
+              onPressed: () => launchUrl(
+                Uri.parse(payment.faturaUrl!),
+                mode: LaunchMode.externalApplication,
+              ),
               tooltip: 'Ver fatura',
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
@@ -1087,20 +1171,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 controller: nomeController,
                 decoration: InputDecoration(
                   labelText: 'Nome',
-                  labelStyle: GoogleFonts.inter(color: AppColors.onSurfaceVariant),
+                  labelStyle: GoogleFonts.inter(
+                    color: AppColors.onSurfaceVariant,
+                  ),
                   filled: true,
                   fillColor: AppColors.surfaceHighest,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(14),
                     borderSide: const BorderSide(color: AppColors.outline),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(14),
                     borderSide: const BorderSide(color: AppColors.outline),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(
+                      color: AppColors.primary,
+                      width: 1.5,
+                    ),
                   ),
                 ),
                 style: GoogleFonts.inter(color: AppColors.onSurface),
@@ -1111,20 +1200,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   labelText: 'Peso (kg)',
-                  labelStyle: GoogleFonts.inter(color: AppColors.onSurfaceVariant),
+                  labelStyle: GoogleFonts.inter(
+                    color: AppColors.onSurfaceVariant,
+                  ),
                   filled: true,
                   fillColor: AppColors.surfaceHighest,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(14),
                     borderSide: const BorderSide(color: AppColors.outline),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(14),
                     borderSide: const BorderSide(color: AppColors.outline),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(
+                      color: AppColors.primary,
+                      width: 1.5,
+                    ),
                   ),
                 ),
                 style: GoogleFonts.inter(color: AppColors.onSurface),
@@ -1135,20 +1229,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   labelText: 'Altura (cm)',
-                  labelStyle: GoogleFonts.inter(color: AppColors.onSurfaceVariant),
+                  labelStyle: GoogleFonts.inter(
+                    color: AppColors.onSurfaceVariant,
+                  ),
                   filled: true,
                   fillColor: AppColors.surfaceHighest,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(14),
                     borderSide: const BorderSide(color: AppColors.outline),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(14),
                     borderSide: const BorderSide(color: AppColors.outline),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(
+                      color: AppColors.primary,
+                      width: 1.5,
+                    ),
                   ),
                 ),
                 style: GoogleFonts.inter(color: AppColors.onSurface),
@@ -1159,27 +1258,38 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 initialValue: genero,
                 decoration: InputDecoration(
                   labelText: 'Género',
-                  labelStyle: GoogleFonts.inter(color: AppColors.onSurfaceVariant),
+                  labelStyle: GoogleFonts.inter(
+                    color: AppColors.onSurfaceVariant,
+                  ),
                   filled: true,
                   fillColor: AppColors.surfaceHighest,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(14),
                     borderSide: const BorderSide(color: AppColors.outline),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(14),
                     borderSide: const BorderSide(color: AppColors.outline),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(
+                      color: AppColors.primary,
+                      width: 1.5,
+                    ),
                   ),
                 ),
                 dropdownColor: AppColors.surfaceHigh,
                 style: GoogleFonts.inter(color: AppColors.onSurface),
                 items: const [
-                  DropdownMenuItem(value: 'feminino', child: Text('🌸 Feminino')),
-                  DropdownMenuItem(value: 'masculino', child: Text('💪 Masculino')),
+                  DropdownMenuItem(
+                    value: 'feminino',
+                    child: Text('🌸 Feminino'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'masculino',
+                    child: Text('💪 Masculino'),
+                  ),
                 ],
                 onChanged: (v) => genero = v ?? 'feminino',
               ),
@@ -1189,17 +1299,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            style: TextButton.styleFrom(foregroundColor: AppColors.onSurfaceVariant),
-            child: Text(AppStrings.cancel, style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.onSurfaceVariant,
+            ),
+            child: Text(
+              AppStrings.cancel,
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: AppColors.textOnPrimary,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
-            child: Text(AppStrings.save, style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+            child: Text(
+              AppStrings.save,
+              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -1210,7 +1330,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       if (nomeController.text.trim() != user.nome) {
         updates['nome'] = nomeController.text.trim();
       }
-      final novoPeso = double.tryParse(pesoController.text.replaceAll(',', '.'));
+      final novoPeso = double.tryParse(
+        pesoController.text.replaceAll(',', '.'),
+      );
       if (novoPeso != null && novoPeso != user.pesoAtual) {
         updates['pesoAtual'] = novoPeso;
         await ref.read(progressRepositoryProvider).addProgress(user.uid, {
@@ -1220,8 +1342,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           'medidas': <String, double>{},
         });
       }
-      final novaAltura =
-          double.tryParse(alturaController.text.replaceAll(',', '.'));
+      final novaAltura = double.tryParse(
+        alturaController.text.replaceAll(',', '.'),
+      );
       if (novaAltura != null && novaAltura != user.altura) {
         updates['altura'] = novaAltura;
       }
@@ -1234,7 +1357,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         // Força refresh para atualizar cores do tema
         ref.invalidate(userProfileProvider(user.uid));
         if (mounted) {
-          showAppNotification(context, 'Perfil atualizado!', type: NotificationType.success);
+          showAppNotification(
+            context,
+            'Perfil atualizado!',
+            type: NotificationType.success,
+          );
         }
       }
     }
@@ -1299,8 +1426,12 @@ class _PhotoViewerState extends State<_PhotoViewer> {
             ),
             IconButton(
               icon: const Icon(Icons.arrow_forward_ios, size: 18),
-              onPressed: _currentIndex < widget.photos.length - 1 ? _goToNext : null,
-              color: _currentIndex < widget.photos.length - 1 ? Colors.white : Colors.white24,
+              onPressed: _currentIndex < widget.photos.length - 1
+                  ? _goToNext
+                  : null,
+              color: _currentIndex < widget.photos.length - 1
+                  ? Colors.white
+                  : Colors.white24,
             ),
           ],
         ],
@@ -1332,7 +1463,7 @@ class _PhotoViewerState extends State<_PhotoViewer> {
                             child: CircularProgressIndicator(
                               value: progress.expectedTotalBytes != null
                                   ? progress.cumulativeBytesLoaded /
-                                      progress.expectedTotalBytes!
+                                        progress.expectedTotalBytes!
                                   : null,
                               color: AppColors.primary,
                             ),
@@ -1342,10 +1473,16 @@ class _PhotoViewerState extends State<_PhotoViewer> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.broken_image, color: Colors.white38, size: 48),
+                              Icon(
+                                Icons.broken_image,
+                                color: Colors.white38,
+                                size: 48,
+                              ),
                               SizedBox(height: 8),
-                              Text('Erro ao carregar imagem',
-                                  style: TextStyle(color: Colors.white38)),
+                              Text(
+                                'Erro ao carregar imagem',
+                                style: TextStyle(color: Colors.white38),
+                              ),
                             ],
                           ),
                         ),
@@ -1360,10 +1497,7 @@ class _PhotoViewerState extends State<_PhotoViewer> {
               padding: const EdgeInsets.only(bottom: 32, top: 8),
               child: Text(
                 _formatPhotoDate(widget.photos[_currentIndex].data),
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  color: Colors.white54,
-                ),
+                style: GoogleFonts.inter(fontSize: 13, color: Colors.white54),
               ),
             ),
           ],

@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.stripeWebhook = exports.cleanupInvalidFcmTokens = exports.dailyFirestoreBackup = exports.sendWeeklyCheckin = exports.sendWeighInReminder = exports.sendWorkoutReminder = exports.sendWaterReminder = exports.notifyBookingUpdate = exports.notifyNewBooking = exports.sendChatNotification = exports.createCheckoutSession = exports.requestProgress = exports.seedFoods = exports.deleteStudentHttp = exports.createStudentHttp = exports.onUserCreated = void 0;
+exports.stripeWebhook = exports.cleanupInvalidFcmTokens = exports.dailyFirestoreBackup = exports.sendWeeklyCheckin = exports.sendWeighInReminder = exports.sendWorkoutReminder = exports.sendWaterReminder = exports.notifyBookingCancelled = exports.notifyBookingUpdate = exports.notifyNewBooking = exports.sendChatNotification = exports.createCheckoutSession = exports.requestProgress = exports.seedFoods = exports.deleteStudentHttp = exports.createStudentHttp = exports.onUserCreated = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const stripe_1 = __importDefault(require("stripe"));
@@ -191,13 +191,13 @@ deleteStudentApp.post('/', async (req, res) => {
     res.json({ success: true, message: 'Aluno eliminado com sucesso.' });
 });
 exports.deleteStudentHttp = functions.region('europe-west1').https.onRequest(deleteStudentApp);
-exports.seedFoods = functions.region('europe-west1').https.onCall(async (request) => {
-    if (!request.auth)
+exports.seedFoods = functions.region('europe-west1').https.onCall(async (data, context) => {
+    if (!context.auth)
         throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
-    const callerDoc = await db.collection('users').doc(request.auth.uid).get();
+    const callerDoc = await db.collection('users').doc(context.auth.uid).get();
     if (callerDoc.data()?.role !== 'admin')
         throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
-    const { alimentos } = request.data;
+    const { alimentos } = data;
     if (!alimentos || !Array.isArray(alimentos))
         throw new functions.https.HttpsError('invalid-argument', 'Array obrigatório.');
     let added = 0, skipped = 0;
@@ -223,13 +223,13 @@ exports.seedFoods = functions.region('europe-west1').https.onCall(async (request
     }
     return { added, skipped };
 });
-exports.requestProgress = functions.region('europe-west1').https.onCall(async (request) => {
-    if (!request.auth)
+exports.requestProgress = functions.region('europe-west1').https.onCall(async (data, context) => {
+    if (!context.auth)
         throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
-    const callerDoc = await db.collection('users').doc(request.auth.uid).get();
+    const callerDoc = await db.collection('users').doc(context.auth.uid).get();
     if (callerDoc.data()?.role !== 'admin')
         throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
-    const { userId } = request.data;
+    const { userId } = data;
     if (!userId)
         throw new functions.https.HttpsError('invalid-argument', 'userId obrigatório.');
     await db.collection('users').doc(userId).set({
@@ -247,7 +247,7 @@ exports.requestProgress = functions.region('europe-west1').https.onCall(async (r
                     title: 'Avaliação de Progresso 📊',
                     body: `${adminName} pediu a tua avaliação mensal!`,
                 },
-                data: { type: 'progress_request', requestedBy: request.auth.uid },
+                data: { type: 'progress_request', requestedBy: context.auth.uid },
             });
         }
     }
@@ -256,15 +256,15 @@ exports.requestProgress = functions.region('europe-west1').https.onCall(async (r
     }
     return { success: true, message: 'Pedido de progresso enviado.' };
 });
-exports.createCheckoutSession = functions.region('europe-west1').https.onCall(async (request) => {
+exports.createCheckoutSession = functions.region('europe-west1').https.onCall(async (data, context) => {
     if (!stripe)
         throw new functions.https.HttpsError('failed-precondition', 'Stripe não configurado.');
-    if (!request.auth)
+    if (!context.auth)
         throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
-    const callerDoc = await db.collection('users').doc(request.auth.uid).get();
+    const callerDoc = await db.collection('users').doc(context.auth.uid).get();
     if (callerDoc.data()?.role !== 'admin')
         throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
-    const { userId, valor, descricao } = request.data;
+    const { userId, valor, descricao } = data;
     if (!userId || !valor || valor <= 0)
         throw new functions.https.HttpsError('invalid-argument', 'userId e valor obrigatórios.');
     const paymentRef = await db.collection('pagamentos').add({
@@ -285,47 +285,79 @@ exports.createCheckoutSession = functions.region('europe-west1').https.onCall(as
 });
 // ──────────── FIRESTORE TRIGGERS ────────────
 // ═══ NOTIFICAÇÕES DE CHAT & BOOKING (callables v1 — compatível com eur3) ═══
+// Resolve o UID autenticado. A callable v1 recebe (data, context), mas
+// mantém o token no payload como fallback para clientes Web antigos.
+async function resolvedUid(data, context) {
+    if (context.auth?.uid)
+        return context.auth.uid;
+    const token = data?.authToken;
+    if (!token)
+        throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+    try {
+        const decoded = await auth.verifyIdToken(token);
+        return decoded.uid;
+    }
+    catch (_) {
+        throw new functions.https.HttpsError('unauthenticated', 'Token inválido. Tenta sair e entrar novamente.');
+    }
+}
 exports.sendChatNotification = functions
     .region('europe-west1')
-    .https.onCall(async (request) => {
-    if (!request.auth)
-        throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
-    const { salaId, remetenteId, texto } = request.data;
+    .https.onCall(async (data, context) => {
+    const uid = await resolvedUid(data, context);
+    const { salaId, remetenteId, texto } = data;
     if (!salaId || !remetenteId || !texto)
         throw new functions.https.HttpsError('invalid-argument', 'salaId, remetenteId e texto obrigatórios.');
     // Verifica que o remetente é o utilizador autenticado
-    if (remetenteId !== request.auth.uid)
+    if (remetenteId !== uid)
         throw new functions.https.HttpsError('permission-denied', 'ID não corresponde.');
-    const parts = salaId.split('_');
-    if (parts.length < 3)
-        return { ok: true };
-    const uid1 = parts[1], uid2 = parts[2];
-    const destinatarioId = remetenteId === uid1 ? uid2 : uid1;
-    const userDoc = await db.collection('users').doc(destinatarioId).get();
-    const fcmToken = userDoc.data()?.fcmToken;
-    if (!fcmToken)
-        return { ok: true };
     const senderDoc = await db.collection('users').doc(remetenteId).get();
-    await messaging.send({
-        token: fcmToken,
-        notification: {
-            title: senderDoc.data()?.nome ?? 'Personal Trainer',
-            body: texto.substring(0, 100),
-        },
+    const title = senderDoc.data()?.nome ?? 'Personal Trainer';
+    const notification = {
+        title,
+        body: texto.substring(0, 100),
+    };
+    // Salas 1:1 usam o formato chat_uid_uid. Grupos usam o próprio ID do
+    // documento em /grupos e precisam de notificar todos os membros.
+    const parts = salaId.split('_');
+    let recipientIds;
+    if (parts.length >= 3 && parts[0] === 'chat') {
+        const uid1 = parts[1];
+        const uid2 = parts[2];
+        recipientIds = [remetenteId === uid1 ? uid2 : uid1];
+    }
+    else {
+        const groupDoc = await db.collection('grupos').doc(salaId).get();
+        if (!groupDoc.exists)
+            return { ok: true };
+        const members = groupDoc.data()?.membros;
+        if (!Array.isArray(members))
+            return { ok: true };
+        recipientIds = members.filter((id) => typeof id === 'string' && id !== remetenteId);
+    }
+    if (recipientIds.length === 0)
+        return { ok: true };
+    const recipientDocs = await Promise.all(recipientIds.map((id) => db.collection('users').doc(id).get()));
+    const sends = recipientDocs
+        .map((doc) => ({ id: doc.id, token: doc.data()?.fcmToken }))
+        .filter((recipient) => Boolean(recipient.token))
+        .map(({ token }) => messaging.send({
+        token,
+        notification,
         data: { type: 'chat', salaId },
-    });
+    }));
+    await Promise.all(sends);
     return { ok: true };
 });
 exports.notifyNewBooking = functions
     .region('europe-west1')
-    .https.onCall(async (request) => {
-    if (!request.auth)
-        throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
-    const { studentId, trainerId, bookingDate, tipo } = request.data;
+    .https.onCall(async (data, context) => {
+    const uid = await resolvedUid(data, context);
+    const { studentId, trainerId, bookingDate, tipo } = data;
     if (!studentId || !trainerId || !bookingDate)
         throw new functions.https.HttpsError('invalid-argument', 'studentId, trainerId e bookingDate obrigatórios.');
     // Verifica que o aluno é o utilizador autenticado
-    if (studentId !== request.auth.uid)
+    if (studentId !== uid)
         throw new functions.https.HttpsError('permission-denied', 'ID não corresponde.');
     const trainerDoc = await db.collection('users').doc(trainerId).get();
     const studentDoc = await db.collection('users').doc(studentId).get();
@@ -348,13 +380,12 @@ exports.notifyNewBooking = functions
 });
 exports.notifyBookingUpdate = functions
     .region('europe-west1')
-    .https.onCall(async (request) => {
-    if (!request.auth)
-        throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
-    const { bookingId, studentId, trainerId, newStatus, bookingDate, tipo } = request.data;
+    .https.onCall(async (data, context) => {
+    const uid = await resolvedUid(data, context);
+    const { bookingId, studentId, trainerId, newStatus, bookingDate, tipo } = data;
     if (!bookingId || !studentId || !trainerId || !newStatus)
         throw new functions.https.HttpsError('invalid-argument', 'bookingId, studentId, trainerId e newStatus obrigatórios.');
-    const callerUid = request.auth.uid;
+    const callerUid = uid;
     const callerDoc = await db.collection('users').doc(callerUid).get();
     const callerName = callerDoc.data()?.nome ?? 'Utilizador';
     const date = bookingDate ? new Date(bookingDate) : new Date();
@@ -394,6 +425,37 @@ exports.notifyBookingUpdate = functions
             data: { type: 'booking_update', bookingId, newStatus },
         });
     }
+    return { ok: true };
+});
+exports.notifyBookingCancelled = functions
+    .region('europe-west1')
+    .https.onCall(async (data, context) => {
+    const uid = await resolvedUid(data, context);
+    const { bookingId, studentId, trainerId, bookingDate, tipo } = data;
+    if (!bookingId || !studentId || !trainerId)
+        throw new functions.https.HttpsError('invalid-argument', 'bookingId, studentId e trainerId obrigatórios.');
+    // Apenas o aluno titular ou um admin pode notificar o cancelamento
+    if (studentId !== uid) {
+        const callerDoc = await db.collection('users').doc(uid).get();
+        if (callerDoc.data()?.role !== 'admin')
+            throw new functions.https.HttpsError('permission-denied', 'ID não corresponde.');
+    }
+    const studentDoc = await db.collection('users').doc(studentId).get();
+    const fcmToken = (await db.collection('users').doc(trainerId).get()).data()?.fcmToken;
+    if (!fcmToken)
+        return { ok: true };
+    const date = bookingDate ? new Date(bookingDate) : new Date();
+    const timeStr = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    const dateStr = date.toLocaleDateString('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' });
+    const tipoLabel = tipo === 'online' ? '💻 Online' : '🏋️ Presencial';
+    await messaging.send({
+        token: fcmToken,
+        notification: {
+            title: 'Aula Cancelada ❌',
+            body: `${studentDoc.data()?.nome ?? 'Aluno'} cancelou a aula de ${dateStr} às ${timeStr} (${tipoLabel})`,
+        },
+        data: { type: 'booking_update', bookingId, newStatus: 'cancelled' },
+    });
     return { ok: true };
 });
 // ──────────── SCHEDULED ────────────

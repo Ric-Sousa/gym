@@ -15,9 +15,21 @@ class SoundService {
   factory SoundService() => _instance;
   SoundService._();
 
+  /// Regista os listeners de interação Web antes da primeira notificação.
+  /// Em plataformas nativas é uma operação sem efeito.
+  void prepare() {
+    impl.SoundService().prepare();
+  }
+
   /// Define o ficheiro de som a usar (ex: 'assets/sounds/chime.wav').
   void setSound(String assetPath) {
     impl.SoundService().setSound(assetPath);
+  }
+
+  /// Desbloqueia a reprodução de áudio após o primeiro gesto do utilizador.
+  /// No Web evita o bloqueio de autoplay; nativo é uma operação sem efeito.
+  void unlock() {
+    impl.SoundService().unlock();
   }
 
   /// Toca o som de notificação configurado.

@@ -15,6 +15,9 @@ import 'features/aluno/agenda/screens/calendar_screen.dart';
 import 'features/admin/screens/admin_panel_screen.dart';
 import 'shared/providers/admin_providers.dart';
 import 'shared/providers/global_providers.dart';
+import 'shared/widgets/sound_preference_sync.dart';
+import 'shared/widgets/app_page_frame.dart';
+import 'shared/widgets/app_design_system.dart';
 
 /// App root widget.
 class PersonalFitApp extends ConsumerWidget {
@@ -26,29 +29,190 @@ class PersonalFitApp extends ConsumerWidget {
     final adminThemeMode = ref.watch(adminThemeModeProvider);
     // Observa o género diretamente do Firestore — atualiza o tema sem reiniciar
     final generoAsync = ref.watch(currentUserGeneroProvider);
-    final genero = generoAsync.valueOrNull;
+    final genero = generoAsync.asData?.value;
 
-    return MaterialApp(
-      key: ValueKey(genero ?? 'default'),
-      title: AppStrings.appName,
-      debugShowCheckedModeBanner: false,
-      theme: _buildKineticDarkTheme(genero).copyWith(
-        brightness: Brightness.light,
-        colorScheme: ColorScheme.light(
-          primary: AppColors.primary,
-          onPrimary: AppColors.textOnPrimary,
-          surface: AppColors.adminLightSurface,
-          onSurface: AppColors.adminLightText,
-          outline: AppColors.adminLightBorder,
+    // Aplica a preferência de som do utilizador autenticado (admin/aluno)
+    // assim que o perfil carrega e desbloqueia o áudio no primeiro gesto em
+    // qualquer parte da app — não apenas no chat.
+    return SoundPreferenceSync(
+      child: MaterialApp(
+        key: ValueKey(genero ?? 'default'),
+        title: AppStrings.appName,
+        debugShowCheckedModeBanner: false,
+        theme: _buildKineticDarkTheme(genero).copyWith(
+          brightness: Brightness.light,
+          colorScheme: ColorScheme.light(
+            primary: AppColors.adminLightLime,
+            onPrimary: AppColors.adminLightText,
+            surface: AppColors.adminLightSurface,
+            onSurface: AppColors.adminLightText,
+            outline: AppColors.adminLightBorder,
+          ),
+          scaffoldBackgroundColor: AppColors.adminLightBg,
+          appBarTheme: _buildKineticDarkTheme(genero).appBarTheme.copyWith(
+            backgroundColor: AppColors.adminLightSurface,
+            foregroundColor: AppColors.adminLightText,
+            titleTextStyle: GoogleFonts.montserrat(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppColors.adminLightText,
+            ),
+            iconTheme: const IconThemeData(color: AppColors.adminLightText),
+            actionsIconTheme: const IconThemeData(
+              color: AppColors.adminLightMuted,
+            ),
+          ),
+          cardTheme: CardThemeData(
+            color: AppColors.adminLightSurface,
+            elevation: 0,
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: AppColors.adminLightBorder),
+            ),
+            margin: const EdgeInsets.only(bottom: 16),
+          ),
+          inputDecorationTheme: InputDecorationTheme(
+            filled: true,
+            fillColor: AppColors.adminLightSurface,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 16,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: AppColors.adminLightBorder),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: AppColors.adminLightBorder),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(
+                color: AppColors.adminLightLime,
+                width: 1.5,
+              ),
+            ),
+            labelStyle: GoogleFonts.inter(color: AppColors.adminLightMuted),
+            floatingLabelStyle: GoogleFonts.inter(
+              fontWeight: FontWeight.w600,
+              color: AppColors.adminLightLime,
+            ),
+            hintStyle: GoogleFonts.inter(color: AppColors.adminLightMuted),
+          ),
+          elevatedButtonTheme: ElevatedButtonThemeData(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.adminLightLime,
+              foregroundColor: AppColors.adminLightText,
+              minimumSize: const Size(0, 48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+              textStyle: GoogleFonts.inter(fontWeight: FontWeight.w700),
+            ),
+          ),
+          outlinedButtonTheme: OutlinedButtonThemeData(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.adminLightText,
+              side: const BorderSide(color: AppColors.adminLightBorder),
+              minimumSize: const Size(0, 46),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ),
+          chipTheme: ChipThemeData(
+            backgroundColor: AppColors.adminLightSurface2,
+            labelStyle: GoogleFonts.inter(
+              fontSize: 12,
+              color: AppColors.adminLightText,
+            ),
+            selectedColor: AppColors.adminLightLime,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            side: const BorderSide(color: AppColors.adminLightBorder),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          ),
+          listTileTheme: ListTileThemeData(
+            tileColor: AppColors.adminLightSurface,
+            textColor: AppColors.adminLightText,
+            iconColor: AppColors.adminLightText,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 4,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            minVerticalPadding: 8,
+          ),
+          navigationBarTheme: NavigationBarThemeData(
+            backgroundColor: AppColors.adminLightSurface,
+            indicatorColor: AppColors.adminLightLimeDim,
+            height: 78,
+            elevation: 0,
+            surfaceTintColor: Colors.transparent,
+            labelTextStyle: WidgetStatePropertyAll(
+              GoogleFonts.inter(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.adminLightText,
+              ),
+            ),
+            iconTheme: const WidgetStatePropertyAll(
+              IconThemeData(color: AppColors.adminLightMuted),
+            ),
+          ),
+          bottomSheetTheme: const BottomSheetThemeData(
+            backgroundColor: AppColors.adminLightSurface,
+            clipBehavior: Clip.antiAlias,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+          ),
+          dialogTheme: DialogThemeData(
+            backgroundColor: AppColors.adminLightSurface,
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 24,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: const BorderSide(color: AppColors.adminLightBorder),
+            ),
+            titleTextStyle: GoogleFonts.montserrat(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: AppColors.adminLightText,
+            ),
+            contentTextStyle: GoogleFonts.inter(
+              fontSize: 14,
+              height: 1.45,
+              color: AppColors.adminLightMuted,
+            ),
+          ),
+          snackBarTheme: SnackBarThemeData(
+            backgroundColor: AppColors.adminLightText,
+            contentTextStyle: GoogleFonts.inter(
+              color: AppColors.adminLightSurface,
+              fontSize: 14,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
+          extensions: [AdminThemeColors.light],
         ),
-        scaffoldBackgroundColor: AppColors.adminLightBg,
-        extensions: [AdminThemeColors.light],
+        darkTheme: _buildKineticDarkTheme(
+          genero,
+        ).copyWith(extensions: [AdminThemeColors.dark]),
+        themeMode: adminThemeMode,
+        home: _buildHome(authState),
       ),
-      darkTheme: _buildKineticDarkTheme(genero).copyWith(
-        extensions: [AdminThemeColors.dark],
-      ),
-      themeMode: adminThemeMode,
-      home: _buildHome(authState),
     );
   }
 
@@ -62,11 +226,7 @@ class PersonalFitApp extends ConsumerWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.fitness_center,
-                  size: 64,
-                  color: AppColors.primary,
-                ),
+                Icon(Icons.fitness_center, size: 64, color: AppColors.primary),
                 const SizedBox(height: 24),
                 SizedBox(
                   width: 36,
@@ -204,7 +364,16 @@ class PersonalFitApp extends ConsumerWidget {
         foregroundColor: AppColors.onSurface,
         elevation: 0,
         centerTitle: false,
-        scrolledUnderElevation: 1,
+        toolbarHeight: 68,
+        scrolledUnderElevation: 2,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: AppColors.surfaceLowest.withValues(alpha: 0.45),
+        titleSpacing: 20,
+        iconTheme: const IconThemeData(size: 21, color: AppColors.onSurface),
+        actionsIconTheme: const IconThemeData(
+          size: 21,
+          color: AppColors.onSurfaceVariant,
+        ),
         titleTextStyle: GoogleFonts.montserrat(
           fontSize: 18,
           fontWeight: FontWeight.w700,
@@ -212,50 +381,62 @@ class PersonalFitApp extends ConsumerWidget {
         ),
       ),
 
-      // ── Cards (glass + 1px border) ───────────────────────────
+      // ── Cards (superfície + contorno subtil) ─────────────────
       cardTheme: CardThemeData(
         color: AppColors.surface,
         elevation: 0,
+        clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: const BorderSide(
-            color: AppColors.outline,
-            width: 1,
-          ),
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.outline, width: 1),
         ),
-        margin: const EdgeInsets.only(bottom: 12),
+        margin: const EdgeInsets.only(bottom: 16),
       ),
 
-      // ── Input fields (bottom border only → focus magenta) ───
+      // ── Input fields (superfície preenchida + foco claro) ────
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.surface,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        border: const UnderlineInputBorder(
-          borderSide: BorderSide(color: AppColors.outline),
+        isDense: false,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 16,
         ),
-        enabledBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: AppColors.outline),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.outline),
         ),
-        focusedBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: AppColors.primary, width: 2),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.outline),
         ),
-        errorBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: AppColors.error),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
         ),
-        focusedErrorBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: AppColors.error, width: 2),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.error),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
         ),
         labelStyle: GoogleFonts.inter(
           fontSize: 14,
           color: AppColors.textSecondary,
+        ),
+        floatingLabelStyle: GoogleFonts.inter(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: AppColors.primary,
         ),
         hintStyle: GoogleFonts.inter(
           fontSize: 14,
           color: AppColors.outlineVariant,
         ),
         prefixIconColor: AppColors.textSecondary,
+        suffixIconColor: AppColors.textSecondary,
       ),
 
       // ── Buttons ──────────────────────────────────────────────
@@ -263,15 +444,20 @@ class PersonalFitApp extends ConsumerWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: AppColors.textOnPrimary,
+          disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.45),
+          disabledForegroundColor: AppColors.textOnPrimary.withValues(
+            alpha: 0.7,
+          ),
           elevation: 0,
+          minimumSize: const Size(0, 48),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(14),
           ),
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
           textStyle: GoogleFonts.inter(
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            letterSpacing: 0.05,
+            letterSpacing: 0.02,
           ),
         ),
       ),
@@ -279,8 +465,9 @@ class PersonalFitApp extends ConsumerWidget {
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.onSurface,
           side: const BorderSide(color: AppColors.outline),
+          minimumSize: const Size(0, 46),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(14),
           ),
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
           textStyle: GoogleFonts.inter(
@@ -292,6 +479,10 @@ class PersonalFitApp extends ConsumerWidget {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.primary,
+          minimumSize: const Size(44, 44),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
           textStyle: GoogleFonts.inter(
             fontSize: 14,
             fontWeight: FontWeight.w600,
@@ -302,20 +493,15 @@ class PersonalFitApp extends ConsumerWidget {
       // ── Chips ────────────────────────────────────────────────
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.surfaceHigh,
-        labelStyle: GoogleFonts.inter(
-          fontSize: 12,
-          color: AppColors.onSurface,
-        ),
+        labelStyle: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurface),
         selectedColor: AppColors.primary,
         secondaryLabelStyle: GoogleFonts.inter(
           fontSize: 12,
           color: AppColors.textOnPrimary,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(4),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         side: const BorderSide(color: AppColors.outline),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       ),
 
       // ── Dividers ─────────────────────────────────────────────
@@ -333,11 +519,15 @@ class PersonalFitApp extends ConsumerWidget {
         unselectedItemColor: AppColors.secondaryFixedDim,
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: AppColors.surfaceLow.withValues(alpha: 0.8),
+        backgroundColor: AppColors.surfaceLow.withValues(alpha: 0.94),
         indicatorColor: AppColors.primaryFixed.withValues(alpha: 0.12),
+        height: 78,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.transparent,
+        shadowColor: AppColors.surfaceLowest.withValues(alpha: 0.45),
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return GoogleFonts.inter(
@@ -383,9 +573,8 @@ class PersonalFitApp extends ConsumerWidget {
           color: AppColors.onSurface,
           fontSize: 14,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(4),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         behavior: SnackBarBehavior.floating,
       ),
 
@@ -393,22 +582,30 @@ class PersonalFitApp extends ConsumerWidget {
       dialogTheme: DialogThemeData(
         backgroundColor: AppColors.surfaceHigh,
         elevation: 0,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(20),
           side: const BorderSide(color: AppColors.outline),
         ),
         titleTextStyle: GoogleFonts.montserrat(
-          fontSize: 18,
+          fontSize: 20,
           fontWeight: FontWeight.w700,
           color: AppColors.onSurface,
         ),
+        contentTextStyle: GoogleFonts.inter(
+          fontSize: 14,
+          height: 1.45,
+          color: AppColors.onSurfaceVariant,
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
       ),
 
       // ── Bottom sheets ────────────────────────────────────────
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: AppColors.surfaceHigh,
+        clipBehavior: Clip.antiAlias,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
       ),
 
@@ -421,10 +618,13 @@ class PersonalFitApp extends ConsumerWidget {
       ),
 
       // ── ListTile (tileColor explícito para splash visível) ──
-      listTileTheme: const ListTileThemeData(
+      listTileTheme: ListTileThemeData(
         tileColor: AppColors.surface,
         textColor: AppColors.onSurface,
         iconColor: AppColors.onSurface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        minVerticalPadding: 8,
       ),
     );
   }
@@ -447,7 +647,7 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
     NutritionScreen(),
     WorkoutScreen(),
     CalendarScreen(),
-    ChatScreen(),
+    ChatScreen(trackChatPresence: false),
     ProfileScreen(),
   ];
 
@@ -470,48 +670,73 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
 
   @override
   Widget build(BuildContext context) {
+    final isWide = MediaQuery.sizeOf(context).width >= 900;
+    final navigationDestinations = const [
+      NavigationDestination(
+        icon: Icon(Icons.home_outlined),
+        selectedIcon: Icon(Icons.home),
+        label: AppStrings.tabHome,
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.restaurant_outlined),
+        selectedIcon: Icon(Icons.restaurant),
+        label: AppStrings.tabNutrition,
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.fitness_center_outlined),
+        selectedIcon: Icon(Icons.fitness_center),
+        label: AppStrings.tabWorkout,
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.calendar_today_outlined),
+        selectedIcon: Icon(Icons.calendar_today),
+        label: AppStrings.tabAgenda,
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.chat_outlined),
+        selectedIcon: Icon(Icons.chat),
+        label: AppStrings.tabChat,
+      ),
+      NavigationDestination(
+        icon: Icon(Icons.person_outline),
+        selectedIcon: Icon(Icons.person),
+        label: AppStrings.tabProfile,
+      ),
+    ];
+
+    void selectDestination(int index) {
+      setState(() => _currentIndex = index);
+      // O IndexedStack mantém os ecrãs montados. O estado do chat tem de
+      // acompanhar a aba visível, e não o ciclo de vida do widget.
+      ref.read(isAlunoInChatProvider.notifier).state = index == 4;
+    }
+
+    final content = AppPageFrame(
+      maxWidth: isWide ? 1440 : double.infinity,
+      padding: EdgeInsets.zero,
+      child: IndexedStack(index: _currentIndex, children: _screens),
+    );
+
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) =>
-            setState(() => _currentIndex = index),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: AppStrings.tabHome,
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.restaurant_outlined),
-            selectedIcon: Icon(Icons.restaurant),
-            label: AppStrings.tabNutrition,
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.fitness_center_outlined),
-            selectedIcon: Icon(Icons.fitness_center),
-            label: AppStrings.tabWorkout,
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.calendar_today_outlined),
-            selectedIcon: Icon(Icons.calendar_today),
-            label: AppStrings.tabAgenda,
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.chat_outlined),
-            selectedIcon: Icon(Icons.chat),
-            label: AppStrings.tabChat,
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: AppStrings.tabProfile,
-          ),
-        ],
-      ),
+      body: isWide
+          ? Row(
+              children: [
+                StudentNavigationRail(
+                  selectedIndex: _currentIndex,
+                  onDestinationSelected: selectDestination,
+                  destinations: navigationDestinations,
+                ),
+                Expanded(child: content),
+              ],
+            )
+          : content,
+      bottomNavigationBar: isWide
+          ? null
+          : StudentFloatingDock(
+              selectedIndex: _currentIndex,
+              onDestinationSelected: selectDestination,
+              destinations: navigationDestinations,
+            ),
     );
   }
 }

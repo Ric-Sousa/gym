@@ -13,8 +13,13 @@ class OfflineBanner extends StatelessWidget {
     if (!isOffline) return const SizedBox.shrink();
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
-      color: AppColors.errorContainer,
+      margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+      decoration: BoxDecoration(
+        color: AppColors.errorContainer.withValues(alpha: 0.38),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.24)),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
