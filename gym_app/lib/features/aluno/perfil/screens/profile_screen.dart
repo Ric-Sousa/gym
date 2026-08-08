@@ -18,6 +18,8 @@ import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/app_notification.dart';
 import '../../../../core/services/sound_service.dart';
 import '../../../../core/config/notification_sounds.dart';
+import '../../../../core/utils/progress_photo_normalizer.dart';
+import '../../../../core/utils/progress_photo_resolver.dart';
 import '../../../../shared/widgets/image_comparison_slider.dart';
 import 'progress_submission_screen.dart';
 
@@ -44,6 +46,14 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _picker = ImagePicker();
   Timer? _previewRestoreTimer;
+  String? _selectedBeforeProgressKey;
+  String? _selectedAfterProgressKey;
+  int _selectedAngle = 0;
+  String? _angleFeedback;
+
+  // A resolução das fotos por ângulo (mapa explícito e fallback legado)
+  // está em core/utils/progress_photo_resolver.dart.
+  static const _progressAngles = progressAngleLabels;
 
   @override
   Widget build(BuildContext context) {
@@ -106,16 +116,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             _buildProfileHeader(user),
             if (user.hasPendingProgress) _buildPendingProgressBanner(user),
             const SizedBox(height: 24),
-            _buildQuickMetrics(user),
-            const SizedBox(height: 24),
-            // A evolução fica logo após as métricas para não ficar escondida
-            // no fim do perfil. O comparador continua disponível ao tocar.
-            _buildProgressComparisonCard(user, progressAsync),
-            const SizedBox(height: 18),
-            _buildProgressPhotos(user.uid, progressAsync),
-            const SizedBox(height: 24),
+            // Ordem principal do perfil: informações, comparação e som.
             _buildEditableFields(user),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
+            _buildProgressComparisonCard(user, progressAsync),
+            const SizedBox(height: 20),
             _buildSoundPicker(user),
             const SizedBox(height: 24),
             _buildPaymentsSection(user.uid),
@@ -132,17 +137,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [AppColors.primary, Color(0xFF8A0060)],
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.primary,
+              Color.lerp(AppColors.primary, Colors.black, 0.35)!,
+            ],
           ),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(14),
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -153,11 +156,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: Colors.white.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
-                    Icons.camera_alt,
+                    Icons.camera_alt_outlined,
                     color: Colors.white,
                     size: 20,
                   ),
@@ -180,7 +183,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         'O teu personal trainer pediu a tua avaliação mensal.',
                         style: GoogleFonts.inter(
                           fontSize: 12,
-                          color: Colors.white.withValues(alpha: 0.9),
+                          color: Colors.white.withValues(alpha: 0.85),
                         ),
                       ),
                     ],
@@ -203,8 +206,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 );
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
+                backgroundColor: Colors.white,
+                foregroundColor: AppColors.primary,
                 minimumSize: const Size(0, 50),
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(
@@ -387,6 +390,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ],
             ),
             const Divider(color: AppColors.outline),
+            _buildQuickMetrics(user),
+            const SizedBox(height: 14),
             _infoRow('Nome', user.nome),
             _infoRow('E-mail', user.email),
             _infoRow('Género', user.generoDisplay),
@@ -435,80 +440,763 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
+  /// Compara a foto inicial com a última foto de progresso diretamente no
+  /// perfil. O comparador fica sempre visível, sem depender de um modal ou de
+  /// uma ação extra do aluno.
   Widget _buildProgressComparisonCard(
     UserModel user,
     AsyncValue<List<ProgressModel>> progressAsync,
   ) {
-    final comparisonUrls = progressAsync.maybeWhen(
-      data: (list) {
+    return progressAsync.when(
+      loading: _buildProgressComparisonLoading,
+      error: (_, __) => _buildProgressComparisonState(
+        icon: Icons.sync_problem_outlined,
+        message: 'Não foi possível carregar a comparação agora.',
+        actionLabel: 'Tentar novamente',
+        onAction: () => ref.invalidate(progressHistoryProvider(user.uid)),
+      ),
+      data: (progressList) {
         final withPhotos =
-            list
+            progressList
                 .where(
-                  (progress) =>
-                      progress.fotos.any((url) => url.trim().isNotEmpty),
+                  (progress) => hasAnyProgressPhoto(
+                    progress.fotos,
+                    progress.fotosPorPosicao,
+                  ),
                 )
                 .toList()
               ..sort((a, b) => a.data.compareTo(b.data));
 
-        String? firstPhoto(ProgressModel progress) {
-          for (final url in progress.fotos) {
-            final trimmed = url.trim();
-            if (trimmed.isNotEmpty) return trimmed;
-          }
-          return null;
-        }
-
-        if (withPhotos.length >= 2) {
-          return (
-            before: firstPhoto(withPhotos.first),
-            after: firstPhoto(withPhotos.last),
+        if (withPhotos.length < 2) {
+          return _buildProgressComparisonState(
+            icon: Icons.photo_camera_back_outlined,
+            message:
+                'Envia pelo menos duas fotos de progresso para poderes escolher as datas da comparação.',
           );
         }
 
-        // Mantém o comportamento anterior quando existe apenas um registo de
-        // progresso: a foto do perfil funciona como imagem inicial.
-        final progressPhoto = withPhotos.isEmpty
-            ? null
-            : firstPhoto(withPhotos.first);
-        final profilePhoto = user.fotoPerfil?.trim();
-        return (
-          before: profilePhoto == null || profilePhoto.isEmpty
-              ? null
-              : profilePhoto,
-          after: progressPhoto,
+        // Par inicial: a maior amplitude de datas que partilha pelo menos um
+        // ângulo. Evita abrir o comparador num estado de erro quando os
+        // registos antigos não têm todos os ângulos.
+        final bestPair = _bestComparisonPair(withPhotos);
+        final defaultBeforeKey = _progressKey(bestPair.before);
+        final defaultAfterKey = _progressKey(bestPair.after);
+        final beforeProgress =
+            _progressByKey(withPhotos, _selectedBeforeProgressKey) ??
+            bestPair.before;
+        final afterProgress =
+            _progressByKey(withPhotos, _selectedAfterProgressKey) ??
+            bestPair.after;
+
+        _queueProgressSelectionSync(
+          options: withPhotos,
+          defaultBeforeKey: defaultBeforeKey,
+          defaultAfterKey: defaultAfterKey,
+        );
+
+        final selectedAngle = _safeSharedAngleIndex(
+          beforeProgress,
+          afterProgress,
+          _selectedAngle,
+        );
+        final beforeImage = _photoAt(beforeProgress, selectedAngle);
+        final afterImage = _photoAt(afterProgress, selectedAngle);
+        final isSameSelection =
+            _progressKey(beforeProgress) == _progressKey(afterProgress);
+
+        // Os dropdowns ficam sempre visíveis — mesmo quando o par escolhido
+        // não tem um ângulo em comum ou é a mesma data — para o aluno nunca
+        // ficar preso num estado sem ação.
+        return _buildInlineProgressComparison(
+          progressOptions: withPhotos,
+          beforeProgress: beforeProgress,
+          afterProgress: afterProgress,
+          beforeImage: beforeImage,
+          afterImage: afterImage,
+          beforeDate: DateFormat('dd/MM/yyyy').format(beforeProgress.data),
+          afterDate: DateFormat('dd/MM/yyyy').format(afterProgress.data),
+          beforeDetail: null,
+          afterDetail: null,
+          selectedAngle: selectedAngle,
+          showSelectionError: isSameSelection,
         );
       },
-      orElse: () => (before: null, after: null),
     );
-    final initialUrl = comparisonUrls.before;
-    final latestUrl = comparisonUrls.after;
-    final hasPhotos =
-        initialUrl != null &&
-        initialUrl.isNotEmpty &&
-        latestUrl != null &&
-        latestUrl.isNotEmpty &&
-        initialUrl != latestUrl;
+  }
 
-    return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: hasPhotos
-            ? () => _showProgressComparison(initialUrl!, latestUrl!)
-            : null,
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: hasPhotos
-                  ? AppColors.primary.withValues(alpha: 0.34)
-                  : AppColors.outline,
+  int _safeSharedAngleIndex(
+    ProgressModel before,
+    ProgressModel after,
+    int preferred,
+  ) {
+    if (_angleAvailable(before, after, preferred)) return preferred;
+    for (var index = 0; index < _progressAngles.length; index++) {
+      if (_angleAvailable(before, after, index)) return index;
+    }
+    return 0;
+  }
+
+  bool _angleAvailable(
+    ProgressModel before,
+    ProgressModel after,
+    int angleIndex,
+  ) {
+    return _photoAt(before, angleIndex) != null &&
+        _photoAt(after, angleIndex) != null;
+  }
+
+  String? _photoAt(ProgressModel progress, int angleIndex) {
+    return resolveProgressPhotoAt(
+      fotos: progress.fotos,
+      fotosPorPosicao: progress.fotosPorPosicao,
+      angleIndex: angleIndex,
+    );
+  }
+
+  /// Escolhe o par (antes, depois) com a maior amplitude de datas que
+  /// partilha pelo menos um ângulo. Sem par válido, devolve o primeiro e o
+  /// último registo — a UI trata desse caso com uma mensagem e ações.
+  ({ProgressModel before, ProgressModel after}) _bestComparisonPair(
+    List<ProgressModel> sortedOptions,
+  ) {
+    for (
+      var afterIndex = sortedOptions.length - 1;
+      afterIndex > 0;
+      afterIndex--
+    ) {
+      for (var beforeIndex = 0; beforeIndex < afterIndex; beforeIndex++) {
+        if (_sharesAnyAngle(
+          sortedOptions[beforeIndex],
+          sortedOptions[afterIndex],
+        )) {
+          return (
+            before: sortedOptions[beforeIndex],
+            after: sortedOptions[afterIndex],
+          );
+        }
+      }
+    }
+    return (before: sortedOptions.first, after: sortedOptions.last);
+  }
+
+  bool _sharesAnyAngle(ProgressModel before, ProgressModel after) {
+    for (var index = 0; index < _progressAngles.length; index++) {
+      if (_angleAvailable(before, after, index)) return true;
+    }
+    return false;
+  }
+
+  String _progressKey(ProgressModel progress) {
+    return '${progress.id}|${progress.data.microsecondsSinceEpoch}';
+  }
+
+  ProgressModel? _progressByKey(List<ProgressModel> progressList, String? key) {
+    if (key == null) return null;
+    for (final progress in progressList) {
+      if (_progressKey(progress) == key) return progress;
+    }
+    return null;
+  }
+
+  void _queueProgressSelectionSync({
+    required List<ProgressModel> options,
+    required String defaultBeforeKey,
+    required String defaultAfterKey,
+  }) {
+    final currentBefore = _progressByKey(options, _selectedBeforeProgressKey);
+    final currentAfter = _progressByKey(options, _selectedAfterProgressKey);
+    final nextBeforeKey = currentBefore == null
+        ? defaultBeforeKey
+        : _selectedBeforeProgressKey!;
+    final nextAfterKey = currentAfter == null
+        ? defaultAfterKey
+        : _selectedAfterProgressKey!;
+
+    if (_selectedBeforeProgressKey == nextBeforeKey &&
+        _selectedAfterProgressKey == nextAfterKey) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_selectedBeforeProgressKey == nextBeforeKey &&
+          _selectedAfterProgressKey == nextAfterKey) {
+        return;
+      }
+      setState(() {
+        _selectedBeforeProgressKey = nextBeforeKey;
+        _selectedAfterProgressKey = nextAfterKey;
+        _angleFeedback = null;
+      });
+    });
+  }
+
+  void _selectComparisonDates({
+    required String beforeKey,
+    required String afterKey,
+  }) {
+    // Os valores são validados pelas opções dos dois seletores antes do callback.
+    // A atualização local faz o slider reagir imediatamente.
+    setState(() {
+      _selectedBeforeProgressKey = beforeKey;
+      _selectedAfterProgressKey = afterKey;
+      _angleFeedback = null;
+    });
+  }
+
+  /// Os botões de ângulo estão sempre clicáveis: um ângulo disponível é
+  /// selecionado; um ângulo indisponível explica o que falta e em que data,
+  /// em vez de ficar "morto" sem resposta ao toque.
+  void _onAngleTapped(
+    int index, {
+    required ProgressModel beforeProgress,
+    required ProgressModel afterProgress,
+  }) {
+    if (_angleAvailable(beforeProgress, afterProgress, index)) {
+      setState(() {
+        _selectedAngle = index;
+        _angleFeedback = null;
+      });
+      return;
+    }
+
+    final angle = _progressAngles[index];
+    final hasBefore = _photoAt(beforeProgress, index) != null;
+    final hasAfter = _photoAt(afterProgress, index) != null;
+    final dateFormat = DateFormat('dd/MM/yyyy');
+
+    final String feedback;
+    if (!hasBefore && !hasAfter) {
+      feedback = 'Nenhuma das datas selecionadas tem foto de $angle.';
+    } else if (!hasBefore) {
+      feedback =
+          'Sem foto de $angle na data inicial '
+          '(${dateFormat.format(beforeProgress.data)}).';
+    } else {
+      feedback =
+          'Sem foto de $angle na data final '
+          '(${dateFormat.format(afterProgress.data)}).';
+    }
+
+    setState(() => _angleFeedback = feedback);
+  }
+
+  Widget _buildProgressComparisonLoading() {
+    return _buildProgressComparisonShell(
+      child: const SizedBox(
+        height: 260,
+        child: Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProgressComparisonState({
+    required IconData icon,
+    required String message,
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
+    return _buildProgressComparisonShell(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+        child: Column(
+          children: [
+            Icon(icon, size: 34, color: AppColors.textSecondary),
+            const SizedBox(height: 10),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: onAction,
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  minimumSize: const Size(0, 40),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  actionLabel,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInlineProgressComparison({
+    required List<ProgressModel> progressOptions,
+    required ProgressModel beforeProgress,
+    required ProgressModel afterProgress,
+    required String? beforeImage,
+    required String? afterImage,
+    required String beforeDate,
+    required String? afterDate,
+    required String? beforeDetail,
+    required String? afterDetail,
+    required int selectedAngle,
+    bool showSelectionError = false,
+  }) {
+    final beforeKey = _progressKey(beforeProgress);
+    final afterKey = _progressKey(afterProgress);
+    final beforeOptions = progressOptions
+        .where((progress) => !progress.data.isAfter(afterProgress.data))
+        .toList();
+    final afterOptions = progressOptions
+        .where((progress) => !progress.data.isBefore(beforeProgress.data))
+        .toList();
+
+    return _buildProgressComparisonShell(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 460;
+              final selectors = [
+                _comparisonDateDropdown(
+                  label: 'Data inicial',
+                  selectedKey: beforeKey,
+                  options: beforeOptions,
+                  onChanged: (key) {
+                    if (key == null) return;
+                    final selected = _progressByKey(progressOptions, key);
+                    if (selected == null) return;
+                    var nextAfterKey = _selectedAfterProgressKey ?? afterKey;
+                    final currentAfter = _progressByKey(
+                      progressOptions,
+                      nextAfterKey,
+                    );
+                    if (currentAfter == null ||
+                        selected.data.isAfter(currentAfter.data)) {
+                      nextAfterKey = _progressKey(progressOptions.last);
+                    }
+                    _selectComparisonDates(
+                      beforeKey: key,
+                      afterKey: nextAfterKey,
+                    );
+                  },
+                ),
+                _comparisonDateDropdown(
+                  label: 'Data final',
+                  selectedKey: afterKey,
+                  options: afterOptions,
+                  onChanged: (key) {
+                    if (key == null) return;
+                    final selected = _progressByKey(progressOptions, key);
+                    if (selected == null) return;
+                    var nextBeforeKey = _selectedBeforeProgressKey ?? beforeKey;
+                    final currentBefore = _progressByKey(
+                      progressOptions,
+                      nextBeforeKey,
+                    );
+                    if (currentBefore == null ||
+                        selected.data.isBefore(currentBefore.data)) {
+                      nextBeforeKey = _progressKey(progressOptions.first);
+                    }
+                    _selectComparisonDates(
+                      beforeKey: nextBeforeKey,
+                      afterKey: key,
+                    );
+                  },
+                ),
+              ];
+              final angleSelector = _comparisonAngleButtons(
+                selectedIndex: selectedAngle,
+                beforeProgress: beforeProgress,
+                afterProgress: afterProgress,
+                feedback: _angleFeedback,
+                onChanged: (index) {
+                  _onAngleTapped(
+                    index,
+                    beforeProgress: beforeProgress,
+                    afterProgress: afterProgress,
+                  );
+                },
+              );
+              final dateRow = compact
+                  ? Column(
+                      children: [
+                        selectors[0],
+                        const SizedBox(height: 10),
+                        selectors[1],
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Expanded(child: selectors[0]),
+                        const SizedBox(width: 12),
+                        Expanded(child: selectors[1]),
+                      ],
+                    );
+              return Column(
+                children: [dateRow, const SizedBox(height: 10), angleSelector],
+              );
+            },
+          ),
+          const SizedBox(height: 14),
+          if (showSelectionError) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.error.withValues(alpha: 0.20),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    color: AppColors.error,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Escolhe duas datas diferentes para comparar.',
+                      style: GoogleFonts.inter(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      final bestPair = _bestComparisonPair(progressOptions);
+                      _selectComparisonDates(
+                        beforeKey: _progressKey(bestPair.before),
+                        afterKey: _progressKey(bestPair.after),
+                      );
+                    },
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: const Size(0, 36),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text('Corrigir'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          if (beforeImage != null && afterImage != null)
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth;
+                // As novas fotos são normalizadas para 4:5. O painel usa a
+                // mesma proporção para que a imagem ocupe toda a largura sem
+                // barras laterais, blur, distorção ou recorte.
+                final height = (width * 1.25 + 52)
+                    .clamp(320.0, 760.0)
+                    .toDouble();
+                return ImageComparisonSlider(
+                  beforeImage: beforeImage,
+                  afterImage: afterImage,
+                  width: width,
+                  height: height,
+                  dividerColor: AppColors.primary,
+                  imageFit: BoxFit.cover,
+                  edgeToEdge: true,
+                  beforeLabel: '',
+                  afterLabel: '',
+                  beforeDate: beforeDate,
+                  afterDate: afterDate,
+                  beforeDetail: beforeDetail,
+                  afterDetail: afterDetail,
+                  cardColor: AppColors.surfaceHigh,
+                );
+              },
+            )
+          else
+            _buildNoSharedAnglePanel(progressOptions),
+        ],
+      ),
+    );
+  }
+
+  /// Mostrado no lugar do slider quando as datas escolhidas não partilham
+  /// nenhum ângulo. Mantém uma ação disponível para o aluno nunca ficar
+  /// preso: escolher automaticamente o melhor par de datas.
+  Widget _buildNoSharedAnglePanel(List<ProgressModel> progressOptions) {
+    final bestPair = _bestComparisonPair(progressOptions);
+    final canAutoSelect =
+        _progressKey(bestPair.before) != _progressKey(bestPair.after) &&
+        _sharesAnyAngle(bestPair.before, bestPair.after);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 26),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceHigh,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.photo_library_outlined,
+            size: 30,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'As fotos destas datas não têm um ângulo em comum para comparar.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+              height: 1.4,
             ),
           ),
+          if (canAutoSelect) ...[
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () {
+                _selectComparisonDates(
+                  beforeKey: _progressKey(bestPair.before),
+                  afterKey: _progressKey(bestPair.after),
+                );
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                minimumSize: const Size(0, 40),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                'Escolher datas automaticamente',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _comparisonAngleButtons({
+    required int selectedIndex,
+    required ProgressModel beforeProgress,
+    required ProgressModel afterProgress,
+    required ValueChanged<int> onChanged,
+    String? feedback,
+  }) {
+    final availability = [
+      for (var index = 0; index < _progressAngles.length; index++)
+        _angleAvailable(beforeProgress, afterProgress, index),
+    ];
+    final anyUnavailable = availability.any((available) => !available);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Ângulo',
+          style: GoogleFonts.inter(
+            color: AppColors.onSurfaceVariant,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 7),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
           child: Row(
+            children: [
+              for (var index = 0; index < _progressAngles.length; index++) ...[
+                _angleButton(
+                  label: _progressAngles[index],
+                  selected: selectedIndex == index,
+                  available: availability[index],
+                  onPressed: () => onChanged(index),
+                ),
+                if (index < _progressAngles.length - 1)
+                  const SizedBox(width: 8),
+              ],
+            ],
+          ),
+        ),
+        if (anyUnavailable) ...[
+          const SizedBox(height: 7),
+          Text(
+            'Só é possível comparar ângulos com fotos nas duas datas.',
+            style: GoogleFonts.inter(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+              height: 1.3,
+            ),
+          ),
+        ],
+        if (feedback != null) ...[
+          const SizedBox(height: 7),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceHigh,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.outline),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.info_outline_rounded,
+                  color: AppColors.textSecondary,
+                  size: 16,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    feedback,
+                    style: GoogleFonts.inter(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _angleButton({
+    required String label,
+    required bool selected,
+    required bool available,
+    required VoidCallback onPressed,
+  }) {
+    // O botão nunca fica desativado: quando o ângulo não existe nas duas
+    // datas, o toque mostra uma explicação em vez de não fazer nada.
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: selected
+            ? Colors.white
+            : available
+            ? AppColors.onSurface
+            : AppColors.textSecondary.withValues(alpha: 0.45),
+        backgroundColor: selected
+            ? AppColors.primary
+            : available
+            ? AppColors.surfaceHighest
+            : AppColors.surfaceHighest.withValues(alpha: 0.35),
+        side: BorderSide(
+          color: selected
+              ? AppColors.primary
+              : AppColors.outline.withValues(alpha: available ? 1 : 0.35),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+        minimumSize: const Size(0, 42),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.inter(
+          fontSize: 12,
+          fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _comparisonDateDropdown({
+    required String label,
+    required String selectedKey,
+    required List<ProgressModel> options,
+    required ValueChanged<String?> onChanged,
+  }) {
+    final safeKey =
+        options.any((progress) => _progressKey(progress) == selectedKey)
+        ? selectedKey
+        : _progressKey(options.first);
+    return DropdownButtonFormField<String>(
+      initialValue: safeKey,
+      isExpanded: true,
+      dropdownColor: AppColors.surfaceHigh,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: GoogleFonts.inter(color: AppColors.onSurfaceVariant),
+        filled: true,
+        fillColor: AppColors.surfaceHighest,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.outline),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.outline),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+        ),
+      ),
+      style: GoogleFonts.inter(color: AppColors.onSurface, fontSize: 13),
+      items: [
+        for (final progress in options)
+          DropdownMenuItem<String>(
+            value: _progressKey(progress),
+            child: Text(
+              DateFormat('dd/MM/yyyy').format(progress.data),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+      ],
+      onChanged: onChanged,
+    );
+  }
+
+  Widget _buildProgressComparisonShell({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
               Container(
                 width: 38,
@@ -529,7 +1217,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Progresso',
+                      'Comparação de progresso',
                       style: GoogleFonts.montserrat(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -538,41 +1226,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      hasPhotos
-                          ? 'Compara as fotos e acompanha a tua evolução.'
-                          : 'O comparador ficará disponível após a primeira foto de progresso.',
+                      'Arrasta o divisor para veres a evolução em tempo real.',
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         color: AppColors.textSecondary,
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    TextButton.icon(
-                      onPressed: hasPhotos
-                          ? () =>
-                                _showProgressComparison(initialUrl!, latestUrl!)
-                          : null,
-                      icon: const Icon(Icons.compare_arrows_rounded, size: 17),
-                      label: const Text('Comparar progresso'),
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        minimumSize: const Size(0, 36),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                    ),
                   ],
                 ),
               ),
-              Icon(
-                hasPhotos
-                    ? Icons.arrow_forward_ios_rounded
-                    : Icons.lock_outline_rounded,
-                size: 16,
-                color: AppColors.textSecondary,
-              ),
             ],
           ),
-        ),
+          const SizedBox(height: 16),
+          child,
+        ],
       ),
     );
   }
@@ -776,129 +1443,203 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Widget _buildSoundPicker(UserModel user) {
     final currentSound = user.notificationSound ?? defaultSoundAsset;
+    final selectedOption = getSoundOption(currentSound);
 
     return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.outline),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.notifications_none_rounded,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Som de notificação',
+                      style: GoogleFonts.montserrat(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Escolhe o som usado nos avisos da aplicação.',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceHighest,
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.28),
+              ),
+            ),
+            child: Row(
               children: [
-                Icon(Icons.music_note, color: AppColors.primary, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Som de Notificação',
-                  style: GoogleFonts.inter(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.onSurface,
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: AppColors.primary,
+                  size: 18,
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Som atual',
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        selectedOption.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => _previewSound(selectedOption, currentSound),
+                  tooltip: 'Ouvir som atual',
+                  icon: const Icon(Icons.play_arrow_rounded),
+                  color: AppColors.primary,
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+                    minimumSize: const Size(38, 38),
+                    padding: EdgeInsets.zero,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Escolhe o som que toca nas notificações',
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Opções disponíveis',
+            style: GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textSecondary,
+              letterSpacing: 0.3,
             ),
-            const Divider(color: AppColors.outline),
-            ...notificationSoundOptions.map((option) {
-              final isSelected = option.asset == currentSound;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 4),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? AppColors.primary.withValues(alpha: 0.08)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(14),
-                ),
+          ),
+          const SizedBox(height: 6),
+          ...notificationSoundOptions.map((option) {
+            final isSelected = option.asset == currentSound;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Material(
+                color: isSelected
+                    ? AppColors.primary.withValues(alpha: 0.08)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
                 child: InkWell(
                   onTap: () => _selectSound(user, option),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(12),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 10,
+                      horizontal: 10,
+                      vertical: 8,
                     ),
                     child: Row(
                       children: [
                         Icon(
                           isSelected
-                              ? Icons.radio_button_checked
-                              : Icons.radio_button_unchecked,
+                              ? Icons.radio_button_checked_rounded
+                              : Icons.radio_button_unchecked_rounded,
                           color: isSelected
                               ? AppColors.primary
                               : AppColors.textSecondary,
-                          size: 20,
+                          size: 19,
                         ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             option.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.inter(
-                              fontSize: 14,
+                              fontSize: 13,
                               fontWeight: isSelected
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
                               color: AppColors.onSurface,
                             ),
                           ),
                         ),
-                        // Botão de preview
-                        Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () {
-                              _previewRestoreTimer?.cancel();
-                              SoundService().setSound(option.asset);
-                              SoundService().playNotificationChime();
-                              // Restaura a seleção após o preview
-                              _previewRestoreTimer = Timer(
-                                const Duration(milliseconds: 600),
-                                () {
-                                  if (mounted) {
-                                    SoundService().setSound(currentSound);
-                                  }
-                                },
-                              );
-                            },
-                            borderRadius: BorderRadius.circular(20),
-                            child: Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: AppColors.primary.withValues(
-                                  alpha: 0.12,
-                                ),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.play_arrow_rounded,
-                                color: AppColors.primary,
-                                size: 20,
-                              ),
-                            ),
+                        IconButton(
+                          onPressed: () => _previewSound(option, currentSound),
+                          tooltip: 'Ouvir ${option.name}',
+                          icon: const Icon(Icons.volume_up_outlined, size: 18),
+                          color: AppColors.textSecondary,
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 34,
+                            minHeight: 34,
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-              );
-            }),
-          ],
-        ),
+              ),
+            );
+          }),
+        ],
       ),
     );
+  }
+
+  void _previewSound(SoundOption option, String currentSound) {
+    _previewRestoreTimer?.cancel();
+    SoundService().setSound(option.asset);
+    SoundService().playNotificationChime();
+    _previewRestoreTimer = Timer(const Duration(milliseconds: 600), () {
+      if (mounted) SoundService().setSound(currentSound);
+    });
   }
 
   Future<void> _selectSound(UserModel user, SoundOption option) async {
@@ -1009,10 +1750,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     try {
       final bytes = await picked.readAsBytes();
+      final normalized = await normalizeProgressPhoto(
+        Uint8List.fromList(bytes),
+      );
       final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
       final url = await ref
           .read(progressRepositoryProvider)
-          .uploadProgressPhoto(userId, timestamp, Uint8List.fromList(bytes));
+          .uploadProgressPhoto(userId, timestamp, normalized);
 
       await ref.read(progressRepositoryProvider).addProgress(userId, {
         'data': DateTime.now(),
@@ -1027,115 +1771,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         );
       }
     }
-  }
-
-  Widget _buildComparisonButton(
-    String userId,
-    AsyncValue<List<ProgressModel>> progressAsync,
-  ) {
-    // Mantido apenas para compatibilidade interna; a comparação agora é
-    // apresentada diretamente no cartão de evolução visual.
-    return const SizedBox.shrink();
-  }
-
-  void _showProgressComparison(String initialUrl, String latestUrl) {
-    // O AlertDialog faz uma passagem de dimensões intrínsecas. Um
-    // LayoutBuilder diretamente no conteúdo não é compatível com essa
-    // passagem no Flutter Web, por isso calculamos o tamanho antes de abrir
-    // o diálogo e passamos limites concretos ao slider.
-    final screenSize = MediaQuery.sizeOf(context);
-    // O AlertDialog reserva cerca de 40 px de cada lado por defeito.
-    // Descontamos esse espaço para evitar overflow em ecrãs estreitos.
-    final availableWidth = (screenSize.width - 80).clamp(1.0, double.infinity);
-    final dialogWidth = availableWidth.clamp(1.0, 560.0).toDouble();
-    final sliderHeight = (dialogWidth * 1.08).clamp(220.0, 420.0).toDouble();
-
-    showDialog(
-      context: context,
-      animationStyle: const AnimationStyle(
-        duration: Duration(milliseconds: 260),
-        reverseDuration: Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      ),
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceHigh,
-        scrollable: true,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            const Icon(Icons.compare, color: AppColors.primary, size: 20),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Comparação Antes / Depois',
-                style: GoogleFonts.montserrat(
-                  color: AppColors.onSurface,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: SizedBox(
-          width: dialogWidth,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'ANTES',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.barlowCondensed(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'DEPOIS',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.barlowCondensed(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: dialogWidth,
-                height: sliderHeight,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: ImageComparisonSlider(
-                    beforeImage: initialUrl,
-                    afterImage: latestUrl,
-                    width: dialogWidth,
-                    height: sliderHeight,
-                    dividerColor: AppColors.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Fechar'),
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _buildPaymentsSection(String userId) {

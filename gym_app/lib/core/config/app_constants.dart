@@ -51,7 +51,7 @@ class AppConstants {
   // Storage paths
   static const String profilePhotoPath = 'users/{userId}/profile.jpg';
   static const String progressPhotoPath =
-      'users/{userId}/progresso/{timestamp}.jpg';
+      'users/{userId}/progresso/{timestamp}.png';
   static const String exerciseVideoPath = 'exercicios/{exerciseId}/video.mp4';
 
   // Roles

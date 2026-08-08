@@ -13,21 +13,26 @@ class ProgressRepository {
   ProgressRepository({
     required FirestoreDataSource firestoreDataSource,
     required StorageDataSource storageDataSource,
-  })  : _firestoreDataSource = firestoreDataSource,
-        _storageDataSource = storageDataSource;
+  }) : _firestoreDataSource = firestoreDataSource,
+       _storageDataSource = storageDataSource;
 
   /// Obtém histórico de progresso.
-  Future<List<ProgressModel>> getHistory(String userId, {int limit = 50}) async {
+  Future<List<ProgressModel>> getHistory(
+    String userId, {
+    int limit = 50,
+  }) async {
     try {
-      return await _firestoreDataSource.getProgressHistory(userId, limit: limit);
+      return await _firestoreDataSource.getProgressHistory(
+        userId,
+        limit: limit,
+      );
     } on ServerException catch (e) {
       throw ServerFailure(message: e.message);
     }
   }
 
   /// Adiciona nova entrada de progresso.
-  Future<void> addProgress(
-      String userId, Map<String, dynamic> data) async {
+  Future<void> addProgress(String userId, Map<String, dynamic> data) async {
     try {
       await _firestoreDataSource.addProgressEntry(userId, data);
     } on ServerException catch (e) {
@@ -35,14 +40,18 @@ class ProgressRepository {
     }
   }
 
-  /// Faz upload de foto de progresso.
+  /// Faz upload da foto de progresso já normalizada para PNG 4:5.
   Future<String> uploadProgressPhoto(
-      String userId, String timestamp, Uint8List bytes) async {
+    String userId,
+    String timestamp,
+    Uint8List bytes,
+  ) async {
     try {
-      final path = 'users/$userId/progresso/$timestamp.jpg';
+      final path = 'users/$userId/progresso/$timestamp.png';
       return await _storageDataSource.uploadImage(
         path: path,
         fileBytes: bytes,
+        contentType: 'image/png',
       );
     } on ServerException catch (e) {
       throw ServerFailure(message: e.message);
@@ -53,10 +62,7 @@ class ProgressRepository {
   Future<String> uploadProfilePhoto(String userId, Uint8List bytes) async {
     try {
       final path = 'users/$userId/profile.jpg';
-      return await _storageDataSource.uploadImage(
-        path: path,
-        fileBytes: bytes,
-      );
+      return await _storageDataSource.uploadImage(path: path, fileBytes: bytes);
     } on ServerException catch (e) {
       throw ServerFailure(message: e.message);
     }

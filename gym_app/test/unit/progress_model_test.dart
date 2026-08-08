@@ -13,7 +13,10 @@ void main() {
         'data': data,
         'peso': 80.5,
         'medidas': {'cintura': 85.0, 'quadril': 100.0, 'braço': 35.0},
-        'fotos': ['https://example.com/photo1.jpg', 'https://example.com/photo2.jpg'],
+        'fotos': [
+          'https://example.com/photo1.jpg',
+          'https://example.com/photo2.jpg',
+        ],
       };
 
       final progress = ProgressModel.fromMap(id, userId, map);
@@ -22,8 +25,15 @@ void main() {
       expect(progress.userId, userId);
       expect(progress.data, data.toDate());
       expect(progress.peso, 80.5);
-      expect(progress.medidas, {'cintura': 85.0, 'quadril': 100.0, 'braço': 35.0});
-      expect(progress.fotos, ['https://example.com/photo1.jpg', 'https://example.com/photo2.jpg']);
+      expect(progress.medidas, {
+        'cintura': 85.0,
+        'quadril': 100.0,
+        'braço': 35.0,
+      });
+      expect(progress.fotos, [
+        'https://example.com/photo1.jpg',
+        'https://example.com/photo2.jpg',
+      ]);
     });
 
     test('fromMap usa valores padrão quando campos estão ausentes', () {
@@ -34,6 +44,31 @@ void main() {
       expect(progress.peso, isNull);
       expect(progress.medidas, isEmpty);
       expect(progress.fotos, isEmpty);
+    });
+
+    test('fromMap preserva fotos associadas a cada posição', () {
+      final map = {
+        'data': data,
+        'fotos': [
+          'https://example.com/front.jpg',
+          '',
+          'https://example.com/back.jpg',
+          '',
+        ],
+        'fotosPorPosicao': {
+          'Frente': 'https://example.com/front.jpg',
+          'Costas': 'https://example.com/back.jpg',
+        },
+      };
+
+      final progress = ProgressModel.fromMap(id, userId, map);
+
+      expect(progress.fotosPorPosicao, {
+        'Frente': 'https://example.com/front.jpg',
+        'Costas': 'https://example.com/back.jpg',
+      });
+      expect(progress.fotos[1], isEmpty);
+      expect(progress.fotos[3], isEmpty);
     });
 
     test('toMap converte para mapa corretamente', () {
@@ -89,10 +124,7 @@ void main() {
 
     test('construtor usa id vazio e listas vazias por padrão', () {
       final date = DateTime(2026, 7, 23);
-      final progress = ProgressModel(
-        userId: userId,
-        data: date,
-      );
+      final progress = ProgressModel(userId: userId, data: date);
 
       expect(progress.id, '');
       expect(progress.medidas, isEmpty);
