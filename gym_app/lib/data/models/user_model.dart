@@ -9,6 +9,9 @@ class UserModel {
   final String? fotoPerfil;
   final String? personalId; // UID do personal trainer associado
   final DateTime? ultimaAtividade;
+
+  /// Data em que o cliente foi registado na aplicação.
+  final DateTime? createdAt;
   final bool hasPendingProgress; // Tem pedido de progresso pendente
   final DateTime? progressRequestedAt; // Quando o pedido foi feito
   final String? genero; // 'masculino', 'feminino' ou null
@@ -26,6 +29,7 @@ class UserModel {
     this.fotoPerfil,
     this.personalId,
     this.ultimaAtividade,
+    this.createdAt,
     this.hasPendingProgress = false,
     this.progressRequestedAt,
     this.genero,
@@ -47,6 +51,9 @@ class UserModel {
       personalId: map['personalId'] as String?,
       ultimaAtividade: map['ultimaAtividade'] != null
           ? (map['ultimaAtividade'] as dynamic).toDate() as DateTime
+          : null,
+      createdAt: map['createdAt'] != null
+          ? (map['createdAt'] as dynamic).toDate() as DateTime
           : null,
       hasPendingProgress: map['hasPendingProgress'] as bool? ?? false,
       progressRequestedAt: map['progressRequestedAt'] != null
@@ -70,13 +77,15 @@ class UserModel {
       if (fotoPerfil != null) 'fotoPerfil': fotoPerfil,
       if (personalId != null) 'personalId': personalId,
       if (ultimaAtividade != null) 'ultimaAtividade': ultimaAtividade,
+      if (createdAt != null) 'createdAt': createdAt,
       'hasPendingProgress': hasPendingProgress,
       if (progressRequestedAt != null)
         'progressRequestedAt': progressRequestedAt,
       if (genero != null) 'genero': genero,
       'tipoCliente': tipoCliente,
       if (notificationSound != null) 'notificationSound': notificationSound,
-      if (!soundEnabled) 'soundEnabled': false, // só escreve se for false (poupa writes)
+      if (!soundEnabled)
+        'soundEnabled': false, // só escreve se for false (poupa writes)
     };
   }
 
@@ -90,6 +99,7 @@ class UserModel {
     String? fotoPerfil,
     String? personalId,
     DateTime? ultimaAtividade,
+    DateTime? createdAt,
     bool clearPeso = false,
     bool clearAltura = false,
     bool clearFoto = false,
@@ -109,8 +119,10 @@ class UserModel {
       altura: clearAltura ? null : (altura ?? this.altura),
       fotoPerfil: clearFoto ? null : (fotoPerfil ?? this.fotoPerfil),
       personalId: clearPersonalId ? null : (personalId ?? this.personalId),
-      ultimaAtividade:
-          clearUltimaAtividade ? null : (ultimaAtividade ?? this.ultimaAtividade),
+      ultimaAtividade: clearUltimaAtividade
+          ? null
+          : (ultimaAtividade ?? this.ultimaAtividade),
+      createdAt: createdAt ?? this.createdAt,
       genero: genero ?? this.genero,
       tipoCliente: tipoCliente ?? this.tipoCliente,
       notificationSound: notificationSound ?? this.notificationSound,

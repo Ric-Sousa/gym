@@ -18,11 +18,12 @@ import '../../../data/models/payment_model.dart';
 import '../../../data/models/booking_model.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../shared/providers/global_providers.dart';
+import '../../../shared/widgets/admin_responsive_dialog.dart';
 import '../../../shared/providers/admin_providers.dart';
 import '../../../shared/utils/booking_notifications.dart';
 import '../../../shared/widgets/image_comparison_slider.dart';
 import '../../../shared/widgets/app_notification.dart';
-import '../../admin/widgets/workout_editor.dart';
+import 'global_workout_plans_screen.dart';
 import '../../admin/widgets/nutrition_editor.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/services/sound_service.dart';
@@ -38,6 +39,7 @@ import '../../../features/aluno/perfil/screens/profile_screen.dart';
 enum AdminView {
   dashboard,
   clients,
+  workouts,
   exercises,
   foods,
   messages,
@@ -111,6 +113,8 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
         return 'Visão geral';
       case AdminView.clients:
         return 'Clientes';
+      case AdminView.workouts:
+        return 'Treinos';
       case AdminView.exercises:
         return 'Biblioteca de exercícios';
       case AdminView.foods:
@@ -134,6 +138,8 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
         return 'Acompanha a evolução do teu negócio num só lugar';
       case AdminView.clients:
         return 'Pesquisa e gere todos os teus clientes';
+      case AdminView.workouts:
+        return 'Cria planos, exercícios e atribuições';
       case AdminView.exercises:
         return 'Constrói planos de treino consistentes';
       case AdminView.foods:
@@ -312,6 +318,8 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
         return _AdminClientsList(
           onSelect: (c) => setState(() => _selectedClient = c),
         );
+      case AdminView.workouts:
+        return const GlobalWorkoutPlansScreen();
       case AdminView.exercises:
         return const _AdminExerciseLibrary();
       case AdminView.foods:
@@ -445,6 +453,13 @@ class _AdminSidebar extends StatelessWidget {
           _NavItem(
             icon: Icons.fitness_center_outlined,
             activeIcon: Icons.fitness_center,
+            label: 'Treinos',
+            active: currentView == AdminView.workouts,
+            onTap: () => onNavigate(AdminView.workouts),
+          ),
+          _NavItem(
+            icon: Icons.library_books_outlined,
+            activeIcon: Icons.library_books,
             label: 'Exercícios',
             active: currentView == AdminView.exercises,
             onTap: () => onNavigate(AdminView.exercises),
@@ -1287,6 +1302,7 @@ class _AdminClientsList extends ConsumerStatefulWidget {
 class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
   String _search = '';
   String _filter = 'all';
+  String _viewMode = 'list';
 
   @override
   Widget build(BuildContext context) {
@@ -1561,9 +1577,12 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                 }),
               ],
             ),
+          const SizedBox(height: 16),
+          _viewToggle(),
           const SizedBox(height: 24),
           alunosAsync.when(
-            data: (alunos) => _buildGrid(alunos),
+            data: (alunos) =>
+                _viewMode == 'list' ? _buildList(alunos) : _buildGrid(alunos),
             loading: () => Center(
               child: CircularProgressIndicator(
                 color: AdminThemeColors.of(context).lime,
@@ -1581,8 +1600,59 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
     );
   }
 
-  Widget _buildGrid(List<UserModel> alunos) {
-    final filtered = alunos.where((a) {
+  Widget _viewToggle() {
+    final colors = AdminThemeColors.of(context);
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _viewToggleButton(Icons.grid_view_rounded, 'Cartões', 'cards'),
+          _viewToggleButton(Icons.view_list_rounded, 'Lista', 'list'),
+        ],
+      ),
+    );
+  }
+
+  Widget _viewToggleButton(IconData icon, String label, String mode) {
+    final colors = AdminThemeColors.of(context);
+    final selected = _viewMode == mode;
+    return InkWell(
+      onTap: () => setState(() => _viewMode = mode),
+      borderRadius: BorderRadius.circular(9),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? colors.surface2 : Colors.transparent,
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: selected ? colors.text : colors.muted),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected ? colors.text : colors.muted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<UserModel> _filteredClients(List<UserModel> alunos) {
+    return alunos.where((a) {
       if (_filter == 'active') {
         return a.ultimaAtividade != null &&
             DateTime.now().difference(a.ultimaAtividade!).inDays < 30;
@@ -1593,6 +1663,10 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
       }
       return true;
     }).toList();
+  }
+
+  Widget _buildGrid(List<UserModel> alunos) {
+    final filtered = _filteredClients(alunos);
 
     if (filtered.isEmpty) {
       return Padding(
@@ -1632,6 +1706,289 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
           }).toList(),
         );
       },
+    );
+  }
+
+  Widget _buildList(List<UserModel> alunos) {
+    final filtered = _filteredClients(alunos);
+    final colors = AdminThemeColors.of(context);
+
+    if (filtered.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 60),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(Icons.person_search, size: 48, color: colors.muted),
+              const SizedBox(height: 12),
+              Text(
+                'Nenhum cliente encontrado',
+                style: GoogleFonts.inter(color: colors.muted),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 560) {
+          return Container(
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: colors.border),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              children: filtered.asMap().entries.map((entry) {
+                final isLast = entry.key == filtered.length - 1;
+                return _clientListCompactRow(entry.value, isLast);
+              }).toList(),
+            ),
+          );
+        }
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: constraints.maxWidth,
+            child: Container(
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: colors.border),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  _clientListHeader(),
+                  ...filtered.asMap().entries.map((entry) {
+                    final isLast = entry.key == filtered.length - 1;
+                    return _clientListRow(entry.value, isLast);
+                  }),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _clientListCompactRow(UserModel aluno, bool isLast) {
+    final colors = AdminThemeColors.of(context);
+    final date = aluno.createdAt == null
+        ? 'Data de entrada: —'
+        : 'Entrada: ${DateFormat('dd/MM/yyyy').format(aluno.createdAt!)}';
+    final plan = aluno.tipoCliente == 'online' ? 'Online' : 'Presencial';
+
+    return Material(
+      color: colors.surface,
+      child: InkWell(
+        onTap: () => widget.onSelect(aluno),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            border: isLast
+                ? null
+                : Border(bottom: BorderSide(color: colors.border)),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: colors.surface2,
+                child: Text(
+                  aluno.nome.isNotEmpty ? aluno.nome[0].toUpperCase() : '?',
+                  style: GoogleFonts.inter(
+                    color: colors.lime,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      aluno.nome,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: colors.text,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$date · Plano: $plan',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: colors.muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: 'Eliminar cliente',
+                onPressed: () => _confirmDeleteStudent(aluno),
+                icon: const Icon(
+                  Icons.delete_outline,
+                  size: 17,
+                  color: Colors.red,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _clientListHeader() {
+    final colors = AdminThemeColors.of(context);
+    return Container(
+      color: colors.surface2.withValues(alpha: 0.45),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      child: Row(
+        children: [
+          const SizedBox(width: 42),
+          Expanded(child: _listHeaderText('CLIENTE')),
+          SizedBox(width: 130, child: _listHeaderText('ENTRADA')),
+          SizedBox(width: 130, child: _listHeaderText('PLANO')),
+          const SizedBox(width: 42),
+        ],
+      ),
+    );
+  }
+
+  Widget _listHeaderText(String text) {
+    return Text(
+      text,
+      style: GoogleFonts.inter(
+        fontSize: 10,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.8,
+        color: AdminThemeColors.of(context).muted,
+      ),
+    );
+  }
+
+  Widget _clientListRow(UserModel aluno, bool isLast) {
+    final colors = AdminThemeColors.of(context);
+    final date = aluno.createdAt == null
+        ? '—'
+        : DateFormat('dd/MM/yyyy').format(aluno.createdAt!);
+    final isOnline = aluno.tipoCliente == 'online';
+
+    return Material(
+      color: colors.surface,
+      child: InkWell(
+        onTap: () => widget.onSelect(aluno),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          decoration: BoxDecoration(
+            border: isLast
+                ? null
+                : Border(bottom: BorderSide(color: colors.border)),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 21,
+                backgroundColor: colors.surface2,
+                child: Text(
+                  aluno.nome.isNotEmpty ? aluno.nome[0].toUpperCase() : '?',
+                  style: GoogleFonts.inter(
+                    color: colors.lime,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      aluno.nome,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: colors.text,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      aluno.email,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: colors.muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(
+                width: 130,
+                child: Text(
+                  date,
+                  style: GoogleFonts.inter(fontSize: 12, color: colors.muted),
+                ),
+              ),
+              SizedBox(
+                width: 130,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isOnline
+                          ? colors.lime.withValues(alpha: 0.12)
+                          : colors.surface2,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      isOnline ? 'Online' : 'Presencial',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: isOnline ? colors.lime : colors.text,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 42,
+                child: IconButton(
+                  tooltip: 'Eliminar cliente',
+                  onPressed: () => _confirmDeleteStudent(aluno),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    size: 17,
+                    color: Colors.red,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1808,7 +2165,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
+        builder: (ctx, setDialogState) => AdminResponsiveAlertDialog(
           backgroundColor: AdminThemeColors.of(context).surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -2098,7 +2455,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
   Future<void> _confirmDeleteStudent(UserModel aluno) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AdminResponsiveAlertDialog(
         backgroundColor: AdminThemeColors.of(context).surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: Text(
@@ -2332,7 +2689,33 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
           if (_tab == 'workout') ...[
             _buildLoadProgressionChart(),
             const SizedBox(height: 20),
-            SizedBox(height: 600, child: WorkoutEditor(aluno: widget.client)),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AdminThemeColors.of(context).surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AdminThemeColors.of(context).border),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    color: AdminThemeColors.of(context).lime,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Os planos são criados na área global “Treinos”. Aí podes adicionar exercícios, escolher os dias e atribuir o plano a este aluno.',
+                      style: GoogleFonts.inter(
+                        color: AdminThemeColors.of(context).muted,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
           if (_tab == 'nutrition')
             SizedBox(height: 600, child: NutritionEditor(aluno: widget.client)),
@@ -2584,7 +2967,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
   Future<void> _resetStudentPassword(UserModel c) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AdminResponsiveAlertDialog(
         backgroundColor: AdminThemeColors.of(context).surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
@@ -3237,7 +3620,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
+        builder: (ctx, setDialogState) => AdminResponsiveAlertDialog(
           backgroundColor: AdminThemeColors.of(context).surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -4191,7 +4574,7 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
+        builder: (ctx, setDialogState) => AdminResponsiveAlertDialog(
           backgroundColor: AdminThemeColors.of(context).surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -4719,7 +5102,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
     await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
+        builder: (ctx, setDialogState) => AdminResponsiveAlertDialog(
           backgroundColor: AdminThemeColors.of(context).surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -5471,7 +5854,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
+        builder: (ctx, setDialogState) => AdminResponsiveAlertDialog(
           backgroundColor: AdminThemeColors.of(context).surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -6065,7 +6448,7 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
   void _showBookingPopup(BookingModel b, String studentName) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AdminResponsiveAlertDialog(
         backgroundColor: AdminThemeColors.of(context).surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: Text(
@@ -6597,7 +6980,7 @@ class _AdminSettingsView extends ConsumerWidget {
   ) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AdminResponsiveAlertDialog(
         backgroundColor: AdminThemeColors.of(context).surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
@@ -6673,7 +7056,7 @@ class _AdminSettingsView extends ConsumerWidget {
 
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => AdminResponsiveAlertDialog(
         backgroundColor: AdminThemeColors.of(context).surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),

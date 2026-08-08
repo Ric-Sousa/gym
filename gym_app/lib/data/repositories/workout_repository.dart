@@ -32,7 +32,34 @@ class WorkoutRepository {
   final FirestoreDataSource _firestoreDataSource;
 
   WorkoutRepository({required FirestoreDataSource firestoreDataSource})
-      : _firestoreDataSource = firestoreDataSource;
+    : _firestoreDataSource = firestoreDataSource;
+
+  /// Lista planos globais disponíveis para atribuição.
+  Future<List<WorkoutPlanModel>> getGlobalPlans() async {
+    try {
+      return await _firestoreDataSource.getGlobalWorkoutPlans();
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
+  }
+
+  /// Elimina um plano global.
+  Future<void> deleteGlobalPlan(String planId) async {
+    try {
+      await _firestoreDataSource.deleteGlobalWorkoutPlan(planId);
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
+  }
+
+  /// Guarda/atualiza um plano global.
+  Future<void> saveGlobalPlan(String planId, Map<String, dynamic> data) async {
+    try {
+      await _firestoreDataSource.setGlobalWorkoutPlan(planId, data);
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
+  }
 
   /// Obtém um plano de treino específico.
   Future<WorkoutPlanModel?> getPlan(String userId, String nome) async {
@@ -52,9 +79,21 @@ class WorkoutRepository {
     }
   }
 
+  /// Elimina um plano atribuído a um aluno.
+  Future<void> deletePlan(String userId, String planId) async {
+    try {
+      await _firestoreDataSource.deleteWorkoutPlan(userId, planId);
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
+  }
+
   /// Guarda/atualiza plano de treino.
   Future<void> savePlan(
-      String userId, String nome, Map<String, dynamic> data) async {
+    String userId,
+    String nome,
+    Map<String, dynamic> data,
+  ) async {
     try {
       await _firestoreDataSource.setWorkoutPlan(userId, nome, data);
     } on ServerException catch (e) {
@@ -63,9 +102,13 @@ class WorkoutRepository {
   }
 
   /// Lista exercícios disponíveis.
-  Future<List<Map<String, dynamic>>> getExercises({String? grupoMuscular}) async {
+  Future<List<Map<String, dynamic>>> getExercises({
+    String? grupoMuscular,
+  }) async {
     try {
-      return await _firestoreDataSource.getExercises(grupoMuscular: grupoMuscular);
+      return await _firestoreDataSource.getExercises(
+        grupoMuscular: grupoMuscular,
+      );
     } on ServerException catch (e) {
       throw ServerFailure(message: e.message);
     }
@@ -112,15 +155,17 @@ class WorkoutRepository {
               : null;
         }
 
-        progressions.add(ProgressionData(
-          exerciseName: exAtual.nome,
-          cargaAnterior: cargaAnterior,
-          cargaAtual: cargaAtual,
-          repsAnteriores: repsAnterior > 0 ? repsAnterior : null,
-          repsAtuais: repsAtual > 0 ? repsAtual : null,
-          aumentoKg: aumentoKg,
-          aumentoPercentual: aumentoPercentual,
-        ));
+        progressions.add(
+          ProgressionData(
+            exerciseName: exAtual.nome,
+            cargaAnterior: cargaAnterior,
+            cargaAtual: cargaAtual,
+            repsAnteriores: repsAnterior > 0 ? repsAnterior : null,
+            repsAtuais: repsAtual > 0 ? repsAtual : null,
+            aumentoKg: aumentoKg,
+            aumentoPercentual: aumentoPercentual,
+          ),
+        );
       }
 
       return progressions;

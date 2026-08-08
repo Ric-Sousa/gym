@@ -14,9 +14,9 @@ class SerieLog {
 
   factory SerieLog.fromMap(Map<String, dynamic> map) {
     return SerieLog(
-      numero: map['numero'] as int? ?? 1,
+      numero: (map['numero'] as num?)?.toInt() ?? 1,
       carga: (map['carga'] as num?)?.toDouble(),
-      repeticoes: map['repeticoes'] as int?,
+      repeticoes: (map['repeticoes'] as num?)?.toInt(),
       concluida: map['concluida'] as bool? ?? false,
     );
   }
@@ -68,10 +68,7 @@ class ExerciseLog {
     return ExerciseLog(
       nome: nome,
       grupoMuscular: grupoMuscular,
-      series: List.generate(
-        totalSeries,
-        (i) => SerieLog(numero: i + 1),
-      ),
+      series: List.generate(totalSeries, (i) => SerieLog(numero: i + 1)),
     );
   }
 
@@ -81,7 +78,8 @@ class ExerciseLog {
       nome: map['nome'] as String? ?? '',
       grupoMuscular: map['grupoMuscular'] as String?,
       series: seriesList
-          .map((s) => SerieLog.fromMap(s as Map<String, dynamic>))
+          .whereType<Map>()
+          .map((s) => SerieLog.fromMap(Map<String, dynamic>.from(s)))
           .toList(),
     );
   }
@@ -99,9 +97,7 @@ class ExerciseLog {
   bool get todasConcluidas => series.every((s) => s.concluida);
   double? get cargaMaxima {
     if (series.isEmpty) return null;
-    return series
-        .where((s) => s.carga != null)
-        .fold<double?>(null, (max, s) {
+    return series.where((s) => s.carga != null).fold<double?>(null, (max, s) {
       if (max == null) return s.carga;
       return s.carga! > max ? s.carga : max;
     });
@@ -115,6 +111,9 @@ class WorkoutLogModel {
   final DateTime data;
   final String planoSemana;
   final String diaSemana;
+
+  /// Identifica o sub-plano associado ao treino. Opcional para logs antigos.
+  final String? subPlanoId;
   final String foco;
   final List<ExerciseLog> exercicios;
   final DateTime? completedAt;
@@ -126,6 +125,7 @@ class WorkoutLogModel {
     required this.data,
     required this.planoSemana,
     required this.diaSemana,
+    this.subPlanoId,
     this.foco = '',
     this.exercicios = const [],
     this.completedAt,
@@ -133,23 +133,39 @@ class WorkoutLogModel {
   });
 
   factory WorkoutLogModel.fromMap(
-      String id, String userId, Map<String, dynamic> map) {
+    String id,
+    String userId,
+    Map<String, dynamic> map,
+  ) {
     final exerciciosList = map['exercicios'] as List? ?? [];
     return WorkoutLogModel(
       id: id,
       userId: userId,
-      data: (map['data'] as dynamic).toDate() as DateTime,
+      data:
+          _parseDate(map['data']) ??
+          (throw const FormatException('Workout log has an invalid date')),
       planoSemana: map['planoSemana'] as String? ?? '',
       diaSemana: map['diaSemana'] as String? ?? '',
+      subPlanoId: map['subPlanoId'] as String?,
       foco: map['foco'] as String? ?? '',
       exercicios: exerciciosList
-          .map((e) => ExerciseLog.fromMap(e as Map<String, dynamic>))
+          .whereType<Map>()
+          .map((e) => ExerciseLog.fromMap(Map<String, dynamic>.from(e)))
           .toList(),
-      completedAt: map['completedAt'] != null
-          ? (map['completedAt'] as dynamic).toDate() as DateTime
-          : null,
-      duracaoMinutos: map['duracaoMinutos'] as int? ?? 0,
+      completedAt: _parseDate(map['completedAt']),
+      duracaoMinutos: (map['duracaoMinutos'] as num?)?.toInt() ?? 0,
     );
+  }
+
+  static DateTime? _parseDate(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
+    try {
+      return (value as dynamic).toDate() as DateTime;
+    } catch (_) {
+      return null;
+    }
   }
 
   Map<String, dynamic> toMap() {
@@ -158,6 +174,8 @@ class WorkoutLogModel {
       'data': data,
       'planoSemana': planoSemana,
       'diaSemana': diaSemana,
+      if (subPlanoId != null && subPlanoId!.isNotEmpty)
+        'subPlanoId': subPlanoId,
       'foco': foco,
       'exercicios': exercicios.map((e) => e.toMap()).toList(),
       if (completedAt != null) 'completedAt': completedAt,
@@ -165,8 +183,7 @@ class WorkoutLogModel {
     };
   }
 
-  int get seriesTotais =>
-      exercicios.fold(0, (sum, e) => sum + e.totalSeries);
+  int get seriesTotais => exercicios.fold(0, (sum, e) => sum + e.totalSeries);
   int get seriesConcluidas =>
       exercicios.fold(0, (sum, e) => sum + e.seriesConcluidas);
   bool get concluido => completedAt != null;
@@ -179,6 +196,7 @@ class WorkoutLogModel {
     DateTime? data,
     String? planoSemana,
     String? diaSemana,
+    String? subPlanoId,
     String? foco,
     List<ExerciseLog>? exercicios,
     DateTime? completedAt,
@@ -190,6 +208,7 @@ class WorkoutLogModel {
       data: data ?? this.data,
       planoSemana: planoSemana ?? this.planoSemana,
       diaSemana: diaSemana ?? this.diaSemana,
+      subPlanoId: subPlanoId ?? this.subPlanoId,
       foco: foco ?? this.foco,
       exercicios: exercicios ?? this.exercicios,
       completedAt: completedAt ?? this.completedAt,

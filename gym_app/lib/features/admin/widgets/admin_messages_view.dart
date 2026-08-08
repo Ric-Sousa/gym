@@ -11,6 +11,7 @@ import '../../../data/models/user_model.dart';
 import '../../../data/models/message_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../shared/providers/global_providers.dart';
+import '../../../shared/widgets/admin_responsive_dialog.dart';
 import '../../../shared/providers/admin_providers.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/aluno/chat/screens/group_chat_screen.dart';
@@ -509,7 +510,7 @@ Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
   await showDialog(
     context: context,
     builder: (ctx) => StatefulBuilder(
-      builder: (ctx, setDialogState) => AlertDialog(
+      builder: (ctx, setDialogState) => AdminResponsiveAlertDialog(
         backgroundColor: AdminThemeColors.of(context).surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
