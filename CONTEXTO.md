@@ -2,6 +2,7 @@
 
 > Documento criado para entregar a outra IA e continuar o desenvolvimento sem perder contexto.
 > Lê tudo antes de mexer no código. Não alteres a paleta de cores nem a lógica de negócio.
+> Última atualização: **2026-08-08** (sessão que corrigiu a Comparação de Progresso — ver secção 6).
 
 ---
 
@@ -27,7 +28,8 @@ lib/
   core/
     config/          -> app_colors.dart, app_constants.dart, app_strings.dart, admin_theme.dart, notification_sounds.dart
     services/        -> audio_recording_service*, sound_service*, fcm_service.dart
-    utils/           -> connectivity_service.dart, validators.dart, progress_photo_normalizer.dart
+    utils/           -> connectivity_service.dart, validators.dart, progress_photo_normalizer.dart,
+                        progress_photo_resolver.dart          <-- NOVO (ver secção 5/6)
     errors/          -> exceptions.dart, failures.dart
   data/
     datasources/     -> auth_datasource.dart, firestore_datasource.dart, storage_datasource.dart
@@ -93,13 +95,35 @@ lib/
 3. **Persistência no Firestore** (`progress_submission_screen.dart` `_submitProgress`):
    - `fotos`: lista de **4 posições fixas**, com `''` nas posições vazias (mantém o índice identificável).
    - `fotosPorPosicao`: mapa `{ 'Frente': url, 'Lado 1': url, ... }` só com posições preenchidas.
-4. **Perfil do aluno** (`profile_screen.dart`):
-   - Card fixo **"Comparação de progresso"** com:
-     - Dropdowns "Data inicial" / "Data final".
-     - Botões de ângulo: **Frente, Costas, Lado 1, Lado 2** (ordem visual `_progressAngles`).
-     - `ImageComparisonSlider` (slider com divisor) mostrando em tempo real a diferença.
-   - Botões de ângulo só ficam ativos se **ambas** as datas tiverem foto naquela posição.
-   - Comparador sempre visível, sem botão "Comparar Progresso" (removido a pedido).
+4. **Perfil do aluno** (`profile_screen.dart`) — card fixo **"Comparação de progresso"**:
+   - Dropdowns "Data inicial" / "Data final" **sempre visíveis** (o aluno nunca fica preso num estado sem ação).
+   - Botões de ângulo: **Frente, Costas, Lado 1, Lado 2** (ordem visual = `progressAngleLabels` do resolver).
+   - `ImageComparisonSlider` (slider com divisor) em tempo real; comparador sempre visível, sem botão "Comparar Progresso".
+   - **Par de datas padrão inteligente** (`_bestComparisonPair`): escolhe a maior amplitude de datas que partilha pelo menos um ângulo (em vez de cegamente primeiro/último).
+   - **Botões de ângulo sempre clicáveis** (correção de 2026-08-08, ver secção 6):
+     - Ângulo disponível (foto nas **duas** datas) → seleciona e atualiza o slider.
+     - Ângulo indisponível → visual esbatido (fundo 35%, texto 45%, borda fraca) e o toque mostra mensagem inline: `"Sem foto de X na data inicial/final (dd/MM/aaaa)."` ou `"Nenhuma das datas selecionadas tem foto de X."` (campo de estado `_angleFeedback`, limpo ao mudar datas/ângulo).
+     - Quando algum ângulo está indisponível, legenda discreta: `"Só é possível comparar ângulos com fotos nas duas datas."`
+   - Par sem ângulo comum → painel no lugar do slider (`_buildNoSharedAnglePanel`) com botão **"Escolher datas automaticamente"** (aplica o melhor par).
+   - Mesma data nas duas dropdowns → banner de aviso com botão **"Corrigir"** (aplica o melhor par).
+   - Falha de carregamento → estado com botão **"Tentar novamente"** (`ref.invalidate(progressHistoryProvider)`).
+
+### Resolução de fotos por ângulo — `lib/core/utils/progress_photo_resolver.dart` (NOVO, 2026-08-08)
+
+Toda a lógica de "que URL corresponde a que ângulo" está neste utilitário puro e testável (funções top-level). O ecrã só chama `resolveProgressPhotoAt(fotos:, fotosPorPosicao:, angleIndex:)`. Regras, por ordem:
+
+1. **Mapa explícito** `fotosPorPosicao` com chaves **normalizadas** (`normalizeProgressPositionKey`: aceita `frente`, `Frente`, `lado-1`, `Lado_2`, `Lado Esquerdo`, `Posterior`, etc.).
+2. **Formato novo** (lista de 4 slots; identificado por existirem placeholders `''` ou mapa reconhecido): ordem **Frente, Lado 1, Lado 2, Costas** (índices por ângulo `[0, 3, 1, 2]`).
+3. **Registos antigos** (lista compacta de 1–4 fotos, sem mapa, sem placeholders) — **ordem decidida com o cliente em 2026-08-08**, seguindo a sugestão do formulário antigo *"frente, lado, costas, opcional"*:
+   - 1 foto = **Frente**
+   - 2 fotos = **Frente, Lado 1**
+   - 3 fotos = **Frente, Lado 1, Costas**
+   - 4 fotos = **Frente, Lado 1, Costas, Lado 2** (4.ª "opcional" tratada como Lado 2)
+4. **Mapa parcial + lista compacta (< 4)** → não adivinha posições em falta (evita trocar Lado por Costas).
+
+Outras funções: `explicitProgressPhotoAt`, `hasRecognizedProgressPositionPhoto`, `hasAnyProgressPhoto(fotos, mapa)`, `legacyProgressPhotoIndex`.
+
+> ⚠️ **Nota histórica:** o formulário antigo (antes dos 4 slots fixos) era um "Adicionar foto" genérico, até 4 fotos, sem etiquetas — o texto sugeria *"Adiciona até 4 fotos (frente, lado, costas, opcional)"*. Daí a ambiguidade Costas↔Lado 2 na 3.ª/4.ª foto antiga, resolvida com a decisão acima.
 
 ### Modelo (`lib/data/models/progress_model.dart`)
 - Campos: `id`, `userId`, `data`, `peso`, `medidas` (Map), `fotos` (List<String>), `fotosPorPosicao` (Map<String,String>).
@@ -107,60 +131,59 @@ lib/
 
 ---
 
-## 6. ÚLTIMA ALTERAÇÃO (comparação de progresso) — E O BUG ATUAL
+## 6. ÚLTIMAS CORREÇÕES (2026-08-08) — Comparação de Progresso RESOLVIDA
 
-### O que foi feito
-Em `profile_screen.dart`, foram adicionados métodos para resolver a foto de cada ângulo:
+### Bug 1 — utilizador preso em "As fotos selecionadas não estão disponíveis para comparação."
+- **Causa:** registos antigos com 1–3 fotos (sem mapa) não resolviam nenhum ângulo (`_legacyPhotoIndex` só funcionava com 4 fotos) e o estado de erro não tinha ações.
+- **Correção aplicada:**
+  - Lógica extraída para `progress_photo_resolver.dart` com **fallback legado para 1–4 fotos antigas** (ordem da secção 5, decidida com o cliente).
+  - O estado de erro "mudo" foi **eliminado**: dropdowns e botões de ângulo ficam sempre visíveis; painel substituto com "Escolher datas automaticamente"; "Tentar novamente" no erro de carregamento; "Corrigir" usa o melhor par.
+  - Par padrão passou a ser o **melhor par com ângulo comum** (`_bestComparisonPair`).
 
-- `_photoAt(progress, angleIndex)` — prioriza `fotosPorPosicao`; só usa fallback da lista `fotos` se for seguro.
-- `_explicitPhotoAt(...)` — procura no mapa de forma **normalizada** (aceita `frente`, `Frente`, `costas`, `lado1`, `lado-1`, `Lado 2`, etc. via `_normalizePositionKey`).
-- `_hasRecognizedPositionPhoto(...)` — verifica se existe pelo menos uma posição reconhecida preenchida no mapa.
-- `_hasAnyProgressPhoto(...)` — inclui fotos que existem só no mapa.
-- `_legacyPhotoIndex(angleIndex, photoCount)` — **apenas devolve índice quando `photoCount >= 4`** (ordem antiga Frente, Lado 1, Lado 2, Costas → `[0, 3, 1, 2]`). Para listas de 1–3 fotos devolve `null` (para não "adivinhar" posições).
-- Regra: se a lista `fotos` tiver < 4 elementos E o mapa tiver posição reconhecida → não faz fallback (evita trocar Lado por Costas).
+### Bug 2 — botões Costas/Lado 1/Lado 2 "mortos" ao clique
+- **Causa:** ficavam `onPressed: null` quando o ângulo faltava numa das datas, com estilo desativado quase idêntico ao ativo (só texto a 35%) → pareciam clicáveis mas não faziam nada.
+- **Correção aplicada:** botões **sempre clicáveis**; indisponível = visual claramente esbatido + toque mostra mensagem inline a dizer **que foto falta e em que data**; legenda preventiva quando há ângulos indisponíveis.
 
-### ⚠️ BUG ATUAL (reportado pelo utilizador após esta alteração)
-- **Sintoma:** no perfil, a comparação de progresso mostra: **"As fotos selecionadas não estão disponíveis para comparação."** e **não aparece nenhum botão para voltar/corrigir**.
-- **Onde ocorre:** `_buildProgressComparisonCard` → quando `!hasComparison && (beforeImage == null || afterImage == null)` → `_buildProgressComparisonState(...)` que mostra apenas ícone + mensagem (sem ação).
-- **Causa provável nº 1 (a mais provável):** registos **antigos** de progresso têm apenas 2–3 fotos na lista `fotos` (sem `fotosPorPosicao`). Com a nova regra `_legacyPhotoIndex` devolve `null` para < 4 fotos → **nenhum ângulo resolve** → todas as datas dão erro. Ou seja: a comparação deixa de funcionar para o histórico já existente.
-- **Causa provável nº 2:** registos com `fotosPorPosicao` parcial (ex.: só Frente) e datas escolhidas que não partilham esse ângulo explícito → fallback bloqueado pela regra do mapa parcial → erro.
-- **Falta de ação no estado de erro:** `_buildProgressComparisonState` não tem botão; o utilizador fica preso na mensagem.
+### Bug 3 (encontrado e corrigido nesta sessão) — normalização de chaves
+- O regex antigo `RegExp(r'[\\s_-]+')` removia a letra **"s"** das chaves (`"Costas"` → `"cota"`), ou seja **"Costas" nunca era reconhecida no mapa**. Corrigido para `RegExp(r'[\s_-]+')` no resolver.
 
-### Sugestão de correção para a próxima IA (ainda NÃO aplicada)
-1. **Restaurar fallback seguro para registos antigos** com 1–3 fotos, respeitando a ordem antiga conhecida do formulário (ex.: 2 fotos → Frente, Lado 1; 3 fotos → Frente, Lado 1, Costas...). Atenção à ambiguidade Costas vs Lado — validar com o utilizador ou desativar apenas o ângulo duvidoso.
-2. **Permitir sair do estado de erro:** adicionar botões de ação no `_buildProgressComparisonState` (ex.: "Escolher outras datas" / reset para primeira+última) para nunca deixar o utilizador preso.
-3. Considerar mostrar o comparador mesmo que só uma posição exista (fallback "todas as fotos" sem botões de ângulo desativados).
-4. **Testar** com dados: (a) 2 fotos antigas sem mapa, (b) 3 fotos antigas, (c) 4 slots novos com mapa completo, (d) mapa parcial + lista de 4.
+### ⏳ PENDENTE — verificação de dados reais (utilizador)
+- O utilizador vai confirmar no Firestore o conteúdo dos registos de teste (campos `fotos` e `fotosPorPosicao`).
+- **Se a mensagem da app disser que falta uma foto que ele tem a certeza de ter enviado** → bug de leitura dos dados → pedir-lhe screenshot/texto do documento no Firestore e ajustar o mapeamento no resolver.
+- Caso contrário (datas só com Frente, etc.) está correto: basta submeter avaliações com os 4 ângulos.
 
 ---
 
 ## 7. Estado do repositório / git
 
 - **Branch:** `marcus` (PR para `main`). Houve conflitos históricos (já resolvidos) em `admin_panel_screen.dart`, `profile_screen.dart`, `image_comparison_slider.dart`, `pubspec.*`, `.flutter-plugins-dependencies`.
-- **Ficheiros modificados nesta sessão (sem commit):**
-  - `lib/core/config/app_constants.dart`
+- **Ficheiros modificados (sem commit):**
+  - `lib/core/config/app_constants.dart` (path de upload `.jpg` → `.png`)
   - `lib/data/models/progress_model.dart`
   - `lib/data/repositories/progress_repository.dart`
-  - `lib/features/aluno/perfil/screens/profile_screen.dart`
+  - `lib/features/aluno/perfil/screens/profile_screen.dart` (comparação de progresso — ver secções 5/6)
   - `lib/features/aluno/perfil/screens/progress_submission_screen.dart`
   - `lib/shared/widgets/image_comparison_slider.dart`
   - `test/unit/progress_model_test.dart`
 - **Ficheiros novos (untracked):**
+  - `CONTEXTO.md` (este ficheiro, na raiz do workspace)
   - `lib/core/utils/progress_photo_normalizer.dart`
+  - `lib/core/utils/progress_photo_resolver.dart`          <-- NOVO 2026-08-08
   - `test/unit/progress_photo_normalizer_test.dart`
+  - `test/unit/progress_photo_resolver_test.dart`          <-- NOVO 2026-08-08
 - **Sem conflitos de merge em aberto** (`git diff --name-only --diff-filter=U` vazio).
 
 ---
 
 ## 8. Testes e validação
 
-- Testes existentes: `test/unit/` (core, models, validators, normalizer) e `test/widget/` (admin_panel, aluno_screens, login_screen, image_comparison_slider, test_helpers).
+- Testes: `test/unit/` (core, models, validators, normalizer, **resolver**) e `test/widget/` (admin_panel, aluno_screens, login_screen, image_comparison_slider, test_helpers).
 - Comandos usados na validação:
   - `dart format <files>`
   - `git diff --check`
-  - `flutter test test/unit/progress_model_test.dart test/unit/progress_photo_normalizer_test.dart test/widget/image_comparison_slider_test.dart test/widget/aluno_screens_test.dart`
+  - `flutter test` (suite completa)
   - `flutter analyze --no-fatal-infos`
-- Estado: 13 testes focados passam; `git diff --check` OK; analyzer tem 182 avisos/infos (maioria pré-existentes, ex.: métodos não usados `_buildWeightChart`, `_buildProgressPhotos`, `_changeProfilePhoto`, `_addProgressPhoto` — podiam ser removidos, mas são pré-existentes).
+- Estado em 2026-08-08: **177/177 testes passam** (inclui 13 do resolver: cenários a–d do handoff anterior + extras); `git diff --check` OK; analyzer com **183 issues** — todos pré-existentes (a sessão reduziu de 185 para 183), ex.: métodos não usados `_buildWeightChart`, `_buildProgressPhotos`, `_changeProfilePhoto`, `_addProgressPhoto` em `profile_screen.dart` (podem ser removidos numa limpeza futura — são pré-existentes).
 
 ---
 
