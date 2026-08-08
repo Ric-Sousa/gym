@@ -5755,7 +5755,6 @@ class _AdminAgendaView extends ConsumerStatefulWidget {
 
 class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
   DateTime _selectedDate = DateTime.now();
-  DateTime _currentMonth = DateTime.now();
   late final String _trainerId;
 
   @override
@@ -5771,18 +5770,13 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
     final isMobile = MediaQuery.of(context).size.width < 900;
 
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(
-        isMobile ? 16 : 40,
-        isMobile ? 20 : 40,
-        isMobile ? 16 : 40,
-        isMobile ? 28 : 44,
-      ),
+      padding: EdgeInsets.all(isMobile ? 16 : 36),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Text('AGENDA', style: _adminDisplay(context, isMobile ? 28 : 40)),
+              Text('AGENDA', style: _adminDisplay(context, isMobile ? 24 : 36)),
               const Spacer(),
               IconButton(
                 icon: Icon(
@@ -5790,19 +5784,32 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
                   color: AdminThemeColors.of(context).muted,
                 ),
                 onPressed: () => setState(() {
-                  _currentMonth = DateTime(
-                    _currentMonth.year,
-                    _currentMonth.month - 1,
-                    1,
+                  _selectedDate = _selectedDate.subtract(
+                    const Duration(days: 7),
                   );
                 }),
+                tooltip: 'Semana anterior',
               ),
-              Text(
-                DateFormat('MMMM yyyy', 'pt').format(_currentMonth),
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AdminThemeColors.of(context).text,
+              GestureDetector(
+                onTap: () => _pickMonth(),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      DateFormat('MMMM yyyy', 'pt').format(_selectedDate),
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AdminThemeColors.of(context).text,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.arrow_drop_down,
+                      size: 20,
+                      color: AdminThemeColors.of(context).muted,
+                    ),
+                  ],
                 ),
               ),
               IconButton(
@@ -5811,35 +5818,17 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
                   color: AdminThemeColors.of(context).muted,
                 ),
                 onPressed: () => setState(() {
-                  _currentMonth = DateTime(
-                    _currentMonth.year,
-                    _currentMonth.month + 1,
-                    1,
-                  );
+                  _selectedDate = _selectedDate.add(const Duration(days: 7));
                 }),
+                tooltip: 'Próxima semana',
               ),
             ],
           ),
           const SizedBox(height: 24),
           bookingsAsync.when(
-            data: (bookings) => _buildCalendarGrid(isMobile, bookings),
-            loading: () => _buildCalendarGrid(isMobile, const []),
-            error: (_, __) => _buildCalendarGrid(isMobile, const []),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            DateFormat('EEEE, d MMMM', 'pt').format(_selectedDate),
-            style: GoogleFonts.barlowCondensed(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: AdminThemeColors.of(context).text,
-            ),
-          ),
-          const SizedBox(height: 12),
-          bookingsAsync.when(
             data: (bookings) {
               final names = namesAsync.asData?.value ?? {};
-              return _buildDayBookings(bookings, names);
+              return _buildWeeklyGrid(bookings, names, isMobile);
             },
             loading: () => Center(
               child: CircularProgressIndicator(
@@ -5862,22 +5851,53 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
     );
   }
 
-  Widget _buildCalendarGrid(bool isMobile, List<BookingModel> bookings) {
-    final daysInMonth = DateTime(
-      _currentMonth.year,
-      _currentMonth.month + 1,
-      0,
-    ).day;
-    final firstWeekday = DateTime(
-      _currentMonth.year,
-      _currentMonth.month,
-      1,
-    ).weekday;
+  Widget _buildWeeklyGrid(
+    List<BookingModel> bookings,
+    Map<String, String> studentNames,
+    bool isMobile,
+  ) {
+    final monday = _selectedDate.subtract(
+      Duration(days: _selectedDate.weekday - 1),
+    );
+    final weekDays = List.generate(7, (i) => monday.add(Duration(days: i)));
     final today = DateTime.now();
-    final weekdayLabels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+    const hours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+
+    final Map<int, List<BookingModel>> bookingsByDay = {};
+    for (int i = 0; i < 7; i++) {
+      final d = weekDays[i];
+      bookingsByDay[i] = bookings
+          .where(
+            (b) =>
+                b.data.year == d.year &&
+                b.data.month == d.month &&
+                b.data.day == d.day,
+          )
+          .toList();
+    }
+
+    const kTimeCol = 48.0;
+    final gridWidth = isMobile
+        ? 700.0
+        : (MediaQuery.of(context).size.width * 0.75).clamp(300.0, 1200.0);
+    final colWidth = (gridWidth - kTimeCol) / 7.0;
+
+    final gridBody = Column(
+      children: hours
+          .map(
+            (hour) => _buildGridRow(
+              hour,
+              weekDays,
+              today,
+              bookingsByDay,
+              studentNames,
+              colWidth,
+            ),
+          )
+          .toList(),
+    );
 
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AdminThemeColors.of(context).surface,
         borderRadius: BorderRadius.circular(14),
@@ -5885,100 +5905,90 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
       ),
       child: Column(
         children: [
-          Row(
-            children: weekdayLabels
-                .map(
-                  (l) => Expanded(
-                    child: Center(
+          _buildWeekHeader(weekDays, today, isMobile, colWidth),
+          if (isMobile)
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(width: 700, child: gridBody),
+            )
+          else
+            gridBody,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeekHeader(
+    List<DateTime> weekDays,
+    DateTime today,
+    bool isMobile,
+    double colWidth,
+  ) {
+    const dayLabels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: AdminThemeColors.of(context).border),
+        ),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(width: 48),
+          ...List.generate(7, (i) {
+            final d = weekDays[i];
+            final isToday =
+                d.year == today.year &&
+                d.month == today.month &&
+                d.day == today.day;
+            final isSelected =
+                d.year == _selectedDate.year &&
+                d.month == _selectedDate.month &&
+                d.day == _selectedDate.day;
+            return SizedBox(
+              width: colWidth,
+              child: GestureDetector(
+                onTap: () => setState(() => _selectedDate = d),
+                child: Column(
+                  children: [
+                    Text(
+                      dayLabels[i],
+                      style: GoogleFonts.inter(
+                        fontSize: isMobile ? 10 : 11,
+                        fontWeight: FontWeight.w600,
+                        color: AdminThemeColors.of(context).muted,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      width: isToday || isSelected ? 30 : null,
+                      height: isToday || isSelected ? 30 : null,
+                      alignment: Alignment.center,
+                      decoration: (isToday || isSelected)
+                          ? BoxDecoration(
+                              color: isSelected
+                                  ? AdminThemeColors.of(context).lime
+                                  : AdminThemeColors.of(
+                                      context,
+                                    ).orange.withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                            )
+                          : null,
                       child: Text(
-                        l,
-                        style: GoogleFonts.inter(
-                          fontSize: isMobile ? 10 : 12,
+                        '${d.day}',
+                        style: GoogleFonts.montserrat(
+                          fontSize: isMobile ? 13 : 15,
                           fontWeight: FontWeight.w700,
-                          color: AdminThemeColors.of(context).muted,
+                          color: isSelected
+                              ? AdminThemeColors.of(context).bg
+                              : AdminThemeColors.of(context).text,
                         ),
                       ),
                     ),
-                  ),
-                )
-                .toList(),
-          ),
-          const SizedBox(height: 8),
-          ...List.generate(((daysInMonth + firstWeekday - 1) / 7).ceil(), (
-            week,
-          ) {
-            return Row(
-              children: List.generate(7, (day) {
-                final dayNum = week * 7 + day - firstWeekday + 2;
-                final isInMonth = dayNum >= 1 && dayNum <= daysInMonth;
-                final date = DateTime(
-                  _currentMonth.year,
-                  _currentMonth.month,
-                  dayNum,
-                );
-                final isSelected =
-                    isInMonth &&
-                    date.year == _selectedDate.year &&
-                    date.month == _selectedDate.month &&
-                    date.day == _selectedDate.day;
-                final isToday =
-                    isInMonth &&
-                    date.year == today.year &&
-                    date.month == today.month &&
-                    date.day == today.day;
-
-                return Expanded(
-                  child: GestureDetector(
-                    onTap: isInMonth
-                        ? () => setState(() => _selectedDate = date)
-                        : null,
-                    child: Container(
-                      margin: const EdgeInsets.all(2),
-                      padding: EdgeInsets.all(isMobile ? 4 : 8),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? AdminThemeColors.of(context).lime
-                            : isToday
-                            ? AdminThemeColors.of(context).limeDim
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (isInMonth)
-                            Text(
-                              '$dayNum',
-                              style: GoogleFonts.inter(
-                                fontSize: isMobile ? 11 : 13,
-                                fontWeight: isSelected
-                                    ? FontWeight.w700
-                                    : FontWeight.w400,
-                                color: isSelected
-                                    ? AdminThemeColors.of(context).bg
-                                    : AdminThemeColors.of(context).text,
-                              ),
-                            ),
-                          if (isInMonth && _hasBooking(date, bookings))
-                            Container(
-                              width: 4,
-                              height: 4,
-                              margin: const EdgeInsets.only(top: 2),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? AdminThemeColors.of(
-                                        context,
-                                      ).bg.withValues(alpha: 0.7)
-                                    : AdminThemeColors.of(context).lime,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }),
+                  ],
+                ),
+              ),
             );
           }),
         ],
@@ -5986,218 +5996,278 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
     );
   }
 
-  Widget _buildDayBookings(
-    List<BookingModel> bookings,
+  Widget _buildGridRow(
+    int hour,
+    List<DateTime> weekDays,
+    DateTime today,
+    Map<int, List<BookingModel>> bookingsByDay,
     Map<String, String> studentNames,
+    double colWidth,
   ) {
-    final dayBookings =
-        bookings
-            .where(
-              (b) =>
-                  b.data.year == _selectedDate.year &&
-                  b.data.month == _selectedDate.month &&
-                  b.data.day == _selectedDate.day,
-            )
-            .toList()
-          ..sort((a, b) => a.data.compareTo(b.data));
+    final now = DateTime.now();
 
-    if (dayBookings.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(40),
-        decoration: BoxDecoration(
-          color: AdminThemeColors.of(context).surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AdminThemeColors.of(context).border),
-        ),
-        child: Center(
-          child: Column(
-            children: [
-              Icon(
-                Icons.event_available,
-                size: 40,
-                color: AdminThemeColors.of(context).muted,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Nenhuma aula neste dia',
-                style: GoogleFonts.inter(
-                  color: AdminThemeColors.of(context).muted,
-                ),
-              ),
-            ],
+    return Container(
+      height: 52,
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: AdminThemeColors.of(context).border.withValues(alpha: 0.25),
           ),
         ),
-      );
-    }
-
-    return Column(
-      children: dayBookings.map((b) {
-        final tipoIcon = b.tipo == 'online'
-            ? Icons.videocam
-            : Icons.fitness_center;
-        final tipoLabel = b.tipo == 'online' ? 'Online' : 'Presencial';
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          decoration: BoxDecoration(
-            color: AdminThemeColors.of(context).surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AdminThemeColors.of(context).border),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                Container(
-                  width: 52,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AdminThemeColors.of(context).limeDim,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        b.horaFormatada,
-                        style: GoogleFonts.montserrat(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 15,
-                          color: AdminThemeColors.of(context).lime,
-                        ),
-                      ),
-                      Text(
-                        '${b.duracaoMinutos}min',
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          color: AdminThemeColors.of(
-                            context,
-                          ).lime.withValues(alpha: 0.7),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            tipoIcon,
-                            size: 13,
-                            color: AdminThemeColors.of(context).muted,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            tipoLabel,
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: AdminThemeColors.of(context).text,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Aluno: ${studentNames[b.studentId] ?? (b.studentId.length > 8 ? '${b.studentId.substring(0, 8)}...' : b.studentId)}',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          color: AdminThemeColors.of(context).muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (b.isPending) ...[
-                  GestureDetector(
-                    onTap: () => _updateStatus(b, 'confirmed'),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AdminThemeColors.of(context).limeDim,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.check,
-                        size: 16,
-                        color: AdminThemeColors.of(context).lime,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  GestureDetector(
-                    onTap: () => _updateStatus(b, 'cancelled'),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.close,
-                        size: 16,
-                        color: Colors.red,
-                      ),
-                    ),
-                  ),
-                ],
-                if (b.isConfirmed) ...[
-                  GestureDetector(
-                    onTap: () => _updateStatus(b, 'completed'),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AdminThemeColors.of(
-                          context,
-                        ).blue.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        'Concluir',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: AdminThemeColors.of(context).blue,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  GestureDetector(
-                    onTap: () => _updateStatus(b, 'cancelled'),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.close,
-                        size: 16,
-                        color: Colors.red,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            padding: const EdgeInsets.only(right: 8, top: 2),
+            alignment: Alignment.topRight,
+            child: Text(
+              '${hour.toString().padLeft(2, '0')}:00',
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                color: AdminThemeColors.of(
+                  context,
+                ).muted.withValues(alpha: 0.4),
+              ),
             ),
           ),
-        );
-      }).toList(),
+          ...List.generate(7, (dayIndex) {
+            final d = weekDays[dayIndex];
+            final slotStart = DateTime(d.year, d.month, d.day, hour, 0);
+            final slotEnd = slotStart.add(const Duration(minutes: 60));
+            final isToday =
+                d.year == today.year &&
+                d.month == today.month &&
+                d.day == today.day;
+            final isPast = isToday && slotEnd.isBefore(now);
+
+            final dayBookings = bookingsByDay[dayIndex] ?? [];
+            BookingModel? booking;
+            for (final b in dayBookings) {
+              final bEnd = b.data.add(Duration(minutes: b.duracaoMinutos));
+              if (slotStart.isBefore(bEnd) && slotEnd.isAfter(b.data)) {
+                booking = b;
+                break;
+              }
+            }
+
+            return SizedBox(
+              width: colWidth,
+              child: Container(
+                margin: const EdgeInsets.all(1),
+                decoration: BoxDecoration(
+                  color: booking != null
+                      ? _cellColor(booking)
+                      : (isPast
+                            ? AdminThemeColors.of(
+                                context,
+                              ).bg.withValues(alpha: 0.3)
+                            : Colors.transparent),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: booking != null
+                    ? _buildCell(booking, studentNames)
+                    : null,
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 
-  bool _hasBooking(DateTime date, List<BookingModel> bookings) {
-    return bookings.any(
-      (b) =>
-          b.data.year == date.year &&
-          b.data.month == date.month &&
-          b.data.day == date.day,
+  Color _cellColor(BookingModel b) {
+    if (b.isPending) {
+      return AdminThemeColors.of(context).orange.withValues(alpha: 0.18);
+    }
+    if (b.isConfirmed) {
+      return AdminThemeColors.of(context).lime.withValues(alpha: 0.22);
+    }
+    return Colors.red.withValues(alpha: 0.06);
+  }
+
+  Widget _buildCell(BookingModel b, Map<String, String> studentNames) {
+    final studentName =
+        studentNames[b.studentId] ??
+        (b.studentId.length > 6
+            ? '${b.studentId.substring(0, 6)}'
+            : b.studentId);
+    final accent = b.isPending
+        ? AdminThemeColors.of(context).orange
+        : b.isConfirmed
+        ? AdminThemeColors.of(context).lime
+        : Colors.red.withValues(alpha: 0.5);
+
+    return GestureDetector(
+      onTap: () => _showBookingPopup(b, studentName),
+      child: Padding(
+        padding: const EdgeInsets.all(2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              b.horaFormatada,
+              style: GoogleFonts.montserrat(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: accent,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              studentName,
+              style: GoogleFonts.inter(
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                color: AdminThemeColors.of(context).text,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
     );
+  }
+
+  void _showBookingPopup(BookingModel b, String studentName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AdminThemeColors.of(context).surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Text(
+          '${b.horaFormatada} — $studentName',
+          style: GoogleFonts.montserrat(
+            fontWeight: FontWeight.w700,
+            color: AdminThemeColors.of(context).text,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _popupRow(
+              'Estado',
+              b.isPending
+                  ? 'Pendente'
+                  : b.isConfirmed
+                  ? 'Confirmada'
+                  : 'Cancelada',
+            ),
+            _popupRow('Tipo', b.tipo == 'online' ? 'Online' : 'Presencial'),
+            _popupRow('Duração', '${b.duracaoMinutos}min'),
+            _popupRow('Data', DateFormat('dd/MM/yyyy', 'pt').format(b.data)),
+          ],
+        ),
+        actions: [
+          if (b.isPending) ...[
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _updateStatus(b, 'cancelled');
+              },
+              child: const Text('Recusar', style: TextStyle(color: Colors.red)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _updateStatus(b, 'confirmed');
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminThemeColors.of(context).lime,
+              ),
+              child: Text(
+                'Aceitar',
+                style: TextStyle(color: AdminThemeColors.of(context).bg),
+              ),
+            ),
+          ],
+          if (b.isConfirmed) ...[
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _updateStatus(b, 'cancelled');
+              },
+              child: const Text(
+                'Cancelar',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _updateStatus(b, 'completed');
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminThemeColors.of(context).blue,
+              ),
+              child: const Text(
+                'Concluir',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+          if (!b.isPending && !b.isConfirmed)
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Fechar'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _popupRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Text(
+            '$label: ',
+            style: GoogleFonts.inter(
+              fontWeight: FontWeight.w600,
+              color: AdminThemeColors.of(context).text,
+            ),
+          ),
+          Flexible(
+            child: Text(
+              value,
+              style: GoogleFonts.inter(
+                color: AdminThemeColors.of(context).muted,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickMonth() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+      initialDatePickerMode: DatePickerMode.year,
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: ColorScheme.dark(
+            primary: AdminThemeColors.of(context).lime,
+            onPrimary: AdminThemeColors.of(context).bg,
+            surface: AdminThemeColors.of(context).surface,
+            onSurface: AdminThemeColors.of(context).text,
+          ),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _selectedDate = picked;
+      });
+    }
   }
 
   Future<void> _updateStatus(BookingModel booking, String status) async {
