@@ -4890,10 +4890,13 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                 ImageComparisonSlider(
                   beforeImage: withPhotos[beforeIdx].fotos.first,
                   afterImage: withPhotos[afterIdx].fotos.first,
-                  width: (MediaQuery.sizeOf(context).width -
-                          (MediaQuery.sizeOf(context).width < 600 ? 60 : 108))
-                      .clamp(1.0, 560.0)
-                      .toDouble(),
+                  width:
+                      (MediaQuery.sizeOf(context).width -
+                              (MediaQuery.sizeOf(context).width < 600
+                                  ? 60
+                                  : 108))
+                          .clamp(1.0, 560.0)
+                          .toDouble(),
                   height: 360,
                   dividerColor: AdminThemeColors.of(context).lime,
                   beforeLabel: 'Inicial',
