@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/app_constants.dart';
+import '../../../../core/utils/progress_photo_normalizer.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/app_notification.dart';
@@ -33,7 +34,17 @@ class _ProgressSubmissionScreenState
   final _coxaEController = TextEditingController();
   final _peitoController = TextEditingController();
   final _gorduraController = TextEditingController();
-  final List<Uint8List> _photos = [];
+
+  // Ordem persistida no campo `fotos`: Frente, Lado 1, Lado 2, Costas.
+  // Os slots vazios são mantidos para que cada posição continue identificável
+  // no comparador do perfil, mesmo quando o aluno não envia todas as fotos.
+  static const _photoPositions = <String>[
+    'Frente',
+    'Lado 1',
+    'Lado 2',
+    'Costas',
+  ];
+  final List<Uint8List?> _photos = List<Uint8List?>.filled(4, null);
   int _currentStep = 0;
   bool _saving = false;
 
@@ -69,120 +80,125 @@ class _ProgressSubmissionScreenState
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Stepper(
-        currentStep: _currentStep,
-        onStepContinue: _onStepContinue,
-        onStepCancel: _currentStep > 0
-            ? () => setState(() => _currentStep--)
-            : () => Navigator.pop(context),
-        controlsBuilder: (context, details) {
-          return Padding(
-            padding: const EdgeInsets.only(top: 20),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 10,
-              children: [
-                ElevatedButton(
-                  onPressed: details.onStepContinue,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(0, 50),
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 15,
+      body: Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: Theme.of(context).colorScheme.copyWith(
+            primary: AppColors.primary,
+            secondary: AppColors.primary,
+          ),
+        ),
+        child: Stepper(
+          currentStep: _currentStep,
+          onStepContinue: _onStepContinue,
+          onStepCancel: _currentStep > 0
+              ? () => setState(() => _currentStep--)
+              : () => Navigator.pop(context),
+          controlsBuilder: (context, details) {
+            return Padding(
+              padding: const EdgeInsets.only(top: 20),
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 10,
+                children: [
+                  ElevatedButton(
+                    onPressed: details.onStepContinue,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 50),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 15,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(11),
+                      ),
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(11),
+                    child: Text(
+                      _currentStep < 2 ? 'Continuar' : 'Submeter',
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w600),
                     ),
                   ),
-                  child: Text(
-                    _currentStep < 2 ? 'Continuar' : 'Submeter',
-                    style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                  TextButton(
+                    onPressed: details.onStepCancel,
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 48),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 13,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                    ),
+                    child: Text(
+                      _currentStep > 0 ? 'Voltar' : 'Cancelar',
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                    ),
                   ),
+                ],
+              ),
+            );
+          },
+          steps: [
+            Step(
+              title: Text(
+                'Fotos de Progresso',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.onSurface,
                 ),
-                TextButton(
-                  onPressed: details.onStepCancel,
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    backgroundColor: AppColors.surfaceHighest.withValues(
-                      alpha: 0.42,
-                    ),
-                    minimumSize: const Size(0, 48),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 13,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(11),
-                    ),
-                  ),
-                  child: Text(
-                    _currentStep > 0 ? 'Voltar' : 'Cancelar',
-                    style: GoogleFonts.inter(fontWeight: FontWeight.w700),
-                  ),
+              ),
+              subtitle: Text(
+                'Tira fotos de frente, lado e costas',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
                 ),
-              ],
-            ),
-          );
-        },
-        steps: [
-          Step(
-            title: Text(
-              'Fotos de Progresso',
-              style: GoogleFonts.inter(
-                fontWeight: FontWeight.w600,
-                color: AppColors.onSurface,
               ),
+              isActive: _currentStep >= 0,
+              state: _currentStep > 0
+                  ? StepState.complete
+                  : (_currentStep == 0 ? StepState.editing : StepState.indexed),
+              content: _buildPhotoStep(),
             ),
-            subtitle: Text(
-              'Tira fotos de frente, lado e costas',
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: AppColors.textSecondary,
+            Step(
+              title: Text(
+                'Peso e Medidas',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.onSurface,
+                ),
               ),
-            ),
-            isActive: _currentStep >= 0,
-            state: _currentStep > 0
-                ? StepState.complete
-                : (_currentStep == 0 ? StepState.editing : StepState.indexed),
-            content: _buildPhotoStep(),
-          ),
-          Step(
-            title: Text(
-              'Peso e Medidas',
-              style: GoogleFonts.inter(
-                fontWeight: FontWeight.w600,
-                color: AppColors.onSurface,
+              subtitle: Text(
+                'Regista o teu peso atual e medidas',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
               ),
+              isActive: _currentStep >= 1,
+              state: _currentStep > 1
+                  ? StepState.complete
+                  : (_currentStep == 1 ? StepState.editing : StepState.indexed),
+              content: _buildMeasurementsStep(),
             ),
-            subtitle: Text(
-              'Regista o teu peso atual e medidas',
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: AppColors.textSecondary,
+            Step(
+              title: Text(
+                'Confirmar e Submeter',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.onSurface,
+                ),
               ),
+              isActive: _currentStep >= 2,
+              state: _currentStep == 2 ? StepState.editing : StepState.indexed,
+              content: _buildConfirmStep(),
             ),
-            isActive: _currentStep >= 1,
-            state: _currentStep > 1
-                ? StepState.complete
-                : (_currentStep == 1 ? StepState.editing : StepState.indexed),
-            content: _buildMeasurementsStep(),
-          ),
-          Step(
-            title: Text(
-              'Confirmar e Submeter',
-              style: GoogleFonts.inter(
-                fontWeight: FontWeight.w600,
-                color: AppColors.onSurface,
-              ),
-            ),
-            isActive: _currentStep >= 2,
-            state: _currentStep == 2 ? StepState.editing : StepState.indexed,
-            content: _buildConfirmStep(),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -192,91 +208,28 @@ class _ProgressSubmissionScreenState
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Adiciona até 4 fotos (frente, lado, costas, opcional)',
+          'Adiciona uma foto para cada posição. Podes enviar apenas as posições disponíveis.',
           style: GoogleFonts.inter(
             fontSize: 13,
             color: AppColors.textSecondary,
           ),
         ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            ..._photos.asMap().entries.map((entry) {
-              final index = entry.key;
-              final bytes = entry.value;
-              return Stack(
-                children: [
-                  Container(
-                    width: 100,
-                    height: 130,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.outline),
-                      image: DecorationImage(
-                        image: MemoryImage(bytes),
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 4,
-                    right: 4,
-                    child: GestureDetector(
-                      onTap: () => setState(() => _photos.removeAt(index)),
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: const BoxDecoration(
-                          color: AppColors.error,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.close,
-                          size: 14,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            }),
-            if (_photos.length < 4)
-              GestureDetector(
-                onTap: _addPhoto,
-                child: Container(
-                  width: 100,
-                  height: 130,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: AppColors.primary.withValues(alpha: 0.3),
-                      width: 2,
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.add_a_photo,
-                        color: AppColors.primary,
-                        size: 24,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Adicionar',
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
+        const SizedBox(height: 14),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 560 ? 4 : 2;
+            final gap = 10.0;
+            final width =
+                (constraints.maxWidth - gap * (columns - 1)) / columns;
+            return Wrap(
+              spacing: gap,
+              runSpacing: gap,
+              children: [
+                for (var index = 0; index < _photoPositions.length; index++)
+                  SizedBox(width: width, child: _photoSlot(index)),
+              ],
+            );
+          },
         ),
       ],
     );
@@ -402,7 +355,10 @@ class _ProgressSubmissionScreenState
             ],
           ),
           const Divider(color: AppColors.outline, height: 24),
-          _confirmRow('Fotos', '${_photos.length} foto(s)'),
+          _confirmRow(
+            'Fotos',
+            '${_photos.where((photo) => photo != null).length} foto(s)',
+          ),
           _confirmRow('Peso', peso),
           if (temMedidas) ...[
             const SizedBox(height: 8),
@@ -506,7 +462,100 @@ class _ProgressSubmissionScreenState
     setState(() => _currentStep++);
   }
 
-  Future<void> _addPhoto() async {
+  Widget _photoSlot(int index) {
+    final bytes = _photos[index];
+    final hasPhoto = bytes != null;
+
+    return GestureDetector(
+      onTap: () => _addPhoto(index),
+      child: Container(
+        height: 166,
+        decoration: BoxDecoration(
+          color: hasPhoto ? AppColors.surfaceHigh : AppColors.background,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.outline),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (bytes != null)
+              Image.memory(bytes, fit: BoxFit.cover)
+            else
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.add_a_photo_outlined,
+                    color: AppColors.primary,
+                    size: 28,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Adicionar foto',
+                    style: GoogleFonts.inter(
+                      color: AppColors.primary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            Positioned(
+              left: 1,
+              right: 1,
+              bottom: 1,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: const BorderRadius.vertical(
+                    bottom: Radius.circular(15),
+                  ),
+                  border: const Border(
+                    top: BorderSide(color: AppColors.outline),
+                  ),
+                ),
+                child: Text(
+                  _photoPositions[index],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            if (hasPhoto)
+              Positioned(
+                top: 7,
+                right: 7,
+                child: Material(
+                  color: AppColors.error,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () => setState(() => _photos[index] = null),
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(Icons.close, size: 16, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addPhoto(int slotIndex) async {
     final source = await showDialog<ImageSource>(
       context: context,
       builder: (ctx) => SimpleDialog(
@@ -516,7 +565,7 @@ class _ProgressSubmissionScreenState
           'Adicionar foto',
           style: GoogleFonts.montserrat(
             fontWeight: FontWeight.w700,
-            color: AppColors.onSurface,
+            color: AppColors.onSurfaceVariant,
           ),
         ),
         children: [
@@ -524,7 +573,7 @@ class _ProgressSubmissionScreenState
             onPressed: () => Navigator.pop(ctx, ImageSource.camera),
             child: const Row(
               children: [
-                Icon(Icons.camera_alt, color: AppColors.primary),
+                Icon(Icons.camera_alt, color: AppColors.textSecondary),
                 SizedBox(width: 12),
                 Text('Câmara', style: TextStyle(color: AppColors.onSurface)),
               ],
@@ -534,7 +583,7 @@ class _ProgressSubmissionScreenState
             onPressed: () => Navigator.pop(ctx, ImageSource.gallery),
             child: const Row(
               children: [
-                Icon(Icons.photo_library, color: AppColors.primary),
+                Icon(Icons.photo_library, color: AppColors.textSecondary),
                 SizedBox(width: 12),
                 Text('Galeria', style: TextStyle(color: AppColors.onSurface)),
               ],
@@ -553,8 +602,21 @@ class _ProgressSubmissionScreenState
 
     if (picked == null) return;
 
-    final bytes = await picked.readAsBytes();
-    setState(() => _photos.add(Uint8List.fromList(bytes)));
+    try {
+      final bytes = await picked.readAsBytes();
+      final normalized = await normalizeProgressPhoto(
+        Uint8List.fromList(bytes),
+      );
+      if (!mounted) return;
+      setState(() => _photos[slotIndex] = normalized);
+    } catch (_) {
+      if (!mounted) return;
+      showAppNotification(
+        context,
+        'Não foi possível preparar essa fotografia.',
+        type: NotificationType.error,
+      );
+    }
   }
 
   Future<void> _submitProgress() async {
@@ -567,14 +629,19 @@ class _ProgressSubmissionScreenState
 
       // Upload das fotos
       final progressRepo = ref.read(progressRepositoryProvider);
-      final fotoUrls = <String>[];
+      // Mantém os quatro índices para que o comparador saiba qual URL
+      // corresponde a Frente, Lado 1, Lado 2 e Costas. Um slot não enviado
+      // fica vazio, sem deslocar as posições seguintes.
+      final fotoUrls = List<String>.filled(_photos.length, '');
       for (int i = 0; i < _photos.length; i++) {
+        final photo = _photos[i];
+        if (photo == null) continue;
         final url = await progressRepo.uploadProgressPhoto(
           userId,
           '${timestamp}_$i',
-          _photos[i],
+          photo,
         );
-        fotoUrls.add(url);
+        fotoUrls[i] = url;
       }
 
       // Construir medidas
@@ -598,11 +665,19 @@ class _ProgressSubmissionScreenState
       final peso = double.tryParse(_pesoController.text.replaceAll(',', '.'));
 
       // Guardar entrada de progresso
+      final fotosPorPosicao = <String, String>{};
+      for (var index = 0; index < fotoUrls.length; index++) {
+        if (fotoUrls[index].isNotEmpty) {
+          fotosPorPosicao[_photoPositions[index]] = fotoUrls[index];
+        }
+      }
+
       await progressRepo.addProgress(userId, {
         'data': DateTime.now(),
         'peso': peso,
         'medidas': medidas,
         'fotos': fotoUrls,
+        'fotosPorPosicao': fotosPorPosicao,
       });
 
       // Atualizar peso no perfil

@@ -5,7 +5,8 @@ class ProgressModel {
   final DateTime data;
   final double? peso;
   final Map<String, double> medidas; // cintura, quadril, braço, etc.
-  final List<String> fotos; // URLs das fotos
+  final List<String> fotos; // URLs das fotos (formato legado/compatível)
+  final Map<String, String> fotosPorPosicao;
 
   const ProgressModel({
     this.id = '',
@@ -14,9 +15,14 @@ class ProgressModel {
     this.peso,
     this.medidas = const {},
     this.fotos = const [],
+    this.fotosPorPosicao = const {},
   });
 
-  factory ProgressModel.fromMap(String id, String userId, Map<String, dynamic> map) {
+  factory ProgressModel.fromMap(
+    String id,
+    String userId,
+    Map<String, dynamic> map,
+  ) {
     final medidasRaw = map['medidas'] as Map<String, dynamic>? ?? {};
     final medidas = medidasRaw.map(
       (key, value) => MapEntry(key, (value as num).toDouble()),
@@ -29,6 +35,12 @@ class ProgressModel {
       peso: (map['peso'] as num?)?.toDouble(),
       medidas: medidas,
       fotos: List<String>.from(map['fotos'] as List? ?? []),
+      fotosPorPosicao: Map<String, String>.from(
+        (map['fotosPorPosicao'] as Map?)?.map(
+              (key, value) => MapEntry(key.toString(), value.toString()),
+            ) ??
+            {},
+      ),
     );
   }
 
@@ -39,6 +51,7 @@ class ProgressModel {
       if (peso != null) 'peso': peso,
       'medidas': medidas,
       'fotos': fotos,
+      if (fotosPorPosicao.isNotEmpty) 'fotosPorPosicao': fotosPorPosicao,
     };
   }
 
@@ -49,6 +62,7 @@ class ProgressModel {
     double? peso,
     Map<String, double>? medidas,
     List<String>? fotos,
+    Map<String, String>? fotosPorPosicao,
     bool clearPeso = false,
   }) {
     return ProgressModel(
@@ -58,6 +72,7 @@ class ProgressModel {
       peso: clearPeso ? null : (peso ?? this.peso),
       medidas: medidas ?? this.medidas,
       fotos: fotos ?? this.fotos,
+      fotosPorPosicao: fotosPorPosicao ?? this.fotosPorPosicao,
     );
   }
 }

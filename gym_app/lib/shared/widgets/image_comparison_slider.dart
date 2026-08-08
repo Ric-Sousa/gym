@@ -13,6 +13,12 @@ class ImageComparisonSlider extends StatefulWidget {
   final double height;
   final Color? dividerColor;
 
+  /// Ajusta o enquadramento das fotos sem alterar a área do comparador.
+  final BoxFit imageFit;
+
+  /// Remove o padding lateral interno para a imagem ocupar todo o quadro.
+  final bool edgeToEdge;
+
   /// Textos apresentados nos chips sobre as imagens.
   final String beforeLabel;
   final String afterLabel;
@@ -34,6 +40,8 @@ class ImageComparisonSlider extends StatefulWidget {
     required this.width,
     this.height = 300,
     this.dividerColor,
+    this.imageFit = BoxFit.cover,
+    this.edgeToEdge = false,
     this.beforeLabel = 'Antes',
     this.afterLabel = 'Depois',
     this.beforeDate,
@@ -85,10 +93,14 @@ class _ImageComparisonSliderState extends State<ImageComparisonSlider> {
     });
   }
 
-  Widget _image({required String url, required Color fallbackColor}) {
+  Widget _image({
+    required String url,
+    required Color fallbackColor,
+    BoxFit? fit,
+  }) {
     return Image.network(
       url,
-      fit: BoxFit.cover,
+      fit: fit ?? widget.imageFit,
       width: double.infinity,
       height: double.infinity,
       loadingBuilder: (context, child, loadingProgress) {
@@ -132,38 +144,31 @@ class _ImageComparisonSliderState extends State<ImageComparisonSlider> {
     required Color accent,
     required double maxWidth,
   }) {
-    final hasExtra = date != null || detail != null;
     return Align(
       alignment: alignment,
       child: Container(
         constraints: BoxConstraints(maxWidth: maxWidth),
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.62),
-          borderRadius: BorderRadius.circular(13),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.13)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          color: Colors.black.withValues(alpha: 0.52),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.72),
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
+            if (label.isNotEmpty)
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.72),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
             if (date != null) ...[
               const SizedBox(height: 2),
               Text(
@@ -178,7 +183,7 @@ class _ImageComparisonSliderState extends State<ImageComparisonSlider> {
               ),
             ],
             if (detail != null) ...[
-              SizedBox(height: hasExtra ? 3 : 0),
+              const SizedBox(height: 3),
               Text(
                 detail,
                 maxLines: 1,
@@ -194,6 +199,10 @@ class _ImageComparisonSliderState extends State<ImageComparisonSlider> {
         ),
       ),
     );
+  }
+
+  Widget _comparisonImage({required String url, required Color fallbackColor}) {
+    return _image(url: url, fallbackColor: fallbackColor);
   }
 
   Widget _buildHandle(Color dividerColor) {
@@ -226,8 +235,9 @@ class _ImageComparisonSliderState extends State<ImageComparisonSlider> {
     final cardColor = widget.cardColor ?? const Color(0xFF202020);
     final hasFooter = widget.instructionText != null;
     final width = widget.width.clamp(1.0, double.infinity).toDouble();
+    final horizontalPadding = widget.edgeToEdge ? 0.0 : _cardTopPadding;
     final contentWidth =
-        (width - (_cardBorderWidth * 2) - (_cardTopPadding * 2))
+        (width - (_cardBorderWidth * 2) - (horizontalPadding * 2))
             .clamp(1.0, double.infinity)
             .toDouble();
     final totalHeight = widget.height.clamp(120.0, double.infinity).toDouble();
@@ -269,10 +279,10 @@ class _ImageComparisonSliderState extends State<ImageComparisonSlider> {
         onIncrease: () => _moveBy(0.05),
         onDecrease: () => _moveBy(-0.05),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
             _cardTopPadding,
-            _cardTopPadding,
-            _cardTopPadding,
+            horizontalPadding,
             0,
           ),
           decoration: BoxDecoration(
@@ -309,13 +319,13 @@ class _ImageComparisonSliderState extends State<ImageComparisonSlider> {
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
-                              _image(
+                              _comparisonImage(
                                 url: widget.afterImage,
                                 fallbackColor: Colors.grey.shade900,
                               ),
                               ClipRect(
                                 clipper: _BeforeImageClipper(effectivePosition),
-                                child: _image(
+                                child: _comparisonImage(
                                   url: widget.beforeImage,
                                   fallbackColor: Colors.grey.shade800,
                                 ),
