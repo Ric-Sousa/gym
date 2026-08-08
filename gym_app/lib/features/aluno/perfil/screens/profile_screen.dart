@@ -936,39 +936,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'ANTES',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.barlowCondensed(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'DEPOIS',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.barlowCondensed(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
                 ImageComparisonSlider(
                   beforeImage: withPhotos[beforeIdx].fotos.first,
                   afterImage: withPhotos[afterIdx].fotos.first,
-                  height: 280,
+                  height: 360,
                   dividerColor: AppColors.primary,
+                  beforeLabel: 'Inicial',
+                  afterLabel: 'Atual',
+                  beforeDate: DateFormat('dd/MM/yyyy').format(
+                    withPhotos[beforeIdx].data,
+                  ),
+                  afterDate: DateFormat('dd/MM/yyyy').format(
+                    withPhotos[afterIdx].data,
+                  ),
+                  beforeDetail: withPhotos[beforeIdx].peso == null
+                      ? null
+                      : '${withPhotos[beforeIdx].peso!.toStringAsFixed(1)} kg',
+                  afterDetail: withPhotos[afterIdx].peso == null
+                      ? null
+                      : '${withPhotos[afterIdx].peso!.toStringAsFixed(1)} kg',
                 ),
                 if (withPhotos[beforeIdx].peso != null &&
                     withPhotos[afterIdx].peso != null) ...[

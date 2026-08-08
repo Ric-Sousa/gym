@@ -3266,97 +3266,27 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Legendas
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'ANTES',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.barlowCondensed(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AdminThemeColors.of(context).muted,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'DEPOIS',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.barlowCondensed(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AdminThemeColors.of(context).lime,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // Slider Antes/Depois
                 ImageComparisonSlider(
                   beforeImage: withPhotos[beforeIdx].fotos.first,
                   afterImage: withPhotos[afterIdx].fotos.first,
-                  height: 280,
+                  height: 360,
                   dividerColor: AdminThemeColors.of(context).lime,
-                ),
-                const SizedBox(height: 8),
-                // Datas e pesos abaixo do slider
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        children: [
-                          Text(
-                            DateFormat(
-                              'd MMM yyyy',
-                              'pt',
-                            ).format(withPhotos[beforeIdx].data),
-                            style: GoogleFonts.inter(
-                              fontSize: 10,
-                              color: AdminThemeColors.of(context).muted,
-                            ),
-                          ),
-                          if (withPhotos[beforeIdx].peso != null)
-                            Text(
-                              '${withPhotos[beforeIdx].peso!.toStringAsFixed(1)} kg',
-                              style: GoogleFonts.montserrat(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: AdminThemeColors.of(context).muted,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          Text(
-                            DateFormat(
-                              'd MMM yyyy',
-                              'pt',
-                            ).format(withPhotos[afterIdx].data),
-                            style: GoogleFonts.inter(
-                              fontSize: 10,
-                              color: AdminThemeColors.of(context).lime,
-                            ),
-                          ),
-                          if (withPhotos[afterIdx].peso != null)
-                            Text(
-                              '${withPhotos[afterIdx].peso!.toStringAsFixed(1)} kg',
-                              style: GoogleFonts.montserrat(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: AdminThemeColors.of(context).lime,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  beforeLabel: 'Inicial',
+                  afterLabel: 'Atual',
+                  beforeDate: DateFormat('dd/MM/yyyy').format(
+                    withPhotos[beforeIdx].data,
+                  ),
+                  afterDate: DateFormat('dd/MM/yyyy').format(
+                    withPhotos[afterIdx].data,
+                  ),
+                  beforeDetail: withPhotos[beforeIdx].peso == null
+                      ? null
+                      : '${withPhotos[beforeIdx].peso!.toStringAsFixed(1)} kg',
+                  afterDetail: withPhotos[afterIdx].peso == null
+                      ? null
+                      : '${withPhotos[afterIdx].peso!.toStringAsFixed(1)} kg',
+                  cardColor: AdminThemeColors.of(context).surface,
+                  handleColor: Colors.white,
                 ),
                 const SizedBox(height: 12),
                 // Seletores
