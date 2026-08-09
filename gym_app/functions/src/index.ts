@@ -361,7 +361,7 @@ export const searchOpenFoodFacts = functions.region('europe-west1').https.onCall
     const searchTerms = foodSearchVariants(query);
     const portugueseQuery = normaliseFoodSearchTerm(query);
 
-    for (const [index, searchTerm] of searchTerms.entries()) {
+    for (const searchTerm of searchTerms) {
       const responseProducts = await fetchOpenFoodFactsProducts(searchTerm);
       if (responseProducts.length === 0) continue;
 
@@ -373,9 +373,12 @@ export const searchOpenFoodFacts = functions.region('europe-west1').https.onCall
         // contamos como resultados, porque a app não as consegue mostrar.
         .filter(hasUsableNutrition)
         .filter((product) =>
-          isPortugueseFoodResult(product, portugueseQuery, index === 0),
+          isRelevantFoodResult(product, portugueseQuery),
         )
-        .sort((a, b) => portugueseProductRank(b) - portugueseProductRank(a));
+        .sort((a, b) =>
+          portugueseProductRank(b, portugueseQuery) -
+          portugueseProductRank(a, portugueseQuery),
+        );
 
       for (const product of rankedProducts) {
         const code = typeof product.code === 'string'
@@ -404,7 +407,10 @@ export const searchOpenFoodFacts = functions.region('europe-west1').https.onCall
       if (products.length >= 8) break;
     }
 
-    products.sort((a, b) => portugueseProductRank(b) - portugueseProductRank(a));
+    products.sort((a, b) =>
+      portugueseProductRank(b, portugueseQuery) -
+      portugueseProductRank(a, portugueseQuery),
+    );
     return { products: products.slice(0, 20) };
   } catch (error) {
     console.warn('Open Food Facts request failed:', error);
@@ -412,29 +418,35 @@ export const searchOpenFoodFacts = functions.region('europe-west1').https.onCall
   }
 });
 
-function isPortugueseFoodResult(
+function isRelevantFoodResult(
   product: Record<string, unknown>,
   portugueseQuery: string,
-  isPortugueseSearch: boolean,
 ): boolean {
-  if (typeof product.product_name_pt === 'string' &&
-      product.product_name_pt.trim().length > 0) {
-    return true;
-  }
-  if (hasPortugueseLanguage(product)) {
-    return true;
-  }
-  if (!isPortugueseSearch) return false;
-  const names = [product.product_name, product.product_name_pt]
+  // A pesquisa do Open Food Facts também procura ingredientes e descrições.
+  // Por isso, a resposta da API não é suficiente: o termo tem de aparecer
+  // no nome visível ou numa categoria do próprio produto.
+  // Os aliases ingleses servem apenas para encontrar mais fichas na API;
+  // nunca podem, por si só, tornar um nome inglês irrelevante num resultado.
+  const queryTerms = [...new Set([
+    portugueseQuery,
+    singularFoodSearchTerm(portugueseQuery),
+  ])].filter((term) => term.length >= 3);
+
+  const names = [product.product_name_pt, product.product_name]
     .filter((name): name is string => typeof name === 'string')
     .map(normaliseFoodSearchTerm);
-  if (names.some((name) => name.includes(portugueseQuery))) return true;
+  if (queryTerms.some((term) =>
+      names.some((name) => name.includes(term)))) {
+    return true;
+  }
 
   const categories = [product.categories_tags_pt, product.categories_tags]
     .flatMap((value) => Array.isArray(value) ? value : [])
     .filter((value): value is string => typeof value === 'string')
     .map(normaliseFoodSearchTerm);
-  return categories.some((category) => category.includes(portugueseQuery));
+  return queryTerms.some((term) =>
+    categories.some((category) => category.includes(term)),
+  );
 }
 
 function hasUsableNutrition(product: Record<string, unknown>): boolean {
@@ -449,15 +461,31 @@ function hasUsableNutrition(product: Record<string, unknown>): boolean {
   });
 }
 
-function portugueseProductRank(product: Record<string, unknown>): number {
+function portugueseProductRank(
+  product: Record<string, unknown>,
+  portugueseQuery: string,
+): number {
   let rank = 0;
+  // Os aliases ingleses servem apenas para encontrar mais fichas na API;
+  // nunca podem, por si só, tornar um nome inglês irrelevante num resultado.
+  const queryTerms = [...new Set([
+    portugueseQuery,
+    singularFoodSearchTerm(portugueseQuery),
+  ])].filter((term) => term.length >= 3);
+  const names = [product.product_name_pt, product.product_name]
+    .filter((name): name is string => typeof name === 'string')
+    .map(normaliseFoodSearchTerm);
+
+  if (names.some((name) => name.includes(portugueseQuery))) rank += 10;
+  if (names.some((name) =>
+      queryTerms.some((term) => name.includes(term)))) {
+    rank += 5;
+  }
   if (typeof product.product_name_pt === 'string' &&
       product.product_name_pt.trim().length > 0) {
     rank += 3;
   }
-  if (hasPortugueseLanguage(product)) {
-    rank += 2;
-  }
+  if (hasPortugueseLanguage(product)) rank += 2;
   return rank;
 }
 
