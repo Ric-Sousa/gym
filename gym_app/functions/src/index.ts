@@ -2,6 +2,7 @@ import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
 import Stripe from 'stripe';
 import PDFDocument from 'pdfkit';
+import { shouldDeactivateExpiredContract } from './contract_expiry.js';
 
 admin.initializeApp();
 
@@ -472,6 +473,77 @@ export const notifyBookingCancelled = functions
       data: { type: 'booking_update', bookingId, newStatus: 'cancelled' },
     });
     return { ok: true };
+  });
+
+// ──────────── CONTRACT EXPIRY ────────────
+
+/**
+ * Deactivates students whose contract has reached its end date.
+ *
+ * The client already blocks access when the date passes, but the Firestore
+ * profile must also be updated so the account is consistently inactive for
+ * the admin panel, rules, and future sessions. The scheduled job is the
+ * fallback for contracts whose date passes while nobody is online.
+ */
+export const deactivateExpiredContracts = functions
+  .region('europe-west1')
+  .pubsub.schedule('every 15 minutes')
+  .timeZone('Europe/Lisbon')
+  .onRun(async () => {
+    const now = admin.firestore.Timestamp.now();
+    const expiredUsers = await db
+      .collection('users')
+      .where('contractEndsAt', '<=', now)
+      .get();
+
+    const usersToDeactivate = expiredUsers.docs.filter((doc) =>
+      shouldDeactivateExpiredContract(doc.data(), now.toDate()),
+    );
+
+    // Re-read each profile in a transaction before changing it. This avoids
+    // deactivating a client whose contract was renewed after the query ran.
+    for (const user of usersToDeactivate) {
+        await db.runTransaction(async (transaction) => {
+        const latest = await transaction.get(user.ref);
+        if (
+          !latest.exists ||
+          !shouldDeactivateExpiredContract(latest.data() ?? {}, new Date())
+        ) {
+          return;
+        }
+        transaction.update(user.ref, {
+          isActive: false,
+          deactivatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      });
+    }
+
+    console.log(`Deactivated ${usersToDeactivate.length} expired contract(s).`);
+    return null;
+  });
+
+/**
+ * Handles an expiry date written in the past immediately. The scheduled job
+ * above still handles the normal case when time passes after the write.
+ */
+export const deactivateExpiredContractOnWrite = functions
+  .region('europe-west1')
+  .firestore.document('users/{uid}')
+  .onWrite(async (change) => {
+    if (!change.after.exists) return null;
+
+    const data = change.after.data();
+    if (!data || !shouldDeactivateExpiredContract(data, new Date())) {
+      return null;
+    }
+
+    await change.after.ref.update({
+      isActive: false,
+      deactivatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return null;
   });
 
 // ──────────── SCHEDULED ────────────

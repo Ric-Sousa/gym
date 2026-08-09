@@ -36,11 +36,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.stripeWebhook = exports.cleanupInvalidFcmTokens = exports.dailyFirestoreBackup = exports.sendWeeklyCheckin = exports.sendWeighInReminder = exports.sendWorkoutReminder = exports.sendWaterReminder = exports.notifyBookingCancelled = exports.notifyBookingUpdate = exports.notifyNewBooking = exports.sendChatNotification = exports.createCheckoutSession = exports.requestProgress = exports.seedFoods = exports.deleteStudentHttp = exports.createStudentHttp = exports.onUserCreated = void 0;
+exports.stripeWebhook = exports.cleanupInvalidFcmTokens = exports.dailyFirestoreBackup = exports.sendWeeklyCheckin = exports.sendWeighInReminder = exports.sendWorkoutReminder = exports.sendWaterReminder = exports.deactivateExpiredContractOnWrite = exports.deactivateExpiredContracts = exports.notifyBookingCancelled = exports.notifyBookingUpdate = exports.notifyNewBooking = exports.sendChatNotification = exports.createCheckoutSession = exports.requestProgress = exports.seedFoods = exports.deleteStudentHttp = exports.createStudentHttp = exports.onUserCreated = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const stripe_1 = __importDefault(require("stripe"));
 const pdfkit_1 = __importDefault(require("pdfkit"));
+const contract_expiry_js_1 = require("./contract_expiry.js");
 admin.initializeApp();
 const db = admin.firestore();
 const auth = admin.auth();
@@ -467,6 +468,66 @@ exports.notifyBookingCancelled = functions
         data: { type: 'booking_update', bookingId, newStatus: 'cancelled' },
     });
     return { ok: true };
+});
+// ──────────── CONTRACT EXPIRY ────────────
+/**
+ * Deactivates students whose contract has reached its end date.
+ *
+ * The client already blocks access when the date passes, but the Firestore
+ * profile must also be updated so the account is consistently inactive for
+ * the admin panel, rules, and future sessions. The scheduled job is the
+ * fallback for contracts whose date passes while nobody is online.
+ */
+exports.deactivateExpiredContracts = functions
+    .region('europe-west1')
+    .pubsub.schedule('every 15 minutes')
+    .timeZone('Europe/Lisbon')
+    .onRun(async () => {
+    const now = admin.firestore.Timestamp.now();
+    const expiredUsers = await db
+        .collection('users')
+        .where('contractEndsAt', '<=', now)
+        .get();
+    const usersToDeactivate = expiredUsers.docs.filter((doc) => (0, contract_expiry_js_1.shouldDeactivateExpiredContract)(doc.data(), now.toDate()));
+    // Re-read each profile in a transaction before changing it. This avoids
+    // deactivating a client whose contract was renewed after the query ran.
+    for (const user of usersToDeactivate) {
+        await db.runTransaction(async (transaction) => {
+            const latest = await transaction.get(user.ref);
+            if (!latest.exists ||
+                !(0, contract_expiry_js_1.shouldDeactivateExpiredContract)(latest.data() ?? {}, new Date())) {
+                return;
+            }
+            transaction.update(user.ref, {
+                isActive: false,
+                deactivatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+        });
+    }
+    console.log(`Deactivated ${usersToDeactivate.length} expired contract(s).`);
+    return null;
+});
+/**
+ * Handles an expiry date written in the past immediately. The scheduled job
+ * above still handles the normal case when time passes after the write.
+ */
+exports.deactivateExpiredContractOnWrite = functions
+    .region('europe-west1')
+    .firestore.document('users/{uid}')
+    .onWrite(async (change) => {
+    if (!change.after.exists)
+        return null;
+    const data = change.after.data();
+    if (!data || !(0, contract_expiry_js_1.shouldDeactivateExpiredContract)(data, new Date())) {
+        return null;
+    }
+    await change.after.ref.update({
+        isActive: false,
+        deactivatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return null;
 });
 // ──────────── SCHEDULED ────────────
 exports.sendWaterReminder = functions.pubsub
