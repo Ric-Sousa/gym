@@ -1781,10 +1781,12 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                 child: Column(
                   children: [
+                    _buildSeriesProgressSummary(exerciseLog),
+                    const SizedBox(height: 10),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 7,
+                        horizontal: 12,
+                        vertical: 10,
                       ),
                       decoration: BoxDecoration(
                         color: AppColors.surfaceHigh,
@@ -1793,13 +1795,13 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                       child: Row(
                         children: [
                           SizedBox(
-                            width: isMobile ? 27 : 32,
-                            child: const SizedBox(),
+                            width: isMobile ? 36 : 42,
+                            child: _referenceLabel('SÉRIE'),
                           ),
-                          Expanded(child: _referenceLabel('Repetições')),
-                          const SizedBox(width: 6),
-                          Expanded(child: _referenceLabel('Carga')),
-                          const SizedBox(width: 32),
+                          Expanded(child: _referenceLabel('REPS')),
+                          const SizedBox(width: 8),
+                          Expanded(child: _referenceLabel('CARGA (KG)')),
+                          const SizedBox(width: 40),
                         ],
                       ),
                     ),
@@ -1824,23 +1826,32 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                         child: Row(
                           children: [
                             Container(
-                              width: isMobile ? 27 : 32,
-                              height: 34,
+                              width: isMobile ? 36 : 42,
+                              height: 36,
                               alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: AppColors.surfaceHigh,
-                                borderRadius: BorderRadius.circular(7),
+                                color: serie.concluida
+                                    ? AppColors.success.withValues(alpha: 0.16)
+                                    : AppColors.surfaceHigh,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: serie.concluida
+                                      ? AppColors.success
+                                      : AppColors.outlineVariant,
+                                ),
                               ),
                               child: Text(
-                                '${serie.numero}',
+                                'S${serie.numero}',
                                 style: GoogleFonts.inter(
-                                  color: AppColors.textSecondary,
+                                  color: serie.concluida
+                                      ? AppColors.success
+                                      : AppColors.textSecondary,
                                   fontSize: 10,
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: FontWeight.w800,
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 6),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: _referenceInput(
                                 controller: repCtrl,
@@ -1855,7 +1866,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 6),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: _referenceInput(
                                 controller: cargaCtrl,
@@ -1882,20 +1893,31 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                                       serieIdx,
                                       readOnly: readOnly,
                                     ),
-                              child: Container(
-                                width: 26,
-                                height: 26,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                width: 34,
+                                height: 34,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: serie.concluida
                                       ? AppColors.success
-                                      : Colors.transparent,
+                                      : AppColors.surfaceHigh,
                                   border: Border.all(
                                     color: serie.concluida
                                         ? AppColors.success
-                                        : AppColors.secondary,
-                                    width: 1.4,
+                                        : AppColors.outlineVariant,
+                                    width: 1.5,
                                   ),
+                                  boxShadow: serie.concluida
+                                      ? [
+                                          BoxShadow(
+                                            color: AppColors.success.withValues(
+                                              alpha: 0.22,
+                                            ),
+                                            blurRadius: 8,
+                                          ),
+                                        ]
+                                      : null,
                                 ),
                                 child: serie.concluida
                                     ? const Icon(
@@ -1987,37 +2009,131 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     );
   }
 
+  Widget _buildSeriesProgressSummary(ExerciseLog exercise) {
+    final total = exercise.totalSeries;
+    final completed = exercise.seriesConcluidas;
+    final progress = total == 0 ? 0.0 : completed / total;
+    final finished = total > 0 && completed == total;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+      decoration: BoxDecoration(
+        color: finished
+            ? AppColors.success.withValues(alpha: 0.10)
+            : AppColors.surfaceHigh,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: finished
+              ? AppColors.success.withValues(alpha: 0.42)
+              : AppColors.outlineVariant,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                finished ? Icons.verified_rounded : Icons.track_changes_rounded,
+                size: 17,
+                color: finished ? AppColors.success : AppColors.primary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  finished ? 'Exercício concluído' : 'Registo das séries',
+                  style: GoogleFonts.inter(
+                    color: AppColors.onSurface,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Text(
+                '$completed/$total',
+                style: GoogleFonts.montserrat(
+                  color: finished ? AppColors.success : AppColors.onSurface,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'séries',
+                style: GoogleFonts.inter(
+                  color: AppColors.textSecondary,
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 6,
+              backgroundColor: AppColors.surfaceHighest,
+              valueColor: AlwaysStoppedAnimation(
+                finished ? AppColors.success : AppColors.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _referenceMetricBox(
     String value,
     String label,
     Color color, {
     VoidCallback? onTap,
   }) {
+    final icon = label == 'séries'
+        ? Icons.layers_outlined
+        : Icons.timer_outlined;
     final child = Container(
-      height: 34,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      alignment: Alignment.center,
+      height: 50,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(5),
+        color: AppColors.surfaceHigh,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Row(
         children: [
-          Text(
-            value,
-            style: GoogleFonts.inter(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
             ),
+            child: Icon(icon, size: 14, color: color),
           ),
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              color: Colors.white.withValues(alpha: 0.8),
-              fontSize: 8,
-            ),
+          const SizedBox(width: 8),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: GoogleFonts.montserrat(
+                  color: AppColors.onSurface,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  color: AppColors.textSecondary,
+                  fontSize: 9,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -2054,35 +2170,45 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     bool readOnly = false,
   }) {
     return SizedBox(
-      height: 38,
+      height: 48,
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
         readOnly: readOnly,
         textAlign: TextAlign.center,
-        style: GoogleFonts.inter(color: AppColors.onSurface, fontSize: 11),
+        style: GoogleFonts.montserrat(
+          color: AppColors.onSurface,
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+        ),
         decoration: InputDecoration(
+          hintText: '—',
+          hintStyle: GoogleFonts.montserrat(
+            color: AppColors.textSecondary,
+            fontSize: 13,
+          ),
           labelText: label,
           labelStyle: GoogleFonts.inter(
             color: AppColors.textSecondary,
             fontSize: 8,
+            fontWeight: FontWeight.w600,
           ),
           floatingLabelBehavior: FloatingLabelBehavior.always,
-          contentPadding: const EdgeInsets.fromLTRB(8, 8, 8, 3),
+          contentPadding: const EdgeInsets.fromLTRB(8, 10, 8, 5),
           isDense: true,
           filled: true,
           fillColor: AppColors.surfaceHigh,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(11),
+            borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: AppColors.outlineVariant),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(11),
+            borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: AppColors.outlineVariant),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(7),
-            borderSide: const BorderSide(color: AppColors.secondary),
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColors.primary, width: 1.4),
           ),
         ),
         onChanged: onChanged,
