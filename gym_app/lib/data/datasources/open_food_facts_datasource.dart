@@ -106,20 +106,10 @@ class OpenFoodFactsDataSource {
   /// Converte um produto da API no modelo usado pela app.
   /// Retorna null quando não há nome ou informação nutricional utilizável.
   static FoodModel? parseProduct(Map<String, dynamic> product) {
-    final portugueseName = _firstNonEmpty([product['product_name_pt']]);
-    final languageCodes = product['languages_codes'];
-    final hasPortugueseName = languageCodes is List
-        ? languageCodes.any(
-            (language) => language.toString().toLowerCase().startsWith('pt'),
-          )
-        : languageCodes is Map
-        ? languageCodes.keys.any(
-            (language) => language.toString().toLowerCase().startsWith('pt'),
-          )
-        : false;
-    final name =
-        portugueseName ??
-        (hasPortugueseName ? _firstNonEmpty([product['product_name']]) : null);
+    // Exige o campo específico de nome em português; não usa
+    // `product_name` como fallback para evitar apresentar nomes estrangeiros.
+    final name = _firstNonEmpty([product['product_name_pt']]);
+
     if (name == null) return null;
 
     final nutriments = product['nutriments'];

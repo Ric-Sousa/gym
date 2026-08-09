@@ -26,10 +26,9 @@ void main() {
       expect(food.origem, 'Open Food Facts');
     });
 
-    test('usa nome genérico e energia em kJ quando necessário', () {
+    test('converte energia em kJ para kcal quando necessário', () {
       final food = OpenFoodFactsDataSource.parseProduct({
-        'product_name': 'Produto',
-        'languages_codes': ['pt'],
+        'product_name_pt': 'Produto',
         'nutriments': {'energy_100g': 418.4},
       });
 
@@ -38,8 +37,25 @@ void main() {
       expect(food.caloriasPor100g, closeTo(100, 0.001));
     });
 
-    test('ignora produto sem nome', () {
-      expect(OpenFoodFactsDataSource.parseProduct({'nutriments': {}}), isNull);
+    test('ignora produto sem nome específico em português', () {
+      expect(
+        OpenFoodFactsDataSource.parseProduct({
+          'product_name': 'Nome estrangeiro',
+          'languages_codes': ['pt'],
+          'nutriments': {'energy-kcal_100g': 100},
+        }),
+        isNull,
+      );
+    });
+
+    test('ignora produto sem dados nutricionais', () {
+      expect(
+        OpenFoodFactsDataSource.parseProduct({
+          'product_name_pt': 'Água',
+          'nutriments': {},
+        }),
+        isNull,
+      );
     });
   });
 }
