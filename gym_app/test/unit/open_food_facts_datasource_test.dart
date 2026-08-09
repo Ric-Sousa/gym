@@ -23,7 +23,7 @@ void main() {
       expect(food.proteinasPor100g, 4.3);
       expect(food.hidratosPor100g, 5.2);
       expect(food.gordurasPor100g, 2.1);
-      expect(food.origem, 'Open Food Facts');
+      expect(food.origem, 'base externa');
     });
 
     test('converte energia em kJ para kcal quando necessário', () {
@@ -37,15 +37,14 @@ void main() {
       expect(food.caloriasPor100g, closeTo(100, 0.001));
     });
 
-    test('ignora produto sem nome específico em português', () {
-      expect(
-        OpenFoodFactsDataSource.parseProduct({
-          'product_name': 'Nome estrangeiro',
-          'languages_codes': ['pt'],
-          'nutriments': {'energy-kcal_100g': 100},
-        }),
-        isNull,
-      );
+    test('usa o nome principal quando não existe tradução específica', () {
+      final food = OpenFoodFactsDataSource.parseProduct({
+        'product_name': 'Leite meio gordo',
+        'nutriments': {'energy-kcal_100g': 50},
+      });
+
+      expect(food, isNotNull);
+      expect(food!.nome, 'Leite meio gordo');
     });
 
     test('ignora produto sem dados nutricionais', () {

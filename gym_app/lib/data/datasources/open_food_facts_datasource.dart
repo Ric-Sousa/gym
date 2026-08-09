@@ -77,9 +77,13 @@ class OpenFoodFactsDataSource {
   /// Converte um produto da API no modelo usado pela app.
   /// Retorna null quando não há nome em português ou dados nutricionais.
   static FoodModel? parseProduct(Map<String, dynamic> product) {
-    // Exige o campo específico de nome em português; não usa
-    // `product_name` como fallback para evitar apresentar nomes estrangeiros.
-    final name = _firstNonEmpty([product['product_name_pt']]);
+    // Muitos produtos portugueses têm o nome em `product_name` e deixam
+    // `product_name_pt` vazio. Preferimos a tradução PT quando existe, mas
+    // aceitamos o nome principal para que a pesquisa em português funcione.
+    final name = _firstNonEmpty([
+      product['product_name_pt'],
+      product['product_name'],
+    ]);
     if (name == null) return null;
 
     final nutriments = product['nutriments'];
@@ -104,8 +108,9 @@ class OpenFoodFactsDataSource {
       proteinasPor100g: _number(nutrients['proteins_100g']),
       hidratosPor100g: _number(nutrients['carbohydrates_100g']),
       gordurasPor100g: _number(nutrients['fat_100g']),
-      categoria: 'Open Food Facts',
-      origem: 'Open Food Facts',
+      // A origem fica disponível apenas como metadado interno; não é
+      // apresentada na linha do alimento.
+      origem: 'base externa',
     );
   }
 

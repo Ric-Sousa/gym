@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/app_constants.dart';
 import '../../../../core/config/app_strings.dart';
@@ -59,13 +58,6 @@ final foodSearchProvider = FutureProvider.family<List<FoodModel>, String>((
   if (query.isEmpty) return ref.read(nutritionRepositoryProvider).getAllFoods();
   return ref.read(nutritionRepositoryProvider).searchFoods(query);
 });
-
-Future<void> _openFoodFactsAttribution(BuildContext context) async {
-  final uri = Uri.parse('https://openfoodfacts.org');
-  if (await canLaunchUrl(uri)) {
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
-}
 
 /// Ecrã de nutrição — Kinetic Dark.
 class NutritionScreen extends ConsumerStatefulWidget {
@@ -1737,29 +1729,8 @@ class _FoodSearchSheetState extends ConsumerState<_FoodSearchSheet> {
               .watch(foodSearchProvider(_query))
               .when(
                 data: (foods) => ListView.builder(
-                  itemCount:
-                      foods.length +
-                      (foods.any((food) => food.origem == 'Open Food Facts')
-                          ? 1
-                          : 0),
+                  itemCount: foods.length,
                   itemBuilder: (_, i) {
-                    if (i == foods.length) {
-                      return Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-                        child: GestureDetector(
-                          onTap: () => _openFoodFactsAttribution(context),
-                          child: Text(
-                            'Alguns resultados são fornecidos por Open Food Facts, sob licença ODbL.',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              color: AppColors.primary,
-                              decoration: TextDecoration.underline,
-                            ),
-                          ),
-                        ),
-                      );
-                    }
                     final food = foods[i];
                     return ListTile(
                       leading: CircleAvatar(
@@ -1777,9 +1748,7 @@ class _FoodSearchSheetState extends ConsumerState<_FoodSearchSheet> {
                         style: GoogleFonts.inter(color: AppColors.onSurface),
                       ),
                       subtitle: Text(
-                        food.origem == 'Open Food Facts'
-                            ? '${food.caloriasPor100g.toStringAsFixed(0)} kcal/100g · Open Food Facts'
-                            : '${food.caloriasPor100g.toStringAsFixed(0)} kcal/100g',
+                        '${food.caloriasPor100g.toStringAsFixed(0)} kcal/100g',
                         style: GoogleFonts.inter(
                           color: AppColors.textSecondary,
                         ),

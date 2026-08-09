@@ -239,6 +239,45 @@ exports.seedFoods = functions.region('europe-west1').https.onCall(async (data, c
 // not expose CORS headers consistently. Keeping this request server-side also
 // lets us provide the required application User-Agent without exposing it in
 // every client request.
+function normaliseFoodSearchTerm(value) {
+    return value
+        .normalize('NFD')
+        .replace(/[\\u0300-\\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\\s+/g, ' ')
+        .trim();
+}
+function foodSearchVariants(query) {
+    const normalised = normaliseFoodSearchTerm(query);
+    const aliases = {
+        leite: ['milk'],
+        pao: ['bread'],
+        arroz: ['rice'],
+        massa: ['pasta'],
+        macarrao: ['pasta'],
+        frango: ['chicken'],
+        peru: ['turkey'],
+        carne: ['meat', 'beef'],
+        vaca: ['beef'],
+        porco: ['pork'],
+        peixe: ['fish'],
+        atum: ['tuna'],
+        ovo: ['egg'],
+        ovos: ['eggs'],
+        queijo: ['cheese'],
+        iogurte: ['yogurt'],
+        manteiga: ['butter'],
+        aveia: ['oats'],
+        banana: ['banana'],
+        maca: ['apple'],
+        batata: ['potato'],
+        tomate: ['tomato'],
+        agua: ['water'],
+    };
+    return [...new Set([query.trim(), normalised, ...(aliases[normalised] ?? [])])]
+        .filter((term) => term.length >= 3)
+        .slice(0, 3);
+}
 exports.searchOpenFoodFacts = functions.region('europe-west1').https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
@@ -247,32 +286,51 @@ exports.searchOpenFoodFacts = functions.region('europe-west1').https.onCall(asyn
     if (query.length < 3 || query.length > 80) {
         throw new functions.https.HttpsError('invalid-argument', 'A pesquisa deve ter entre 3 e 80 caracteres.');
     }
-    const params = new URLSearchParams({
-        search_terms: query,
-        search_simple: '1',
-        action: 'process',
-        json: '1',
-        page_size: '20',
-        lc: 'pt',
-        fields: 'code,product_name,product_name_pt,nutriments,categories_tags_pt',
-    });
     try {
-        const response = await fetch(`https://pt.openfoodfacts.org/cgi/search.pl?${params.toString()}`, {
-            headers: {
-                'User-Agent': 'GymApp/1.0 (https://github.com/Ric-Sousa/gym)',
-                Accept: 'application/json',
-            },
-            signal: AbortSignal.timeout(8000),
-        });
-        if (!response.ok) {
-            console.warn(`Open Food Facts returned HTTP ${response.status}.`);
-            return { products: [] };
+        const productsByCode = new Map();
+        const searchTerms = foodSearchVariants(query);
+        for (const searchTerm of searchTerms) {
+            const params = new URLSearchParams({
+                search_terms: searchTerm,
+                search_simple: '1',
+                action: 'process',
+                json: '1',
+                page_size: '20',
+                lc: 'pt',
+                fields: 'code,product_name,product_name_pt,nutriments,categories_tags_pt',
+            });
+            const response = await fetch(`https://pt.openfoodfacts.org/cgi/search.pl?${params.toString()}`, {
+                headers: {
+                    'User-Agent': 'GymApp/1.0 (https://github.com/Ric-Sousa/gym)',
+                    Accept: 'application/json',
+                },
+                signal: AbortSignal.timeout(8000),
+            });
+            if (!response.ok) {
+                console.warn(`Open Food Facts returned HTTP ${response.status}.`);
+                continue;
+            }
+            const body = await response.json();
+            if (!body || typeof body !== 'object')
+                continue;
+            const products = body.products;
+            if (!Array.isArray(products))
+                continue;
+            for (const product of products) {
+                if (!product || typeof product !== 'object')
+                    continue;
+                const typedProduct = product;
+                const code = typeof typedProduct.code === 'string'
+                    ? typedProduct.code
+                    : JSON.stringify(typedProduct);
+                productsByCode.set(code, typedProduct);
+                if (productsByCode.size >= 40)
+                    break;
+            }
+            if (productsByCode.size >= 40)
+                break;
         }
-        const body = await response.json();
-        if (!body || typeof body !== 'object')
-            return { products: [] };
-        const products = body.products;
-        return { products: Array.isArray(products) ? products.slice(0, 20) : [] };
+        return { products: [...productsByCode.values()].slice(0, 20) };
     }
     catch (error) {
         console.warn('Open Food Facts request failed:', error);
