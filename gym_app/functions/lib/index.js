@@ -242,13 +242,28 @@ exports.seedFoods = functions.region('europe-west1').https.onCall(async (data, c
 function normaliseFoodSearchTerm(value) {
     return value
         .normalize('NFD')
-        .replace(/[\\u0300-\\u036f]/g, '')
+        .replace(/[\u0300-\u036f]/g, '')
         .toLowerCase()
-        .replace(/\\s+/g, ' ')
+        .replace(/\s+/g, ' ')
         .trim();
+}
+function singularFoodSearchTerm(value) {
+    if (value.endsWith('ões') && value.length > 4) {
+        return `${value.slice(0, -3)}ão`;
+    }
+    if (value.endsWith('ães') && value.length > 4) {
+        return `${value.slice(0, -3)}ão`;
+    }
+    // Para alimentos, a remoção do s final cobre casos como ovos -> ovo,
+    // maçãs -> maca, queijos -> queijo e massas -> massa.
+    if (value.endsWith('s') && value.length > 3) {
+        return value.slice(0, -1);
+    }
+    return value;
 }
 function foodSearchVariants(query) {
     const normalised = normaliseFoodSearchTerm(query);
+    const singular = singularFoodSearchTerm(normalised);
     const aliases = {
         leite: ['milk'],
         pao: ['bread'],
@@ -263,7 +278,6 @@ function foodSearchVariants(query) {
         peixe: ['fish'],
         atum: ['tuna'],
         ovo: ['egg'],
-        ovos: ['eggs'],
         queijo: ['cheese'],
         iogurte: ['yogurt'],
         manteiga: ['butter'],
@@ -274,37 +288,40 @@ function foodSearchVariants(query) {
         tomate: ['tomato'],
         agua: ['water'],
     };
-    return [...new Set([query.trim(), normalised, ...(aliases[normalised] ?? [])])]
+    return [...new Set([
+            query.trim(),
+            normalised,
+            singular,
+            ...(aliases[normalised] ?? []),
+            ...(aliases[singular] ?? []),
+        ])]
         .filter((term) => term.length >= 3)
-        .slice(0, 3);
+        // Mantemos a variante inglesa mesmo quando a palavra original tem
+        // acento/plural (por exemplo: maçãs -> maca -> apple).
+        .slice(0, 6);
 }
-exports.searchOpenFoodFacts = functions.region('europe-west1').https.onCall(async (data, context) => {
-    if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
-    }
-    const query = typeof data?.query === 'string' ? data.query.trim() : '';
-    if (query.length < 3 || query.length > 80) {
-        throw new functions.https.HttpsError('invalid-argument', 'A pesquisa deve ter entre 3 e 80 caracteres.');
-    }
-    try {
-        const productsByCode = new Map();
-        const searchTerms = foodSearchVariants(query);
-        for (const searchTerm of searchTerms) {
-            const params = new URLSearchParams({
-                search_terms: searchTerm,
-                search_simple: '1',
-                action: 'process',
-                json: '1',
-                page_size: '20',
-                lc: 'pt',
-                fields: 'code,product_name,product_name_pt,nutriments,categories_tags_pt',
-            });
-            const response = await fetch(`https://pt.openfoodfacts.org/cgi/search.pl?${params.toString()}`, {
+async function fetchOpenFoodFactsProducts(searchTerm) {
+    const hosts = [
+        'https://pt.openfoodfacts.org/cgi/search.pl',
+        'https://world.openfoodfacts.org/cgi/search.pl',
+    ];
+    const params = new URLSearchParams({
+        search_terms: searchTerm,
+        search_simple: '1',
+        action: 'process',
+        json: '1',
+        page_size: '20',
+        lc: 'pt',
+        fields: 'code,product_name,product_name_pt,languages_codes,nutriments,categories_tags_pt,categories_tags',
+    });
+    for (const host of hosts) {
+        try {
+            const response = await fetch(`${host}?${params.toString()}`, {
                 headers: {
                     'User-Agent': 'GymApp/1.0 (https://github.com/Ric-Sousa/gym)',
                     Accept: 'application/json',
                 },
-                signal: AbortSignal.timeout(8000),
+                signal: AbortSignal.timeout(7000),
             });
             if (!response.ok) {
                 console.warn(`Open Food Facts returned HTTP ${response.status}.`);
@@ -316,27 +333,146 @@ exports.searchOpenFoodFacts = functions.region('europe-west1').https.onCall(asyn
             const products = body.products;
             if (!Array.isArray(products))
                 continue;
-            for (const product of products) {
-                if (!product || typeof product !== 'object')
+            const validProducts = products.filter((product) => Boolean(product) && typeof product === 'object').filter((product) => {
+                const translatedName = typeof product.product_name_pt === 'string'
+                    ? product.product_name_pt.trim()
+                    : '';
+                const mainName = typeof product.product_name === 'string'
+                    ? product.product_name.trim()
+                    : '';
+                return (translatedName.length > 0 || mainName.length > 0) &&
+                    hasUsableNutrition(product);
+            });
+            // Uma resposta não vazia, mas composta apenas por fichas incompletas,
+            // não deve impedir a tentativa no domínio mundial.
+            if (validProducts.length > 0)
+                return validProducts;
+        }
+        catch (error) {
+            console.warn(`Open Food Facts request failed for ${host}:`, error);
+        }
+    }
+    return [];
+}
+exports.searchOpenFoodFacts = functions.region('europe-west1').https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+    }
+    const query = typeof data?.query === 'string' ? data.query.trim() : '';
+    if (query.length < 3 || query.length > 80) {
+        throw new functions.https.HttpsError('invalid-argument', 'A pesquisa deve ter entre 3 e 80 caracteres.');
+    }
+    try {
+        const products = [];
+        const seenCodes = new Set();
+        const seenNames = new Set();
+        const searchTerms = foodSearchVariants(query);
+        const portugueseQuery = normaliseFoodSearchTerm(query);
+        for (const [index, searchTerm] of searchTerms.entries()) {
+            const responseProducts = await fetchOpenFoodFactsProducts(searchTerm);
+            if (responseProducts.length === 0)
+                continue;
+            const rankedProducts = responseProducts
+                .filter((product) => Boolean(product) && typeof product === 'object')
+                // A API devolve frequentemente fichas sem nutrientes. Não as
+                // contamos como resultados, porque a app não as consegue mostrar.
+                .filter(hasUsableNutrition)
+                .filter((product) => isPortugueseFoodResult(product, portugueseQuery, index === 0))
+                .sort((a, b) => portugueseProductRank(b) - portugueseProductRank(a));
+            for (const product of rankedProducts) {
+                const code = typeof product.code === 'string'
+                    ? product.code.trim()
+                    : '';
+                const rawName = typeof product.product_name_pt === 'string' &&
+                    product.product_name_pt.trim().length > 0
+                    ? product.product_name_pt
+                    : product.product_name;
+                const name = typeof rawName === 'string' ? rawName.trim() : '';
+                const nameKey = normaliseFoodSearchTerm(name);
+                if ((code && seenCodes.has(code)) ||
+                    (nameKey && seenNames.has(nameKey))) {
                     continue;
-                const typedProduct = product;
-                const code = typeof typedProduct.code === 'string'
-                    ? typedProduct.code
-                    : JSON.stringify(typedProduct);
-                productsByCode.set(code, typedProduct);
-                if (productsByCode.size >= 40)
+                }
+                if (code)
+                    seenCodes.add(code);
+                if (nameKey)
+                    seenNames.add(nameKey);
+                products.push(product);
+                if (products.length >= 40)
                     break;
             }
-            if (productsByCode.size >= 40)
+            if (products.length >= 40)
+                break;
+            // Continua após uma resposta vazia/incompleta para permitir o alias
+            // inglês, mas para assim que já temos resultados suficientes para a
+            // lista. Isto evita várias chamadas sequenciais desnecessárias.
+            if (products.length >= 8)
                 break;
         }
-        return { products: [...productsByCode.values()].slice(0, 20) };
+        products.sort((a, b) => portugueseProductRank(b) - portugueseProductRank(a));
+        return { products: products.slice(0, 20) };
     }
     catch (error) {
         console.warn('Open Food Facts request failed:', error);
         return { products: [] };
     }
 });
+function isPortugueseFoodResult(product, portugueseQuery, isPortugueseSearch) {
+    if (typeof product.product_name_pt === 'string' &&
+        product.product_name_pt.trim().length > 0) {
+        return true;
+    }
+    if (hasPortugueseLanguage(product)) {
+        return true;
+    }
+    if (!isPortugueseSearch)
+        return false;
+    const names = [product.product_name, product.product_name_pt]
+        .filter((name) => typeof name === 'string')
+        .map(normaliseFoodSearchTerm);
+    if (names.some((name) => name.includes(portugueseQuery)))
+        return true;
+    const categories = [product.categories_tags_pt, product.categories_tags]
+        .flatMap((value) => Array.isArray(value) ? value : [])
+        .filter((value) => typeof value === 'string')
+        .map(normaliseFoodSearchTerm);
+    return categories.some((category) => category.includes(portugueseQuery));
+}
+function hasUsableNutrition(product) {
+    const nutriments = product.nutriments;
+    if (!nutriments || typeof nutriments !== 'object')
+        return false;
+    const values = nutriments;
+    return ['energy-kcal_100g', 'energy_100g'].some((key) => {
+        const value = values[key];
+        if (typeof value === 'number')
+            return Number.isFinite(value);
+        if (typeof value === 'string')
+            return Number.isFinite(Number(value));
+        return false;
+    });
+}
+function portugueseProductRank(product) {
+    let rank = 0;
+    if (typeof product.product_name_pt === 'string' &&
+        product.product_name_pt.trim().length > 0) {
+        rank += 3;
+    }
+    if (hasPortugueseLanguage(product)) {
+        rank += 2;
+    }
+    return rank;
+}
+function hasPortugueseLanguage(product) {
+    const languages = product.languages_codes;
+    if (Array.isArray(languages)) {
+        return languages.some((language) => String(language).toLowerCase().startsWith('pt'));
+    }
+    if (languages && typeof languages === 'object') {
+        return Object.keys(languages).some((language) => language.toLowerCase().startsWith('pt'));
+    }
+    return false;
+}
 exports.requestProgress = functions.region('europe-west1').https.onCall(async (data, context) => {
     if (!context.auth)
         throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');

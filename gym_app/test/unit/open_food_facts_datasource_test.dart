@@ -37,6 +37,18 @@ void main() {
       expect(food.caloriasPor100g, closeTo(100, 0.001));
     });
 
+    test('aceita os alimentos pesquisados em português', () {
+      for (final name in ['Maçã', 'Arroz', 'Massa', 'Ovos', 'Queijo']) {
+        final food = OpenFoodFactsDataSource.parseProduct({
+          'product_name_pt': name,
+          'nutriments': {'energy-kcal_100g': 100},
+        });
+
+        expect(food, isNotNull, reason: 'Falhou para $name');
+        expect(food!.nome, name);
+      }
+    });
+
     test('usa o nome principal quando não existe tradução específica', () {
       final food = OpenFoodFactsDataSource.parseProduct({
         'product_name': 'Leite meio gordo',
