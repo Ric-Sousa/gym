@@ -6,6 +6,7 @@ import '../models/nutrition_plan_model.dart';
 import '../models/workout_plan_model.dart';
 import '../models/message_model.dart';
 import '../models/progress_model.dart';
+import '../models/progress_video_model.dart';
 import '../models/food_model.dart';
 import '../models/workout_log_model.dart';
 import '../models/payment_model.dart';
@@ -608,6 +609,64 @@ class FirestoreDataSource {
           .add(data);
     } on FirebaseException catch (e) {
       throw ServerException(message: e.message ?? 'Erro ao guardar progresso');
+    }
+  }
+
+  // ───────────────────── PROGRESS VIDEOS ─────────────────────
+
+  Future<List<ProgressVideoModel>> getProgressVideos(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(userId)
+          .collection('progressVideos')
+          .orderBy('createdAt', descending: true)
+          .get();
+      return snapshot.docs
+          .map((doc) => ProgressVideoModel.fromMap(doc.id, userId, doc.data()))
+          .toList();
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao obter vídeos de progresso',
+      );
+    }
+  }
+
+  Future<void> addProgressVideo(
+    String userId,
+    String videoId,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      await _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(userId)
+          .collection('progressVideos')
+          .doc(videoId)
+          .set(data);
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao guardar vídeo de progresso',
+      );
+    }
+  }
+
+  Future<void> updateProgressVideo(
+    String userId,
+    String videoId,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      await _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(userId)
+          .collection('progressVideos')
+          .doc(videoId)
+          .update(data);
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao atualizar vídeo de progresso',
+      );
     }
   }
 

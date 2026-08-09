@@ -7,11 +7,9 @@ class AuthDataSource {
   final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
 
-  AuthDataSource({
-    FirebaseAuth? auth,
-    FirebaseFirestore? firestore,
-  })  : _auth = auth ?? FirebaseAuth.instance,
-        _firestore = firestore ?? FirebaseFirestore.instance;
+  AuthDataSource({FirebaseAuth? auth, FirebaseFirestore? firestore})
+    : _auth = auth ?? FirebaseAuth.instance,
+      _firestore = firestore ?? FirebaseFirestore.instance;
 
   /// Obtém o utilizador autenticado atualmente.
   User? get currentUser => _auth.currentUser;

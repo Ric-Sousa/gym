@@ -51,7 +51,8 @@ const notificationSoundOptions = [
 ];
 
 /// Som específico para notificações de erro.
-const errorSoundAsset = 'assets/sounds/universfield-error-notification-08-206492.mp3';
+const errorSoundAsset =
+    'assets/sounds/universfield-error-notification-08-206492.mp3';
 
 /// Caminho de som padrão.
 const defaultSoundAsset = 'assets/sounds/chime.wav';

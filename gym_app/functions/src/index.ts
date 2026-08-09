@@ -542,14 +542,29 @@ export const createCheckoutSession = functions.region('europe-west1').https.onCa
   const callerDoc = await db.collection('users').doc(context.auth.uid).get();
   if (callerDoc.data()?.role !== 'admin') throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
 
-  const { userId, valor, descricao } = data;
+  const { userId, valor, descricao, periodoInicio, periodoFim, dataVencimento } = data;
   if (!userId || !valor || valor <= 0) throw new functions.https.HttpsError('invalid-argument', 'userId e valor obrigatórios.');
+
+  const parsedStart = periodoInicio == null ? null : asDate(periodoInicio);
+  const parsedEnd = periodoFim == null ? null : asDate(periodoFim);
+  const parsedDue = dataVencimento == null ? null : asDate(dataVencimento);
+  if ((periodoInicio != null && !parsedStart) ||
+      (periodoFim != null && !parsedEnd) ||
+      (dataVencimento != null && !parsedDue)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Datas de pagamento inválidas.');
+  }
+  if (parsedStart && parsedEnd && parsedStart > parsedEnd) {
+    throw new functions.https.HttpsError('invalid-argument', 'O início do período deve ser anterior ao fim.');
+  }
 
   const paymentRef = await db.collection('pagamentos').add({
     userId, valor, moeda: 'eur', status: 'pending',
     descricao: descricao || 'Mensalidade',
     data: admin.firestore.FieldValue.serverTimestamp(),
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    ...(parsedStart ? { periodoInicio: admin.firestore.Timestamp.fromDate(parsedStart) } : {}),
+    ...(parsedEnd ? { periodoFim: admin.firestore.Timestamp.fromDate(parsedEnd) } : {}),
+    ...(parsedDue ? { dataVencimento: admin.firestore.Timestamp.fromDate(parsedDue) } : {}),
   });
 
   const session = await stripe.checkout.sessions.create({
@@ -975,7 +990,60 @@ stripeApp.post('/', async (req: any, res: any) => {
 
 export const stripeWebhook = functions.region('europe-west1').https.onRequest(stripeApp);
 
+/**
+ * Renova/reactiva o acesso quando um pagamento pago contém um período válido.
+ * Funciona tanto para pagamentos manuais como para o webhook Stripe, mantendo
+ * o perfil do aluno como fonte de verdade para as regras e novas sessões.
+ */
+export const syncAccessFromPaidPayment = functions
+  .region('europe-west1')
+  .firestore.document('pagamentos/{paymentId}')
+  .onWrite(async (change) => {
+    if (!change.after.exists) return null;
+
+    const payment = change.after.data();
+    if (payment?.status !== 'paid' || !payment?.userId || !payment?.periodoFim) {
+      return null;
+    }
+
+    const periodEnd = asDate(payment.periodoFim);
+    if (!periodEnd || periodEnd <= new Date()) return null;
+
+    const userRef = db.collection('users').doc(String(payment.userId));
+    await db.runTransaction(async (transaction) => {
+      const userSnapshot = await transaction.get(userRef);
+      if (!userSnapshot.exists) return;
+
+      const user = userSnapshot.data() ?? {};
+      const currentEnd = asDate(user.contractEndsAt);
+      if (currentEnd && currentEnd >= periodEnd && user.isActive !== false) {
+        return;
+      }
+
+      transaction.update(userRef, {
+        contractEndsAt: admin.firestore.Timestamp.fromDate(
+          currentEnd && currentEnd > periodEnd ? currentEnd : periodEnd,
+        ),
+        isActive: true,
+        deactivatedAt: admin.firestore.FieldValue.delete(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+
+    return null;
+  });
+
 // ──────────── HELPERS ────────────
+
+function asDate(value: unknown): Date | null {
+  if (value instanceof Date) return value;
+  if (value instanceof admin.firestore.Timestamp) return value.toDate();
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
+}
 
 async function generateInvoicePdf(paymentId: string, userId: string): Promise<void> {
   const [paymentDoc, userDoc] = await Promise.all([db.collection('pagamentos').doc(paymentId).get(), db.collection('users').doc(userId).get()]);

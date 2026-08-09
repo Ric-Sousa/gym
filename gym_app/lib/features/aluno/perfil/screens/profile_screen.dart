@@ -22,6 +22,7 @@ import '../../../../core/utils/progress_photo_normalizer.dart';
 import '../../../../core/utils/progress_photo_resolver.dart';
 import '../../../../shared/widgets/image_comparison_slider.dart';
 import 'progress_submission_screen.dart';
+import 'video_progress_screen.dart';
 
 final userProfileProvider = StreamProvider.family<UserModel, String>((
   ref,
@@ -122,6 +123,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             _buildProgressComparisonCard(user, progressAsync),
             const SizedBox(height: 20),
             _buildSoundPicker(user),
+            if (user.isOnline) ...[
+              const SizedBox(height: 20),
+              _buildVideoProgressEntry(user),
+            ],
             const SizedBox(height: 24),
             _buildPaymentsSection(user.uid),
           ],
@@ -1773,6 +1778,56 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  Widget _buildVideoProgressEntry(UserModel user) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.videocam_outlined, color: AppColors.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Progressão em vídeo',
+                  style: GoogleFonts.montserrat(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Envia e acompanha vídeos da tua execução.',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => VideoProgressScreen(userId: user.uid),
+              ),
+            ),
+            icon: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+            color: AppColors.textSecondary,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPaymentsSection(String userId) {
     // Usa provider estável (module-level) — nunca inline StreamProvider no build()!
     final paymentsAsync = ref.watch(paymentsStreamProvider(userId));
@@ -1806,19 +1861,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final statusColors = {
       'paid': AppColors.primary,
       'pending': AppColors.calories,
+      'overdue': AppColors.error,
       'failed': AppColors.error,
       'refunded': AppColors.textSecondary,
     };
     final statusLabels = {
       'paid': 'PAGO',
       'pending': 'PENDENTE',
+      'overdue': 'EM ATRASO',
       'failed': 'FALHOU',
       'refunded': 'REEMBOLSADO',
     };
 
-    final statusColor = statusColors[payment.status] ?? AppColors.textSecondary;
+    final statusColor =
+        statusColors[payment.effectiveStatus] ?? AppColors.textSecondary;
     final statusLabel =
-        statusLabels[payment.status] ?? payment.status.toUpperCase();
+        statusLabels[payment.effectiveStatus] ?? payment.status.toUpperCase();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),

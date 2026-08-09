@@ -94,9 +94,9 @@ class AppColors {
   static const Color stepsLight = Color(0xFF1A2E10);
 
   // ── Macronutrientes ──────────────────────────────────────
-  static const Color carbs = Color(0xFF2196F3);    // Azul
-  static const Color protein = Color(0xFFE91E63);   // Rosa
-  static const Color fat = Color(0xFFFFC107);       // Amarelo
+  static const Color carbs = Color(0xFF2196F3); // Azul
+  static const Color protein = Color(0xFFE91E63); // Rosa
+  static const Color fat = Color(0xFFFFC107); // Amarelo
 
   // ── Rating stars ───────────────────────────────────────────────
   static const Color starFilled = Color(0xFFFFB300);
@@ -168,10 +168,14 @@ class AppColors {
   static Color adminShadowElevatedDark = Colors.white.withValues(alpha: 0.06);
 
   /// Sombra de cartão (modo claro).
-  static Color adminLightShadow = const Color(0xFF1A1B2E).withValues(alpha: 0.05);
+  static Color adminLightShadow = const Color(
+    0xFF1A1B2E,
+  ).withValues(alpha: 0.05);
 
   /// Sombra elevada (modo claro).
-  static Color adminLightShadowElevated = const Color(0xFF1A1B2E).withValues(alpha: 0.10);
+  static Color adminLightShadowElevated = const Color(
+    0xFF1A1B2E,
+  ).withValues(alpha: 0.10);
 
   // Alias compat (deprecated)
   static Color get adminShadow => adminShadowDark;

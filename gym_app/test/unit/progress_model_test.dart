@@ -46,34 +46,29 @@ void main() {
       expect(progress.fotos, isEmpty);
     });
 
-    test('fromMap lê campos dinâmicos do Firestore sem perder URLs válidas', () {
-      final map = <String, dynamic>{
-        'data': data,
-        'fotos': [
-          'https://example.com/front.jpg',
-          null,
-          123,
-        ],
-        'fotosPorPosicao': {
-          ' frente ': ' https://example.com/front.jpg ',
-          'Lado 1': null,
-          'Costas': ' https://example.com/back.jpg ',
-          'Vazio': ' ',
-        },
-      };
+    test(
+      'fromMap lê campos dinâmicos do Firestore sem perder URLs válidas',
+      () {
+        final map = <String, dynamic>{
+          'data': data,
+          'fotos': ['https://example.com/front.jpg', null, 123],
+          'fotosPorPosicao': {
+            ' frente ': ' https://example.com/front.jpg ',
+            'Lado 1': null,
+            'Costas': ' https://example.com/back.jpg ',
+            'Vazio': ' ',
+          },
+        };
 
-      final progress = ProgressModel.fromMap(id, userId, map);
+        final progress = ProgressModel.fromMap(id, userId, map);
 
-      expect(progress.fotos, [
-        'https://example.com/front.jpg',
-        '',
-        '',
-      ]);
-      expect(progress.fotosPorPosicao, {
-        'frente': 'https://example.com/front.jpg',
-        'Costas': 'https://example.com/back.jpg',
-      });
-    });
+        expect(progress.fotos, ['https://example.com/front.jpg', '', '']);
+        expect(progress.fotosPorPosicao, {
+          'frente': 'https://example.com/front.jpg',
+          'Costas': 'https://example.com/back.jpg',
+        });
+      },
+    );
 
     test('fromMap preserva fotos associadas a cada posição', () {
       final map = {

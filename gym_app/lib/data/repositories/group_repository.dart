@@ -7,7 +7,7 @@ class GroupRepository {
   final FirestoreDataSource _firestore;
 
   GroupRepository({required FirestoreDataSource firestoreDataSource})
-      : _firestore = firestoreDataSource;
+    : _firestore = firestoreDataSource;
 
   Future<List<GroupModel>> getMyGroups(String userId) =>
       _firestore.getMyGroups(userId);

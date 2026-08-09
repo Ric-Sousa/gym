@@ -108,15 +108,15 @@ class PlannedMeal {
     };
   }
 
-  double get totalCalorias =>
-      alimentos.fold(0.0, (sum, a) => sum + a.calorias);
+  double get totalCalorias => alimentos.fold(0.0, (sum, a) => sum + a.calorias);
 }
 
 /// Suplemento no plano nutricional.
 class Suplemento {
   final String nome;
   final String dosagem;
-  final String horario; // 'pré-treino', 'pós-treino', 'manhã', 'noite', 'qualquer'
+  final String
+  horario; // 'pré-treino', 'pós-treino', 'manhã', 'noite', 'qualquer'
 
   const Suplemento({
     required this.nome,
@@ -133,11 +133,7 @@ class Suplemento {
   }
 
   Map<String, dynamic> toMap() {
-    return {
-      'nome': nome,
-      'dosagem': dosagem,
-      'horario': horario,
-    };
+    return {'nome': nome, 'dosagem': dosagem, 'horario': horario};
   }
 }
 
@@ -158,7 +154,10 @@ class NutritionPlanModel {
   });
 
   factory NutritionPlanModel.fromMap(
-      String dia, String userId, Map<String, dynamic> map) {
+    String dia,
+    String userId,
+    Map<String, dynamic> map,
+  ) {
     final refeicoesList = map['refeicoes'] as List? ?? [];
     return NutritionPlanModel(
       dia: dia,

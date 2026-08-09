@@ -10,6 +10,12 @@ class PaymentModel {
   final String? faturaUrl;
   final String? stripeSessionId;
   final String? stripePaymentIntentId;
+  final DateTime? periodoInicio;
+  final DateTime? periodoFim;
+  final DateTime? dataVencimento;
+  final DateTime? paidAt;
+  final String? metodo;
+  final String? comprovativoUrl;
 
   const PaymentModel({
     this.id = '',
@@ -22,6 +28,12 @@ class PaymentModel {
     this.faturaUrl,
     this.stripeSessionId,
     this.stripePaymentIntentId,
+    this.periodoInicio,
+    this.periodoFim,
+    this.dataVencimento,
+    this.paidAt,
+    this.metodo,
+    this.comprovativoUrl,
   });
 
   factory PaymentModel.fromMap(String id, Map<String, dynamic> map) {
@@ -31,12 +43,28 @@ class PaymentModel {
       valor: (map['valor'] as num?)?.toDouble() ?? 0.0,
       moeda: map['moeda'] as String? ?? 'eur',
       status: map['status'] as String? ?? 'pending',
-      data: (map['data'] as dynamic).toDate() as DateTime,
+      data: _dateFromMap(map['data']) ?? DateTime.fromMillisecondsSinceEpoch(0),
       descricao: map['descricao'] as String?,
       faturaUrl: map['faturaUrl'] as String?,
       stripeSessionId: map['stripeSessionId'] as String?,
       stripePaymentIntentId: map['stripePaymentIntentId'] as String?,
+      periodoInicio: _dateFromMap(map['periodoInicio']),
+      periodoFim: _dateFromMap(map['periodoFim']),
+      dataVencimento: _dateFromMap(map['dataVencimento']),
+      paidAt: _dateFromMap(map['paidAt']),
+      metodo: map['metodo'] as String?,
+      comprovativoUrl: map['comprovativoUrl'] as String?,
     );
+  }
+
+  static DateTime? _dateFromMap(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    try {
+      return (value as dynamic).toDate() as DateTime;
+    } catch (_) {
+      return DateTime.tryParse(value.toString());
+    }
   }
 
   Map<String, dynamic> toMap() {
@@ -51,10 +79,23 @@ class PaymentModel {
       if (stripeSessionId != null) 'stripeSessionId': stripeSessionId,
       if (stripePaymentIntentId != null)
         'stripePaymentIntentId': stripePaymentIntentId,
+      if (periodoInicio != null) 'periodoInicio': periodoInicio,
+      if (periodoFim != null) 'periodoFim': periodoFim,
+      if (dataVencimento != null) 'dataVencimento': dataVencimento,
+      if (paidAt != null) 'paidAt': paidAt,
+      if (metodo != null) 'metodo': metodo,
+      if (comprovativoUrl != null) 'comprovativoUrl': comprovativoUrl,
     };
   }
 
-  String get valorFormatado => '${valor.toStringAsFixed(2)} ${moeda.toUpperCase()}';
+  String get valorFormatado =>
+      '${valor.toStringAsFixed(2)} ${moeda.toUpperCase()}';
+  String get effectiveStatus => isOverdue ? 'overdue' : status;
   bool get isPaid => status == 'paid';
   bool get isPending => status == 'pending';
+  bool get isOverdue {
+    if (isPaid || status == 'refunded') return false;
+    final deadline = dataVencimento ?? periodoFim;
+    return deadline != null && !deadline.isAfter(DateTime.now());
+  }
 }

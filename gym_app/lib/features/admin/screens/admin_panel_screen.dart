@@ -6432,10 +6432,22 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
             title: 'Pagamentos',
             subtitle: 'Gestão de pagamentos e faturas via Stripe',
             icon: Icons.payments_outlined,
-            action: ElevatedButton.icon(
-              onPressed: _creating ? null : () => _showCreatePaymentDialog(),
-              icon: const Icon(Icons.add_rounded, size: 17),
-              label: const Text('Novo pagamento'),
+            action: Wrap(
+              spacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => _showManualPaymentDialog(),
+                  icon: const Icon(Icons.receipt_long_outlined, size: 17),
+                  label: const Text('Registar manual'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _creating
+                      ? null
+                      : () => _showCreatePaymentDialog(),
+                  icon: const Icon(Icons.add_rounded, size: 17),
+                  label: const Text('Novo pagamento'),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 20),
@@ -6582,18 +6594,21 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
       'pending': AdminThemeColors.of(context).orange,
       'failed': Colors.red,
       'refunded': AdminThemeColors.of(context).muted,
+      'overdue': Colors.red,
     };
     final statusLabels = {
       'paid': 'PAGO',
       'pending': 'PENDENTE',
       'failed': 'FALHOU',
       'refunded': 'REEMBOLSADO',
+      'overdue': 'EM ATRASO',
     };
 
     final statusColor =
-        statusColors[payment.status] ?? AdminThemeColors.of(context).muted;
+        statusColors[payment.effectiveStatus] ??
+        AdminThemeColors.of(context).muted;
     final statusLabel =
-        statusLabels[payment.status] ?? payment.status.toUpperCase();
+        statusLabels[payment.effectiveStatus] ?? payment.status.toUpperCase();
 
     if (isMobile) {
       return Container(
@@ -6837,6 +6852,225 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
     );
   }
 
+  Future<void> _showManualPaymentDialog() async {
+    final alunos = ref.read(alunosListProvider).asData?.value ?? <UserModel>[];
+    if (alunos.isEmpty) {
+      showAppNotification(
+        context,
+        'Nenhum aluno disponível.',
+        type: NotificationType.error,
+      );
+      return;
+    }
+    UserModel? aluno;
+    final valor = TextEditingController();
+    final descricao = TextEditingController(text: 'Mensalidade');
+    final inicio = TextEditingController();
+    final fim = TextEditingController();
+    final vencimento = TextEditingController();
+    String metodo = 'transferência';
+    XFile? comprovativo;
+    final data = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('Registar pagamento manual'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<UserModel>(
+                  initialValue: aluno,
+                  decoration: const InputDecoration(labelText: 'Aluno'),
+                  items: alunos
+                      .map(
+                        (a) => DropdownMenuItem(value: a, child: Text(a.nome)),
+                      )
+                      .toList(),
+                  onChanged: (v) => setState(() => aluno = v),
+                ),
+                TextField(
+                  controller: valor,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(labelText: 'Valor (€)'),
+                ),
+                TextField(
+                  controller: descricao,
+                  decoration: const InputDecoration(labelText: 'Descrição'),
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: metodo,
+                  decoration: const InputDecoration(labelText: 'Método'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'dinheiro',
+                      child: Text('Dinheiro'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'transferência',
+                      child: Text('Transferência'),
+                    ),
+                    DropdownMenuItem(value: 'outro', child: Text('Outro')),
+                  ],
+                  onChanged: (v) => setState(() => metodo = v ?? metodo),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      final picked = await ImagePicker().pickImage(
+                        source: ImageSource.gallery,
+                      );
+                      if (picked != null) {
+                        setState(() => comprovativo = picked);
+                      }
+                    },
+                    icon: const Icon(Icons.upload_file_outlined),
+                    label: Text(
+                      comprovativo == null
+                          ? 'Adicionar comprovativo *'
+                          : 'Comprovativo: ${comprovativo!.name}',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                TextField(
+                  controller: inicio,
+                  decoration: const InputDecoration(
+                    labelText: 'Início do período (AAAA-MM-DD)',
+                  ),
+                ),
+                TextField(
+                  controller: fim,
+                  decoration: const InputDecoration(
+                    labelText: 'Fim do período (AAAA-MM-DD)',
+                  ),
+                ),
+                TextField(
+                  controller: vencimento,
+                  decoration: const InputDecoration(
+                    labelText: 'Vencimento (AAAA-MM-DD)',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, {
+                'aluno': aluno,
+                'valor': valor.text,
+                'descricao': descricao.text,
+                'metodo': metodo,
+                'inicio': inicio.text,
+                'fim': fim.text,
+                'vencimento': vencimento.text,
+                'comprovativo': comprovativo,
+              }),
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    valor.dispose();
+    descricao.dispose();
+    inicio.dispose();
+    fim.dispose();
+    vencimento.dispose();
+    if (data == null || data['aluno'] == null) return;
+    final amount = double.tryParse(
+      (data['valor'] as String).replaceAll(',', '.'),
+    );
+    final proof = data['comprovativo'] as XFile?;
+    if (amount == null || amount <= 0) {
+      if (mounted)
+        showAppNotification(
+          context,
+          'Indica um valor válido.',
+          type: NotificationType.error,
+        );
+      return;
+    }
+    if (proof == null) {
+      if (mounted)
+        showAppNotification(
+          context,
+          'Adiciona o comprovativo do pagamento.',
+          type: NotificationType.error,
+        );
+      return;
+    }
+    DateTime? parse(String value) => DateTime.tryParse(value.trim());
+    final periodStart = parse(data['inicio'] as String);
+    final periodEnd = parse(data['fim'] as String);
+    final dueDate = parse(data['vencimento'] as String);
+    if (periodStart == null ||
+        periodEnd == null ||
+        dueDate == null ||
+        periodStart.isAfter(periodEnd)) {
+      if (mounted)
+        showAppNotification(
+          context,
+          'Indica um período e vencimento válidos (início até fim).',
+          type: NotificationType.error,
+        );
+      return;
+    }
+    try {
+      final studentId = (data['aluno'] as UserModel).uid;
+      final proofBytes = await proof.readAsBytes();
+      final proofExtension = proof.name.contains('.')
+          ? proof.name.split('.').last.toLowerCase()
+          : 'jpg';
+      final proofUrl = await ref
+          .read(storageDataSourceProvider)
+          .uploadImage(
+            path:
+                'payment_proofs/$studentId/${DateTime.now().microsecondsSinceEpoch}.$proofExtension',
+            fileBytes: proofBytes,
+            contentType: proof.mimeType ?? 'image/jpeg',
+          );
+      await ref.read(paymentRepositoryProvider).addManualPayment({
+        'userId': studentId,
+        'valor': amount,
+        'moeda': 'eur',
+        'status': 'paid',
+        'descricao': (data['descricao'] as String).trim().isEmpty
+            ? 'Mensalidade'
+            : (data['descricao'] as String).trim(),
+        'data': DateTime.now(),
+        'paidAt': DateTime.now(),
+        'metodo': data['metodo'],
+        'periodoInicio': periodStart,
+        'periodoFim': periodEnd,
+        'dataVencimento': dueDate,
+        'comprovativoUrl': proofUrl,
+      });
+      ref.invalidate(adminAllPaymentsProvider);
+      if (mounted)
+        showAppNotification(
+          context,
+          'Pagamento registado.',
+          type: NotificationType.success,
+        );
+    } catch (_) {
+      if (mounted)
+        showAppNotification(
+          context,
+          'Não foi possível guardar o pagamento.',
+          type: NotificationType.error,
+        );
+    }
+  }
+
   void _openInvoice(String url) {
     launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   }
@@ -6857,6 +7091,9 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
     UserModel? selectedAluno;
     final valorCtrl = TextEditingController();
     final descCtrl = TextEditingController(text: 'Mensalidade');
+    final inicioCtrl = TextEditingController();
+    final fimCtrl = TextEditingController();
+    final vencimentoCtrl = TextEditingController();
     bool loading = false;
     String? checkoutUrl;
 
@@ -6997,6 +7234,33 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                         ),
                       ),
                     ),
+                    TextField(
+                      controller: inicioCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Início do período (AAAA-MM-DD)',
+                      ),
+                      style: GoogleFonts.inter(
+                        color: AdminThemeColors.of(context).text,
+                      ),
+                    ),
+                    TextField(
+                      controller: fimCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Fim do período (AAAA-MM-DD)',
+                      ),
+                      style: GoogleFonts.inter(
+                        color: AdminThemeColors.of(context).text,
+                      ),
+                    ),
+                    TextField(
+                      controller: vencimentoCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Data de vencimento (AAAA-MM-DD)',
+                      ),
+                      style: GoogleFonts.inter(
+                        color: AdminThemeColors.of(context).text,
+                      ),
+                    ),
                     if (loading) ...[
                       const SizedBox(height: 16),
                       LinearProgressIndicator(
@@ -7036,6 +7300,13 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                             descricao: descCtrl.text.trim().isEmpty
                                 ? 'Mensalidade'
                                 : descCtrl.text.trim(),
+                            periodoInicio: DateTime.tryParse(
+                              inicioCtrl.text.trim(),
+                            ),
+                            periodoFim: DateTime.tryParse(fimCtrl.text.trim()),
+                            dataVencimento: DateTime.tryParse(
+                              vencimentoCtrl.text.trim(),
+                            ),
                           );
                           setDialogState(() {
                             loading = false;
@@ -7064,6 +7335,11 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
         ),
       ),
     );
+    valorCtrl.dispose();
+    descCtrl.dispose();
+    inicioCtrl.dispose();
+    fimCtrl.dispose();
+    vencimentoCtrl.dispose();
   }
 }
 

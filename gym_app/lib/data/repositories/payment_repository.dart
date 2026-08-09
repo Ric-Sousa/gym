@@ -8,7 +8,7 @@ class PaymentRepository {
   final FirestoreDataSource _firestore;
 
   PaymentRepository({required FirestoreDataSource firestoreDataSource})
-      : _firestore = firestoreDataSource;
+    : _firestore = firestoreDataSource;
 
   /// Cria uma sessão de checkout Stripe (admin) e guarda pagamento pendente.
   /// Retorna o URL da página de pagamento.
@@ -16,16 +16,22 @@ class PaymentRepository {
     required String userId,
     required double valor,
     String? descricao,
+    DateTime? periodoInicio,
+    DateTime? periodoFim,
+    DateTime? dataVencimento,
   }) async {
-    final fn = FirebaseFunctions.instanceFor(
-      region: 'europe-west1',
-    );
+    final fn = FirebaseFunctions.instanceFor(region: 'europe-west1');
     final callable = fn.httpsCallable('createCheckoutSession');
 
     final result = await callable.call<Map<String, dynamic>>({
       'userId': userId,
       'valor': valor,
       if (descricao != null) 'descricao': descricao,
+      if (periodoInicio != null)
+        'periodoInicio': periodoInicio.toIso8601String(),
+      if (periodoFim != null) 'periodoFim': periodoFim.toIso8601String(),
+      if (dataVencimento != null)
+        'dataVencimento': dataVencimento.toIso8601String(),
     });
 
     final url = result.data['url'] as String;
@@ -42,6 +48,14 @@ class PaymentRepository {
     return _firestore.getAllPayments();
   }
 
+  Future<void> addManualPayment(Map<String, dynamic> data) {
+    return _firestore.addPayment(data);
+  }
+
+  Future<void> updatePayment(String id, Map<String, dynamic> data) {
+    return _firestore.updatePayment(id, data);
+  }
+
   /// Stream de pagamentos de um utilizador.
   Stream<List<PaymentModel>> watchPayments(String userId) {
     return FirebaseFirestore.instance
@@ -49,7 +63,10 @@ class PaymentRepository {
         .where('userId', isEqualTo: userId)
         .orderBy('data', descending: true)
         .snapshots()
-        .map((snap) =>
-            snap.docs.map((doc) => PaymentModel.fromMap(doc.id, doc.data())).toList());
+        .map(
+          (snap) => snap.docs
+              .map((doc) => PaymentModel.fromMap(doc.id, doc.data()))
+              .toList(),
+        );
   }
 }

@@ -88,7 +88,10 @@ void main() {
     });
 
     test('ValidationException requer mensagem', () {
-      const ex = ValidationException(message: 'Campo obrigatório', field: 'nome');
+      const ex = ValidationException(
+        message: 'Campo obrigatório',
+        field: 'nome',
+      );
       expect(ex.message, 'Campo obrigatório');
       expect(ex.field, 'nome');
     });
@@ -206,7 +209,10 @@ void main() {
       expect(AppConstants.bmiCategories.containsKey('Sobrepeso'), true);
       expect(AppConstants.bmiCategories.containsKey('Obesidade Grau I'), true);
       expect(AppConstants.bmiCategories.containsKey('Obesidade Grau II'), true);
-      expect(AppConstants.bmiCategories.containsKey('Obesidade Grau III'), true);
+      expect(
+        AppConstants.bmiCategories.containsKey('Obesidade Grau III'),
+        true,
+      );
     });
 
     test('storage paths', () {

@@ -7,6 +7,7 @@ import '../../data/datasources/firestore_datasource.dart';
 import '../../data/datasources/storage_datasource.dart';
 import '../../data/models/booking_model.dart';
 import '../../data/models/payment_model.dart';
+import '../../data/repositories/progress_video_repository.dart';
 import '../../data/models/message_model.dart';
 import '../../data/models/user_model.dart';
 import '../../data/repositories/auth_repository.dart';
@@ -74,6 +75,7 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(
     authDataSource: ref.watch(authDataSourceProvider),
     connectivityService: ref.watch(connectivityServiceProvider),
+    paymentRepository: ref.watch(paymentRepositoryProvider),
   );
 });
 
@@ -119,6 +121,15 @@ final progressRepositoryProvider = Provider<ProgressRepository>((ref) {
 final workoutLogRepositoryProvider = Provider<WorkoutLogRepository>((ref) {
   return WorkoutLogRepository(
     firestoreDataSource: ref.watch(firestoreDataSourceProvider),
+  );
+});
+
+final progressVideoRepositoryProvider = Provider<ProgressVideoRepository>((
+  ref,
+) {
+  return ProgressVideoRepository(
+    firestore: ref.watch(firestoreDataSourceProvider),
+    storage: ref.watch(storageDataSourceProvider),
   );
 });
 

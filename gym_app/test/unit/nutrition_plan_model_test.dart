@@ -125,7 +125,12 @@ void main() {
         'instrucoes': 'Comer devagar',
         'alimentos': [
           {'nome': 'Arroz', 'quantidade': '150g', 'calorias': 195.0},
-          {'nome': 'Frango', 'quantidade': '200g', 'calorias': 330.0, 'proteinas': 62.0},
+          {
+            'nome': 'Frango',
+            'quantidade': '200g',
+            'calorias': 330.0,
+            'proteinas': 62.0,
+          },
         ],
       };
 

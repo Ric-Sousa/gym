@@ -48,8 +48,11 @@ service cloud.firestore {
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'nome', 'pesoAtual', 'altura', 'fotoPerfil', 'genero',
           'notificationSound', 'soundEnabled', 'ultimaAtividade',
-          'hasPendingProgress', 'progressRequestedAt', 'fcmToken'
-        ])
+          'hasPendingProgress', 'progressRequestedAt', 'fcmToken',
+          'privacyPolicyAcceptedAt', 'privacyPolicyVersion'
+        ]) &&
+        request.resource.data.get('privacyPolicyVersion', '') == 'privacy-2026-08-draft' &&
+        request.resource.data.get('privacyPolicyAcceptedAt', request.time) <= request.time
       );
       allow create: if isAdmin();
 
@@ -78,6 +81,23 @@ service cloud.firestore {
       // ── WORKOUT LOGS subcollection ─────────────────
       match /workoutLogs/{date} {
         allow read, write: if isAdmin() || isActiveOwner(uid);
+      }
+
+      // ── PROGRESS VIDEOS subcollection ────────────
+      match /progressVideos/{videoId} {
+        allow read: if isAdmin() || isActiveOwner(uid);
+        // O aluno só pode criar um vídeo pendente para a própria conta.
+        // O admin pode criar vídeos para qualquer aluno, mas a aprovação é
+        // sempre controlada pelo admin no update.
+        allow create: if isAdmin() || (
+          isActiveOwner(uid) &&
+          request.resource.data.get('userId', uid) == uid &&
+          request.resource.data.get('uploadedBy', '') == request.auth.uid &&
+          request.resource.data.get('status', 'pending') == 'pending'
+        );
+        // O aluno pode editar apenas os dados do seu próprio upload, sem
+        // alterar aprovação, feedback ou autoria. O admin revê o vídeo.
+        allow update: if isAdmin();
       }
 
       // ── PROGRESS subcollection ───────────────────

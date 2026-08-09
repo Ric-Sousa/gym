@@ -7,7 +7,7 @@ class StorageDataSource {
   final FirebaseStorage _storage;
 
   StorageDataSource({FirebaseStorage? storage})
-      : _storage = storage ?? FirebaseStorage.instance;
+    : _storage = storage ?? FirebaseStorage.instance;
 
   /// Faz upload de uma imagem e retorna a URL.
   Future<String> uploadImage({
@@ -17,7 +17,9 @@ class StorageDataSource {
   }) async {
     try {
       final ref = _storage.ref().child(path);
-      final metadata = SettableMetadata(contentType: contentType ?? 'image/jpeg');
+      final metadata = SettableMetadata(
+        contentType: contentType ?? 'image/jpeg',
+      );
       await ref.putData(fileBytes, metadata);
       return await ref.getDownloadURL();
     } on FirebaseException catch (e) {
@@ -47,7 +49,8 @@ class StorageDataSource {
       return await _storage.ref().child(path).getDownloadURL();
     } on FirebaseException catch (e) {
       throw ServerException(
-          message: e.message ?? 'Erro ao obter URL de download');
+        message: e.message ?? 'Erro ao obter URL de download',
+      );
     }
   }
 

@@ -28,9 +28,15 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       // Should render more than just an empty scaffold
-      final totalWidgets = find.byWidgetPredicate((_) => true).evaluate().length;
-      expect(totalWidgets, greaterThan(5),
-          reason: 'Profile screen should render multiple widgets');
+      final totalWidgets = find
+          .byWidgetPredicate((_) => true)
+          .evaluate()
+          .length;
+      expect(
+        totalWidgets,
+        greaterThan(5),
+        reason: 'Profile screen should render multiple widgets',
+      );
     });
   });
 }

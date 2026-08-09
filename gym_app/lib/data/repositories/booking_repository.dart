@@ -6,7 +6,7 @@ class BookingRepository {
   final FirestoreDataSource _firestore;
 
   BookingRepository({required FirestoreDataSource firestoreDataSource})
-      : _firestore = firestoreDataSource;
+    : _firestore = firestoreDataSource;
 
   /// Marcações do aluno.
   Future<List<BookingModel>> getStudentBookings(String studentId) {

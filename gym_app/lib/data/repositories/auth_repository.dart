@@ -4,17 +4,21 @@ import '../../core/errors/failures.dart';
 import '../../core/utils/connectivity_service.dart';
 import '../datasources/auth_datasource.dart';
 import '../models/user_model.dart';
+import 'payment_repository.dart';
 
 /// Repository de autenticação.
 class AuthRepository {
   final AuthDataSource _authDataSource;
   final ConnectivityService _connectivityService;
+  final PaymentRepository _paymentRepository;
 
   AuthRepository({
     required AuthDataSource authDataSource,
     required ConnectivityService connectivityService,
+    required PaymentRepository paymentRepository,
   }) : _authDataSource = authDataSource,
-       _connectivityService = connectivityService;
+       _connectivityService = connectivityService,
+       _paymentRepository = paymentRepository;
 
   User? get currentUser => _authDataSource.currentUser;
   Stream<User?> get authStateChanges => _authDataSource.authStateChanges;
@@ -49,11 +53,14 @@ class AuthRepository {
         uid,
         userDoc.data()! as Map<String, dynamic>,
       );
-      if (!userModel.isAccessAllowed) {
+      if (!userModel.isAccessAllowed ||
+          await _hasOverduePayment(userModel.uid)) {
         await _authDataSource.signOut();
         throw AuthFailure(
           message: userModel.accessStatus == 'Contrato terminado'
               ? 'O teu contrato terminou. Contacta o administrador.'
+              : await _hasOverduePayment(userModel.uid)
+              ? 'Existe uma mensalidade em atraso. Contacta o administrador.'
               : 'O teu perfil está inativo. Contacta o administrador.',
           code: 'account-inactive',
         );
@@ -80,15 +87,28 @@ class AuthRepository {
       user.uid,
       userDoc.data()! as Map<String, dynamic>,
     );
-    if (!userModel.isAccessAllowed) {
+    if (!userModel.isAccessAllowed || await _hasOverduePayment(userModel.uid)) {
       throw AuthFailure(
         message: userModel.accessStatus == 'Contrato terminado'
             ? 'O teu contrato terminou. Contacta o administrador.'
+            : await _hasOverduePayment(userModel.uid)
+            ? 'Existe uma mensalidade em atraso. Contacta o administrador.'
             : 'O teu perfil está inativo. Contacta o administrador.',
         code: 'account-inactive',
       );
     }
     return userModel;
+  }
+
+  Future<bool> _hasOverduePayment(String userId) async {
+    try {
+      final payments = await _paymentRepository.getPayments(userId);
+      return payments.any((payment) => payment.isOverdue);
+    } catch (_) {
+      // Sem conseguir confirmar o estado financeiro, falha fechada:
+      // o acesso não deve ser concedido com informação incompleta.
+      return true;
+    }
   }
 
   /// Termina sessão.

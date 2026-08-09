@@ -25,8 +25,8 @@ class FCMService {
   FCMService({
     FirebaseMessaging? messaging,
     required UserRepository userRepository,
-  })  : _messaging = messaging ?? FirebaseMessaging.instance,
-        _userRepository = userRepository;
+  }) : _messaging = messaging ?? FirebaseMessaging.instance,
+       _userRepository = userRepository;
 
   /// Inicializa o serviço FCM para um utilizador específico.
   Future<void> initialize(String userId) async {
@@ -40,7 +40,9 @@ class FCMService {
     await _registerToken(userId);
 
     // 3. Escutar refresh de tokens
-    _tokenRefreshSubscription = _messaging.onTokenRefresh.listen((newToken) async {
+    _tokenRefreshSubscription = _messaging.onTokenRefresh.listen((
+      newToken,
+    ) async {
       await _saveToken(userId, newToken);
     });
 
@@ -107,7 +109,10 @@ class FCMService {
   }
 
   /// Mostra uma notificação local quando a app está em foreground.
-  static void showLocalNotification(BuildContext context, RemoteMessage message) {
+  static void showLocalNotification(
+    BuildContext context,
+    RemoteMessage message,
+  ) {
     final notification = message.notification;
     if (notification == null) return;
 

@@ -198,11 +198,11 @@ final stableAlunoGroupNotificationProvider =
 
       start = () {
         if (disposed) return;
-    groupsSubscription?.cancel();
-    cancelChildren();
-    initialGroupIds.clear();
-    seenIdsByGroup.clear();
-    groupsInitial = true;
+        groupsSubscription?.cancel();
+        cancelChildren();
+        initialGroupIds.clear();
+        seenIdsByGroup.clear();
+        groupsInitial = true;
         groupsSubscription = firestore
             .collection(AppConstants.groupsCollection)
             .where('membros', arrayContains: userId)

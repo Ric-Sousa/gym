@@ -32,7 +32,8 @@ class ProgressModel {
     // cast direto para List<String>/Map<String, String>: documentos antigos
     // podem conter nulls ou valores não-string e isso faria todo o histórico
     // falhar antes de o resolver conseguir aproveitar as fotos válidas.
-    final fotos = (map['fotos'] as List?)
+    final fotos =
+        (map['fotos'] as List?)
             ?.map((value) => value is String ? value : '')
             .toList() ??
         <String>[];

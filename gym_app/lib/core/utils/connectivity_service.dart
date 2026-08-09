@@ -10,7 +10,9 @@ class ConnectivityService {
 
   ConnectivityService() {
     _connectivity.onConnectivityChanged.listen((results) {
-      final isConnected = results.any((result) => result != ConnectivityResult.none);
+      final isConnected = results.any(
+        (result) => result != ConnectivityResult.none,
+      );
       _controller.add(isConnected);
     });
   }

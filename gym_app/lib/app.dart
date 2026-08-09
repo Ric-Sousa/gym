@@ -6,6 +6,7 @@ import 'core/config/app_strings.dart';
 import 'core/config/admin_theme.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
+import 'features/auth/screens/privacy_policy_screen.dart';
 import 'features/aluno/home/screens/aluno_home_screen.dart';
 import 'features/aluno/nutricao/screens/nutrition_screen.dart';
 import 'features/aluno/treino/screens/workout_screen.dart';
@@ -271,6 +272,9 @@ class PersonalFitApp extends ConsumerWidget {
       case AuthStatus.authenticated:
         if (authState.isAdmin) {
           return const AdminPanelScreen();
+        }
+        if (authState.needsPrivacyPolicy) {
+          return PrivacyPolicyScreen(user: authState.user!);
         }
         return const _AlunoShell();
       case AuthStatus.unauthenticated:

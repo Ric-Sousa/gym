@@ -86,7 +86,9 @@ void main() {
       expect(find.textContaining('obrigatório'), findsWidgets);
     });
 
-    testWidgets('shows email validation error for invalid email', (tester) async {
+    testWidgets('shows email validation error for invalid email', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrapLogin(unauthenticatedState));
       await tester.pump();
 
@@ -98,12 +100,17 @@ void main() {
       expect(find.textContaining('inválido'), findsOneWidget);
     });
 
-    testWidgets('shows password validation error for short password', (tester) async {
+    testWidgets('shows password validation error for short password', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrapLogin(unauthenticatedState));
       await tester.pump();
 
       // Enter valid email but short password
-      await tester.enterText(find.byType(TextFormField).first, 'joao@email.com');
+      await tester.enterText(
+        find.byType(TextFormField).first,
+        'joao@email.com',
+      );
       await tester.enterText(find.byType(TextFormField).last, '123');
       await tester.tap(find.text(AppStrings.login));
       await tester.pump();
@@ -113,7 +120,9 @@ void main() {
 
     // ── Error State ──────────────────────────────
 
-    testWidgets('shows error message when auth state has error', (tester) async {
+    testWidgets('shows error message when auth state has error', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrapLogin(errorState));
       await tester.pump();
 
