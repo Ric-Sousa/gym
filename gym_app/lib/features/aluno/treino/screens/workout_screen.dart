@@ -253,6 +253,29 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     });
   }
 
+  void _closeWorkoutExecution() {
+    _restTimer?.cancel();
+    for (final controller in _cargaControllers.values) {
+      controller.dispose();
+    }
+    for (final controller in _repControllers.values) {
+      controller.dispose();
+    }
+    _cargaControllers.clear();
+    _repControllers.clear();
+    if (!mounted) return;
+    setState(() {
+      _isResting = false;
+      _restSecondsRemaining = 0;
+      _restingExercise = null;
+      _restMode = 'DESCANSO';
+      _selectedWorkoutDay = null;
+      _activeLog = null;
+      _initialized = false;
+      _expandedExercises.clear();
+    });
+  }
+
   Future<void> _completeWorkout({bool readOnly = false}) async {
     if (readOnly) return;
     final userId = ref.read(authProvider).user?.uid ?? '';
@@ -277,8 +300,10 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
         'completedAt': DateTime.now().toIso8601String(),
         'exercisesDone': true,
       });
+      ref.invalidate(todayWorkoutLogProvider(userId));
 
       if (mounted) {
+        _closeWorkoutExecution();
         showAppNotification(
           context,
           'Treino concluído! 💪🔥',
@@ -1924,9 +1949,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                         serie.repeticoes?.toString(),
                       );
                       return Dismissible(
-                        key: ValueKey(
-                          '${exerciseKey}_serie_${serie.numero}',
-                        ),
+                        key: ValueKey('${exerciseKey}_serie_${serie.numero}'),
                         direction: serie.adicionadaManualmente && !readOnly
                             ? DismissDirection.endToStart
                             : DismissDirection.none,
