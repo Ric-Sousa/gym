@@ -1925,7 +1925,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                       );
                       return Dismissible(
                         key: ValueKey(
-                          '${exerciseLog.nome}_serie_${serie.numero}',
+                          '${exerciseKey}_serie_${serie.numero}',
                         ),
                         direction: serie.adicionadaManualmente && !readOnly
                             ? DismissDirection.endToStart
