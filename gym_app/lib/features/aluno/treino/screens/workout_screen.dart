@@ -1582,15 +1582,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     });
   }
 
-  Future<void> _removeSerie(
-    ExerciseLog exercise,
-    int serieIdx, {
-    bool readOnly = false,
-  }) async {
-    if (readOnly || serieIdx < 0 || serieIdx >= exercise.series.length) return;
-    final serie = exercise.series[serieIdx];
-    if (!serie.adicionadaManualmente) return;
-
+  Future<bool> _confirmRemoveSerie(SerieLog serie) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -1610,7 +1602,20 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
         ],
       ),
     );
-    if (confirmed != true || !mounted) return;
+    return confirmed == true;
+  }
+
+  Future<void> _removeSerie(
+    ExerciseLog exercise,
+    int serieIdx, {
+    bool readOnly = false,
+    bool confirmed = false,
+  }) async {
+    if (readOnly || serieIdx < 0 || serieIdx >= exercise.series.length) return;
+    final serie = exercise.series[serieIdx];
+    if (!serie.adicionadaManualmente) return;
+    if (!confirmed && !await _confirmRemoveSerie(serie)) return;
+    if (!mounted) return;
 
     final activeLog = _activeLog;
     if (activeLog == null) return;
@@ -1918,136 +1923,152 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                         'rep',
                         serie.repeticoes?.toString(),
                       );
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 5),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: isMobile ? 36 : 42,
-                              height: 36,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: serie.concluida
-                                    ? AppColors.success.withValues(alpha: 0.16)
-                                    : AppColors.surfaceHigh,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: serie.concluida
-                                      ? AppColors.success
-                                      : AppColors.outlineVariant,
-                                ),
-                              ),
-                              child: Text(
-                                'S${serie.numero}',
-                                style: GoogleFonts.inter(
-                                  color: serie.concluida
-                                      ? AppColors.success
-                                      : AppColors.textSecondary,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
+                      return Dismissible(
+                        key: ValueKey(
+                          '${exerciseLog.nome}_serie_${serie.numero}',
+                        ),
+                        direction: serie.adicionadaManualmente && !readOnly
+                            ? DismissDirection.endToStart
+                            : DismissDirection.none,
+                        background: Container(
+                          margin: const EdgeInsets.only(bottom: 5),
+                          padding: const EdgeInsets.only(right: 18),
+                          alignment: Alignment.centerRight,
+                          decoration: BoxDecoration(
+                            color: AppColors.error.withValues(alpha: 0.9),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'Eliminar',
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _referenceInput(
-                                controller: repCtrl,
-                                label: 'Repetições',
-                                keyboardType: TextInputType.number,
-                                readOnly: readOnly,
-                                onChanged: (value) => _updateSerieData(
-                                  exerciseLog,
-                                  serieIdx,
-                                  'rep',
-                                  value,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _referenceInput(
-                                controller: cargaCtrl,
-                                label: 'Carga',
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
-                                readOnly: readOnly,
-                                onChanged: (value) => _updateSerieData(
-                                  exerciseLog,
-                                  serieIdx,
-                                  'carga',
-                                  value,
-                                ),
-                              ),
-                            ),
-                            if (serie.adicionadaManualmente)
-                              IconButton(
-                                onPressed: readOnly
-                                    ? null
-                                    : () => _removeSerie(
-                                        exerciseLog,
-                                        serieIdx,
-                                        readOnly: readOnly,
-                                      ),
-                                icon: const Icon(Icons.delete_outline_rounded),
-                                tooltip:
-                                    'Eliminar série adicionada manualmente',
-                                color: AppColors.error,
-                                iconSize: 19,
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints.tightFor(
-                                  width: 34,
-                                  height: 34,
-                                ),
-                              )
-                            else
-                              const SizedBox(width: 34),
-                            const SizedBox(width: 6),
-                            GestureDetector(
-                              onTap: readOnly
-                                  ? null
-                                  : () => _toggleSerie(
-                                      exerciseLog,
-                                      serieIdx,
-                                      readOnly: readOnly,
-                                    ),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 180),
-                                width: 34,
-                                height: 34,
+                          ),
+                        ),
+                        confirmDismiss: (_) async {
+                          if (!serie.adicionadaManualmente || readOnly) {
+                            return false;
+                          }
+                          return _confirmRemoveSerie(serie);
+                        },
+                        onDismissed: (_) => _removeSerie(
+                          exerciseLog,
+                          serieIdx,
+                          readOnly: readOnly,
+                          confirmed: true,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 5),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: isMobile ? 36 : 42,
+                                height: 36,
+                                alignment: Alignment.center,
                                 decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
                                   color: serie.concluida
-                                      ? AppColors.success
+                                      ? AppColors.success.withValues(
+                                          alpha: 0.16,
+                                        )
                                       : AppColors.surfaceHigh,
+                                  shape: BoxShape.circle,
                                   border: Border.all(
                                     color: serie.concluida
                                         ? AppColors.success
                                         : AppColors.outlineVariant,
-                                    width: 1.5,
                                   ),
-                                  boxShadow: serie.concluida
-                                      ? [
-                                          BoxShadow(
-                                            color: AppColors.success.withValues(
-                                              alpha: 0.22,
+                                ),
+                                child: Text(
+                                  'S${serie.numero}',
+                                  style: GoogleFonts.inter(
+                                    color: serie.concluida
+                                        ? AppColors.success
+                                        : AppColors.textSecondary,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _referenceInput(
+                                  controller: repCtrl,
+                                  label: 'Repetições',
+                                  keyboardType: TextInputType.number,
+                                  readOnly: readOnly,
+                                  onChanged: (value) => _updateSerieData(
+                                    exerciseLog,
+                                    serieIdx,
+                                    'rep',
+                                    value,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _referenceInput(
+                                  controller: cargaCtrl,
+                                  label: 'Carga',
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  readOnly: readOnly,
+                                  onChanged: (value) => _updateSerieData(
+                                    exerciseLog,
+                                    serieIdx,
+                                    'carga',
+                                    value,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              GestureDetector(
+                                onTap: readOnly
+                                    ? null
+                                    : () => _toggleSerie(
+                                        exerciseLog,
+                                        serieIdx,
+                                        readOnly: readOnly,
+                                      ),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  width: 34,
+                                  height: 34,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: serie.concluida
+                                        ? AppColors.success
+                                        : AppColors.surfaceHigh,
+                                    border: Border.all(
+                                      color: serie.concluida
+                                          ? AppColors.success
+                                          : AppColors.outlineVariant,
+                                      width: 1.5,
+                                    ),
+                                    boxShadow: serie.concluida
+                                        ? [
+                                            BoxShadow(
+                                              color: AppColors.success
+                                                  .withValues(alpha: 0.22),
+                                              blurRadius: 8,
                                             ),
-                                            blurRadius: 8,
-                                          ),
-                                        ]
+                                          ]
+                                        : null,
+                                  ),
+                                  child: serie.concluida
+                                      ? const Icon(
+                                          Icons.check,
+                                          size: 15,
+                                          color: Colors.white,
+                                        )
                                       : null,
                                 ),
-                                child: serie.concluida
-                                    ? const Icon(
-                                        Icons.check,
-                                        size: 15,
-                                        color: Colors.white,
-                                      )
-                                    : null,
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       );
                     }),
