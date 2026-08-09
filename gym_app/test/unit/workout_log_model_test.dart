@@ -19,6 +19,13 @@ void main() {
       });
     });
 
+    test('preserva a marca de série adicionada manualmente', () {
+      const serie = SerieLog(numero: 4, adicionadaManualmente: true);
+
+      expect(serie.toMap()['adicionadaManualmente'], true);
+      expect(SerieLog.fromMap(serie.toMap()).adicionadaManualmente, isTrue);
+    });
+
     test('lê carga e repetições guardadas', () {
       final serie = SerieLog.fromMap({
         'numero': 2,

@@ -1569,6 +1569,51 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     });
   }
 
+  Future<void> _removeSerie(
+    ExerciseLog exercise,
+    int serieIdx, {
+    bool readOnly = false,
+  }) async {
+    if (readOnly || serieIdx < 0 || serieIdx >= exercise.series.length) return;
+    final serie = exercise.series[serieIdx];
+    if (!serie.adicionadaManualmente) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Eliminar série?'),
+        content: Text(
+          'A série S${serie.numero} adicionada manualmente será eliminada.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final updatedExercises = _activeLog!.exercicios.toList();
+    final exIdx = updatedExercises.indexOf(exercise);
+    if (exIdx < 0) return;
+    final updatedSeries = exercise.series.toList()..removeAt(serieIdx);
+    updatedExercises[exIdx] = ExerciseLog(
+      nome: exercise.nome,
+      grupoMuscular: exercise.grupoMuscular,
+      series: updatedSeries,
+    );
+    setState(() {
+      _activeLog = _activeLog!.copyWith(exercicios: updatedExercises);
+    });
+    _saveLog();
+  }
+
   void _addSerie(ExerciseLog exercise, {bool readOnly = false}) {
     if (readOnly) return;
     final updatedExercises = _activeLog!.exercicios.toList();
@@ -1584,7 +1629,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       grupoMuscular: exercise.grupoMuscular,
       series: [
         ...exercise.series,
-        SerieLog(numero: nextNumber),
+        SerieLog(numero: nextNumber, adicionadaManualmente: true),
       ],
     );
     setState(() {
@@ -1911,6 +1956,28 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                                 ),
                               ),
                             ),
+                            if (serie.adicionadaManualmente)
+                              IconButton(
+                                onPressed: readOnly
+                                    ? null
+                                    : () => _removeSerie(
+                                        exerciseLog,
+                                        serieIdx,
+                                        readOnly: readOnly,
+                                      ),
+                                icon: const Icon(Icons.delete_outline_rounded),
+                                tooltip:
+                                    'Eliminar série adicionada manualmente',
+                                color: AppColors.error,
+                                iconSize: 19,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints.tightFor(
+                                  width: 34,
+                                  height: 34,
+                                ),
+                              )
+                            else
+                              const SizedBox(width: 34),
                             const SizedBox(width: 6),
                             GestureDetector(
                               onTap: readOnly

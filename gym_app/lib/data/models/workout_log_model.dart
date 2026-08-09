@@ -5,11 +5,15 @@ class SerieLog {
   final int? repeticoes;
   final bool concluida;
 
+  /// True quando a série foi acrescentada pelo aluno durante o treino.
+  final bool adicionadaManualmente;
+
   const SerieLog({
     required this.numero,
     this.carga,
     this.repeticoes,
     this.concluida = false,
+    this.adicionadaManualmente = false,
   });
 
   factory SerieLog.fromMap(Map<String, dynamic> map) {
@@ -18,6 +22,7 @@ class SerieLog {
       carga: (map['carga'] as num?)?.toDouble(),
       repeticoes: (map['repeticoes'] as num?)?.toInt(),
       concluida: map['concluida'] as bool? ?? false,
+      adicionadaManualmente: map['adicionadaManualmente'] as bool? ?? false,
     );
   }
 
@@ -27,6 +32,7 @@ class SerieLog {
       if (carga != null) 'carga': carga,
       if (repeticoes != null) 'repeticoes': repeticoes,
       'concluida': concluida,
+      if (adicionadaManualmente) 'adicionadaManualmente': true,
     };
   }
 
@@ -35,6 +41,7 @@ class SerieLog {
     double? carga,
     int? repeticoes,
     bool? concluida,
+    bool? adicionadaManualmente,
     bool clearCarga = false,
     bool clearRepeticoes = false,
   }) {
@@ -43,6 +50,8 @@ class SerieLog {
       carga: clearCarga ? null : (carga ?? this.carga),
       repeticoes: clearRepeticoes ? null : (repeticoes ?? this.repeticoes),
       concluida: concluida ?? this.concluida,
+      adicionadaManualmente:
+          adicionadaManualmente ?? this.adicionadaManualmente,
     );
   }
 }
