@@ -3,13 +3,19 @@ import '../../core/errors/failures.dart';
 import '../datasources/firestore_datasource.dart';
 import '../models/nutrition_plan_model.dart';
 import '../models/food_model.dart';
+import '../datasources/open_food_facts_datasource.dart';
 
 /// Repository para planos nutricionais e alimentos.
 class NutritionRepository {
   final FirestoreDataSource _firestoreDataSource;
+  final OpenFoodFactsDataSource _openFoodFactsDataSource;
 
-  NutritionRepository({required FirestoreDataSource firestoreDataSource})
-      : _firestoreDataSource = firestoreDataSource;
+  NutritionRepository({
+    required FirestoreDataSource firestoreDataSource,
+    OpenFoodFactsDataSource? openFoodFactsDataSource,
+  }) : _firestoreDataSource = firestoreDataSource,
+       _openFoodFactsDataSource =
+           openFoodFactsDataSource ?? OpenFoodFactsDataSource();
 
   /// Obtém o plano nutricional para um dia da semana.
   Future<NutritionPlanModel?> getPlan(String userId, String diaSemana) async {
@@ -22,7 +28,10 @@ class NutritionRepository {
 
   /// Guarda/atualiza plano nutricional.
   Future<void> savePlan(
-      String userId, String diaSemana, Map<String, dynamic> data) async {
+    String userId,
+    String diaSemana,
+    Map<String, dynamic> data,
+  ) async {
     try {
       await _firestoreDataSource.setNutritionPlan(userId, diaSemana, data);
     } on ServerException catch (e) {
@@ -41,12 +50,25 @@ class NutritionRepository {
 
   /// Pesquisa alimentos.
   Future<List<FoodModel>> searchFoods(String query) async {
+    List<FoodModel> localFoods = [];
     try {
-      return await _firestoreDataSource.searchFoods(query);
-    } on ServerException catch (e) {
-      throw ServerFailure(message: e.message);
+      localFoods = await _firestoreDataSource.searchFoods(query);
+    } on ServerException catch (_) {
+      // A API externa ainda pode fornecer resultados se o Firestore falhar.
     }
+
+    final externalFoods = await _openFoodFactsDataSource.searchFoods(query);
+    final names = localFoods.map(_normaliseName).toSet();
+    final merged = [...localFoods];
+
+    for (final food in externalFoods) {
+      if (names.add(_normaliseName(food))) merged.add(food);
+    }
+    return merged;
   }
+
+  static String _normaliseName(FoodModel food) =>
+      food.nome.trim().toLowerCase();
 
   /// Adiciona alimento à base de dados.
   Future<void> addFood(Map<String, dynamic> data) async {

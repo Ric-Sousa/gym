@@ -7,6 +7,7 @@ class FoodModel {
   final double? hidratosPor100g;
   final double? gordurasPor100g;
   final String? categoria; // 'proteína', 'hidrato', 'gordura', 'vegetal', etc.
+  final String? origem;
 
   const FoodModel({
     this.id = '',
@@ -16,6 +17,7 @@ class FoodModel {
     this.hidratosPor100g,
     this.gordurasPor100g,
     this.categoria,
+    this.origem,
   });
 
   factory FoodModel.fromMap(String id, Map<String, dynamic> map) {
@@ -27,6 +29,7 @@ class FoodModel {
       hidratosPor100g: (map['hidratosPor100g'] as num?)?.toDouble(),
       gordurasPor100g: (map['gordurasPor100g'] as num?)?.toDouble(),
       categoria: map['categoria'] as String?,
+      origem: map['origem'] as String?,
     );
   }
 
@@ -38,6 +41,7 @@ class FoodModel {
       if (hidratosPor100g != null) 'hidratosPor100g': hidratosPor100g,
       if (gordurasPor100g != null) 'gordurasPor100g': gordurasPor100g,
       if (categoria != null) 'categoria': categoria,
+      if (origem != null) 'origem': origem,
     };
   }
 
@@ -54,6 +58,7 @@ class FoodModel {
     double? hidratosPor100g,
     double? gordurasPor100g,
     String? categoria,
+    String? origem,
   }) {
     return FoodModel(
       id: id ?? this.id,
@@ -63,6 +68,7 @@ class FoodModel {
       hidratosPor100g: hidratosPor100g ?? this.hidratosPor100g,
       gordurasPor100g: gordurasPor100g ?? this.gordurasPor100g,
       categoria: categoria ?? this.categoria,
+      origem: origem ?? this.origem,
     );
   }
 }
