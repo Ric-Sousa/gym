@@ -56,6 +56,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
   String? _restingExercise;
   String _restMode = 'DESCANSO';
   bool _saving = false;
+  bool _saveQueued = false;
   bool _initialized = false;
   String? _selectedWorkoutDay;
   bool _showPlanDetails = false;
@@ -114,19 +115,34 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
   }
 
   Future<void> _saveLog({bool readOnly = false}) async {
-    if (readOnly || _activeLog == null || _saving) return;
-    _saving = true;
-    final userId = ref.read(authProvider).user?.uid ?? '';
-    final dateKey = DateFormat(
-      AppConstants.workoutLogDateFormat,
-    ).format(_activeLog!.data);
-    try {
-      await ref
-          .read(workoutLogRepositoryProvider)
-          .saveLog(userId, dateKey, _activeLog!.toMap());
-    } catch (_) {
-      // Silently fail auto-save
+    if (readOnly || _activeLog == null) return;
+
+    // A escrita da primeira tecla pode ainda estar em curso quando o aluno
+    // introduz a segunda. Em vez de ignorar essa alteração enquanto `_saving`
+    // está true, agenda uma nova escrita com o estado mais recente.
+    if (_saving) {
+      _saveQueued = true;
+      return;
     }
+
+    _saving = true;
+    do {
+      _saveQueued = false;
+      final log = _activeLog;
+      if (log == null) break;
+
+      final userId = ref.read(authProvider).user?.uid ?? '';
+      final dateKey = DateFormat(
+        AppConstants.workoutLogDateFormat,
+      ).format(log.data);
+      try {
+        await ref
+            .read(workoutLogRepositoryProvider)
+            .saveLog(userId, dateKey, log.toMap());
+      } catch (_) {
+        // Silently fail auto-save; the next edit will retry the latest state.
+      }
+    } while (_saveQueued && mounted);
     _saving = false;
   }
 
@@ -753,7 +769,18 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     }
     key = key.replaceAll(RegExp(r'[-_\\s]+'), '');
     if (key.endsWith('feira')) key = key.substring(0, key.length - 5);
-    return key;
+
+    // Aceita também abreviaturas que podem existir em planos antigos.
+    const aliases = {
+      'seg': 'segunda',
+      'ter': 'terca',
+      'qua': 'quarta',
+      'qui': 'quinta',
+      'sex': 'sexta',
+      'sab': 'sabado',
+      'dom': 'domingo',
+    };
+    return aliases[key] ?? key;
   }
 
   Exercise? _plannedExerciseForLog(
@@ -2212,6 +2239,12 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
           ),
         ),
         onChanged: onChanged,
+        onEditingComplete: () {
+          // Garante que o último valor introduzido é persistido mesmo quando
+          // o aluno fecha o teclado sem alterar outra série.
+          _saveLog(readOnly: readOnly);
+          FocusManager.instance.primaryFocus?.unfocus();
+        },
       ),
     );
   }
