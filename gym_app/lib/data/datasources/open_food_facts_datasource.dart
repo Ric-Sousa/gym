@@ -1,26 +1,23 @@
 import 'dart:async';
-import 'dart:convert';
 
-import 'package:http/http.dart' as http;
+import 'package:cloud_functions/cloud_functions.dart';
 
 import '../models/food_model.dart';
 
 /// Cliente de pesquisa da base pública Open Food Facts.
 ///
-/// A pesquisa é feita no endpoint português e não altera a base Firestore.
-/// Os resultados são usados apenas como sugestões para o aluno.
+/// A chamada passa pela Cloud Function para evitar CORS no Flutter Web e para
+/// manter o User-Agent da integração no servidor.
 class OpenFoodFactsDataSource {
-  static const _baseUrl = 'https://pt.openfoodfacts.org/cgi/search.pl';
-  static const _userAgent = 'GymApp/1.0 (https://github.com/Ric-Sousa/gym)';
   static const _cacheDuration = Duration(minutes: 10);
 
-  final http.Client _client;
+  final FirebaseFunctions _functions;
   final Map<String, _CachedFoodSearch> _cache = {};
-  DateTime? _lastRequestAt;
   Future<void> _requestQueue = Future<void>.value();
 
-  OpenFoodFactsDataSource({http.Client? client})
-    : _client = client ?? http.Client();
+  OpenFoodFactsDataSource({FirebaseFunctions? functions})
+    : _functions =
+          functions ?? FirebaseFunctions.instanceFor(region: 'europe-west1');
 
   /// Pesquisa produtos com nome disponível em português.
   ///
@@ -50,39 +47,11 @@ class OpenFoodFactsDataSource {
         return cachedAfterQueue.foods;
       }
 
-      final lastRequestAt = _lastRequestAt;
-      if (lastRequestAt != null) {
-        final elapsed = DateTime.now().difference(lastRequestAt);
-        if (elapsed < const Duration(seconds: 6)) {
-          await Future<void>.delayed(const Duration(seconds: 6) - elapsed);
-        }
-      }
-      _lastRequestAt = DateTime.now();
-
-      final uri = Uri.parse(_baseUrl).replace(
-        queryParameters: {
-          'search_terms': trimmedQuery,
-          'search_simple': '1',
-          'action': 'process',
-          'json': '1',
-          'page_size': '20',
-          'lc': 'pt',
-          'fields':
-              'code,product_name,product_name_pt,languages_codes,nutriments,categories_tags_pt',
-        },
-      );
-
-      final response = await _client
-          .get(
-            uri,
-            headers: {'User-Agent': _userAgent, 'Accept': 'application/json'},
-          )
-          .timeout(const Duration(seconds: 8));
-      if (response.statusCode != 200) return [];
-
-      final body = jsonDecode(response.body);
-      if (body is! Map<String, dynamic>) return [];
-      final products = body['products'];
+      final callable = _functions.httpsCallable('searchOpenFoodFacts');
+      final result = await callable.call<Map<String, dynamic>>({
+        'query': trimmedQuery,
+      });
+      final products = result.data['products'];
       if (products is! List) return [];
 
       final foods = products
@@ -96,6 +65,8 @@ class OpenFoodFactsDataSource {
       );
       _cache[cacheKey] = _CachedFoodSearch(DateTime.now(), foods);
       return foods;
+    } on FirebaseFunctionsException {
+      return [];
     } catch (_) {
       return [];
     } finally {
@@ -104,12 +75,11 @@ class OpenFoodFactsDataSource {
   }
 
   /// Converte um produto da API no modelo usado pela app.
-  /// Retorna null quando não há nome ou informação nutricional utilizável.
+  /// Retorna null quando não há nome em português ou dados nutricionais.
   static FoodModel? parseProduct(Map<String, dynamic> product) {
     // Exige o campo específico de nome em português; não usa
     // `product_name` como fallback para evitar apresentar nomes estrangeiros.
     final name = _firstNonEmpty([product['product_name_pt']]);
-
     if (name == null) return null;
 
     final nutriments = product['nutriments'];
@@ -125,8 +95,8 @@ class OpenFoodFactsDataSource {
           (key) => key.endsWith('_100g') && _number(nutrients[key]) != null,
         );
     if (!hasNutritionalData) return null;
-    final code = _firstNonEmpty([product['code']]);
 
+    final code = _firstNonEmpty([product['code']]);
     return FoodModel(
       id: code == null ? 'off_${name.toLowerCase()}' : 'off_$code',
       nome: name,

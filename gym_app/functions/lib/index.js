@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.stripeWebhook = exports.cleanupInvalidFcmTokens = exports.dailyFirestoreBackup = exports.sendWeeklyCheckin = exports.sendWeighInReminder = exports.sendWorkoutReminder = exports.sendWaterReminder = exports.deactivateExpiredContractOnWrite = exports.deactivateExpiredContracts = exports.notifyBookingCancelled = exports.notifyBookingUpdate = exports.notifyNewBooking = exports.sendChatNotification = exports.createCheckoutSession = exports.requestProgress = exports.seedFoods = exports.deleteStudentHttp = exports.createStudentHttp = exports.onUserCreated = void 0;
+exports.stripeWebhook = exports.cleanupInvalidFcmTokens = exports.dailyFirestoreBackup = exports.sendWeeklyCheckin = exports.sendWeighInReminder = exports.sendWorkoutReminder = exports.sendWaterReminder = exports.deactivateExpiredContractOnWrite = exports.deactivateExpiredContracts = exports.notifyBookingCancelled = exports.notifyBookingUpdate = exports.notifyNewBooking = exports.sendChatNotification = exports.createCheckoutSession = exports.requestProgress = exports.searchOpenFoodFacts = exports.seedFoods = exports.deleteStudentHttp = exports.createStudentHttp = exports.onUserCreated = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const stripe_1 = __importDefault(require("stripe"));
@@ -233,6 +233,51 @@ exports.seedFoods = functions.region('europe-west1').https.onCall(async (data, c
         added++;
     }
     return { added, skipped };
+});
+// ═══ OPEN FOOD FACTS SEARCH ═══
+// The browser must not call Open Food Facts directly: its search endpoint does
+// not expose CORS headers consistently. Keeping this request server-side also
+// lets us provide the required application User-Agent without exposing it in
+// every client request.
+exports.searchOpenFoodFacts = functions.region('europe-west1').https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+    }
+    const query = typeof data?.query === 'string' ? data.query.trim() : '';
+    if (query.length < 3 || query.length > 80) {
+        throw new functions.https.HttpsError('invalid-argument', 'A pesquisa deve ter entre 3 e 80 caracteres.');
+    }
+    const params = new URLSearchParams({
+        search_terms: query,
+        search_simple: '1',
+        action: 'process',
+        json: '1',
+        page_size: '20',
+        lc: 'pt',
+        fields: 'code,product_name,product_name_pt,nutriments,categories_tags_pt',
+    });
+    try {
+        const response = await fetch(`https://pt.openfoodfacts.org/cgi/search.pl?${params.toString()}`, {
+            headers: {
+                'User-Agent': 'GymApp/1.0 (https://github.com/Ric-Sousa/gym)',
+                Accept: 'application/json',
+            },
+            signal: AbortSignal.timeout(8000),
+        });
+        if (!response.ok) {
+            console.warn(`Open Food Facts returned HTTP ${response.status}.`);
+            return { products: [] };
+        }
+        const body = await response.json();
+        if (!body || typeof body !== 'object')
+            return { products: [] };
+        const products = body.products;
+        return { products: Array.isArray(products) ? products.slice(0, 20) : [] };
+    }
+    catch (error) {
+        console.warn('Open Food Facts request failed:', error);
+        return { products: [] };
+    }
 });
 exports.requestProgress = functions.region('europe-west1').https.onCall(async (data, context) => {
     if (!context.auth)
