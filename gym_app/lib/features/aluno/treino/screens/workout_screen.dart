@@ -262,6 +262,10 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     ).format(DateTime.now());
 
     try {
+      // Aguarda uma edição/remoção que ainda esteja a ser persistida para que
+      // a escrita final não seja ultrapassada por um autosave antigo.
+      await _saveLog();
+
       // Guarda log final
       final finalLog = _activeLog!.copyWith(completedAt: DateTime.now());
       await ref
