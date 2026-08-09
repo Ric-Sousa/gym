@@ -1420,12 +1420,18 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          Text(
-            AppStrings.dayRating,
-            style: GoogleFonts.inter(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: AppColors.onSurface,
+          SizedBox(
+            width: double.infinity,
+            child: Text(
+              AppStrings.dayRating,
+              textAlign: TextAlign.center,
+              softWrap: true,
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                height: 1.25,
+                fontWeight: FontWeight.w600,
+                color: AppColors.onSurface,
+              ),
             ),
           ),
           const SizedBox(height: 10),
