@@ -26,6 +26,28 @@ void main() {
       expect(SerieLog.fromMap(serie.toMap()).adicionadaManualmente, isTrue);
     });
 
+    test('preserva a marca manual no documento completo do treino', () {
+      final log = WorkoutLogModel(
+        userId: 'aluno-1',
+        data: DateTime(2026, 8, 9),
+        planoSemana: 'Plano A',
+        diaSemana: 'segunda',
+        exercicios: const [
+          ExerciseLog(
+            nome: 'Supino',
+            series: [SerieLog(numero: 1, adicionadaManualmente: true)],
+          ),
+        ],
+      );
+
+      final restored = WorkoutLogModel.fromMap('log-1', 'aluno-1', log.toMap());
+
+      expect(
+        restored.exercicios.single.series.single.adicionadaManualmente,
+        isTrue,
+      );
+    });
+
     test('lê carga e repetições guardadas', () {
       final serie = SerieLog.fromMap({
         'numero': 2,

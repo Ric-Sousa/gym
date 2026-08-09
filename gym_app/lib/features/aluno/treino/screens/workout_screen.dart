@@ -57,6 +57,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
   String _restMode = 'DESCANSO';
   bool _saving = false;
   bool _saveQueued = false;
+  Future<void>? _saveInFlight;
   bool _initialized = false;
   String? _selectedWorkoutDay;
   bool _showPlanDetails = false;
@@ -122,28 +123,36 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     // está true, agenda uma nova escrita com o estado mais recente.
     if (_saving) {
       _saveQueued = true;
+      await _saveInFlight;
       return;
     }
 
     _saving = true;
-    do {
-      _saveQueued = false;
-      final log = _activeLog;
-      if (log == null) break;
+    final saveCompleter = Completer<void>();
+    _saveInFlight = saveCompleter.future;
+    try {
+      do {
+        _saveQueued = false;
+        final log = _activeLog;
+        if (log == null) break;
 
-      final userId = ref.read(authProvider).user?.uid ?? '';
-      final dateKey = DateFormat(
-        AppConstants.workoutLogDateFormat,
-      ).format(log.data);
-      try {
-        await ref
-            .read(workoutLogRepositoryProvider)
-            .saveLog(userId, dateKey, log.toMap());
-      } catch (_) {
-        // Silently fail auto-save; the next edit will retry the latest state.
-      }
-    } while (_saveQueued && mounted);
-    _saving = false;
+        final userId = ref.read(authProvider).user?.uid ?? '';
+        final dateKey = DateFormat(
+          AppConstants.workoutLogDateFormat,
+        ).format(log.data);
+        try {
+          await ref
+              .read(workoutLogRepositoryProvider)
+              .saveLog(userId, dateKey, log.toMap());
+        } catch (_) {
+          // Silently fail auto-save; the next edit will retry the latest state.
+        }
+      } while (_saveQueued && mounted);
+    } finally {
+      _saving = false;
+      _saveInFlight = null;
+      saveCompleter.complete();
+    }
   }
 
   void _toggleSerie(
@@ -1599,7 +1608,9 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     );
     if (confirmed != true || !mounted) return;
 
-    final updatedExercises = _activeLog!.exercicios.toList();
+    final activeLog = _activeLog;
+    if (activeLog == null) return;
+    final updatedExercises = activeLog.exercicios.toList();
     final exIdx = updatedExercises.indexOf(exercise);
     if (exIdx < 0) return;
     final updatedSeries = exercise.series.toList()..removeAt(serieIdx);
@@ -1609,9 +1620,19 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       series: updatedSeries,
     );
     setState(() {
-      _activeLog = _activeLog!.copyWith(exercicios: updatedExercises);
+      _activeLog = activeLog.copyWith(exercicios: updatedExercises);
     });
-    _saveLog();
+
+    final cargaController = _cargaControllers.remove(
+      _seriesKey(exercise.nome, serie.numero, 'carga'),
+    );
+    final repController = _repControllers.remove(
+      _seriesKey(exercise.nome, serie.numero, 'rep'),
+    );
+    cargaController?.dispose();
+    repController?.dispose();
+
+    await _saveLog();
   }
 
   void _addSerie(ExerciseLog exercise, {bool readOnly = false}) {
