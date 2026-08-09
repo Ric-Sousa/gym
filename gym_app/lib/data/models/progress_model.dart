@@ -28,19 +28,34 @@ class ProgressModel {
       (key, value) => MapEntry(key, (value as num).toDouble()),
     );
 
+    // Firestore devolve estes campos como List/Map dinâmicos. Não fazer um
+    // cast direto para List<String>/Map<String, String>: documentos antigos
+    // podem conter nulls ou valores não-string e isso faria todo o histórico
+    // falhar antes de o resolver conseguir aproveitar as fotos válidas.
+    final fotos = (map['fotos'] as List?)
+            ?.map((value) => value is String ? value : '')
+            .toList() ??
+        <String>[];
+    final fotosPorPosicao = <String, String>{};
+    final fotosPorPosicaoRaw = map['fotosPorPosicao'];
+    if (fotosPorPosicaoRaw is Map) {
+      for (final entry in fotosPorPosicaoRaw.entries) {
+        final position = entry.key?.toString().trim() ?? '';
+        final url = entry.value is String ? (entry.value as String).trim() : '';
+        if (position.isNotEmpty && url.isNotEmpty) {
+          fotosPorPosicao[position] = url;
+        }
+      }
+    }
+
     return ProgressModel(
       id: id,
       userId: userId,
       data: (map['data'] as dynamic).toDate() as DateTime,
       peso: (map['peso'] as num?)?.toDouble(),
       medidas: medidas,
-      fotos: List<String>.from(map['fotos'] as List? ?? []),
-      fotosPorPosicao: Map<String, String>.from(
-        (map['fotosPorPosicao'] as Map?)?.map(
-              (key, value) => MapEntry(key.toString(), value.toString()),
-            ) ??
-            {},
-      ),
+      fotos: fotos,
+      fotosPorPosicao: fotosPorPosicao,
     );
   }
 
