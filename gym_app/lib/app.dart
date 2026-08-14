@@ -243,6 +243,10 @@ class PersonalFitApp extends ConsumerWidget {
         key: ValueKey(genero ?? 'default'),
         title: AppStrings.appName,
         debugShowCheckedModeBanner: false,
+        builder: (context, child) => _PaymentReturnNotice(
+          status: Uri.base.queryParameters['pagamento'],
+          child: child ?? const SizedBox.shrink(),
+        ),
         theme: workspaceLightTheme,
         darkTheme: workspaceDarkTheme,
         themeMode: adminThemeMode,
@@ -693,6 +697,77 @@ class PersonalFitApp extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _PaymentReturnNotice extends StatefulWidget {
+  final String? status;
+  final Widget child;
+
+  const _PaymentReturnNotice({required this.status, required this.child});
+
+  @override
+  State<_PaymentReturnNotice> createState() => _PaymentReturnNoticeState();
+}
+
+class _PaymentReturnNoticeState extends State<_PaymentReturnNotice> {
+  String? _shownStatus;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleNotice();
+  }
+
+  @override
+  void didUpdateWidget(covariant _PaymentReturnNotice oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.status != widget.status) _scheduleNotice();
+  }
+
+  void _scheduleNotice() {
+    final status = widget.status;
+    if ((status != 'sucesso' && status != 'cancelado') ||
+        status == _shownStatus) {
+      return;
+    }
+    _shownStatus = status;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final succeeded = status == 'sucesso';
+      showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (dialogContext) => AlertDialog(
+          icon: Icon(
+            succeeded ? Icons.check_circle_rounded : Icons.info_outline,
+            color: succeeded ? AppColors.success : AppColors.warning,
+            size: 48,
+          ),
+          title: Text(
+            succeeded
+                ? 'Pagamento efetuado com sucesso'
+                : 'Pagamento cancelado',
+            textAlign: TextAlign.center,
+          ),
+          content: Text(
+            succeeded
+                ? 'Recebemos o teu pagamento. O teu acesso será atualizado automaticamente.'
+                : 'O pagamento não foi concluído. Podes tentar novamente quando quiseres.',
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Continuar'),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// Shell para navegação do aluno com BottomNavigationBar.

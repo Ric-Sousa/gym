@@ -1,5 +1,4 @@
 import * as functions from 'firebase-functions';
-import { onRequest as onRequestV2 } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import { createHash, randomBytes } from 'node:crypto';
 import Stripe from 'stripe';
@@ -55,7 +54,7 @@ if (!stripeSecret) {
 }
 
 const stripe = stripeSecret
-  ? new Stripe(stripeSecret, { apiVersion: '2025-06-30.acacia' as any })
+  ? new Stripe(stripeSecret, { apiVersion: '2025-03-31.basil' as any })
   : null;
 
 const publicAppUrl = 'https://gymbt-4ef87.web.app';
@@ -721,48 +720,10 @@ export const createPaymentSchedule = functions.region('europe-west1').https.onCa
 });
 
 /** Cancela uma cobrança ainda não paga e interrompe a subscrição Stripe, se existir. */
-export const cancelPayment = onRequestV2({
-  region: 'europe-west1',
-  cors: false,
-}, async (req: any, res: any) => {
-  const origin = String(req.headers?.origin ?? '');
-  const allowedOrigins = new Set([
-    'https://gymbt-4ef87.web.app',
-    'https://gymbt-4ef87.firebaseapp.com',
-    'http://localhost:3000',
-    'http://localhost:5000',
-  ]);
-
-  if (allowedOrigins.has(origin)) {
-    res.set('Access-Control-Allow-Origin', origin);
-    res.set('Vary', 'Origin');
+const cancelPaymentHandler = async (data: any, context: any) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
   }
-  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
-    return;
-  }
-  if (req.method !== 'POST') {
-    res.status(405).json({ error: { message: 'Método não permitido.' } });
-    return;
-  }
-
-  try {
-    const authorization = String(req.headers?.authorization ?? '');
-    const match = authorization.match(/^Bearer\s+(.+)$/i);
-    if (!match) {
-      throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
-    }
-
-    const decoded = await auth.verifyIdToken(match[1]);
-    const data = (req.body?.data ?? req.body ?? {}) as Record<string, unknown>;
-    const context = { auth: { uid: decoded.uid } };
-
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
-    }
 
   const callerDoc = await db.collection('users').doc(context.auth.uid).get();
   if (callerDoc.data()?.role !== 'admin') {
@@ -782,8 +743,7 @@ export const cancelPayment = onRequestV2({
 
   const payment = paymentDoc.data() ?? {};
   if (payment.status === 'cancelled') {
-    res.status(200).json({ data: { success: true, paymentId } });
-    return;
+    return { success: true, paymentId };
   }
   if (payment.status === 'paid' || payment.status === 'refunded') {
     throw new functions.https.HttpsError(
@@ -857,22 +817,16 @@ export const cancelPayment = onRequestV2({
     { type: 'payment_cancelled', paymentId, link: `${publicAppUrl}/` },
   );
 
-    res.status(200).json({ data: { success: true, paymentId } });
-  } catch (error: any) {
-    const status = error?.httpErrorCode?.status ?? 500;
-    const message = error instanceof functions.https.HttpsError
-      ? error.message
-      : 'Não foi possível cancelar a cobrança.';
-    res.status(status).json({
-      error: {
-        message,
-        status: error instanceof functions.https.HttpsError
-          ? error.code
-          : 'internal',
-      },
-    });
-  }
-});
+  return { success: true, paymentId };
+};
+
+// A exportação remota cancelPayment é uma callable Gen 1 antiga. Ela não é
+// incluída no bundle local para impedir que o Firebase CLI tente validá-la
+// como uma alteração Gen 2 -> Gen 1. Ao publicar apenas a nova função, a
+// função remota antiga não é apagada.
+export const cancelPaymentCallable = functions.region('europe-west1').https.onCall(
+  cancelPaymentHandler,
+);
 
 /** Agenda o cancelamento da renovação para o fim do período já pago. */
 export const cancelPaymentSubscription = functions.region('europe-west1').https.onCall(async (data, context) => {
@@ -941,8 +895,17 @@ export const createPaymentCheckoutSession = functions.region('europe-west1').htt
   if (payment.stripeSubscriptionId) {
     throw new functions.https.HttpsError('failed-precondition', 'Este pagamento já tem uma subscrição configurada.');
   }
-  if (!isBillingType(payment.tipoMensalidade)) {
-    throw new functions.https.HttpsError('failed-precondition', 'Tipo de mensalidade inválido.');
+  // Pagamentos antigos podem não ter tipoMensalidade. Mantemos o checkout
+  // compatível, assumindo mensalidade nesses registos legados.
+  const tipoMensalidade: BillingType = isBillingType(payment.tipoMensalidade)
+    ? payment.tipoMensalidade
+    : 'mensal';
+  const valor = Number(payment.valor);
+  if (!Number.isFinite(valor) || valor <= 0) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'O valor desta cobrança é inválido.',
+    );
   }
 
   const userDoc = await db.collection('users').doc(context.auth.uid).get();
@@ -955,12 +918,12 @@ export const createPaymentCheckoutSession = functions.region('europe-west1').htt
     metadata: {
       paymentId,
       userId: context.auth.uid,
-      tipoMensalidade: payment.tipoMensalidade,
+      tipoMensalidade,
     },
   };
   if (trialEnd != null) subscriptionData.trial_end = trialEnd;
 
-  const interval = billingInterval(payment.tipoMensalidade);
+  const interval = billingInterval(tipoMensalidade);
   let session: Stripe.Checkout.Session;
   try {
     session = await stripe.checkout.sessions.create({
@@ -969,9 +932,9 @@ export const createPaymentCheckoutSession = functions.region('europe-west1').htt
         price_data: {
           currency: 'eur',
           product_data: {
-            name: payment.descricao || `Mensalidade ${billingTypeLabels[payment.tipoMensalidade]}`,
+            name: payment.descricao || `Mensalidade ${billingTypeLabels[tipoMensalidade]}`,
           },
-          unit_amount: Math.round(Number(payment.valor) * 100),
+          unit_amount: Math.round(valor * 100),
           recurring: interval,
         },
         quantity: 1,
@@ -982,8 +945,8 @@ export const createPaymentCheckoutSession = functions.region('europe-west1').htt
       payment_method_collection: 'always',
       subscription_data: subscriptionData as any,
       metadata: { paymentId, userId: context.auth.uid },
-      success_url: 'https://gymbt-4ef87.web.app/perfil?pagamento=sucesso',
-      cancel_url: 'https://gymbt-4ef87.web.app/perfil?pagamento=cancelado',
+      success_url: 'https://gymbt-4ef87.web.app/?pagamento=sucesso',
+      cancel_url: 'https://gymbt-4ef87.web.app/?pagamento=cancelado',
     });
   } catch (error) {
     throw stripeCheckoutHttpsError(error, 'subscrição');
@@ -1181,8 +1144,8 @@ export const createCheckoutSession = functions.region('europe-west1').https.onCa
       }],
       ...(email ? { customer_email: email } : {}),
       metadata: { paymentId: paymentRef.id, userId },
-      success_url: 'https://gymbt-4ef87.web.app/perfil?pagamento=sucesso',
-      cancel_url: 'https://gymbt-4ef87.web.app/perfil?pagamento=cancelado',
+      success_url: 'https://gymbt-4ef87.web.app/?pagamento=sucesso',
+      cancel_url: 'https://gymbt-4ef87.web.app/?pagamento=cancelado',
     });
 
     if (!session.url) {
@@ -1674,7 +1637,21 @@ stripeApp.post('/', async (req: any, res: any) => {
   if (!sig) { res.status(400).json({ error: 'Missing signature.' }); return; }
 
   let event: Stripe.Event;
-  try { event = stripe.webhooks.constructEvent(req.body, sig, stripeWebhookSecret); } catch (e: any) {
+  try {
+    // O Firebase Functions disponibiliza o corpo assinado em rawBody. Usar
+    // req.body aqui é incorreto porque o Express/Firebase já o pode ter
+    // convertido para objeto e a assinatura deixa de ser verificável.
+    const rawBody: Buffer | string | null = Buffer.isBuffer(req.rawBody)
+      ? req.rawBody
+      : Buffer.isBuffer(req.body) || typeof req.body === 'string'
+        ? req.body
+        : null;
+    if (rawBody == null) {
+      res.status(400).json({ error: 'Webhook payload raw não disponível.' });
+      return;
+    }
+    event = stripe.webhooks.constructEvent(rawBody, sig, stripeWebhookSecret);
+  } catch (e: any) {
     res.status(400).json({ error: `Webhook Error: ${e.message}` }); return;
   }
 
@@ -1716,12 +1693,25 @@ stripeApp.post('/', async (req: any, res: any) => {
       const subscriptionId = typeof session.subscription === 'string'
         ? session.subscription
         : session.subscription?.id;
+      const checkoutWasPaid = session.payment_status === 'paid';
+      console.log('Stripe subscription checkout completed', {
+        paymentId,
+        sessionId: session.id,
+        paymentStatus: session.payment_status,
+        subscriptionId,
+      });
       await paymentRef.update({
-        // A subscrição é marcada como paga apenas pelo evento invoice.paid;
-        // assim o checkout e o webhook não criam dois registos para a primeira fatura.
-        ...(currentPayment.data()?.status === 'paid'
-          ? {}
-          : { status: 'scheduled' }),
+        // Quando o Checkout já confirma o primeiro pagamento, não dependemos
+        // apenas do invoice.paid para tirar a cobrança de pendente. Esse
+        // evento continua a completar fatura, período e notificações.
+        ...(checkoutWasPaid
+          ? {
+              status: 'paid',
+              paidAt: admin.firestore.FieldValue.serverTimestamp(),
+            }
+          : currentPayment.data()?.status === 'paid'
+            ? {}
+            : { status: 'scheduled' }),
         ...(subscriptionId ? { stripeSubscriptionId: subscriptionId } : {}),
         ...(typeof session.customer === 'string'
           ? { stripeCustomerId: session.customer }

@@ -2099,11 +2099,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           type: NotificationType.error,
         );
       }
-    } catch (_) {
+    } catch (error) {
+      debugPrint('createPaymentCheckoutSession failed: $error');
       if (mounted) {
         showAppNotification(
           context,
-          'Não foi possível iniciar o pagamento.',
+          'Não foi possível iniciar o pagamento. Consulta os logs para mais detalhes.',
           type: NotificationType.error,
         );
       }

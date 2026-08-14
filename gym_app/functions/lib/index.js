@@ -36,9 +36,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.syncAccessFromPaidPayment = exports.stripeWebhook = exports.cleanupInvalidFcmTokens = exports.dailyFirestoreBackup = exports.sendWeeklyCheckin = exports.sendWeighInReminder = exports.sendWorkoutReminder = exports.sendWaterReminder = exports.sendPaymentRecoveryReminders = exports.notifyBookingStatusChange = exports.notifyUserAccessChange = exports.deactivateExpiredContractOnWrite = exports.deactivateExpiredContracts = exports.notifyBookingCancelled = exports.notifyBookingUpdate = exports.notifyNewBooking = exports.sendChatNotification = exports.createCheckoutSession = exports.resendPaymentRecovery = exports.createPaymentRecoveryCheckoutSession = exports.createPaymentCheckoutSession = exports.cancelPaymentSubscription = exports.cancelPayment = exports.createPaymentSchedule = exports.requestProgress = exports.searchOpenFoodFacts = exports.seedFoods = exports.deleteStudentHttp = exports.createStudentHttp = exports.onUserCreated = void 0;
+exports.syncAccessFromPaidPayment = exports.stripeWebhook = exports.cleanupInvalidFcmTokens = exports.dailyFirestoreBackup = exports.sendWeeklyCheckin = exports.sendWeighInReminder = exports.sendWorkoutReminder = exports.sendWaterReminder = exports.sendPaymentRecoveryReminders = exports.notifyBookingStatusChange = exports.notifyUserAccessChange = exports.deactivateExpiredContractOnWrite = exports.deactivateExpiredContracts = exports.notifyBookingCancelled = exports.notifyBookingUpdate = exports.notifyNewBooking = exports.sendChatNotification = exports.createCheckoutSession = exports.resendPaymentRecovery = exports.createPaymentRecoveryCheckoutSession = exports.createPaymentCheckoutSession = exports.cancelPaymentSubscription = exports.cancelPaymentCallable = exports.createPaymentSchedule = exports.requestProgress = exports.searchOpenFoodFacts = exports.seedFoods = exports.deleteStudentHttp = exports.createStudentHttp = exports.onUserCreated = void 0;
 const functions = __importStar(require("firebase-functions"));
-const https_1 = require("firebase-functions/v2/https");
 const admin = __importStar(require("firebase-admin"));
 const node_crypto_1 = require("node:crypto");
 const stripe_1 = __importDefault(require("stripe"));
@@ -77,7 +76,7 @@ if (!stripeSecret) {
     console.warn('⚠️  Stripe secret_key não definida.');
 }
 const stripe = stripeSecret
-    ? new stripe_1.default(stripeSecret, { apiVersion: '2025-06-30.acacia' })
+    ? new stripe_1.default(stripeSecret, { apiVersion: '2025-03-31.basil' })
     : null;
 const publicAppUrl = 'https://gymbt-4ef87.web.app';
 const recoveryTokenLifetimeMs = 7 * 24 * 60 * 60 * 1000;
@@ -660,134 +659,90 @@ exports.createPaymentSchedule = functions.region('europe-west1').https.onCall(as
     };
 });
 /** Cancela uma cobrança ainda não paga e interrompe a subscrição Stripe, se existir. */
-exports.cancelPayment = (0, https_1.onRequest)({
-    region: 'europe-west1',
-    cors: false,
-}, async (req, res) => {
-    const origin = String(req.headers?.origin ?? '');
-    const allowedOrigins = new Set([
-        'https://gymbt-4ef87.web.app',
-        'https://gymbt-4ef87.firebaseapp.com',
-        'http://localhost:3000',
-        'http://localhost:5000',
-    ]);
-    if (allowedOrigins.has(origin)) {
-        res.set('Access-Control-Allow-Origin', origin);
-        res.set('Vary', 'Origin');
+const cancelPaymentHandler = async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
     }
-    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    if (req.method === 'OPTIONS') {
-        res.status(204).send('');
-        return;
+    const callerDoc = await db.collection('users').doc(context.auth.uid).get();
+    if (callerDoc.data()?.role !== 'admin') {
+        throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
     }
-    if (req.method !== 'POST') {
-        res.status(405).json({ error: { message: 'Método não permitido.' } });
-        return;
+    const paymentId = typeof data?.paymentId === 'string' ? data.paymentId.trim() : '';
+    if (!paymentId) {
+        throw new functions.https.HttpsError('invalid-argument', 'paymentId obrigatório.');
     }
-    try {
-        const authorization = String(req.headers?.authorization ?? '');
-        const match = authorization.match(/^Bearer\s+(.+)$/i);
-        if (!match) {
-            throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+    const paymentRef = db.collection('pagamentos').doc(paymentId);
+    const paymentDoc = await paymentRef.get();
+    if (!paymentDoc.exists) {
+        throw new functions.https.HttpsError('not-found', 'Pagamento não encontrado.');
+    }
+    const payment = paymentDoc.data() ?? {};
+    if (payment.status === 'cancelled') {
+        return { success: true, paymentId };
+    }
+    if (payment.status === 'paid' || payment.status === 'refunded') {
+        throw new functions.https.HttpsError('failed-precondition', 'Um pagamento já concluído ou reembolsado não pode ser cancelado.');
+    }
+    if (payment.stripeSubscriptionId) {
+        if (!stripe) {
+            throw new functions.https.HttpsError('failed-precondition', 'Stripe não está configurado para cancelar a subscrição.');
         }
-        const decoded = await auth.verifyIdToken(match[1]);
-        const data = (req.body?.data ?? req.body ?? {});
-        const context = { auth: { uid: decoded.uid } };
-        if (!context.auth) {
-            throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+        try {
+            await stripe.subscriptions.cancel(String(payment.stripeSubscriptionId));
         }
-        const callerDoc = await db.collection('users').doc(context.auth.uid).get();
-        if (callerDoc.data()?.role !== 'admin') {
-            throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
+        catch (error) {
+            console.error('Stripe subscription cancellation failed', {
+                paymentId,
+                stripeSubscriptionId: payment.stripeSubscriptionId,
+                type: error?.type,
+                code: error?.code,
+                message: error?.message,
+                requestId: error?.requestId,
+            });
+            throw new functions.https.HttpsError('internal', 'Não foi possível cancelar a subscrição Stripe.');
         }
-        const paymentId = typeof data?.paymentId === 'string' ? data.paymentId.trim() : '';
-        if (!paymentId) {
-            throw new functions.https.HttpsError('invalid-argument', 'paymentId obrigatório.');
-        }
-        const paymentRef = db.collection('pagamentos').doc(paymentId);
-        const paymentDoc = await paymentRef.get();
-        if (!paymentDoc.exists) {
-            throw new functions.https.HttpsError('not-found', 'Pagamento não encontrado.');
-        }
-        const payment = paymentDoc.data() ?? {};
-        if (payment.status === 'cancelled') {
-            res.status(200).json({ data: { success: true, paymentId } });
-            return;
-        }
-        if (payment.status === 'paid' || payment.status === 'refunded') {
-            throw new functions.https.HttpsError('failed-precondition', 'Um pagamento já concluído ou reembolsado não pode ser cancelado.');
-        }
-        if (payment.stripeSubscriptionId) {
-            if (!stripe) {
-                throw new functions.https.HttpsError('failed-precondition', 'Stripe não está configurado para cancelar a subscrição.');
-            }
-            try {
-                await stripe.subscriptions.cancel(String(payment.stripeSubscriptionId));
-            }
-            catch (error) {
-                console.error('Stripe subscription cancellation failed', {
-                    paymentId,
-                    stripeSubscriptionId: payment.stripeSubscriptionId,
-                    type: error?.type,
-                    code: error?.code,
-                    message: error?.message,
-                    requestId: error?.requestId,
-                });
-                throw new functions.https.HttpsError('internal', 'Não foi possível cancelar a subscrição Stripe.');
+    }
+    else if (payment.stripeSessionId && stripe) {
+        // Sessões Checkout ainda abertas podem ser expiradas. Sessões já
+        // concluídas não entram aqui porque o pagamento teria outro estado.
+        try {
+            const session = await stripe.checkout.sessions.retrieve(String(payment.stripeSessionId));
+            if (session.status === 'open') {
+                await stripe.checkout.sessions.expire(session.id);
             }
         }
-        else if (payment.stripeSessionId && stripe) {
-            // Sessões Checkout ainda abertas podem ser expiradas. Sessões já
-            // concluídas não entram aqui porque o pagamento teria outro estado.
-            try {
-                const session = await stripe.checkout.sessions.retrieve(String(payment.stripeSessionId));
-                if (session.status === 'open') {
-                    await stripe.checkout.sessions.expire(session.id);
-                }
-            }
-            catch (error) {
-                console.warn('Could not expire Stripe checkout session', {
-                    paymentId,
-                    stripeSessionId: payment.stripeSessionId,
-                    type: error?.type,
-                    code: error?.code,
-                    message: error?.message,
-                });
-            }
+        catch (error) {
+            console.warn('Could not expire Stripe checkout session', {
+                paymentId,
+                stripeSessionId: payment.stripeSessionId,
+                type: error?.type,
+                code: error?.code,
+                message: error?.message,
+            });
         }
-        await paymentRef.update({
-            status: 'cancelled',
-            cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
-            cancelledBy: context.auth.uid,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        await (0, notifications_js_1.createNotification)({
-            userId: String(payment.userId),
-            type: 'payment_cancelled',
-            title: 'Cobrança cancelada',
-            body: 'A cobrança foi cancelada pelo administrador e já não requer pagamento.',
-            action: 'payment',
-            paymentId,
-        });
-        await (0, notifications_js_1.sendUserPush)(String(payment.userId), 'Cobrança cancelada', 'A cobrança foi cancelada pelo administrador.', { type: 'payment_cancelled', paymentId, link: `${publicAppUrl}/` });
-        res.status(200).json({ data: { success: true, paymentId } });
     }
-    catch (error) {
-        const status = error?.httpErrorCode?.status ?? 500;
-        const message = error instanceof functions.https.HttpsError
-            ? error.message
-            : 'Não foi possível cancelar a cobrança.';
-        res.status(status).json({
-            error: {
-                message,
-                status: error instanceof functions.https.HttpsError
-                    ? error.code
-                    : 'internal',
-            },
-        });
-    }
-});
+    await paymentRef.update({
+        status: 'cancelled',
+        cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+        cancelledBy: context.auth.uid,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    await (0, notifications_js_1.createNotification)({
+        userId: String(payment.userId),
+        type: 'payment_cancelled',
+        title: 'Cobrança cancelada',
+        body: 'A cobrança foi cancelada pelo administrador e já não requer pagamento.',
+        action: 'payment',
+        paymentId,
+    });
+    await (0, notifications_js_1.sendUserPush)(String(payment.userId), 'Cobrança cancelada', 'A cobrança foi cancelada pelo administrador.', { type: 'payment_cancelled', paymentId, link: `${publicAppUrl}/` });
+    return { success: true, paymentId };
+};
+// A exportação remota cancelPayment é uma callable Gen 1 antiga. Ela não é
+// incluída no bundle local para impedir que o Firebase CLI tente validá-la
+// como uma alteração Gen 2 -> Gen 1. Ao publicar apenas a nova função, a
+// função remota antiga não é apagada.
+exports.cancelPaymentCallable = functions.region('europe-west1').https.onCall(cancelPaymentHandler);
 /** Agenda o cancelamento da renovação para o fim do período já pago. */
 exports.cancelPaymentSubscription = functions.region('europe-west1').https.onCall(async (data, context) => {
     if (!context.auth)
@@ -855,8 +810,14 @@ exports.createPaymentCheckoutSession = functions.region('europe-west1').https.on
     if (payment.stripeSubscriptionId) {
         throw new functions.https.HttpsError('failed-precondition', 'Este pagamento já tem uma subscrição configurada.');
     }
-    if (!(0, billing_js_1.isBillingType)(payment.tipoMensalidade)) {
-        throw new functions.https.HttpsError('failed-precondition', 'Tipo de mensalidade inválido.');
+    // Pagamentos antigos podem não ter tipoMensalidade. Mantemos o checkout
+    // compatível, assumindo mensalidade nesses registos legados.
+    const tipoMensalidade = (0, billing_js_1.isBillingType)(payment.tipoMensalidade)
+        ? payment.tipoMensalidade
+        : 'mensal';
+    const valor = Number(payment.valor);
+    if (!Number.isFinite(valor) || valor <= 0) {
+        throw new functions.https.HttpsError('failed-precondition', 'O valor desta cobrança é inválido.');
     }
     const userDoc = await db.collection('users').doc(context.auth.uid).get();
     const user = userDoc.data() ?? {};
@@ -868,12 +829,12 @@ exports.createPaymentCheckoutSession = functions.region('europe-west1').https.on
         metadata: {
             paymentId,
             userId: context.auth.uid,
-            tipoMensalidade: payment.tipoMensalidade,
+            tipoMensalidade,
         },
     };
     if (trialEnd != null)
         subscriptionData.trial_end = trialEnd;
-    const interval = (0, billing_js_1.billingInterval)(payment.tipoMensalidade);
+    const interval = (0, billing_js_1.billingInterval)(tipoMensalidade);
     let session;
     try {
         session = await stripe.checkout.sessions.create({
@@ -882,9 +843,9 @@ exports.createPaymentCheckoutSession = functions.region('europe-west1').https.on
                     price_data: {
                         currency: 'eur',
                         product_data: {
-                            name: payment.descricao || `Mensalidade ${billing_js_1.billingTypeLabels[payment.tipoMensalidade]}`,
+                            name: payment.descricao || `Mensalidade ${billing_js_1.billingTypeLabels[tipoMensalidade]}`,
                         },
-                        unit_amount: Math.round(Number(payment.valor) * 100),
+                        unit_amount: Math.round(valor * 100),
                         recurring: interval,
                     },
                     quantity: 1,
@@ -895,8 +856,8 @@ exports.createPaymentCheckoutSession = functions.region('europe-west1').https.on
             payment_method_collection: 'always',
             subscription_data: subscriptionData,
             metadata: { paymentId, userId: context.auth.uid },
-            success_url: 'https://gymbt-4ef87.web.app/perfil?pagamento=sucesso',
-            cancel_url: 'https://gymbt-4ef87.web.app/perfil?pagamento=cancelado',
+            success_url: 'https://gymbt-4ef87.web.app/?pagamento=sucesso',
+            cancel_url: 'https://gymbt-4ef87.web.app/?pagamento=cancelado',
         });
     }
     catch (error) {
@@ -1074,8 +1035,8 @@ exports.createCheckoutSession = functions.region('europe-west1').https.onCall(as
                 }],
             ...(email ? { customer_email: email } : {}),
             metadata: { paymentId: paymentRef.id, userId },
-            success_url: 'https://gymbt-4ef87.web.app/perfil?pagamento=sucesso',
-            cancel_url: 'https://gymbt-4ef87.web.app/perfil?pagamento=cancelado',
+            success_url: 'https://gymbt-4ef87.web.app/?pagamento=sucesso',
+            cancel_url: 'https://gymbt-4ef87.web.app/?pagamento=cancelado',
         });
         if (!session.url) {
             throw new functions.https.HttpsError('internal', 'O Stripe não devolveu um endereço de checkout.');
@@ -1541,7 +1502,19 @@ stripeApp.post('/', async (req, res) => {
     }
     let event;
     try {
-        event = stripe.webhooks.constructEvent(req.body, sig, stripeWebhookSecret);
+        // O Firebase Functions disponibiliza o corpo assinado em rawBody. Usar
+        // req.body aqui é incorreto porque o Express/Firebase já o pode ter
+        // convertido para objeto e a assinatura deixa de ser verificável.
+        const rawBody = Buffer.isBuffer(req.rawBody)
+            ? req.rawBody
+            : Buffer.isBuffer(req.body) || typeof req.body === 'string'
+                ? req.body
+                : null;
+        if (rawBody == null) {
+            res.status(400).json({ error: 'Webhook payload raw não disponível.' });
+            return;
+        }
+        event = stripe.webhooks.constructEvent(rawBody, sig, stripeWebhookSecret);
     }
     catch (e) {
         res.status(400).json({ error: `Webhook Error: ${e.message}` });
@@ -1586,12 +1559,25 @@ stripeApp.post('/', async (req, res) => {
                 const subscriptionId = typeof session.subscription === 'string'
                     ? session.subscription
                     : session.subscription?.id;
+                const checkoutWasPaid = session.payment_status === 'paid';
+                console.log('Stripe subscription checkout completed', {
+                    paymentId,
+                    sessionId: session.id,
+                    paymentStatus: session.payment_status,
+                    subscriptionId,
+                });
                 await paymentRef.update({
-                    // A subscrição é marcada como paga apenas pelo evento invoice.paid;
-                    // assim o checkout e o webhook não criam dois registos para a primeira fatura.
-                    ...(currentPayment.data()?.status === 'paid'
-                        ? {}
-                        : { status: 'scheduled' }),
+                    // Quando o Checkout já confirma o primeiro pagamento, não dependemos
+                    // apenas do invoice.paid para tirar a cobrança de pendente. Esse
+                    // evento continua a completar fatura, período e notificações.
+                    ...(checkoutWasPaid
+                        ? {
+                            status: 'paid',
+                            paidAt: admin.firestore.FieldValue.serverTimestamp(),
+                        }
+                        : currentPayment.data()?.status === 'paid'
+                            ? {}
+                            : { status: 'scheduled' }),
                     ...(subscriptionId ? { stripeSubscriptionId: subscriptionId } : {}),
                     ...(typeof session.customer === 'string'
                         ? { stripeCustomerId: session.customer }
