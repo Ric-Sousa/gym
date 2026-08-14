@@ -23,6 +23,7 @@ import '../../../../core/utils/progress_photo_normalizer.dart';
 import '../../../../core/utils/progress_photo_resolver.dart';
 import '../../../../shared/widgets/image_comparison_slider.dart';
 import 'progress_submission_screen.dart';
+import 'video_progress_screen.dart';
 
 final userProfileProvider = StreamProvider.family<UserModel, String>((
   ref,
@@ -51,6 +52,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   String? _selectedAfterProgressKey;
   int _selectedAngle = 0;
   String? _angleFeedback;
+  String? _paymentLoadingId;
 
   // A resolução das fotos por ângulo (mapa explícito e fallback legado)
   // está em core/utils/progress_photo_resolver.dart.
@@ -125,6 +127,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             _buildProgressComparisonCard(user, progressAsync),
             const SizedBox(height: 20),
             _buildSoundPicker(user),
+            if (user.isOnline) ...[
+              const SizedBox(height: 20),
+              _buildVideoProgressEntry(user),
+            ],
             const SizedBox(height: 24),
             _buildPaymentsSection(user.uid),
           ],
@@ -1805,6 +1811,56 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  Widget _buildVideoProgressEntry(UserModel user) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.videocam_outlined, color: AppColors.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Progressão em vídeo',
+                  style: GoogleFonts.montserrat(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Envia e acompanha vídeos da tua execução.',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => VideoProgressScreen(userId: user.uid),
+              ),
+            ),
+            icon: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+            color: AppColors.textSecondary,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPaymentsSection(String userId) {
     // Usa provider estável (module-level) — nunca inline StreamProvider no build()!
     final paymentsAsync = ref.watch(paymentsStreamProvider(userId));
@@ -1830,7 +1886,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         );
       },
       loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, __) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.outline),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.error_outline, color: AppColors.error),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text('Não foi possível carregar as cobranças.'),
+            ),
+            TextButton(
+              onPressed: () => ref.invalidate(paymentsStreamProvider(userId)),
+              child: const Text('Tentar novamente'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1838,19 +1915,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final statusColors = {
       'paid': StudentThemeColors.of(context).primary,
       'pending': AppColors.calories,
+      'scheduled': AppColors.primary,
+      'overdue': AppColors.error,
       'failed': AppColors.error,
       'refunded': AppColors.textSecondary,
+      'cancelled': AppColors.textSecondary,
     };
     final statusLabels = {
       'paid': 'PAGO',
       'pending': 'PENDENTE',
+      'scheduled': 'AGENDADO',
+      'overdue': 'EM ATRASO',
       'failed': 'FALHOU',
       'refunded': 'REEMBOLSADO',
+      'cancelled': 'CANCELADO',
     };
-
-    final statusColor = statusColors[payment.status] ?? AppColors.textSecondary;
+    final statusColor =
+        statusColors[payment.effectiveStatus] ?? AppColors.textSecondary;
     final statusLabel =
-        statusLabels[payment.status] ?? payment.status.toUpperCase();
+        statusLabels[payment.effectiveStatus] ?? payment.status.toUpperCase();
+    final periodLabel = payment.periodoInicio != null && payment.periodoFim != null
+        ? '${DateFormat('dd/MM/yyyy').format(payment.periodoInicio!)} – '
+            '${DateFormat('dd/MM/yyyy').format(payment.periodoFim!)}'
+        : DateFormat('d MMM yyyy', 'pt').format(payment.data);
+    final loading = _paymentLoadingId == payment.id;
+    final startsInFuture = payment.periodoInicio?.isAfter(DateTime.now()) == true;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -1870,7 +1959,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
-              payment.isPaid ? Icons.receipt : Icons.pending,
+              payment.isPaid ? Icons.receipt : Icons.payment_outlined,
               color: statusColor,
               size: 20,
             ),
@@ -1881,7 +1970,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  payment.descricao ?? 'Mensalidade',
+                  payment.descricao ?? payment.tipoMensalidadeLabel,
                   style: GoogleFonts.inter(
                     fontWeight: FontWeight.w600,
                     color: AppColors.onSurface,
@@ -1890,7 +1979,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  DateFormat('d MMM yyyy', 'pt').format(payment.data),
+                  '${payment.tipoMensalidadeLabel} · $periodLabel',
                   style: GoogleFonts.inter(
                     color: AppColors.textSecondary,
                     fontSize: 12,
@@ -1926,6 +2015,47 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                 ),
               ),
+              if (!payment.isPaid && payment.stripeHostedInvoiceUrl != null) ...[
+                const SizedBox(height: 4),
+                TextButton(
+                  onPressed: loading ? null : () => _payPayment(payment),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, 32),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  child: Text(
+                    'Pagar agora',
+                    style: GoogleFonts.inter(
+                      color: AppColors.error,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ] else if (payment.canStartCheckout) ...[
+                const SizedBox(height: 4),
+                TextButton(
+                  onPressed: loading ? null : () => _payPayment(payment),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, 32),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  child: loading
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(
+                          startsInFuture ? 'Ativar automático' : 'Pagar',
+                          style: GoogleFonts.inter(
+                            color: AppColors.primary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                ),
+              ],
             ],
           ),
           if (payment.faturaUrl != null) ...[
@@ -1948,6 +2078,38 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _payPayment(PaymentModel payment) async {
+    if (_paymentLoadingId != null) return;
+    setState(() => _paymentLoadingId = payment.id);
+    try {
+      final url = payment.stripeHostedInvoiceUrl ??
+          await ref.read(paymentRepositoryProvider).createPaymentCheckoutSession(
+                paymentId: payment.id,
+              );
+      final opened = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened && mounted) {
+        showAppNotification(
+          context,
+          'Não foi possível abrir o pagamento.',
+          type: NotificationType.error,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Não foi possível iniciar o pagamento.',
+          type: NotificationType.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _paymentLoadingId = null);
+    }
   }
 
   Future<void> _editProfile(UserModel user) async {

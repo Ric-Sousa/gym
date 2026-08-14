@@ -98,9 +98,7 @@ void main() {
       const day = WorkoutDay(
         diaSemana: 'Terça-feira',
         foco: 'Costas e Bíceps',
-        exercicios: [
-          Exercise(nome: 'Puxada Alta', series: 3, repeticoes: 12),
-        ],
+        exercicios: [Exercise(nome: 'Puxada Alta', series: 3, repeticoes: 12)],
       );
 
       final map = day.toMap();
@@ -191,9 +189,7 @@ void main() {
       const plan = WorkoutPlanModel(
         nome: nome,
         userId: userId,
-        dias: [
-          WorkoutDay(diaSemana: 'Segunda-feira', foco: 'Peito'),
-        ],
+        dias: [WorkoutDay(diaSemana: 'Segunda-feira', foco: 'Peito')],
       );
 
       final workout = plan.getWorkoutForDay('Domingo');

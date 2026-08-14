@@ -14,13 +14,16 @@ class AppStrings {
   static const String emailHint = 'exemplo@email.com';
   static const String passwordHint = 'Mínimo 6 caracteres';
   static const String invalidEmail = 'E-mail inválido';
-  static const String invalidPassword = 'A palavra-passe deve ter pelo menos 6 caracteres';
+  static const String invalidPassword =
+      'A palavra-passe deve ter pelo menos 6 caracteres';
   static const String loginError = 'Erro ao iniciar sessão';
   static const String userNotFound = 'Utilizador não encontrado';
   static const String wrongPassword = 'Palavra-passe incorreta';
   static const String accountDisabled = 'Conta desativada. Contacta o suporte.';
-  static const String passwordResetSent = 'E-mail de recuperação enviado. Verifica a tua caixa de entrada.';
-  static const String noUserDoc = 'Documento de utilizador não encontrado. Contacta o suporte.';
+  static const String passwordResetSent =
+      'E-mail de recuperação enviado. Verifica a tua caixa de entrada.';
+  static const String noUserDoc =
+      'Documento de utilizador não encontrado. Contacta o suporte.';
 
   // Navigation
   static const String tabHome = 'Início';
@@ -45,11 +48,13 @@ class AppStrings {
 
   // Nutrition
   static const String nutritionPlan = 'Nutrição';
-  static const String noPlanAssigned = 'Nenhum plano nutricional atribuído.\nContacta o teu personal trainer.';
+  static const String noPlanAssigned =
+      'Nenhum plano nutricional atribuído.\nContacta o teu personal trainer.';
   static const String addExtraMeal = 'Adicionar refeição extra';
   static const String searchFood = 'Pesquisar alimento...';
   static const String mealCompleted = 'Refeição concluída!';
-  static const String noConsumptionIndicated = 'Indica a quantidade consumida de pelo menos um alimento.';
+  static const String noConsumptionIndicated =
+      'Indica a quantidade consumida de pelo menos um alimento.';
   static const String caloriesLabel = 'calorias';
   static const String proteinLabel = 'proteínas';
   static const String carbsLabel = 'hidratos';
@@ -58,7 +63,8 @@ class AppStrings {
   // Workout
   static const String workoutPlan = 'Plano de Treino';
   static const String restDay = 'Dia de Descanso 🧘';
-  static const String restDayMessage = 'Hoje é dia de recuperação. Aproveita para alongar!';
+  static const String restDayMessage =
+      'Hoje é dia de recuperação. Aproveita para alongar!';
   static const String noWorkoutAssigned = 'Nenhum treino atribuído para hoje.';
   static const String sets = 'Séries';
   static const String reps = 'Repetições';
@@ -77,7 +83,8 @@ class AppStrings {
   static const String typeMessage = 'Escreve uma mensagem...';
   static const String send = 'Enviar';
   static const String noMessages = 'Nenhuma mensagem. Começa a conversa!';
-  static const String messageSendError = 'Erro ao enviar mensagem. Tenta novamente.';
+  static const String messageSendError =
+      'Erro ao enviar mensagem. Tenta novamente.';
 
   // Profile
   static const String profile = 'Perfil';
@@ -126,13 +133,16 @@ class AppStrings {
   ];
 
   // Connectivity
-  static const String offlineMessage = 'Estás offline. Algumas funcionalidades podem não estar disponíveis.';
+  static const String offlineMessage =
+      'Estás offline. Algumas funcionalidades podem não estar disponíveis.';
   static const String retry = 'Tentar novamente';
 
   // Errors
   static const String genericError = 'Ocorreu um erro. Tenta novamente.';
-  static const String networkError = 'Erro de ligação. Verifica a tua internet.';
-  static const String permissionDenied = 'Permissão negada. Verifica as definições.';
+  static const String networkError =
+      'Erro de ligação. Verifica a tua internet.';
+  static const String permissionDenied =
+      'Permissão negada. Verifica as definições.';
   static const String uploadError = 'Erro ao fazer upload. Tenta novamente.';
 
   // PDF Report

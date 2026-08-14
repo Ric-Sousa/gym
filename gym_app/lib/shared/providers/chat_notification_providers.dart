@@ -33,7 +33,11 @@ String _directRoomId(String firstId, String secondId) {
 final stableAlunoChatNotificationProvider =
     StreamProvider.family<StableChatNotification, String>((ref, userId) {
       if (userId.isEmpty) return const Stream.empty();
-      final personalId = ref.watch(authProvider).user?.personalId ?? '';
+      // O personalId é a única dependência do listener; mudanças noutros
+      // campos do perfil não devem recriar a subscrição.
+      final personalId = ref.watch(
+        authProvider.select((s) => s.user?.personalId ?? ''),
+      );
       if (personalId.isEmpty || personalId == userId) {
         return const Stream.empty();
       }
@@ -43,7 +47,6 @@ final stableAlunoChatNotificationProvider =
       final controller = StreamController<StableChatNotification>();
       final seenIds = <String>{};
       StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? subscription;
-      Timer? retryTimer;
       var disposed = false;
 
       void emit(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -59,13 +62,6 @@ final stableAlunoChatNotificationProvider =
       }
 
       late void Function() start;
-      void scheduleRetry() {
-        if (disposed || retryTimer != null) return;
-        retryTimer = Timer(const Duration(seconds: 2), () {
-          retryTimer = null;
-          if (!disposed) start();
-        });
-      }
 
       start = () {
         if (disposed) return;
@@ -88,13 +84,15 @@ final stableAlunoChatNotificationProvider =
                   emit(change.doc);
                 }
               }
-            }, onError: (_) => scheduleRetry());
+            }, onError: (_) {
+              // O SDK do Firestore gere a reconexão de listeners. Não
+              // reiniciar manualmente em loop quando há erro de rede/permissão.
+            });
       };
 
       start();
       ref.onDispose(() {
         disposed = true;
-        retryTimer?.cancel();
         subscription?.cancel();
         controller.close();
       });
@@ -115,7 +113,6 @@ final stableAlunoGroupNotificationProvider =
       final initialGroupIds = <String>{};
       StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
       groupsSubscription;
-      Timer? retryTimer;
       var groupsInitial = true;
       var disposed = false;
 
@@ -132,13 +129,6 @@ final stableAlunoGroupNotificationProvider =
       }
 
       late void Function() start;
-      void scheduleRetry() {
-        if (disposed || retryTimer != null) return;
-        retryTimer = Timer(const Duration(seconds: 2), () {
-          retryTimer = null;
-          if (!disposed) start();
-        });
-      }
 
       void cancelChildren() {
         for (final subscription in subscriptions.values) {
@@ -190,19 +180,20 @@ final stableAlunoGroupNotificationProvider =
                 }
               },
               onError: (_) {
+                // Não reiniciar este listener em loop. O SDK gere as
+                // reconexões transitórias do Firestore.
                 subscriptions.remove(groupId)?.cancel();
-                scheduleRetry();
               },
             );
       }
 
       start = () {
         if (disposed) return;
-    groupsSubscription?.cancel();
-    cancelChildren();
-    initialGroupIds.clear();
-    seenIdsByGroup.clear();
-    groupsInitial = true;
+        groupsSubscription?.cancel();
+        cancelChildren();
+        initialGroupIds.clear();
+        seenIdsByGroup.clear();
+        groupsInitial = true;
         groupsSubscription = firestore
             .collection(AppConstants.groupsCollection)
             .where('membros', arrayContains: userId)
@@ -222,13 +213,15 @@ final stableAlunoGroupNotificationProvider =
               for (final groupId in currentIds) {
                 watchGroup(groupId);
               }
-            }, onError: (_) => scheduleRetry());
+            }, onError: (_) {
+              // O SDK do Firestore gere a reconexão de listeners. Não
+              // reiniciar manualmente em loop quando há erro de rede/permissão.
+            });
       };
 
       start();
       ref.onDispose(() {
         disposed = true;
-        retryTimer?.cancel();
         groupsSubscription?.cancel();
         cancelChildren();
         controller.close();
@@ -240,25 +233,17 @@ final stableAlunoGroupNotificationProvider =
 /// mensagens consecutivas que tenham o mesmo timestamp.
 final stableAdminChatNotificationProvider =
     StreamProvider<StableChatNotification>((ref) {
-      final adminId = ref.watch(authProvider).user?.uid ?? '';
+      final adminId = ref.watch(authProvider.select((s) => s.user?.uid ?? ''));
       if (adminId.isEmpty) return const Stream.empty();
 
       final firestore = FirebaseFirestore.instance;
       final controller = StreamController<StableChatNotification>();
       final lastCursorByRoom = <String, String>{};
       StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? subscription;
-      Timer? retryTimer;
       var initial = true;
       var disposed = false;
 
       late void Function() start;
-      void scheduleRetry() {
-        if (disposed || retryTimer != null) return;
-        retryTimer = Timer(const Duration(seconds: 2), () {
-          retryTimer = null;
-          if (!disposed) start();
-        });
-      }
 
       start = () {
         if (disposed) return;
@@ -302,13 +287,15 @@ final stableAdminChatNotificationProvider =
                 }
               }
               initial = false;
-            }, onError: (_) => scheduleRetry());
+            }, onError: (_) {
+              // O SDK do Firestore gere a reconexão de listeners. Não
+              // reiniciar manualmente em loop quando há erro de rede/permissão.
+            });
       };
 
       start();
       ref.onDispose(() {
         disposed = true;
-        retryTimer?.cancel();
         subscription?.cancel();
         controller.close();
       });
@@ -318,7 +305,7 @@ final stableAdminChatNotificationProvider =
 /// Mensagens dos grupos recebidas pelo admin, sem collectionGroup.
 final stableAdminGroupNotificationProvider =
     StreamProvider<StableChatNotification>((ref) {
-      final adminId = ref.watch(authProvider).user?.uid ?? '';
+      final adminId = ref.watch(authProvider.select((s) => s.user?.uid ?? ''));
       if (adminId.isEmpty) return const Stream.empty();
 
       final firestore = FirebaseFirestore.instance;
@@ -329,7 +316,6 @@ final stableAdminGroupNotificationProvider =
       final initialGroupIds = <String>{};
       StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
       groupsSubscription;
-      Timer? retryTimer;
       var initialGroupsSnapshot = true;
       var disposed = false;
 
@@ -346,13 +332,6 @@ final stableAdminGroupNotificationProvider =
       }
 
       late void Function() start;
-      void scheduleRetry() {
-        if (disposed || retryTimer != null) return;
-        retryTimer = Timer(const Duration(seconds: 2), () {
-          retryTimer = null;
-          if (!disposed) start();
-        });
-      }
 
       void cancelChildren() {
         for (final subscription in subscriptions.values) {
@@ -404,8 +383,9 @@ final stableAdminGroupNotificationProvider =
                 }
               },
               onError: (_) {
+                // Não reiniciar este listener em loop. O SDK gere as
+                // reconexões transitórias do Firestore.
                 subscriptions.remove(groupId)?.cancel();
-                scheduleRetry();
               },
             );
       }
@@ -433,13 +413,15 @@ final stableAdminGroupNotificationProvider =
               for (final groupId in currentIds) {
                 watchGroup(groupId);
               }
-            }, onError: (_) => scheduleRetry());
+            }, onError: (_) {
+              // O SDK do Firestore gere a reconexão de listeners. Não
+              // reiniciar manualmente em loop quando há erro de rede/permissão.
+            });
       };
 
       start();
       ref.onDispose(() {
         disposed = true;
-        retryTimer?.cancel();
         groupsSubscription?.cancel();
         cancelChildren();
         controller.close();

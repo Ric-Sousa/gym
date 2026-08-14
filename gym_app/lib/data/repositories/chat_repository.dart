@@ -12,8 +12,8 @@ class ChatRepository {
   ChatRepository({
     required FirestoreDataSource firestoreDataSource,
     required ConnectivityService connectivityService,
-  })  : _firestoreDataSource = firestoreDataSource,
-        _connectivityService = connectivityService;
+  }) : _firestoreDataSource = firestoreDataSource,
+       _connectivityService = connectivityService;
 
   /// Obtém o ID da sala de chat.
   String getChatRoomId(String alunoId, String personalId) {
@@ -41,14 +41,21 @@ class ChatRepository {
 
   /// Stream que indica se o outro participante está a digitar.
   Stream<String?> typingStream(String salaId, String myUserId) {
-    return _firestoreDataSource.typingStream(salaId, myUserId).handleError((_, __) {
+    return _firestoreDataSource.typingStream(salaId, myUserId).handleError((
+      _,
+      __,
+    ) {
       // ignore: avoid_print
       print('Typing stream error for $salaId');
     });
   }
 
   /// Define ou remove o estado de digitação.
-  Future<void> setTypingStatus(String salaId, String userId, bool isTyping) async {
+  Future<void> setTypingStatus(
+    String salaId,
+    String userId,
+    bool isTyping,
+  ) async {
     await _firestoreDataSource.setTypingStatus(salaId, userId, isTyping);
   }
 }

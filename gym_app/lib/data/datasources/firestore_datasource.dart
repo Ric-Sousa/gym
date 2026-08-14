@@ -6,9 +6,11 @@ import '../models/nutrition_plan_model.dart';
 import '../models/workout_plan_model.dart';
 import '../models/message_model.dart';
 import '../models/progress_model.dart';
+import '../models/progress_video_model.dart';
 import '../models/food_model.dart';
 import '../models/workout_log_model.dart';
 import '../models/payment_model.dart';
+import '../models/app_notification_model.dart';
 import '../models/booking_model.dart';
 import '../models/group_model.dart';
 import '../../core/config/app_constants.dart';
@@ -611,6 +613,64 @@ class FirestoreDataSource {
     }
   }
 
+  // ───────────────────── PROGRESS VIDEOS ─────────────────────
+
+  Future<List<ProgressVideoModel>> getProgressVideos(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(userId)
+          .collection('progressVideos')
+          .orderBy('createdAt', descending: true)
+          .get();
+      return snapshot.docs
+          .map((doc) => ProgressVideoModel.fromMap(doc.id, userId, doc.data()))
+          .toList();
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao obter vídeos de progresso',
+      );
+    }
+  }
+
+  Future<void> addProgressVideo(
+    String userId,
+    String videoId,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      await _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(userId)
+          .collection('progressVideos')
+          .doc(videoId)
+          .set(data);
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao guardar vídeo de progresso',
+      );
+    }
+  }
+
+  Future<void> updateProgressVideo(
+    String userId,
+    String videoId,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      await _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(userId)
+          .collection('progressVideos')
+          .doc(videoId)
+          .update(data);
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao atualizar vídeo de progresso',
+      );
+    }
+  }
+
   // ───────────────────── FOODS ─────────────────────
 
   /// Lista todos os alimentos.
@@ -725,14 +785,18 @@ class FirestoreDataSource {
   /// Obtém pagamentos de um utilizador.
   Future<List<PaymentModel>> getPayments(String userId) async {
     try {
+      // Ordenamos localmente para evitar um índice composto obrigatório
+      // (where userId + orderBy data), que pode fazer o Web SDK repetir a
+      // tentativa de leitura quando o índice ainda não existe.
       final snapshot = await _firestore
           .collection(AppConstants.paymentsCollection)
           .where('userId', isEqualTo: userId)
-          .orderBy('data', descending: true)
           .get();
-      return snapshot.docs
+      final payments = snapshot.docs
           .map((doc) => PaymentModel.fromMap(doc.id, doc.data()))
           .toList();
+      payments.sort((a, b) => b.data.compareTo(a.data));
+      return payments;
     } on FirebaseException catch (e) {
       throw ServerException(message: e.message ?? 'Erro ao obter pagamentos');
     }
@@ -773,6 +837,45 @@ class FirestoreDataSource {
       throw ServerException(
         message: e.message ?? 'Erro ao atualizar pagamento',
       );
+    }
+  }
+
+  // ───────────────────── NOTIFICATIONS ─────────────────────
+
+  Stream<List<AppNotificationModel>> watchNotifications(String userId) {
+    if (userId.isEmpty) return Stream.value(const []);
+    return _firestore
+        .collection(AppConstants.notificationsCollection)
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snapshot) {
+          final notifications = snapshot.docs
+              .map((doc) => AppNotificationModel.fromMap(doc.id, doc.data()))
+              .toList();
+          notifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return notifications;
+        });
+  }
+
+  Future<void> markNotificationsRead(String userId) async {
+    final snapshot = await _firestore
+        .collection(AppConstants.notificationsCollection)
+        .where('userId', isEqualTo: userId)
+        .get();
+    final unreadDocs = snapshot.docs
+        .where((doc) => doc.data()['read'] != true)
+        .toList();
+    if (unreadDocs.isEmpty) return;
+    for (var offset = 0; offset < unreadDocs.length; offset += 450) {
+      final end = (offset + 450).clamp(0, unreadDocs.length);
+      final batch = _firestore.batch();
+      for (final doc in unreadDocs.sublist(offset, end)) {
+        batch.update(doc.reference, {
+          'read': true,
+          'readAt': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
     }
   }
 

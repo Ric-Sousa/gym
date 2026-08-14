@@ -13,6 +13,7 @@ import '../../../../shared/widgets/app_page_frame.dart';
 import '../widgets/nutrition_editor.dart';
 import '../widgets/report_generator.dart';
 import '../../aluno/chat/screens/chat_screen.dart';
+import '../../aluno/perfil/screens/video_progress_screen.dart';
 
 /// Ecrã de detalhe do aluno (admin) — Kinetic Dark.
 class StudentDetailScreen extends ConsumerStatefulWidget {
@@ -28,7 +29,14 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  final tabs = const ['Resumo', 'Nutrição', 'Treino', 'Progresso', 'Chat'];
+  final tabs = const [
+    'Resumo',
+    'Nutrição',
+    'Treino',
+    'Progresso',
+    'Vídeos',
+    'Chat',
+  ];
 
   @override
   void initState() {
@@ -90,6 +98,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
           _buildNutricao(aluno),
           _buildTreino(aluno),
           _buildProgresso(aluno),
+          VideoProgressScreen(userId: aluno.uid, isAdmin: true, student: aluno),
           ChatScreen(
             trackChatPresence: false,
             chatPartnerId: aluno.uid,

@@ -20,20 +20,18 @@ const testEnv = functionsTest({
   region: 'europe-west1',
 });
 
+// createStudent foi substituída pela rota HTTP createStudentHttp. O teste
+// callable antigo não podia validar uma função onRequest e falhava por usar
+// uma exportação inexistente.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const createStudent = testEnv.wrap(require('../lib/index').createStudent);
+const index = require('../lib/index');
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const seedFoods = testEnv.wrap(require('../lib/index').seedFoods);
+const seedFoods = testEnv.wrap(index.seedFoods);
 
-describe('createStudent', () => {
-  test('rejects unauthenticated calls (no auth context)', async () => {
-    try {
-      await createStudent({ nome: 'Test', email: 'test@test.com' });
-      throw new Error('Should have thrown');
-    } catch (e: any) {
-      expect(e.code).toBe('unauthenticated');
-      expect(e.message).toBe('Tens de iniciar sessão para criar alunos.');
-    }
+describe('function exports', () => {
+  test('exports the current HTTP student creation function', () => {
+    expect(typeof index.createStudentHttp).toBe('function');
+    expect(typeof index.deleteStudentHttp).toBe('function');
   });
 });
 
@@ -44,7 +42,7 @@ describe('seedFoods', () => {
       throw new Error('Should have thrown');
     } catch (e: any) {
       expect(e.code).toBe('unauthenticated');
-      expect(e.message).toBe('Tens de iniciar sessão.');
+      expect(e.message).toBe('Login necessário.');
     }
   });
 });

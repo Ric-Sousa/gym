@@ -13,8 +13,8 @@ class DiaryRepository {
   DiaryRepository({
     required FirestoreDataSource firestoreDataSource,
     required ConnectivityService connectivityService,
-  })  : _firestoreDataSource = firestoreDataSource,
-        _connectivityService = connectivityService;
+  }) : _firestoreDataSource = firestoreDataSource,
+       _connectivityService = connectivityService;
 
   /// Obtém a entrada do diário para uma data.
   Future<DiaryModel?> getDiaryEntry(String userId, String date) async {
@@ -71,8 +71,9 @@ class DiaryRepository {
   Future<void> setRating(String userId, String date, int rating) async {
     if (!await _connectivityService.isConnected) throw NetworkFailure();
     try {
-      await _firestoreDataSource.setDiaryEntry(
-          userId, date, {'avaliacao': rating});
+      await _firestoreDataSource.setDiaryEntry(userId, date, {
+        'avaliacao': rating,
+      });
     } on ServerException catch (e) {
       throw ServerFailure(message: e.message);
     }
@@ -80,7 +81,10 @@ class DiaryRepository {
 
   /// Marca treino como concluído.
   Future<void> markWorkoutDone(
-      String userId, String date, Map<String, dynamic> treinoData) async {
+    String userId,
+    String date,
+    Map<String, dynamic> treinoData,
+  ) async {
     if (!await _connectivityService.isConnected) throw NetworkFailure();
     try {
       await _firestoreDataSource.setDiaryEntry(userId, date, {
@@ -94,7 +98,10 @@ class DiaryRepository {
 
   /// Adiciona refeição ao diário.
   Future<void> addMeal(
-      String userId, String date, Map<String, dynamic> mealMap) async {
+    String userId,
+    String date,
+    Map<String, dynamic> mealMap,
+  ) async {
     if (!await _connectivityService.isConnected) throw NetworkFailure();
     try {
       await _firestoreDataSource.addMealToDiary(userId, date, mealMap);

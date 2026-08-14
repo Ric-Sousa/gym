@@ -61,18 +61,21 @@ void main() {
     expect(received, ['next']);
   });
 
-  test('não considera mensagem enviada pelo próprio utilizador como recebida', () {
-    final detector = _DetectorHost();
-    final received = <String>[];
+  test(
+    'não considera mensagem enviada pelo próprio utilizador como recebida',
+    () {
+      final detector = _DetectorHost();
+      final received = <String>[];
 
-    detector.detectNewMessages(<MessageModel>[], 'me');
-    detector.detectNewMessages(
-      [_message('mine', 'me')],
-      'me',
-      playSound: false,
-      onNewMessage: (message) => received.add(message.id),
-    );
+      detector.detectNewMessages(<MessageModel>[], 'me');
+      detector.detectNewMessages(
+        [_message('mine', 'me')],
+        'me',
+        playSound: false,
+        onNewMessage: (message) => received.add(message.id),
+      );
 
-    expect(received, isEmpty);
-  });
+      expect(received, isEmpty);
+    },
+  );
 }

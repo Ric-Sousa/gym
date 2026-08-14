@@ -6432,10 +6432,17 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
             title: 'Pagamentos',
             subtitle: 'Gestão de pagamentos e faturas via Stripe',
             icon: Icons.payments_outlined,
-            action: ElevatedButton.icon(
-              onPressed: _creating ? null : () => _showCreatePaymentDialog(),
-              icon: const Icon(Icons.add_rounded, size: 17),
-              label: const Text('Novo pagamento'),
+            action: Wrap(
+              spacing: 8,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _creating
+                      ? null
+                      : () => _showCreatePaymentDialog(),
+                  icon: const Icon(Icons.add_rounded, size: 17),
+                  label: const Text('Nova cobrança'),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 20),
@@ -6562,6 +6569,134 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
     );
   }
 
+  bool _canCancelPayment(PaymentModel payment) {
+    return payment.status == 'pending' ||
+        payment.status == 'scheduled' ||
+        payment.status == 'failed';
+  }
+
+  bool _canCancelSubscription(PaymentModel payment) {
+    return payment.stripeSubscriptionId != null &&
+        payment.isPaid &&
+        !payment.subscriptionCancelAtPeriodEnd;
+  }
+
+  Future<void> _cancelPaymentSubscription(PaymentModel payment) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Desativar renovação automática?'),
+        content: const Text(
+          'O cliente mantém o acesso até ao fim do período pago. O Stripe não fará novas cobranças depois dessa data.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Desativar renovação'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await ref.read(paymentRepositoryProvider).cancelPaymentSubscription(
+            paymentId: payment.id,
+          );
+      ref.invalidate(adminAllPaymentsProvider);
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Renovação automática desativada no fim do período.',
+          type: NotificationType.success,
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Não foi possível desativar a renovação: $error',
+          type: NotificationType.error,
+        );
+      }
+    }
+  }
+
+  bool _canResendRecovery(PaymentModel payment) {
+    return payment.status == 'failed' || payment.isOverdue;
+  }
+
+  Future<void> _resendRecovery(PaymentModel payment) async {
+    try {
+      await ref.read(paymentRepositoryProvider).resendPaymentRecovery(
+            paymentId: payment.id,
+          );
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Link de recuperação reenviado por e-mail/push.',
+          type: NotificationType.success,
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Não foi possível reenviar o link: $error',
+          type: NotificationType.error,
+        );
+      }
+    }
+  }
+
+  Future<void> _cancelPayment(PaymentModel payment) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancelar cobrança?'),
+        content: Text(
+          'A cobrança de ${payment.valorFormatado} deixará de aparecer para o cliente e a subscrição automática será cancelada, se já tiver sido criada.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Cancelar cobrança'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await ref.read(paymentRepositoryProvider).cancelPayment(
+            paymentId: payment.id,
+          );
+      ref.invalidate(adminAllPaymentsProvider);
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Cobrança cancelada.',
+          type: NotificationType.success,
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Não foi possível cancelar a cobrança: $error',
+          type: NotificationType.error,
+        );
+      }
+    }
+  }
+
   Widget _paymentRow(PaymentModel payment) {
     final isMobile = MediaQuery.of(context).size.width < 600;
     final userAsync = ref.watch(
@@ -6580,20 +6715,27 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
     final statusColors = {
       'paid': AdminThemeColors.of(context).lime,
       'pending': AdminThemeColors.of(context).orange,
+      'scheduled': AdminThemeColors.of(context).blue,
       'failed': Colors.red,
       'refunded': AdminThemeColors.of(context).muted,
+      'cancelled': AdminThemeColors.of(context).muted,
+      'overdue': Colors.red,
     };
     final statusLabels = {
       'paid': 'PAGO',
       'pending': 'PENDENTE',
+      'scheduled': 'AGENDADO',
       'failed': 'FALHOU',
       'refunded': 'REEMBOLSADO',
+      'cancelled': 'CANCELADO',
+      'overdue': 'EM ATRASO',
     };
 
     final statusColor =
-        statusColors[payment.status] ?? AdminThemeColors.of(context).muted;
+        statusColors[payment.effectiveStatus] ??
+        AdminThemeColors.of(context).muted;
     final statusLabel =
-        statusLabels[payment.status] ?? payment.status.toUpperCase();
+        statusLabels[payment.effectiveStatus] ?? payment.status.toUpperCase();
 
     if (isMobile) {
       return Container(
@@ -6704,6 +6846,45 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                 ),
               ),
             ],
+            if (_canResendRecovery(payment)) ...[
+              const SizedBox(height: 6),
+              TextButton.icon(
+                onPressed: () => _resendRecovery(payment),
+                icon: const Icon(Icons.forward_to_inbox_outlined, size: 15),
+                label: const Text('Reenviar recuperação'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.blue,
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 32),
+                ),
+              ),
+            ],
+            if (_canCancelSubscription(payment)) ...[
+              const SizedBox(height: 6),
+              TextButton.icon(
+                onPressed: () => _cancelPaymentSubscription(payment),
+                icon: const Icon(Icons.event_busy_outlined, size: 15),
+                label: const Text('Parar renovação'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.orange,
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 32),
+                ),
+              ),
+            ],
+            if (_canCancelPayment(payment)) ...[
+              const SizedBox(height: 6),
+              TextButton.icon(
+                onPressed: () => _cancelPayment(payment),
+                icon: const Icon(Icons.cancel_outlined, size: 15),
+                label: const Text('Cancelar'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.red,
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 32),
+                ),
+              ),
+            ],
           ],
         ),
       );
@@ -6792,9 +6973,12 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
             ),
           ),
           SizedBox(
-            width: 60,
-            child: payment.faturaUrl != null
-                ? IconButton(
+            width: 92,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (payment.faturaUrl != null)
+                  IconButton(
                     icon: Icon(
                       Icons.picture_as_pdf,
                       color: AdminThemeColors.of(context).lime,
@@ -6802,20 +6986,37 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                     ),
                     onPressed: () => _openInvoice(payment.faturaUrl!),
                     tooltip: 'Ver fatura',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                   )
-                : (payment.status == 'pending' &&
-                          payment.stripeSessionId != null
-                      ? IconButton(
-                          icon: Icon(
-                            Icons.refresh,
-                            color: AdminThemeColors.of(context).orange,
-                            size: 18,
-                          ),
-                          onPressed: () =>
-                              ref.invalidate(adminAllPaymentsProvider),
-                          tooltip: 'Atualizar',
-                        )
-                      : const SizedBox.shrink()),
+                else if (payment.status == 'pending' &&
+                    payment.stripeSessionId != null)
+                  IconButton(
+                    icon: Icon(
+                      Icons.refresh,
+                      color: AdminThemeColors.of(context).orange,
+                      size: 18,
+                    ),
+                    onPressed: () =>
+                        ref.invalidate(adminAllPaymentsProvider),
+                    tooltip: 'Atualizar',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                if (_canCancelPayment(payment))
+                  IconButton(
+                    icon: const Icon(
+                      Icons.cancel_outlined,
+                      color: Colors.red,
+                      size: 18,
+                    ),
+                    onPressed: () => _cancelPayment(payment),
+                    tooltip: 'Cancelar cobrança',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+              ],
+            ),
           ),
         ],
       ),
@@ -6837,6 +7038,225 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
     );
   }
 
+  Future<void> _showManualPaymentDialog() async {
+    final alunos = ref.read(alunosListProvider).asData?.value ?? <UserModel>[];
+    if (alunos.isEmpty) {
+      showAppNotification(
+        context,
+        'Nenhum aluno disponível.',
+        type: NotificationType.error,
+      );
+      return;
+    }
+    UserModel? aluno;
+    final valor = TextEditingController();
+    final descricao = TextEditingController(text: 'Mensalidade');
+    final inicio = TextEditingController();
+    final fim = TextEditingController();
+    final vencimento = TextEditingController();
+    String metodo = 'transferência';
+    XFile? comprovativo;
+    final data = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('Registar pagamento manual'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<UserModel>(
+                  initialValue: aluno,
+                  decoration: const InputDecoration(labelText: 'Aluno'),
+                  items: alunos
+                      .map(
+                        (a) => DropdownMenuItem(value: a, child: Text(a.nome)),
+                      )
+                      .toList(),
+                  onChanged: (v) => setState(() => aluno = v),
+                ),
+                TextField(
+                  controller: valor,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(labelText: 'Valor (€)'),
+                ),
+                TextField(
+                  controller: descricao,
+                  decoration: const InputDecoration(labelText: 'Descrição'),
+                ),
+                DropdownButtonFormField<String>(
+                  initialValue: metodo,
+                  decoration: const InputDecoration(labelText: 'Método'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'dinheiro',
+                      child: Text('Dinheiro'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'transferência',
+                      child: Text('Transferência'),
+                    ),
+                    DropdownMenuItem(value: 'outro', child: Text('Outro')),
+                  ],
+                  onChanged: (v) => setState(() => metodo = v ?? metodo),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      final picked = await ImagePicker().pickImage(
+                        source: ImageSource.gallery,
+                      );
+                      if (picked != null) {
+                        setState(() => comprovativo = picked);
+                      }
+                    },
+                    icon: const Icon(Icons.upload_file_outlined),
+                    label: Text(
+                      comprovativo == null
+                          ? 'Adicionar comprovativo *'
+                          : 'Comprovativo: ${comprovativo!.name}',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                TextField(
+                  controller: inicio,
+                  decoration: const InputDecoration(
+                    labelText: 'Início do período (AAAA-MM-DD)',
+                  ),
+                ),
+                TextField(
+                  controller: fim,
+                  decoration: const InputDecoration(
+                    labelText: 'Fim do período (AAAA-MM-DD)',
+                  ),
+                ),
+                TextField(
+                  controller: vencimento,
+                  decoration: const InputDecoration(
+                    labelText: 'Vencimento (AAAA-MM-DD)',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, {
+                'aluno': aluno,
+                'valor': valor.text,
+                'descricao': descricao.text,
+                'metodo': metodo,
+                'inicio': inicio.text,
+                'fim': fim.text,
+                'vencimento': vencimento.text,
+                'comprovativo': comprovativo,
+              }),
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    valor.dispose();
+    descricao.dispose();
+    inicio.dispose();
+    fim.dispose();
+    vencimento.dispose();
+    if (data == null || data['aluno'] == null) return;
+    final amount = double.tryParse(
+      (data['valor'] as String).replaceAll(',', '.'),
+    );
+    final proof = data['comprovativo'] as XFile?;
+    if (amount == null || amount <= 0) {
+      if (mounted)
+        showAppNotification(
+          context,
+          'Indica um valor válido.',
+          type: NotificationType.error,
+        );
+      return;
+    }
+    if (proof == null) {
+      if (mounted)
+        showAppNotification(
+          context,
+          'Adiciona o comprovativo do pagamento.',
+          type: NotificationType.error,
+        );
+      return;
+    }
+    DateTime? parse(String value) => DateTime.tryParse(value.trim());
+    final periodStart = parse(data['inicio'] as String);
+    final periodEnd = parse(data['fim'] as String);
+    final dueDate = parse(data['vencimento'] as String);
+    if (periodStart == null ||
+        periodEnd == null ||
+        dueDate == null ||
+        periodStart.isAfter(periodEnd)) {
+      if (mounted)
+        showAppNotification(
+          context,
+          'Indica um período e vencimento válidos (início até fim).',
+          type: NotificationType.error,
+        );
+      return;
+    }
+    try {
+      final studentId = (data['aluno'] as UserModel).uid;
+      final proofBytes = await proof.readAsBytes();
+      final proofExtension = proof.name.contains('.')
+          ? proof.name.split('.').last.toLowerCase()
+          : 'jpg';
+      final proofUrl = await ref
+          .read(storageDataSourceProvider)
+          .uploadImage(
+            path:
+                'payment_proofs/$studentId/${DateTime.now().microsecondsSinceEpoch}.$proofExtension',
+            fileBytes: proofBytes,
+            contentType: proof.mimeType ?? 'image/jpeg',
+          );
+      await ref.read(paymentRepositoryProvider).addManualPayment({
+        'userId': studentId,
+        'valor': amount,
+        'moeda': 'eur',
+        'status': 'paid',
+        'descricao': (data['descricao'] as String).trim().isEmpty
+            ? 'Mensalidade'
+            : (data['descricao'] as String).trim(),
+        'data': DateTime.now(),
+        'paidAt': DateTime.now(),
+        'metodo': data['metodo'],
+        'periodoInicio': periodStart,
+        'periodoFim': periodEnd,
+        'dataVencimento': dueDate,
+        'comprovativoUrl': proofUrl,
+      });
+      ref.invalidate(adminAllPaymentsProvider);
+      if (mounted)
+        showAppNotification(
+          context,
+          'Pagamento registado.',
+          type: NotificationType.success,
+        );
+    } catch (_) {
+      if (mounted)
+        showAppNotification(
+          context,
+          'Não foi possível guardar o pagamento.',
+          type: NotificationType.error,
+        );
+    }
+  }
+
   void _openInvoice(String url) {
     launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   }
@@ -6856,7 +7276,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
 
     UserModel? selectedAluno;
     final valorCtrl = TextEditingController();
-    final descCtrl = TextEditingController(text: 'Mensalidade');
+    String tipoMensalidade = 'mensal';
     bool loading = false;
     String? checkoutUrl;
 
@@ -6871,7 +7291,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
             side: BorderSide(color: AdminThemeColors.of(context).border),
           ),
           title: Text(
-            'Novo Pagamento',
+            'Nova cobrança',
             style: GoogleFonts.inter(
               fontWeight: FontWeight.w700,
               color: AdminThemeColors.of(context).text,
@@ -6888,33 +7308,10 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Sessão de checkout criada!',
+                      'Cobrança criada. O cliente poderá pagar no seu Perfil.',
                       style: GoogleFonts.inter(
                         fontWeight: FontWeight.w600,
                         color: AdminThemeColors.of(context).text,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'URL de pagamento:',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: AdminThemeColors.of(context).muted,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AdminThemeColors.of(context).bg,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: SelectableText(
-                        checkoutUrl!,
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          color: AdminThemeColors.of(context).lime,
-                        ),
                       ),
                     ),
                   ],
@@ -6957,6 +7354,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
+                      onChanged: (_) => setDialogState(() {}),
                       style: GoogleFonts.inter(
                         color: AdminThemeColors.of(context).text,
                       ),
@@ -6977,13 +7375,14 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    TextField(
-                      controller: descCtrl,
+                    DropdownButtonFormField<String>(
+                      initialValue: tipoMensalidade,
+                      dropdownColor: AdminThemeColors.of(context).surface,
                       style: GoogleFonts.inter(
                         color: AdminThemeColors.of(context).text,
                       ),
                       decoration: InputDecoration(
-                        labelText: 'Descrição',
+                        labelText: 'Tipo de mensalidade',
                         labelStyle: GoogleFonts.inter(
                           color: AdminThemeColors.of(context).muted,
                         ),
@@ -6995,6 +7394,25 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                             color: AdminThemeColors.of(context).border,
                           ),
                         ),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'mensal', child: Text('Mensal')),
+                        DropdownMenuItem(
+                          value: 'trimestral',
+                          child: Text('Trimestral'),
+                        ),
+                        DropdownMenuItem(value: 'anual', child: Text('Anual')),
+                      ],
+                      onChanged: (value) => setDialogState(
+                        () => tipoMensalidade = value ?? tipoMensalidade,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'O próximo período e a data de vencimento serão calculados automaticamente a partir do fim do período atual.',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: AdminThemeColors.of(context).muted,
                       ),
                     ),
                     if (loading) ...[
@@ -7030,16 +7448,14 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                         setDialogState(() => loading = true);
                         try {
                           final repo = ref.read(paymentRepositoryProvider);
-                          final url = await repo.createCheckoutSession(
+                          await repo.createPaymentSchedule(
                             userId: selectedAluno!.uid,
                             valor: valor,
-                            descricao: descCtrl.text.trim().isEmpty
-                                ? 'Mensalidade'
-                                : descCtrl.text.trim(),
+                            tipoMensalidade: tipoMensalidade,
                           );
                           setDialogState(() {
                             loading = false;
-                            checkoutUrl = url;
+                            checkoutUrl = 'created';
                           });
                           ref.invalidate(adminAllPaymentsProvider);
                         } catch (e) {
@@ -7056,7 +7472,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                   foregroundColor: Colors.white,
                 ),
                 child: Text(
-                  'Criar Sessão',
+                  'Criar cobrança',
                   style: GoogleFonts.inter(fontWeight: FontWeight.w700),
                 ),
               ),
@@ -7064,6 +7480,8 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
         ),
       ),
     );
+    valorCtrl.dispose();
+
   }
 }
 

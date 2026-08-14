@@ -1,10 +1,51 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow public read access to all files
-    match /{allPaths=**} {
-      allow read: if true;
-      allow write: if request.auth != null;
+    // Progression videos are private to their student and admin, with a
+    // conservative size/type guard at the Storage boundary.
+    match /users/{uid}/progress_videos/{videoId} {
+      allow read: if request.auth != null &&
+        (request.auth.uid == uid ||
+         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin');
+      allow write: if request.auth != null &&
+        (request.auth.uid == uid ||
+         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin') &&
+        request.resource.size < 200 * 1024 * 1024 &&
+        request.resource.contentType.matches('video/(mp4|quicktime|webm|x-msvideo)');
+    }
+
+    // Existing application uploads.
+    match /users/{uid}/{allPaths=**} {
+      allow read: if request.auth != null &&
+        (request.auth.uid == uid ||
+         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin');
+      allow write: if request.auth != null &&
+        (request.auth.uid == uid ||
+         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin');
+    }
+    match /chat_audio/{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+    match /chat_attachments/{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+    match /faturas/{uid}/{allPaths=**} {
+      allow read: if request.auth != null &&
+        (request.auth.uid == uid ||
+         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin');
+      allow write: if false;
+    }
+
+    // Comprovativos de pagamentos manuais: apenas o admin escreve; o aluno
+    // associado e o admin podem consultar o comprovativo.
+    match /payment_proofs/{uid}/{allPaths=**} {
+      allow read: if request.auth != null &&
+        (request.auth.uid == uid ||
+         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin');
+      allow write: if request.auth != null &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin' &&
+        request.resource.size < 10 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/(jpeg|png|webp|heic)');
     }
   }
 }

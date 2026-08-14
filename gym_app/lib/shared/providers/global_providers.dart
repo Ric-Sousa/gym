@@ -7,6 +7,9 @@ import '../../data/datasources/firestore_datasource.dart';
 import '../../data/datasources/storage_datasource.dart';
 import '../../data/models/booking_model.dart';
 import '../../data/models/payment_model.dart';
+import '../../data/models/app_notification_model.dart';
+import '../../data/repositories/notification_repository.dart';
+import '../../data/repositories/progress_video_repository.dart';
 import '../../data/models/message_model.dart';
 import '../../data/models/user_model.dart';
 import '../../data/repositories/auth_repository.dart';
@@ -74,6 +77,7 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(
     authDataSource: ref.watch(authDataSourceProvider),
     connectivityService: ref.watch(connectivityServiceProvider),
+    paymentRepository: ref.watch(paymentRepositoryProvider),
   );
 });
 
@@ -122,8 +126,23 @@ final workoutLogRepositoryProvider = Provider<WorkoutLogRepository>((ref) {
   );
 });
 
+final progressVideoRepositoryProvider = Provider<ProgressVideoRepository>((
+  ref,
+) {
+  return ProgressVideoRepository(
+    firestore: ref.watch(firestoreDataSourceProvider),
+    storage: ref.watch(storageDataSourceProvider),
+  );
+});
+
 final paymentRepositoryProvider = Provider<PaymentRepository>((ref) {
   return PaymentRepository(
+    firestoreDataSource: ref.watch(firestoreDataSourceProvider),
+  );
+});
+
+final notificationRepositoryProvider = Provider<NotificationRepository>((ref) {
+  return NotificationRepository(
     firestoreDataSource: ref.watch(firestoreDataSourceProvider),
   );
 });
@@ -144,8 +163,9 @@ final groupRepositoryProvider = Provider<GroupRepository>((ref) {
 /// Atualiza automaticamente quando o campo 'genero' muda, propagando
 /// a alteração para o tema sem necessidade de reiniciar a app.
 final currentUserGeneroProvider = StreamProvider<String?>((ref) {
-  final authState = ref.watch(authProvider);
-  final userId = authState.user?.uid;
+  // Só o UID identifica a subscrição. Alterações ao perfil (nome, som,
+  // pagamentos, etc.) não devem cancelar e recriar este listener.
+  final userId = ref.watch(authProvider.select((s) => s.user?.uid));
   if (userId == null) return const Stream.empty();
   return ref
       .read(userRepositoryProvider)
@@ -196,6 +216,54 @@ final paymentsStreamProvider =
       if (userId.isEmpty) return Stream.value([]);
       return ref.read(paymentRepositoryProvider).watchPayments(userId);
     });
+
+/// Avisos persistentes do utilizador. A ordenação é feita localmente para
+/// evitar índices compostos e a subscrição é estável por UID.
+final notificationsStreamProvider =
+    StreamProvider.family<List<AppNotificationModel>, String>((ref, userId) {
+  if (userId.isEmpty) return Stream.value(const []);
+  return ref.read(notificationRepositoryProvider).watchNotifications(userId);
+});
+
+/// Número total de avisos que requerem atenção, incluindo cobranças antigas
+/// que foram criadas antes do centro persistente existir.
+final paymentNotificationCountProvider = Provider.family<int, String>((
+  ref,
+  userId,
+) {
+  if (userId.isEmpty) return 0;
+  final paymentsAsync = ref.watch(paymentsStreamProvider(userId));
+  final notificationsAsync = ref.watch(notificationsStreamProvider(userId));
+  final pendingPayments = paymentsAsync.maybeWhen(
+        data: (payments) => payments
+            .where((payment) =>
+                !payment.isPaid &&
+                !payment.isCancelled &&
+                payment.status != 'refunded')
+            .length,
+        orElse: () => 0,
+      );
+  final unreadNotifications = notificationsAsync.maybeWhen(
+        data: (items) => items.where((item) => !item.read).length,
+        orElse: () => 0,
+      );
+  return unreadNotifications > pendingPayments
+      ? unreadNotifications
+      : pendingPayments;
+});
+
+/// Stream estável do estado "a escrever" de uma conversa direta.
+/// O StreamBuilder recebe sempre a mesma instância para o mesmo par de IDs;
+/// não criar este stream diretamente dentro de build().
+final typingStreamProvider = Provider.family<Stream<String?>, ({
+  String salaId,
+  String userId,
+})>((ref, args) {
+  if (args.salaId.isEmpty || args.userId.isEmpty) return const Stream.empty();
+  return ref
+      .read(chatRepositoryProvider)
+      .typingStream(args.salaId, args.userId);
+});
 
 /// Stream de mensagens de um grupo.
 /// Provider family estável — NUNCA criar StreamProvider inline no build().

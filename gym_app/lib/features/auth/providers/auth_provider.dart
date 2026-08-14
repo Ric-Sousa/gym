@@ -4,6 +4,7 @@ import 'package:riverpod/legacy.dart';
 import '../../../core/errors/failures.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../screens/privacy_policy_screen.dart';
 import '../../../shared/providers/global_providers.dart';
 
 /// Estado de autenticação.
@@ -41,6 +42,11 @@ class AuthState {
 
   bool get isAdmin => user?.isAdmin ?? false;
   bool get isAluno => user?.isAluno ?? false;
+  bool get needsPrivacyPolicy =>
+      user != null &&
+      user!.isAluno &&
+      (!user!.hasAcceptedPrivacyPolicy ||
+          user!.privacyPolicyVersion != PrivacyPolicyScreen.version);
 }
 
 /// Notifier de autenticação.

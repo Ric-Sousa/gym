@@ -5,6 +5,7 @@ class MealEntry {
   final double calorias;
   final String hora; // HH:mm
   final List<String> alimentos;
+
   /// Gramas consumidas por alimento (nome → gramas).
   final Map<String, double> consumoPorAlimento;
 
@@ -25,9 +26,8 @@ class MealEntry {
       calorias: (map['calorias'] as num?)?.toDouble() ?? 0.0,
       hora: map['hora'] as String? ?? '',
       alimentos: List<String>.from(map['alimentos'] as List? ?? []),
-      consumoPorAlimento: consumoRaw?.map(
-        (k, v) => MapEntry(k, (v as num).toDouble()),
-      ) ?? {},
+      consumoPorAlimento:
+          consumoRaw?.map((k, v) => MapEntry(k, (v as num).toDouble())) ?? {},
     );
   }
 
@@ -84,7 +84,11 @@ class DiaryModel {
     this.treinoData,
   });
 
-  factory DiaryModel.fromMap(String data, String userId, Map<String, dynamic> map) {
+  factory DiaryModel.fromMap(
+    String data,
+    String userId,
+    Map<String, dynamic> map,
+  ) {
     final refeicoesList = map['refeicoes'] as List? ?? [];
     return DiaryModel(
       data: data,
@@ -113,8 +117,7 @@ class DiaryModel {
     };
   }
 
-  double get totalCalorias =>
-      refeicoes.fold(0.0, (sum, r) => sum + r.calorias);
+  double get totalCalorias => refeicoes.fold(0.0, (sum, r) => sum + r.calorias);
 
   DiaryModel copyWith({
     String? data,

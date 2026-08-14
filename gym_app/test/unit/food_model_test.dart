@@ -62,11 +62,7 @@ void main() {
     });
 
     test('caloriasParaQuantidade calcula corretamente', () {
-      const food = FoodModel(
-        id: id,
-        nome: nome,
-        caloriasPor100g: 130.0,
-      );
+      const food = FoodModel(id: id, nome: nome, caloriasPor100g: 130.0);
 
       // 200g → (130 / 100) * 200 = 260
       expect(food.caloriasParaQuantidade(200.0), 260.0);
@@ -77,13 +73,12 @@ void main() {
     });
 
     test('copyWith altera apenas campos especificados', () {
-      const food = FoodModel(
-        id: id,
-        nome: nome,
-        caloriasPor100g: calorias,
-      );
+      const food = FoodModel(id: id, nome: nome, caloriasPor100g: calorias);
 
-      final updated = food.copyWith(nome: 'Arroz Integral', caloriasPor100g: 123.0);
+      final updated = food.copyWith(
+        nome: 'Arroz Integral',
+        caloriasPor100g: 123.0,
+      );
 
       expect(updated.id, id);
       expect(updated.nome, 'Arroz Integral');

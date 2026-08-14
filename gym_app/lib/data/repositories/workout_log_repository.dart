@@ -8,7 +8,7 @@ class WorkoutLogRepository {
   final FirestoreDataSource _firestoreDataSource;
 
   WorkoutLogRepository({required FirestoreDataSource firestoreDataSource})
-      : _firestoreDataSource = firestoreDataSource;
+    : _firestoreDataSource = firestoreDataSource;
 
   /// Obtém o registo de treino de um dia específico.
   Future<WorkoutLogModel?> getLog(String userId, String date) async {
@@ -21,7 +21,10 @@ class WorkoutLogRepository {
 
   /// Guarda/atualiza registo de treino.
   Future<void> saveLog(
-      String userId, String date, Map<String, dynamic> data) async {
+    String userId,
+    String date,
+    Map<String, dynamic> data,
+  ) async {
     try {
       await _firestoreDataSource.setWorkoutLog(userId, date, data);
     } on ServerException catch (e) {
@@ -30,11 +33,15 @@ class WorkoutLogRepository {
   }
 
   /// Obtém histórico de treinos do aluno.
-  Future<List<WorkoutLogModel>> getHistory(String userId,
-      {int limit = 30}) async {
+  Future<List<WorkoutLogModel>> getHistory(
+    String userId, {
+    int limit = 30,
+  }) async {
     try {
-      return await _firestoreDataSource.getWorkoutLogHistory(userId,
-          limit: limit);
+      return await _firestoreDataSource.getWorkoutLogHistory(
+        userId,
+        limit: limit,
+      );
     } on ServerException catch (e) {
       throw ServerFailure(message: e.message);
     }

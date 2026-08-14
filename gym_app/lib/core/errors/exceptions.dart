@@ -18,30 +18,18 @@ class AuthException implements Exception {
   factory AuthException.fromFirebaseCode(String code) {
     switch (code) {
       case 'user-not-found':
-        return AuthException(
-          code: code,
-          message: 'Utilizador não encontrado.',
-        );
+        return AuthException(code: code, message: 'Utilizador não encontrado.');
       case 'wrong-password':
-        return AuthException(
-          code: code,
-          message: 'Palavra-passe incorreta.',
-        );
+        return AuthException(code: code, message: 'Palavra-passe incorreta.');
       case 'email-already-in-use':
         return AuthException(
           code: code,
           message: 'Este e-mail já está registado.',
         );
       case 'invalid-email':
-        return AuthException(
-          code: code,
-          message: 'E-mail inválido.',
-        );
+        return AuthException(code: code, message: 'E-mail inválido.');
       case 'user-disabled':
-        return AuthException(
-          code: code,
-          message: 'Conta desativada.',
-        );
+        return AuthException(code: code, message: 'Conta desativada.');
       case 'weak-password':
         return AuthException(
           code: code,

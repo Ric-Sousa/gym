@@ -329,6 +329,9 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
     final authState = ref.watch(authProvider);
     final userId = authState.user?.uid ?? '';
     final isOffline = ref.watch(connectivityStreamProvider).value ?? false;
+    final paymentNotificationCount = ref.watch(
+      paymentNotificationCountProvider(userId),
+    );
 
     // O som reage a documentos adicionados, não a alterações de contador.
     // Assim a primeira mensagem e mensagens consecutivas com o mesmo horário
@@ -342,7 +345,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: _buildAppBar(),
+      appBar: _buildAppBar(userId, paymentNotificationCount),
       body: Column(
         children: [
           OfflineBanner(isOffline: isOffline),
@@ -358,7 +361,133 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
     SoundService().playNotificationChime();
   }
 
-  PreferredSizeWidget _buildAppBar() {
+  void _showPaymentNotifications(BuildContext context, String userId) {
+    final payments = ref
+        .read(paymentsStreamProvider(userId))
+        .asData
+        ?.value
+        .where((payment) =>
+            !payment.isPaid &&
+            !payment.isCancelled &&
+            payment.status != 'refunded')
+        .toList() ??
+        [];
+    final notifications = ref
+            .read(notificationsStreamProvider(userId))
+            .asData
+            ?.value ??
+        [];
+    unawaited(
+      ref.read(notificationRepositoryProvider).markAllAsRead(userId),
+    );
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+          child: payments.isEmpty && notifications.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: Text('Não tens avisos pendentes.')),
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Avisos',
+                      style: GoogleFonts.montserrat(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Abre o teu Perfil para efetuar o pagamento.',
+                      style: GoogleFonts.inter(
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ...notifications.map(
+                      (notification) => ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const CircleAvatar(
+                          backgroundColor: AppColors.primaryContainer,
+                          child: Icon(
+                            Icons.notifications_outlined,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        title: Text(
+                          notification.title,
+                          style: GoogleFonts.inter(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.onSurface,
+                          ),
+                        ),
+                        subtitle: Text(
+                          notification.body,
+                          style: GoogleFonts.inter(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (payments.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Pagamentos pendentes',
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                    ],
+                    ...payments.map(
+                      (payment) => ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const CircleAvatar(
+                          backgroundColor: AppColors.primaryContainer,
+                          child: Icon(
+                            Icons.payment_outlined,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        title: Text(
+                          payment.descricao ?? payment.tipoMensalidadeLabel,
+                          style: GoogleFonts.inter(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.onSurface,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '${payment.tipoMensalidadeLabel} · ${payment.valorFormatado}',
+                          style: GoogleFonts.inter(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+      ),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar(
+    String userId,
+    int paymentNotificationCount,
+  ) {
     final authState = ref.watch(authProvider);
     final nome = authState.user?.nome ?? 'Aluno';
     final foto = authState.user?.fotoPerfil;
@@ -433,12 +562,49 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
       ),
       actions: [
         IconButton(
-          icon: Icon(
-            Icons.notifications_outlined,
-            color: StudentThemeColors.of(context).primaryFixed,
-            size: 22,
+          icon: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(
+                Icons.notifications_outlined,
+                color: StudentThemeColors.of(context).primaryFixed,
+                size: 22,
+              ),
+              if (paymentNotificationCount > 0)
+                Positioned(
+                  top: -8,
+                  right: -9,
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 17),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.error,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: AppColors.surfaceLow,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Text(
+                      paymentNotificationCount > 99
+                          ? '99+'
+                          : '$paymentNotificationCount',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
-          onPressed: () {},
+          tooltip: 'Notificações de pagamentos',
+          onPressed: () => _showPaymentNotifications(context, userId),
         ),
         const SizedBox(width: 8),
       ],

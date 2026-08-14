@@ -15,6 +15,7 @@ class GroupModel {
     } catch (_) {}
     return DateTime.fromMillisecondsSinceEpoch(0);
   }
+
   final String id;
   final String nome;
   final List<String> membros; // user IDs

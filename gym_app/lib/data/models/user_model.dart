@@ -29,6 +29,12 @@ class UserModel {
   /// Data/hora em que o perfil foi desativado manualmente.
   final DateTime? deactivatedAt;
 
+  /// Registo da aceitação da política de privacidade pelo utilizador.
+  final DateTime? privacyPolicyAcceptedAt;
+  final String? privacyPolicyVersion;
+  bool get hasAcceptedPrivacyPolicy =>
+      privacyPolicyAcceptedAt != null && privacyPolicyVersion != null;
+
   const UserModel({
     required this.uid,
     required this.nome,
@@ -49,6 +55,8 @@ class UserModel {
     this.isActive = true,
     this.contractEndsAt,
     this.deactivatedAt,
+    this.privacyPolicyAcceptedAt,
+    this.privacyPolicyVersion,
   });
 
   /// Cria a partir do documento Firestore.
@@ -79,6 +87,8 @@ class UserModel {
       isActive: map['isActive'] as bool? ?? true,
       contractEndsAt: _dateFromMap(map['contractEndsAt']),
       deactivatedAt: _dateFromMap(map['deactivatedAt']),
+      privacyPolicyAcceptedAt: _dateFromMap(map['privacyPolicyAcceptedAt']),
+      privacyPolicyVersion: map['privacyPolicyVersion'] as String?,
     );
   }
 
@@ -115,6 +125,10 @@ class UserModel {
       'isActive': isActive,
       if (contractEndsAt != null) 'contractEndsAt': contractEndsAt,
       if (deactivatedAt != null) 'deactivatedAt': deactivatedAt,
+      if (privacyPolicyAcceptedAt != null)
+        'privacyPolicyAcceptedAt': privacyPolicyAcceptedAt,
+      if (privacyPolicyVersion != null)
+        'privacyPolicyVersion': privacyPolicyVersion,
     };
   }
 
@@ -143,6 +157,8 @@ class UserModel {
     DateTime? deactivatedAt,
     bool clearContractEndsAt = false,
     bool clearDeactivatedAt = false,
+    DateTime? privacyPolicyAcceptedAt,
+    String? privacyPolicyVersion,
   }) {
     return UserModel(
       uid: uid,
@@ -168,6 +184,9 @@ class UserModel {
       deactivatedAt: clearDeactivatedAt
           ? null
           : (deactivatedAt ?? this.deactivatedAt),
+      privacyPolicyAcceptedAt:
+          privacyPolicyAcceptedAt ?? this.privacyPolicyAcceptedAt,
+      privacyPolicyVersion: privacyPolicyVersion ?? this.privacyPolicyVersion,
     );
   }
 
