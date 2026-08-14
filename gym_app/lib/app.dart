@@ -740,8 +740,8 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
 
     void selectDestination(int index) {
       setState(() => _currentIndex = index);
-      // O IndexedStack mantém os ecrãs montados. O estado do chat tem de
-      // acompanhar a aba visível, e não o ciclo de vida do widget.
+      // O estado do chat tem de acompanhar a aba visível, e não apenas o
+      // ciclo de vida do widget.
       final inChat = index == 4;
       Future.microtask(() {
         if (mounted) {
@@ -750,10 +750,14 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
       });
     }
 
+    // Monta apenas a aba atual. O IndexedStack mantinha todos os ecrãs
+    // vivos ao mesmo tempo e cada um abria listeners Firestore (diário,
+    // agenda, chat, perfil e pagamentos), mesmo quando a aba não estava
+    // visível. Isso criava dezenas de canais Listen simultâneos no Web.
     final content = AppPageFrame(
       maxWidth: isWide ? 1440 : double.infinity,
       padding: EdgeInsets.zero,
-      child: IndexedStack(index: _currentIndex, children: _screens),
+      child: _screens[_currentIndex],
     );
 
     return Scaffold(
