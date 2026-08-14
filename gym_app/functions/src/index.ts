@@ -3,6 +3,13 @@ import * as admin from 'firebase-admin';
 import Stripe from 'stripe';
 import PDFDocument from 'pdfkit';
 import { shouldDeactivateExpiredContract } from './contract_expiry.js';
+import {
+  billingInterval,
+  billingTypeLabels,
+  calculateBillingPeriod,
+  isBillingType,
+  type BillingType,
+} from './billing.js';
 
 admin.initializeApp();
 
@@ -536,6 +543,150 @@ export const requestProgress = functions.region('europe-west1').https.onCall(asy
   return { success: true, message: 'Pedido de progresso enviado.' };
 });
 
+export const createPaymentSchedule = functions.region('europe-west1').https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+  const callerDoc = await db.collection('users').doc(context.auth.uid).get();
+  if (callerDoc.data()?.role !== 'admin') {
+    throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
+  }
+
+  const { userId, valor, tipoMensalidade } = data as {
+    userId?: unknown;
+    valor?: unknown;
+    tipoMensalidade?: unknown;
+  };
+  if (typeof userId !== 'string' || userId.length === 0 ||
+      typeof valor !== 'number' || !Number.isFinite(valor) || valor <= 0 ||
+      !isBillingType(tipoMensalidade)) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Aluno, valor e tipo de mensalidade são obrigatórios.',
+    );
+  }
+
+  const studentRef = db.collection('users').doc(userId);
+  const studentDoc = await studentRef.get();
+  if (!studentDoc.exists || studentDoc.data()?.role === 'admin') {
+    throw new functions.https.HttpsError('not-found', 'Aluno não encontrado.');
+  }
+
+  const now = new Date();
+  const candidateStarts: Date[] = [now];
+  const currentContractEnd = asDate(studentDoc.data()?.contractEndsAt);
+  if (currentContractEnd && currentContractEnd > now) {
+    candidateStarts.push(currentContractEnd);
+  }
+
+  const existingPayments = await db.collection('pagamentos')
+    .where('userId', '==', userId)
+    .get();
+  for (const payment of existingPayments.docs) {
+    const periodEnd = asDate(payment.data().periodoFim);
+    if (periodEnd && periodEnd > now) candidateStarts.push(periodEnd);
+  }
+
+  const periodStart = new Date(Math.max(
+    ...candidateStarts.map((date) => date.getTime()),
+  ));
+  const period = calculateBillingPeriod(periodStart, tipoMensalidade);
+  const paymentRef = await db.collection('pagamentos').add({
+    userId,
+    valor,
+    moeda: 'eur',
+    status: 'pending',
+    tipoMensalidade,
+    recorrente: true,
+    descricao: `Mensalidade ${billingTypeLabels[tipoMensalidade]}`,
+    data: admin.firestore.FieldValue.serverTimestamp(),
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    periodoInicio: admin.firestore.Timestamp.fromDate(period.start),
+    periodoFim: admin.firestore.Timestamp.fromDate(period.end),
+    dataVencimento: admin.firestore.Timestamp.fromDate(
+      period.start > now ? period.start : now,
+    ),
+  });
+
+  return {
+    paymentId: paymentRef.id,
+    periodoInicio: period.start.toISOString(),
+    periodoFim: period.end.toISOString(),
+  };
+});
+
+export const createPaymentCheckoutSession = functions.region('europe-west1').https.onCall(async (data, context) => {
+  if (!stripe) throw new functions.https.HttpsError('failed-precondition', 'Stripe não configurado.');
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+
+  const paymentId = typeof data?.paymentId === 'string' ? data.paymentId : '';
+  if (!paymentId) {
+    throw new functions.https.HttpsError('invalid-argument', 'paymentId obrigatório.');
+  }
+
+  const paymentRef = db.collection('pagamentos').doc(paymentId);
+  const paymentDoc = await paymentRef.get();
+  const payment = paymentDoc.data();
+  if (!paymentDoc.exists || !payment) {
+    throw new functions.https.HttpsError('not-found', 'Pagamento não encontrado.');
+  }
+  if (payment.userId !== context.auth.uid) {
+    throw new functions.https.HttpsError('permission-denied', 'Pagamento não pertence ao utilizador.');
+  }
+  if (payment.status === 'paid' || payment.status === 'refunded') {
+    throw new functions.https.HttpsError('failed-precondition', 'Este pagamento já não está disponível.');
+  }
+  if (payment.stripeSubscriptionId) {
+    throw new functions.https.HttpsError('failed-precondition', 'Este pagamento já tem uma subscrição configurada.');
+  }
+  if (!isBillingType(payment.tipoMensalidade)) {
+    throw new functions.https.HttpsError('failed-precondition', 'Tipo de mensalidade inválido.');
+  }
+
+  const userDoc = await db.collection('users').doc(context.auth.uid).get();
+  const user = userDoc.data() ?? {};
+  const periodStart = asDate(payment.periodoInicio);
+  const trialEnd = periodStart && periodStart.getTime() > Date.now() + 60_000
+    ? Math.floor(periodStart.getTime() / 1000)
+    : null;
+  const subscriptionData: Record<string, unknown> = {
+    metadata: {
+      paymentId,
+      userId: context.auth.uid,
+      tipoMensalidade: payment.tipoMensalidade,
+    },
+  };
+  if (trialEnd != null) subscriptionData.trial_end = trialEnd;
+
+  const interval = billingInterval(payment.tipoMensalidade);
+  const session = await stripe.checkout.sessions.create({
+    mode: 'subscription',
+    line_items: [{
+      price_data: {
+        currency: 'eur',
+        product_data: {
+          name: payment.descricao || `Mensalidade ${billingTypeLabels[payment.tipoMensalidade]}`,
+        },
+        unit_amount: Math.round(Number(payment.valor) * 100),
+        recurring: interval,
+      },
+      quantity: 1,
+    }],
+    ...(typeof user.stripeCustomerId === 'string' && user.stripeCustomerId.length > 0
+      ? { customer: user.stripeCustomerId }
+      : { customer_email: user.email || undefined }),
+    payment_method_collection: 'always',
+    subscription_data: subscriptionData as any,
+    metadata: { paymentId, userId: context.auth.uid },
+    success_url: 'https://gymbt-4ef87.web.app/perfil?pagamento=sucesso',
+    cancel_url: 'https://gymbt-4ef87.web.app/perfil?pagamento=cancelado',
+  });
+
+  await paymentRef.update({
+    stripeSessionId: session.id,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return { url: session.url!, paymentId };
+});
+
 export const createCheckoutSession = functions.region('europe-west1').https.onCall(async (data, context) => {
   if (!stripe) throw new functions.https.HttpsError('failed-precondition', 'Stripe não configurado.');
   if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
@@ -978,17 +1129,206 @@ stripeApp.post('/', async (req: any, res: any) => {
     const session = event.data.object as Stripe.Checkout.Session;
     const { paymentId, userId } = session.metadata || {};
     if (!paymentId) { res.status(400).json({ error: 'Missing paymentId' }); return; }
-    await db.collection('pagamentos').doc(paymentId).update({
-      status: 'paid',
-      stripePaymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id,
-      paidAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-    if (userId) await generateInvoicePdf(paymentId, userId);
+
+    const paymentRef = db.collection('pagamentos').doc(paymentId);
+    if (session.mode === 'subscription') {
+      const subscriptionId = typeof session.subscription === 'string'
+        ? session.subscription
+        : session.subscription?.id;
+      const currentPayment = await paymentRef.get();
+      await paymentRef.update({
+        // A subscrição é marcada como paga apenas pelo evento invoice.paid;
+        // assim o checkout e o webhook não criam dois registos para a primeira fatura.
+        ...(currentPayment.data()?.status === 'paid'
+          ? {}
+          : { status: 'scheduled' }),
+        ...(subscriptionId ? { stripeSubscriptionId: subscriptionId } : {}),
+        ...(typeof session.customer === 'string'
+          ? { stripeCustomerId: session.customer }
+          : {}),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      if (userId && typeof session.customer === 'string') {
+        await db.collection('users').doc(userId).set({
+          stripeCustomerId: session.customer,
+        }, { merge: true });
+      }
+    } else {
+      await paymentRef.update({
+        status: 'paid',
+        stripePaymentIntentId: typeof session.payment_intent === 'string'
+          ? session.payment_intent
+          : session.payment_intent?.id,
+        paidAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      if (userId) await generateInvoicePdf(paymentId, userId);
+    }
   }
+
+  if (event.type === 'invoice.paid') {
+    await handleInvoicePaid(event.data.object as any);
+  }
+
+  if (event.type === 'invoice.payment_failed') {
+    await handleInvoicePaymentFailed(event.data.object as any);
+  }
+
   res.status(200).json({ received: true });
 });
 
 export const stripeWebhook = functions.region('europe-west1').https.onRequest(stripeApp);
+
+async function handleInvoicePaid(invoice: any): Promise<void> {
+  const context = await getInvoiceSubscriptionContext(invoice);
+  if (!context) return;
+
+  const { subscription, paymentId, userId, tipoMensalidade } = context;
+  const invoiceId = String(invoice.id);
+  const existingByInvoice = await findPaymentByInvoiceId(invoiceId);
+  let paymentRef = existingByInvoice;
+
+  if (!paymentRef && paymentId) {
+    const initialRef = db.collection('pagamentos').doc(paymentId);
+    const initialDoc = await initialRef.get();
+    if (initialDoc.exists && initialDoc.data()?.status !== 'paid') {
+      paymentRef = initialRef;
+    }
+  }
+
+  const periodStart = stripeTimestampDate(invoice.period_start) ??
+    stripeTimestampDate(subscription.current_period_start);
+  const periodEnd = stripeTimestampDate(invoice.period_end) ??
+    stripeTimestampDate(subscription.current_period_end);
+  const amount = typeof invoice.amount_paid === 'number' && invoice.amount_paid > 0
+    ? invoice.amount_paid / 100
+    : null;
+  const data = {
+    status: 'paid',
+    paidAt: admin.firestore.FieldValue.serverTimestamp(),
+    stripeInvoiceId: invoiceId,
+    stripeSubscriptionId: subscription.id,
+    stripePaymentIntentId: typeof invoice.payment_intent === 'string'
+      ? invoice.payment_intent
+      : invoice.payment_intent?.id,
+    stripeHostedInvoiceUrl: invoice.hosted_invoice_url || invoice.invoice_pdf || null,
+    tipoMensalidade,
+    ...(periodStart ? { periodoInicio: admin.firestore.Timestamp.fromDate(periodStart) } : {}),
+    ...(periodEnd ? { periodoFim: admin.firestore.Timestamp.fromDate(periodEnd) } : {}),
+    dataVencimento: admin.firestore.Timestamp.fromDate(new Date()),
+    ...(amount != null ? { valor: amount } : {}),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  if (paymentRef) {
+    await paymentRef.update(data);
+  } else {
+    paymentRef = await db.collection('pagamentos').add({
+      userId,
+      valor: amount ?? 0,
+      moeda: 'eur',
+      descricao: `Mensalidade ${billingTypeLabels[tipoMensalidade]}`,
+      data: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      ...data,
+    });
+  }
+
+  await generateInvoicePdf(paymentRef.id, userId);
+}
+
+async function handleInvoicePaymentFailed(invoice: any): Promise<void> {
+  const context = await getInvoiceSubscriptionContext(invoice);
+  if (!context) return;
+
+  const { subscription, paymentId, userId, tipoMensalidade } = context;
+  const invoiceId = String(invoice.id);
+  const existingByInvoice = await findPaymentByInvoiceId(invoiceId);
+  let paymentRef = existingByInvoice;
+
+  if (!paymentRef && paymentId) {
+    const initialRef = db.collection('pagamentos').doc(paymentId);
+    const initialDoc = await initialRef.get();
+    if (initialDoc.exists && initialDoc.data()?.status !== 'paid') {
+      paymentRef = initialRef;
+    }
+  }
+
+  const periodStart = stripeTimestampDate(invoice.period_start) ??
+    stripeTimestampDate(subscription.current_period_start);
+  const periodEnd = stripeTimestampDate(invoice.period_end) ??
+    stripeTimestampDate(subscription.current_period_end);
+  const amount = typeof invoice.amount_due === 'number' && invoice.amount_due > 0
+    ? invoice.amount_due / 100
+    : null;
+  const data = {
+    status: 'failed',
+    stripeInvoiceId: invoiceId,
+    stripeSubscriptionId: subscription.id,
+    stripeHostedInvoiceUrl: invoice.hosted_invoice_url || invoice.invoice_pdf || null,
+    tipoMensalidade,
+    dataVencimento: admin.firestore.Timestamp.fromDate(new Date()),
+    ...(periodStart ? { periodoInicio: admin.firestore.Timestamp.fromDate(periodStart) } : {}),
+    ...(periodEnd ? { periodoFim: admin.firestore.Timestamp.fromDate(periodEnd) } : {}),
+    ...(amount != null ? { valor: amount } : {}),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  if (paymentRef) {
+    await paymentRef.update(data);
+  } else {
+    await db.collection('pagamentos').add({
+      userId,
+      valor: amount ?? 0,
+      moeda: 'eur',
+      descricao: `Mensalidade ${billingTypeLabels[tipoMensalidade]}`,
+      data: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      ...data,
+    });
+  }
+}
+
+async function getInvoiceSubscriptionContext(invoice: any): Promise<{
+  subscription: any;
+  paymentId: string;
+  userId: string;
+  tipoMensalidade: BillingType;
+} | null> {
+  if (!stripe) return null;
+  const subscriptionId = typeof invoice.subscription === 'string'
+    ? invoice.subscription
+    : invoice.subscription?.id;
+  if (!subscriptionId) return null;
+
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+  const metadata = subscription.metadata ?? {};
+  if (typeof metadata.paymentId !== 'string' ||
+      typeof metadata.userId !== 'string' ||
+      !isBillingType(metadata.tipoMensalidade)) {
+    return null;
+  }
+  return {
+    subscription,
+    paymentId: metadata.paymentId,
+    userId: metadata.userId,
+    tipoMensalidade: metadata.tipoMensalidade,
+  };
+}
+
+async function findPaymentByInvoiceId(invoiceId: string): Promise<
+  FirebaseFirestore.DocumentReference | null
+> {
+  const snapshot = await db.collection('pagamentos')
+    .where('stripeInvoiceId', '==', invoiceId)
+    .limit(1)
+    .get();
+  return snapshot.empty ? null : snapshot.docs[0].ref;
+}
+
+function stripeTimestampDate(value: unknown): Date | null {
+  if (typeof value === 'number') return new Date(value * 1000);
+  return asDate(value);
+}
 
 /**
  * Renova/reactiva o acesso quando um pagamento pago contém um período válido.

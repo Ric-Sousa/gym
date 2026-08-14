@@ -177,7 +177,9 @@ service cloud.firestore {
     // ══════════════════════════════════════════════════════
     match /pagamentos/{docId} {
       // Aluno vê os seus próprios pagamentos; admin vê todos
-      allow read: if isAdmin() || (isActiveOwner(request.auth.uid) &&
+      // O aluno pode consultar e pagar faturas pendentes mesmo depois de o
+      // contrato expirar; o pagamento é o mecanismo para recuperar o acesso.
+      allow read: if isAdmin() || (isOwner(request.auth.uid) &&
         resource.data.userId == request.auth.uid
       );
       // Só admin pode criar/atualizar pagamentos

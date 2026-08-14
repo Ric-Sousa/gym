@@ -6435,17 +6435,12 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
             action: Wrap(
               spacing: 8,
               children: [
-                OutlinedButton.icon(
-                  onPressed: () => _showManualPaymentDialog(),
-                  icon: const Icon(Icons.receipt_long_outlined, size: 17),
-                  label: const Text('Registar manual'),
-                ),
                 ElevatedButton.icon(
                   onPressed: _creating
                       ? null
                       : () => _showCreatePaymentDialog(),
                   icon: const Icon(Icons.add_rounded, size: 17),
-                  label: const Text('Novo pagamento'),
+                  label: const Text('Nova cobrança'),
                 ),
               ],
             ),
@@ -6592,6 +6587,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
     final statusColors = {
       'paid': AdminThemeColors.of(context).lime,
       'pending': AdminThemeColors.of(context).orange,
+      'scheduled': AdminThemeColors.of(context).blue,
       'failed': Colors.red,
       'refunded': AdminThemeColors.of(context).muted,
       'overdue': Colors.red,
@@ -6599,6 +6595,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
     final statusLabels = {
       'paid': 'PAGO',
       'pending': 'PENDENTE',
+      'scheduled': 'AGENDADO',
       'failed': 'FALHOU',
       'refunded': 'REEMBOLSADO',
       'overdue': 'EM ATRASO',
@@ -7090,10 +7087,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
 
     UserModel? selectedAluno;
     final valorCtrl = TextEditingController();
-    final descCtrl = TextEditingController(text: 'Mensalidade');
-    final inicioCtrl = TextEditingController();
-    final fimCtrl = TextEditingController();
-    final vencimentoCtrl = TextEditingController();
+    String tipoMensalidade = 'mensal';
     bool loading = false;
     String? checkoutUrl;
 
@@ -7108,7 +7102,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
             side: BorderSide(color: AdminThemeColors.of(context).border),
           ),
           title: Text(
-            'Novo Pagamento',
+            'Nova cobrança',
             style: GoogleFonts.inter(
               fontWeight: FontWeight.w700,
               color: AdminThemeColors.of(context).text,
@@ -7125,33 +7119,10 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Sessão de checkout criada!',
+                      'Cobrança criada. O cliente poderá pagar no seu Perfil.',
                       style: GoogleFonts.inter(
                         fontWeight: FontWeight.w600,
                         color: AdminThemeColors.of(context).text,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'URL de pagamento:',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: AdminThemeColors.of(context).muted,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AdminThemeColors.of(context).bg,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: SelectableText(
-                        checkoutUrl!,
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          color: AdminThemeColors.of(context).lime,
-                        ),
                       ),
                     ),
                   ],
@@ -7194,6 +7165,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                       keyboardType: const TextInputType.numberWithOptions(
                         decimal: true,
                       ),
+                      onChanged: (_) => setDialogState(() {}),
                       style: GoogleFonts.inter(
                         color: AdminThemeColors.of(context).text,
                       ),
@@ -7214,13 +7186,14 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    TextField(
-                      controller: descCtrl,
+                    DropdownButtonFormField<String>(
+                      initialValue: tipoMensalidade,
+                      dropdownColor: AdminThemeColors.of(context).surface,
                       style: GoogleFonts.inter(
                         color: AdminThemeColors.of(context).text,
                       ),
                       decoration: InputDecoration(
-                        labelText: 'Descrição',
+                        labelText: 'Tipo de mensalidade',
                         labelStyle: GoogleFonts.inter(
                           color: AdminThemeColors.of(context).muted,
                         ),
@@ -7233,32 +7206,24 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                           ),
                         ),
                       ),
-                    ),
-                    TextField(
-                      controller: inicioCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Início do período (AAAA-MM-DD)',
-                      ),
-                      style: GoogleFonts.inter(
-                        color: AdminThemeColors.of(context).text,
-                      ),
-                    ),
-                    TextField(
-                      controller: fimCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Fim do período (AAAA-MM-DD)',
-                      ),
-                      style: GoogleFonts.inter(
-                        color: AdminThemeColors.of(context).text,
+                      items: const [
+                        DropdownMenuItem(value: 'mensal', child: Text('Mensal')),
+                        DropdownMenuItem(
+                          value: 'trimestral',
+                          child: Text('Trimestral'),
+                        ),
+                        DropdownMenuItem(value: 'anual', child: Text('Anual')),
+                      ],
+                      onChanged: (value) => setDialogState(
+                        () => tipoMensalidade = value ?? tipoMensalidade,
                       ),
                     ),
-                    TextField(
-                      controller: vencimentoCtrl,
-                      decoration: const InputDecoration(
-                        labelText: 'Data de vencimento (AAAA-MM-DD)',
-                      ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'O próximo período e a data de vencimento serão calculados automaticamente a partir do fim do período atual.',
                       style: GoogleFonts.inter(
-                        color: AdminThemeColors.of(context).text,
+                        fontSize: 11,
+                        color: AdminThemeColors.of(context).muted,
                       ),
                     ),
                     if (loading) ...[
@@ -7294,23 +7259,14 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                         setDialogState(() => loading = true);
                         try {
                           final repo = ref.read(paymentRepositoryProvider);
-                          final url = await repo.createCheckoutSession(
+                          await repo.createPaymentSchedule(
                             userId: selectedAluno!.uid,
                             valor: valor,
-                            descricao: descCtrl.text.trim().isEmpty
-                                ? 'Mensalidade'
-                                : descCtrl.text.trim(),
-                            periodoInicio: DateTime.tryParse(
-                              inicioCtrl.text.trim(),
-                            ),
-                            periodoFim: DateTime.tryParse(fimCtrl.text.trim()),
-                            dataVencimento: DateTime.tryParse(
-                              vencimentoCtrl.text.trim(),
-                            ),
+                            tipoMensalidade: tipoMensalidade,
                           );
                           setDialogState(() {
                             loading = false;
-                            checkoutUrl = url;
+                            checkoutUrl = 'created';
                           });
                           ref.invalidate(adminAllPaymentsProvider);
                         } catch (e) {
@@ -7327,7 +7283,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                   foregroundColor: Colors.white,
                 ),
                 child: Text(
-                  'Criar Sessão',
+                  'Criar cobrança',
                   style: GoogleFonts.inter(fontWeight: FontWeight.w700),
                 ),
               ),
@@ -7336,10 +7292,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
       ),
     );
     valorCtrl.dispose();
-    descCtrl.dispose();
-    inicioCtrl.dispose();
-    fimCtrl.dispose();
-    vencimentoCtrl.dispose();
+
   }
 }
 

@@ -4,12 +4,16 @@ class PaymentModel {
   final String userId;
   final double valor;
   final String moeda; // 'eur', 'usd'
-  final String status; // 'pending', 'paid', 'failed', 'refunded'
+  final String status; // 'pending', 'scheduled', 'paid', 'failed', 'refunded'
   final DateTime data;
   final String? descricao;
   final String? faturaUrl;
   final String? stripeSessionId;
   final String? stripePaymentIntentId;
+  final String? stripeSubscriptionId;
+  final String? stripeInvoiceId;
+  final String? stripeHostedInvoiceUrl;
+  final String? tipoMensalidade; // 'mensal', 'trimestral' ou 'anual'
   final DateTime? periodoInicio;
   final DateTime? periodoFim;
   final DateTime? dataVencimento;
@@ -28,6 +32,10 @@ class PaymentModel {
     this.faturaUrl,
     this.stripeSessionId,
     this.stripePaymentIntentId,
+    this.stripeSubscriptionId,
+    this.stripeInvoiceId,
+    this.stripeHostedInvoiceUrl,
+    this.tipoMensalidade,
     this.periodoInicio,
     this.periodoFim,
     this.dataVencimento,
@@ -48,6 +56,10 @@ class PaymentModel {
       faturaUrl: map['faturaUrl'] as String?,
       stripeSessionId: map['stripeSessionId'] as String?,
       stripePaymentIntentId: map['stripePaymentIntentId'] as String?,
+      stripeSubscriptionId: map['stripeSubscriptionId'] as String?,
+      stripeInvoiceId: map['stripeInvoiceId'] as String?,
+      stripeHostedInvoiceUrl: map['stripeHostedInvoiceUrl'] as String?,
+      tipoMensalidade: map['tipoMensalidade'] as String?,
       periodoInicio: _dateFromMap(map['periodoInicio']),
       periodoFim: _dateFromMap(map['periodoFim']),
       dataVencimento: _dateFromMap(map['dataVencimento']),
@@ -79,6 +91,12 @@ class PaymentModel {
       if (stripeSessionId != null) 'stripeSessionId': stripeSessionId,
       if (stripePaymentIntentId != null)
         'stripePaymentIntentId': stripePaymentIntentId,
+      if (stripeSubscriptionId != null)
+        'stripeSubscriptionId': stripeSubscriptionId,
+      if (stripeInvoiceId != null) 'stripeInvoiceId': stripeInvoiceId,
+      if (stripeHostedInvoiceUrl != null)
+        'stripeHostedInvoiceUrl': stripeHostedInvoiceUrl,
+      if (tipoMensalidade != null) 'tipoMensalidade': tipoMensalidade,
       if (periodoInicio != null) 'periodoInicio': periodoInicio,
       if (periodoFim != null) 'periodoFim': periodoFim,
       if (dataVencimento != null) 'dataVencimento': dataVencimento,
@@ -93,8 +111,27 @@ class PaymentModel {
   String get effectiveStatus => isOverdue ? 'overdue' : status;
   bool get isPaid => status == 'paid';
   bool get isPending => status == 'pending';
+  bool get isScheduled => status == 'scheduled';
+  bool get canStartCheckout =>
+      !isPaid &&
+      status != 'refunded' &&
+      status != 'scheduled' &&
+      stripeHostedInvoiceUrl == null &&
+      stripeSubscriptionId == null;
+  String get tipoMensalidadeLabel {
+    switch (tipoMensalidade) {
+      case 'trimestral':
+        return 'Trimestral';
+      case 'anual':
+        return 'Anual';
+      case 'mensal':
+        return 'Mensal';
+      default:
+        return 'Pagamento';
+    }
+  }
   bool get isOverdue {
-    if (isPaid || status == 'refunded') return false;
+    if (isPaid || status == 'refunded' || isScheduled) return false;
     final deadline = dataVencimento ?? periodoFim;
     return deadline != null && !deadline.isAfter(DateTime.now());
   }

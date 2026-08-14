@@ -53,8 +53,9 @@ class AuthRepository {
         uid,
         userDoc.data()! as Map<String, dynamic>,
       );
-      if (!userModel.isAccessAllowed ||
-          await _hasOverduePayment(userModel.uid)) {
+      if (!userModel.isAdmin &&
+          (!userModel.isAccessAllowed ||
+              await _hasOverduePayment(userModel.uid))) {
         await _authDataSource.signOut();
         throw AuthFailure(
           message: userModel.accessStatus == 'Contrato terminado'
@@ -87,7 +88,9 @@ class AuthRepository {
       user.uid,
       userDoc.data()! as Map<String, dynamic>,
     );
-    if (!userModel.isAccessAllowed || await _hasOverduePayment(userModel.uid)) {
+    if (!userModel.isAdmin &&
+        (!userModel.isAccessAllowed ||
+            await _hasOverduePayment(userModel.uid))) {
       throw AuthFailure(
         message: userModel.accessStatus == 'Contrato terminado'
             ? 'O teu contrato terminou. Contacta o administrador.'

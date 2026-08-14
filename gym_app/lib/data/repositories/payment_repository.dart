@@ -10,8 +10,35 @@ class PaymentRepository {
   PaymentRepository({required FirestoreDataSource firestoreDataSource})
     : _firestore = firestoreDataSource;
 
-  /// Cria uma sessão de checkout Stripe (admin) e guarda pagamento pendente.
-  /// Retorna o URL da página de pagamento.
+  /// Cria uma cobrança pendente com período calculado pelo servidor.
+  Future<String> createPaymentSchedule({
+    required String userId,
+    required double valor,
+    required String tipoMensalidade,
+  }) async {
+    final fn = FirebaseFunctions.instanceFor(region: 'europe-west1');
+    final callable = fn.httpsCallable('createPaymentSchedule');
+    final result = await callable.call<Map<String, dynamic>>({
+      'userId': userId,
+      'valor': valor,
+      'tipoMensalidade': tipoMensalidade,
+    });
+    return result.data['paymentId'] as String;
+  }
+
+  /// Cria o checkout da subscrição para o cliente autenticado.
+  Future<String> createPaymentCheckoutSession({
+    required String paymentId,
+  }) async {
+    final fn = FirebaseFunctions.instanceFor(region: 'europe-west1');
+    final callable = fn.httpsCallable('createPaymentCheckoutSession');
+    final result = await callable.call<Map<String, dynamic>>({
+      'paymentId': paymentId,
+    });
+    return result.data['url'] as String;
+  }
+
+  /// Compatibilidade com sessões Stripe antigas criadas pelo admin.
   Future<String> createCheckoutSession({
     required String userId,
     required double valor,
