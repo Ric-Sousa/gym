@@ -208,6 +208,22 @@ final paymentsStreamProvider =
       return ref.read(paymentRepositoryProvider).watchPayments(userId);
     });
 
+/// Número de cobranças que requerem atenção do aluno.
+/// Usa o mesmo stream estável do Perfil, sem abrir um segundo listener.
+final paymentNotificationCountProvider = Provider.family<int, String>((
+  ref,
+  userId,
+) {
+  if (userId.isEmpty) return 0;
+  final paymentsAsync = ref.watch(paymentsStreamProvider(userId));
+  return paymentsAsync.maybeWhen(
+    data: (payments) => payments
+        .where((payment) => !payment.isPaid && payment.status != 'refunded')
+        .length,
+    orElse: () => 0,
+  );
+});
+
 /// Stream de mensagens de um grupo.
 /// Provider family estável — NUNCA criar StreamProvider inline no build().
 final groupMessagesStreamProvider =
