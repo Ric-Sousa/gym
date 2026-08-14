@@ -784,14 +784,18 @@ class FirestoreDataSource {
   /// Obtém pagamentos de um utilizador.
   Future<List<PaymentModel>> getPayments(String userId) async {
     try {
+      // Ordenamos localmente para evitar um índice composto obrigatório
+      // (where userId + orderBy data), que pode fazer o Web SDK repetir a
+      // tentativa de leitura quando o índice ainda não existe.
       final snapshot = await _firestore
           .collection(AppConstants.paymentsCollection)
           .where('userId', isEqualTo: userId)
-          .orderBy('data', descending: true)
           .get();
-      return snapshot.docs
+      final payments = snapshot.docs
           .map((doc) => PaymentModel.fromMap(doc.id, doc.data()))
           .toList();
+      payments.sort((a, b) => b.data.compareTo(a.data));
+      return payments;
     } on FirebaseException catch (e) {
       throw ServerException(message: e.message ?? 'Erro ao obter pagamentos');
     }

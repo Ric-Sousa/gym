@@ -84,16 +84,21 @@ class PaymentRepository {
   }
 
   /// Stream de pagamentos de um utilizador.
+  ///
+  /// A ordenação é feita localmente para não exigir um índice composto
+  /// (userId + data) e evitar tentativas repetidas do listener Web quando
+  /// esse índice não está criado no Firestore.
   Stream<List<PaymentModel>> watchPayments(String userId) {
     return FirebaseFirestore.instance
         .collection('pagamentos')
         .where('userId', isEqualTo: userId)
-        .orderBy('data', descending: true)
         .snapshots()
-        .map(
-          (snap) => snap.docs
+        .map((snap) {
+          final payments = snap.docs
               .map((doc) => PaymentModel.fromMap(doc.id, doc.data()))
-              .toList(),
-        );
+              .toList();
+          payments.sort((a, b) => b.data.compareTo(a.data));
+          return payments;
+        });
   }
 }
