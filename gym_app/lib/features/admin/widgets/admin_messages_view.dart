@@ -40,15 +40,14 @@ DateTime? _readTimestamp(dynamic value) {
 final adminConversationsProvider = StreamProvider<List<ConversationPreview>>((
   ref,
 ) {
-  final authState = ref.watch(authProvider);
-  final adminId = authState.user?.uid ?? '';
+  // Apenas o UID é uma dependência do listener. O cursor de leitura é lido
+  // quando chega cada snapshot; observá-lo aqui cancelava e recriava o canal
+  // Firestore sempre que o admin abria uma conversa.
+  final adminId = ref.watch(authProvider.select((s) => s.user?.uid ?? ''));
 
   if (adminId.isEmpty) return const Stream.empty();
 
   final firestore = FirebaseFirestore.instance;
-  // Observar o cursor local força a lista a recalcular imediatamente quando
-  // o admin abre uma conversa, sem esperar por refresh ou por outro snapshot.
-  ref.watch(adminConversationReadAtProvider);
   return firestore
       .collection(AppConstants.chatCollection)
       .where(FieldPath.documentId, isGreaterThanOrEqualTo: 'chat_')

@@ -41,6 +41,20 @@ void main() {
     expect(payment.tipoMensalidadeLabel, 'Pagamento');
   });
 
+  test('cancelled payment is not overdue or available for checkout', () {
+    final payment = PaymentModel(
+      userId: 'u1',
+      valor: 30,
+      data: DateTime.now(),
+      status: 'cancelled',
+      dataVencimento: DateTime.now().subtract(const Duration(days: 1)),
+    );
+
+    expect(payment.isCancelled, isTrue);
+    expect(payment.isOverdue, isFalse);
+    expect(payment.canStartCheckout, isFalse);
+  });
+
   test('serializes period and payment metadata', () {
     final start = DateTime(2026, 8, 1);
     final end = DateTime(2026, 8, 31);

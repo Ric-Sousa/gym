@@ -33,7 +33,11 @@ String _directRoomId(String firstId, String secondId) {
 final stableAlunoChatNotificationProvider =
     StreamProvider.family<StableChatNotification, String>((ref, userId) {
       if (userId.isEmpty) return const Stream.empty();
-      final personalId = ref.watch(authProvider).user?.personalId ?? '';
+      // O personalId é a única dependência do listener; mudanças noutros
+      // campos do perfil não devem recriar a subscrição.
+      final personalId = ref.watch(
+        authProvider.select((s) => s.user?.personalId ?? ''),
+      );
       if (personalId.isEmpty || personalId == userId) {
         return const Stream.empty();
       }
@@ -229,7 +233,7 @@ final stableAlunoGroupNotificationProvider =
 /// mensagens consecutivas que tenham o mesmo timestamp.
 final stableAdminChatNotificationProvider =
     StreamProvider<StableChatNotification>((ref) {
-      final adminId = ref.watch(authProvider).user?.uid ?? '';
+      final adminId = ref.watch(authProvider.select((s) => s.user?.uid ?? ''));
       if (adminId.isEmpty) return const Stream.empty();
 
       final firestore = FirebaseFirestore.instance;
@@ -301,7 +305,7 @@ final stableAdminChatNotificationProvider =
 /// Mensagens dos grupos recebidas pelo admin, sem collectionGroup.
 final stableAdminGroupNotificationProvider =
     StreamProvider<StableChatNotification>((ref) {
-      final adminId = ref.watch(authProvider).user?.uid ?? '';
+      final adminId = ref.watch(authProvider.select((s) => s.user?.uid ?? ''));
       if (adminId.isEmpty) return const Stream.empty();
 
       final firestore = FirebaseFirestore.instance;

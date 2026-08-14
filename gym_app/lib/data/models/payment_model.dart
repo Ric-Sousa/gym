@@ -4,7 +4,7 @@ class PaymentModel {
   final String userId;
   final double valor;
   final String moeda; // 'eur', 'usd'
-  final String status; // 'pending', 'scheduled', 'paid', 'failed', 'refunded'
+  final String status; // 'pending', 'scheduled', 'paid', 'failed', 'refunded', 'cancelled'
   final DateTime data;
   final String? descricao;
   final String? faturaUrl;
@@ -112,8 +112,10 @@ class PaymentModel {
   bool get isPaid => status == 'paid';
   bool get isPending => status == 'pending';
   bool get isScheduled => status == 'scheduled';
+  bool get isCancelled => status == 'cancelled';
   bool get canStartCheckout =>
       !isPaid &&
+      !isCancelled &&
       status != 'refunded' &&
       status != 'scheduled' &&
       stripeHostedInvoiceUrl == null &&
@@ -131,7 +133,7 @@ class PaymentModel {
     }
   }
   bool get isOverdue {
-    if (isPaid || status == 'refunded' || isScheduled) return false;
+    if (isPaid || isCancelled || status == 'refunded' || isScheduled) return false;
     final deadline = dataVencimento ?? periodoFim;
     return deadline != null && !deadline.isAfter(DateTime.now());
   }

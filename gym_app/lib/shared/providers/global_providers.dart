@@ -155,8 +155,9 @@ final groupRepositoryProvider = Provider<GroupRepository>((ref) {
 /// Atualiza automaticamente quando o campo 'genero' muda, propagando
 /// a alteração para o tema sem necessidade de reiniciar a app.
 final currentUserGeneroProvider = StreamProvider<String?>((ref) {
-  final authState = ref.watch(authProvider);
-  final userId = authState.user?.uid;
+  // Só o UID identifica a subscrição. Alterações ao perfil (nome, som,
+  // pagamentos, etc.) não devem cancelar e recriar este listener.
+  final userId = ref.watch(authProvider.select((s) => s.user?.uid));
   if (userId == null) return const Stream.empty();
   return ref
       .read(userRepositoryProvider)
@@ -218,10 +219,26 @@ final paymentNotificationCountProvider = Provider.family<int, String>((
   final paymentsAsync = ref.watch(paymentsStreamProvider(userId));
   return paymentsAsync.maybeWhen(
     data: (payments) => payments
-        .where((payment) => !payment.isPaid && payment.status != 'refunded')
+        .where((payment) =>
+            !payment.isPaid &&
+            !payment.isCancelled &&
+            payment.status != 'refunded')
         .length,
     orElse: () => 0,
   );
+});
+
+/// Stream estável do estado "a escrever" de uma conversa direta.
+/// O StreamBuilder recebe sempre a mesma instância para o mesmo par de IDs;
+/// não criar este stream diretamente dentro de build().
+final typingStreamProvider = Provider.family<Stream<String?>, ({
+  String salaId,
+  String userId,
+})>((ref, args) {
+  if (args.salaId.isEmpty || args.userId.isEmpty) return const Stream.empty();
+  return ref
+      .read(chatRepositoryProvider)
+      .typingStream(args.salaId, args.userId);
 });
 
 /// Stream de mensagens de um grupo.

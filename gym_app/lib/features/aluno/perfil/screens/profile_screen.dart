@@ -1854,7 +1854,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         );
       },
       loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, __) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.outline),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.error_outline, color: AppColors.error),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text('Não foi possível carregar as cobranças.'),
+            ),
+            TextButton(
+              onPressed: () => ref.invalidate(paymentsStreamProvider(userId)),
+              child: const Text('Tentar novamente'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1866,6 +1887,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       'overdue': AppColors.error,
       'failed': AppColors.error,
       'refunded': AppColors.textSecondary,
+      'cancelled': AppColors.textSecondary,
     };
     final statusLabels = {
       'paid': 'PAGO',
@@ -1874,6 +1896,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       'overdue': 'EM ATRASO',
       'failed': 'FALHOU',
       'refunded': 'REEMBOLSADO',
+      'cancelled': 'CANCELADO',
     };
     final statusColor =
         statusColors[payment.effectiveStatus] ?? AppColors.textSecondary;

@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.syncAccessFromPaidPayment = exports.stripeWebhook = exports.cleanupInvalidFcmTokens = exports.dailyFirestoreBackup = exports.sendWeeklyCheckin = exports.sendWeighInReminder = exports.sendWorkoutReminder = exports.sendWaterReminder = exports.deactivateExpiredContractOnWrite = exports.deactivateExpiredContracts = exports.notifyBookingCancelled = exports.notifyBookingUpdate = exports.notifyNewBooking = exports.sendChatNotification = exports.createCheckoutSession = exports.createPaymentCheckoutSession = exports.createPaymentSchedule = exports.requestProgress = exports.searchOpenFoodFacts = exports.seedFoods = exports.deleteStudentHttp = exports.createStudentHttp = exports.onUserCreated = void 0;
+exports.syncAccessFromPaidPayment = exports.stripeWebhook = exports.cleanupInvalidFcmTokens = exports.dailyFirestoreBackup = exports.sendWeeklyCheckin = exports.sendWeighInReminder = exports.sendWorkoutReminder = exports.sendWaterReminder = exports.deactivateExpiredContractOnWrite = exports.deactivateExpiredContracts = exports.notifyBookingCancelled = exports.notifyBookingUpdate = exports.notifyNewBooking = exports.sendChatNotification = exports.createCheckoutSession = exports.createPaymentCheckoutSession = exports.cancelPayment = exports.createPaymentSchedule = exports.requestProgress = exports.searchOpenFoodFacts = exports.seedFoods = exports.deleteStudentHttp = exports.createStudentHttp = exports.onUserCreated = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
 const stripe_1 = __importDefault(require("stripe"));
@@ -576,6 +576,76 @@ exports.createPaymentSchedule = functions.region('europe-west1').https.onCall(as
         periodoInicio: period.start.toISOString(),
         periodoFim: period.end.toISOString(),
     };
+});
+/** Cancela uma cobrança ainda não paga e interrompe a subscrição Stripe, se existir. */
+exports.cancelPayment = functions.region('europe-west1').https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+    }
+    const callerDoc = await db.collection('users').doc(context.auth.uid).get();
+    if (callerDoc.data()?.role !== 'admin') {
+        throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
+    }
+    const paymentId = typeof data?.paymentId === 'string' ? data.paymentId.trim() : '';
+    if (!paymentId) {
+        throw new functions.https.HttpsError('invalid-argument', 'paymentId obrigatório.');
+    }
+    const paymentRef = db.collection('pagamentos').doc(paymentId);
+    const paymentDoc = await paymentRef.get();
+    if (!paymentDoc.exists) {
+        throw new functions.https.HttpsError('not-found', 'Pagamento não encontrado.');
+    }
+    const payment = paymentDoc.data() ?? {};
+    if (payment.status === 'cancelled')
+        return { success: true, paymentId };
+    if (payment.status === 'paid' || payment.status === 'refunded') {
+        throw new functions.https.HttpsError('failed-precondition', 'Um pagamento já concluído ou reembolsado não pode ser cancelado.');
+    }
+    if (payment.stripeSubscriptionId) {
+        if (!stripe) {
+            throw new functions.https.HttpsError('failed-precondition', 'Stripe não está configurado para cancelar a subscrição.');
+        }
+        try {
+            await stripe.subscriptions.cancel(String(payment.stripeSubscriptionId));
+        }
+        catch (error) {
+            console.error('Stripe subscription cancellation failed', {
+                paymentId,
+                stripeSubscriptionId: payment.stripeSubscriptionId,
+                type: error?.type,
+                code: error?.code,
+                message: error?.message,
+                requestId: error?.requestId,
+            });
+            throw new functions.https.HttpsError('internal', 'Não foi possível cancelar a subscrição Stripe.');
+        }
+    }
+    else if (payment.stripeSessionId && stripe) {
+        // Sessões Checkout ainda abertas podem ser expiradas. Sessões já
+        // concluídas não entram aqui porque o pagamento teria outro estado.
+        try {
+            const session = await stripe.checkout.sessions.retrieve(String(payment.stripeSessionId));
+            if (session.status === 'open') {
+                await stripe.checkout.sessions.expire(session.id);
+            }
+        }
+        catch (error) {
+            console.warn('Could not expire Stripe checkout session', {
+                paymentId,
+                stripeSessionId: payment.stripeSessionId,
+                type: error?.type,
+                code: error?.code,
+                message: error?.message,
+            });
+        }
+    }
+    await paymentRef.update({
+        status: 'cancelled',
+        cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+        cancelledBy: context.auth.uid,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { success: true, paymentId };
 });
 exports.createPaymentCheckoutSession = functions.region('europe-west1').https.onCall(async (data, context) => {
     if (!stripe)
@@ -1125,11 +1195,19 @@ stripeApp.post('/', async (req, res) => {
             return;
         }
         const paymentRef = db.collection('pagamentos').doc(paymentId);
+        const currentPayment = await paymentRef.get();
+        if (!currentPayment.exists || currentPayment.data()?.status === 'cancelled') {
+            console.warn('Ignoring Stripe checkout for cancelled/missing payment', {
+                paymentId,
+                sessionId: session.id,
+            });
+            res.status(200).json({ received: true });
+            return;
+        }
         if (session.mode === 'subscription') {
             const subscriptionId = typeof session.subscription === 'string'
                 ? session.subscription
                 : session.subscription?.id;
-            const currentPayment = await paymentRef.get();
             await paymentRef.update({
                 // A subscrição é marcada como paga apenas pelo evento invoice.paid;
                 // assim o checkout e o webhook não criam dois registos para a primeira fatura.
@@ -1180,9 +1258,16 @@ async function handleInvoicePaid(invoice) {
     if (!paymentRef && paymentId) {
         const initialRef = db.collection('pagamentos').doc(paymentId);
         const initialDoc = await initialRef.get();
-        if (initialDoc.exists && initialDoc.data()?.status !== 'paid') {
+        if (initialDoc.exists &&
+            initialDoc.data()?.status !== 'paid' &&
+            initialDoc.data()?.status !== 'cancelled') {
             paymentRef = initialRef;
         }
+    }
+    if (paymentRef) {
+        const current = await paymentRef.get();
+        if (current.data()?.status === 'cancelled')
+            return;
     }
     const periodStart = stripeTimestampDate(invoice.period_start) ??
         stripeTimestampDate(subscription.current_period_start);
@@ -1234,9 +1319,16 @@ async function handleInvoicePaymentFailed(invoice) {
     if (!paymentRef && paymentId) {
         const initialRef = db.collection('pagamentos').doc(paymentId);
         const initialDoc = await initialRef.get();
-        if (initialDoc.exists && initialDoc.data()?.status !== 'paid') {
+        if (initialDoc.exists &&
+            initialDoc.data()?.status !== 'paid' &&
+            initialDoc.data()?.status !== 'cancelled') {
             paymentRef = initialRef;
         }
+    }
+    if (paymentRef) {
+        const current = await paymentRef.get();
+        if (current.data()?.status === 'cancelled')
+            return;
     }
     const periodStart = stripeTimestampDate(invoice.period_start) ??
         stripeTimestampDate(subscription.current_period_start);

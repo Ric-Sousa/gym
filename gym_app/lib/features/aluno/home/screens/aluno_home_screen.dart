@@ -359,7 +359,9 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
         .asData
         ?.value
         .where((payment) =>
-            !payment.isPaid && payment.status != 'refunded')
+            !payment.isPaid &&
+            !payment.isCancelled &&
+            payment.status != 'refunded')
         .toList() ??
         [];
 

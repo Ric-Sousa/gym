@@ -65,6 +65,13 @@ class PaymentRepository {
     return url;
   }
 
+  /// Cancela uma cobrança pendente através da Cloud Function.
+  Future<void> cancelPayment({required String paymentId}) async {
+    final fn = FirebaseFunctions.instanceFor(region: 'europe-west1');
+    final callable = fn.httpsCallable('cancelPayment');
+    await callable.call<Map<String, dynamic>>({'paymentId': paymentId});
+  }
+
   /// Obtém pagamentos de um utilizador específico.
   Future<List<PaymentModel>> getPayments(String userId) {
     return _firestore.getPayments(userId);

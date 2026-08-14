@@ -6569,6 +6569,57 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
     );
   }
 
+  bool _canCancelPayment(PaymentModel payment) {
+    return payment.status == 'pending' ||
+        payment.status == 'scheduled' ||
+        payment.status == 'failed';
+  }
+
+  Future<void> _cancelPayment(PaymentModel payment) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancelar cobrança?'),
+        content: Text(
+          'A cobrança de ${payment.valorFormatado} deixará de aparecer para o cliente e a subscrição automática será cancelada, se já tiver sido criada.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Cancelar cobrança'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await ref.read(paymentRepositoryProvider).cancelPayment(
+            paymentId: payment.id,
+          );
+      ref.invalidate(adminAllPaymentsProvider);
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Cobrança cancelada.',
+          type: NotificationType.success,
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Não foi possível cancelar a cobrança: $error',
+          type: NotificationType.error,
+        );
+      }
+    }
+  }
+
   Widget _paymentRow(PaymentModel payment) {
     final isMobile = MediaQuery.of(context).size.width < 600;
     final userAsync = ref.watch(
@@ -6590,6 +6641,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
       'scheduled': AdminThemeColors.of(context).blue,
       'failed': Colors.red,
       'refunded': AdminThemeColors.of(context).muted,
+      'cancelled': AdminThemeColors.of(context).muted,
       'overdue': Colors.red,
     };
     final statusLabels = {
@@ -6598,6 +6650,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
       'scheduled': 'AGENDADO',
       'failed': 'FALHOU',
       'refunded': 'REEMBOLSADO',
+      'cancelled': 'CANCELADO',
       'overdue': 'EM ATRASO',
     };
 
@@ -6716,6 +6769,19 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                 ),
               ),
             ],
+            if (_canCancelPayment(payment)) ...[
+              const SizedBox(height: 6),
+              TextButton.icon(
+                onPressed: () => _cancelPayment(payment),
+                icon: const Icon(Icons.cancel_outlined, size: 15),
+                label: const Text('Cancelar'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.red,
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 32),
+                ),
+              ),
+            ],
           ],
         ),
       );
@@ -6804,9 +6870,12 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
             ),
           ),
           SizedBox(
-            width: 60,
-            child: payment.faturaUrl != null
-                ? IconButton(
+            width: 92,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (payment.faturaUrl != null)
+                  IconButton(
                     icon: Icon(
                       Icons.picture_as_pdf,
                       color: AdminThemeColors.of(context).lime,
@@ -6814,20 +6883,37 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                     ),
                     onPressed: () => _openInvoice(payment.faturaUrl!),
                     tooltip: 'Ver fatura',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                   )
-                : (payment.status == 'pending' &&
-                          payment.stripeSessionId != null
-                      ? IconButton(
-                          icon: Icon(
-                            Icons.refresh,
-                            color: AdminThemeColors.of(context).orange,
-                            size: 18,
-                          ),
-                          onPressed: () =>
-                              ref.invalidate(adminAllPaymentsProvider),
-                          tooltip: 'Atualizar',
-                        )
-                      : const SizedBox.shrink()),
+                else if (payment.status == 'pending' &&
+                    payment.stripeSessionId != null)
+                  IconButton(
+                    icon: Icon(
+                      Icons.refresh,
+                      color: AdminThemeColors.of(context).orange,
+                      size: 18,
+                    ),
+                    onPressed: () =>
+                        ref.invalidate(adminAllPaymentsProvider),
+                    tooltip: 'Atualizar',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                if (_canCancelPayment(payment))
+                  IconButton(
+                    icon: const Icon(
+                      Icons.cancel_outlined,
+                      color: Colors.red,
+                      size: 18,
+                    ),
+                    onPressed: () => _cancelPayment(payment),
+                    tooltip: 'Cancelar cobrança',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+              ],
+            ),
           ),
         ],
       ),

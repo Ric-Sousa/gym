@@ -249,9 +249,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _currentSalaId = salaId;
     _currentUserId = userId;
     final messagesAsync = ref.watch(chatMessagesProvider(salaId));
-    final typingAsync = ref
-        .watch(chatRepositoryProvider)
-        .typingStream(salaId, userId);
+    final typingAsync = ref.watch(
+      typingStreamProvider((salaId: salaId, userId: userId)),
+    );
     final userName = authState.user?.nome ?? '';
     // A conversa principal do aluno é com a Sara Gameiro. No Admin, o nome
     // real do aluno continua a chegar por chatPartnerName.

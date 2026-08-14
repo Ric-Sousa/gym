@@ -744,6 +744,10 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
         readAt: readAt,
       );
       _readRetryCount = 0;
+      // O provider de conversas já não observa o cursor de leitura, para não
+      // recriar o listener a cada alteração local. Revalida apenas depois de
+      // uma leitura concluída, uma vez por abertura/conversa.
+      ref.invalidate(adminConversationsProvider);
     } catch (error) {
       failed = true;
       debugPrint('⚠️ Não foi possível marcar mensagens como lidas: $error');
