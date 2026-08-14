@@ -1,5 +1,9 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
 import '../datasources/firestore_datasource.dart';
 import '../models/payment_model.dart';
 
@@ -65,11 +69,42 @@ class PaymentRepository {
     return url;
   }
 
-  /// Cancela uma cobrança pendente através da Cloud Function.
+  /// Cancela uma cobrança através da rota HTTP GCFv2 com CORS explícito.
   Future<void> cancelPayment({required String paymentId}) async {
-    final fn = FirebaseFunctions.instanceFor(region: 'europe-west1');
-    final callable = fn.httpsCallable('cancelPayment');
-    await callable.call<Map<String, dynamic>>({'paymentId': paymentId});
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw StateError('Login necessário.');
+    }
+
+    final token = await user.getIdToken(true);
+    if (token == null || token.isEmpty) {
+      throw StateError('Sessão expirada. Entra novamente.');
+    }
+
+    final response = await http.post(
+      Uri.parse(
+        'https://europe-west1-gymbt-4ef87.cloudfunctions.net/cancelPayment',
+      ),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'paymentId': paymentId}),
+    );
+
+    if (response.statusCode >= 200 && response.statusCode < 300) return;
+
+    String message = 'Não foi possível cancelar a cobrança.';
+    try {
+      final body = jsonDecode(response.body);
+      final error = body is Map ? body['error'] : null;
+      if (error is Map && error['message'] is String) {
+        message = error['message'] as String;
+      }
+    } catch (_) {
+      // Mantém a mensagem genérica se a resposta não for JSON.
+    }
+    throw StateError(message);
   }
 
   /// Cancela apenas a renovação automática no fim do período pago.

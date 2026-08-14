@@ -660,92 +660,133 @@ exports.createPaymentSchedule = functions.region('europe-west1').https.onCall(as
     };
 });
 /** Cancela uma cobrança ainda não paga e interrompe a subscrição Stripe, se existir. */
-exports.cancelPayment = (0, https_1.onCall)({
+exports.cancelPayment = (0, https_1.onRequest)({
     region: 'europe-west1',
-    cors: [
+    cors: false,
+}, async (req, res) => {
+    const origin = String(req.headers?.origin ?? '');
+    const allowedOrigins = new Set([
         'https://gymbt-4ef87.web.app',
         'https://gymbt-4ef87.firebaseapp.com',
-        /^https?:\/\/localhost(:\d+)?$/,
-    ],
-}, async (request) => {
-    const data = request.data;
-    const context = { auth: request.auth };
-    if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+        'http://localhost:3000',
+        'http://localhost:5000',
+    ]);
+    if (allowedOrigins.has(origin)) {
+        res.set('Access-Control-Allow-Origin', origin);
+        res.set('Vary', 'Origin');
     }
-    const callerDoc = await db.collection('users').doc(context.auth.uid).get();
-    if (callerDoc.data()?.role !== 'admin') {
-        throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
     }
-    const paymentId = typeof data?.paymentId === 'string' ? data.paymentId.trim() : '';
-    if (!paymentId) {
-        throw new functions.https.HttpsError('invalid-argument', 'paymentId obrigatório.');
+    if (req.method !== 'POST') {
+        res.status(405).json({ error: { message: 'Método não permitido.' } });
+        return;
     }
-    const paymentRef = db.collection('pagamentos').doc(paymentId);
-    const paymentDoc = await paymentRef.get();
-    if (!paymentDoc.exists) {
-        throw new functions.https.HttpsError('not-found', 'Pagamento não encontrado.');
-    }
-    const payment = paymentDoc.data() ?? {};
-    if (payment.status === 'cancelled')
-        return { success: true, paymentId };
-    if (payment.status === 'paid' || payment.status === 'refunded') {
-        throw new functions.https.HttpsError('failed-precondition', 'Um pagamento já concluído ou reembolsado não pode ser cancelado.');
-    }
-    if (payment.stripeSubscriptionId) {
-        if (!stripe) {
-            throw new functions.https.HttpsError('failed-precondition', 'Stripe não está configurado para cancelar a subscrição.');
+    try {
+        const authorization = String(req.headers?.authorization ?? '');
+        const match = authorization.match(/^Bearer\s+(.+)$/i);
+        if (!match) {
+            throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
         }
-        try {
-            await stripe.subscriptions.cancel(String(payment.stripeSubscriptionId));
+        const decoded = await auth.verifyIdToken(match[1]);
+        const data = (req.body?.data ?? req.body ?? {});
+        const context = { auth: { uid: decoded.uid } };
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
         }
-        catch (error) {
-            console.error('Stripe subscription cancellation failed', {
-                paymentId,
-                stripeSubscriptionId: payment.stripeSubscriptionId,
-                type: error?.type,
-                code: error?.code,
-                message: error?.message,
-                requestId: error?.requestId,
-            });
-            throw new functions.https.HttpsError('internal', 'Não foi possível cancelar a subscrição Stripe.');
+        const callerDoc = await db.collection('users').doc(context.auth.uid).get();
+        if (callerDoc.data()?.role !== 'admin') {
+            throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
         }
-    }
-    else if (payment.stripeSessionId && stripe) {
-        // Sessões Checkout ainda abertas podem ser expiradas. Sessões já
-        // concluídas não entram aqui porque o pagamento teria outro estado.
-        try {
-            const session = await stripe.checkout.sessions.retrieve(String(payment.stripeSessionId));
-            if (session.status === 'open') {
-                await stripe.checkout.sessions.expire(session.id);
+        const paymentId = typeof data?.paymentId === 'string' ? data.paymentId.trim() : '';
+        if (!paymentId) {
+            throw new functions.https.HttpsError('invalid-argument', 'paymentId obrigatório.');
+        }
+        const paymentRef = db.collection('pagamentos').doc(paymentId);
+        const paymentDoc = await paymentRef.get();
+        if (!paymentDoc.exists) {
+            throw new functions.https.HttpsError('not-found', 'Pagamento não encontrado.');
+        }
+        const payment = paymentDoc.data() ?? {};
+        if (payment.status === 'cancelled') {
+            res.status(200).json({ data: { success: true, paymentId } });
+            return;
+        }
+        if (payment.status === 'paid' || payment.status === 'refunded') {
+            throw new functions.https.HttpsError('failed-precondition', 'Um pagamento já concluído ou reembolsado não pode ser cancelado.');
+        }
+        if (payment.stripeSubscriptionId) {
+            if (!stripe) {
+                throw new functions.https.HttpsError('failed-precondition', 'Stripe não está configurado para cancelar a subscrição.');
+            }
+            try {
+                await stripe.subscriptions.cancel(String(payment.stripeSubscriptionId));
+            }
+            catch (error) {
+                console.error('Stripe subscription cancellation failed', {
+                    paymentId,
+                    stripeSubscriptionId: payment.stripeSubscriptionId,
+                    type: error?.type,
+                    code: error?.code,
+                    message: error?.message,
+                    requestId: error?.requestId,
+                });
+                throw new functions.https.HttpsError('internal', 'Não foi possível cancelar a subscrição Stripe.');
             }
         }
-        catch (error) {
-            console.warn('Could not expire Stripe checkout session', {
-                paymentId,
-                stripeSessionId: payment.stripeSessionId,
-                type: error?.type,
-                code: error?.code,
-                message: error?.message,
-            });
+        else if (payment.stripeSessionId && stripe) {
+            // Sessões Checkout ainda abertas podem ser expiradas. Sessões já
+            // concluídas não entram aqui porque o pagamento teria outro estado.
+            try {
+                const session = await stripe.checkout.sessions.retrieve(String(payment.stripeSessionId));
+                if (session.status === 'open') {
+                    await stripe.checkout.sessions.expire(session.id);
+                }
+            }
+            catch (error) {
+                console.warn('Could not expire Stripe checkout session', {
+                    paymentId,
+                    stripeSessionId: payment.stripeSessionId,
+                    type: error?.type,
+                    code: error?.code,
+                    message: error?.message,
+                });
+            }
         }
+        await paymentRef.update({
+            status: 'cancelled',
+            cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+            cancelledBy: context.auth.uid,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        await (0, notifications_js_1.createNotification)({
+            userId: String(payment.userId),
+            type: 'payment_cancelled',
+            title: 'Cobrança cancelada',
+            body: 'A cobrança foi cancelada pelo administrador e já não requer pagamento.',
+            action: 'payment',
+            paymentId,
+        });
+        await (0, notifications_js_1.sendUserPush)(String(payment.userId), 'Cobrança cancelada', 'A cobrança foi cancelada pelo administrador.', { type: 'payment_cancelled', paymentId, link: `${publicAppUrl}/` });
+        res.status(200).json({ data: { success: true, paymentId } });
     }
-    await paymentRef.update({
-        status: 'cancelled',
-        cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
-        cancelledBy: context.auth.uid,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-    await (0, notifications_js_1.createNotification)({
-        userId: String(payment.userId),
-        type: 'payment_cancelled',
-        title: 'Cobrança cancelada',
-        body: 'A cobrança foi cancelada pelo administrador e já não requer pagamento.',
-        action: 'payment',
-        paymentId,
-    });
-    await (0, notifications_js_1.sendUserPush)(String(payment.userId), 'Cobrança cancelada', 'A cobrança foi cancelada pelo administrador.', { type: 'payment_cancelled', paymentId, link: `${publicAppUrl}/` });
-    return { success: true, paymentId };
+    catch (error) {
+        const status = error?.httpErrorCode?.status ?? 500;
+        const message = error instanceof functions.https.HttpsError
+            ? error.message
+            : 'Não foi possível cancelar a cobrança.';
+        res.status(status).json({
+            error: {
+                message,
+                status: error instanceof functions.https.HttpsError
+                    ? error.code
+                    : 'internal',
+            },
+        });
+    }
 });
 /** Agenda o cancelamento da renovação para o fim do período já pago. */
 exports.cancelPaymentSubscription = functions.region('europe-west1').https.onCall(async (data, context) => {

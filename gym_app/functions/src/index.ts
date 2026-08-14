@@ -1,5 +1,5 @@
 import * as functions from 'firebase-functions';
-import { onCall as onCallV2 } from 'firebase-functions/v2/https';
+import { onRequest as onRequestV2 } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
 import { createHash, randomBytes } from 'node:crypto';
 import Stripe from 'stripe';
@@ -721,20 +721,48 @@ export const createPaymentSchedule = functions.region('europe-west1').https.onCa
 });
 
 /** Cancela uma cobrança ainda não paga e interrompe a subscrição Stripe, se existir. */
-export const cancelPayment = onCallV2({
+export const cancelPayment = onRequestV2({
   region: 'europe-west1',
-  cors: [
+  cors: false,
+}, async (req: any, res: any) => {
+  const origin = String(req.headers?.origin ?? '');
+  const allowedOrigins = new Set([
     'https://gymbt-4ef87.web.app',
     'https://gymbt-4ef87.firebaseapp.com',
-    /^https?:\/\/localhost(:\d+)?$/,
-  ],
-}, async (request) => {
-  const data = request.data as Record<string, unknown>;
-  const context = { auth: request.auth };
+    'http://localhost:3000',
+    'http://localhost:5000',
+  ]);
 
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+  if (allowedOrigins.has(origin)) {
+    res.set('Access-Control-Allow-Origin', origin);
+    res.set('Vary', 'Origin');
   }
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: { message: 'Método não permitido.' } });
+    return;
+  }
+
+  try {
+    const authorization = String(req.headers?.authorization ?? '');
+    const match = authorization.match(/^Bearer\s+(.+)$/i);
+    if (!match) {
+      throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+    }
+
+    const decoded = await auth.verifyIdToken(match[1]);
+    const data = (req.body?.data ?? req.body ?? {}) as Record<string, unknown>;
+    const context = { auth: { uid: decoded.uid } };
+
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+    }
 
   const callerDoc = await db.collection('users').doc(context.auth.uid).get();
   if (callerDoc.data()?.role !== 'admin') {
@@ -753,7 +781,10 @@ export const cancelPayment = onCallV2({
   }
 
   const payment = paymentDoc.data() ?? {};
-  if (payment.status === 'cancelled') return { success: true, paymentId };
+  if (payment.status === 'cancelled') {
+    res.status(200).json({ data: { success: true, paymentId } });
+    return;
+  }
   if (payment.status === 'paid' || payment.status === 'refunded') {
     throw new functions.https.HttpsError(
       'failed-precondition',
@@ -826,7 +857,21 @@ export const cancelPayment = onCallV2({
     { type: 'payment_cancelled', paymentId, link: `${publicAppUrl}/` },
   );
 
-  return { success: true, paymentId };
+    res.status(200).json({ data: { success: true, paymentId } });
+  } catch (error: any) {
+    const status = error?.httpErrorCode?.status ?? 500;
+    const message = error instanceof functions.https.HttpsError
+      ? error.message
+      : 'Não foi possível cancelar a cobrança.';
+    res.status(status).json({
+      error: {
+        message,
+        status: error instanceof functions.https.HttpsError
+          ? error.code
+          : 'internal',
+      },
+    });
+  }
 });
 
 /** Agenda o cancelamento da renovação para o fim do período já pago. */
