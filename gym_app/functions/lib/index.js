@@ -620,45 +620,72 @@ exports.createPaymentCheckoutSession = functions.region('europe-west1').https.on
     if (trialEnd != null)
         subscriptionData.trial_end = trialEnd;
     const interval = (0, billing_js_1.billingInterval)(payment.tipoMensalidade);
-    const session = await stripe.checkout.sessions.create({
-        mode: 'subscription',
-        line_items: [{
-                price_data: {
-                    currency: 'eur',
-                    product_data: {
-                        name: payment.descricao || `Mensalidade ${billing_js_1.billingTypeLabels[payment.tipoMensalidade]}`,
+    let session;
+    try {
+        session = await stripe.checkout.sessions.create({
+            mode: 'subscription',
+            line_items: [{
+                    price_data: {
+                        currency: 'eur',
+                        product_data: {
+                            name: payment.descricao || `Mensalidade ${billing_js_1.billingTypeLabels[payment.tipoMensalidade]}`,
+                        },
+                        unit_amount: Math.round(Number(payment.valor) * 100),
+                        recurring: interval,
                     },
-                    unit_amount: Math.round(Number(payment.valor) * 100),
-                    recurring: interval,
-                },
-                quantity: 1,
-            }],
-        ...(typeof user.stripeCustomerId === 'string' && user.stripeCustomerId.length > 0
-            ? { customer: user.stripeCustomerId }
-            : { customer_email: user.email || undefined }),
-        payment_method_collection: 'always',
-        subscription_data: subscriptionData,
-        metadata: { paymentId, userId: context.auth.uid },
-        success_url: 'https://gymbt-4ef87.web.app/perfil?pagamento=sucesso',
-        cancel_url: 'https://gymbt-4ef87.web.app/perfil?pagamento=cancelado',
-    });
+                    quantity: 1,
+                }],
+            ...(typeof user.stripeCustomerId === 'string' && user.stripeCustomerId.length > 0
+                ? { customer: user.stripeCustomerId }
+                : { customer_email: user.email || undefined }),
+            payment_method_collection: 'always',
+            subscription_data: subscriptionData,
+            metadata: { paymentId, userId: context.auth.uid },
+            success_url: 'https://gymbt-4ef87.web.app/perfil?pagamento=sucesso',
+            cancel_url: 'https://gymbt-4ef87.web.app/perfil?pagamento=cancelado',
+        });
+    }
+    catch (error) {
+        throw stripeCheckoutHttpsError(error, 'subscrição');
+    }
+    if (!session.url) {
+        throw new functions.https.HttpsError('internal', 'O Stripe não devolveu um endereço de checkout.');
+    }
     await paymentRef.update({
         stripeSessionId: session.id,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
     return { url: session.url, paymentId };
 });
+/**
+ * Endpoint antigo mantido para clientes ainda não atualizados.
+ * O fluxo novo deve usar createPaymentSchedule e o aluno deve iniciar o
+ * checkout através de createPaymentCheckoutSession.
+ */
 exports.createCheckoutSession = functions.region('europe-west1').https.onCall(async (data, context) => {
     if (!stripe)
-        throw new functions.https.HttpsError('failed-precondition', 'Stripe não configurado.');
+        throw new functions.https.HttpsError('failed-precondition', 'Stripe não configurado. Configura stripe.secret_key e publica as Functions.');
     if (!context.auth)
         throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
     const callerDoc = await db.collection('users').doc(context.auth.uid).get();
     if (callerDoc.data()?.role !== 'admin')
         throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
-    const { userId, valor, descricao, periodoInicio, periodoFim, dataVencimento } = data;
-    if (!userId || !valor || valor <= 0)
-        throw new functions.https.HttpsError('invalid-argument', 'userId e valor obrigatórios.');
+    const input = data && typeof data === 'object' ? data : {};
+    const userId = typeof input.userId === 'string' ? input.userId.trim() : '';
+    const valor = typeof input.valor === 'number' ? input.valor : Number(input.valor);
+    const descricao = typeof input.descricao === 'string' && input.descricao.trim().length > 0
+        ? input.descricao.trim()
+        : 'Mensalidade';
+    const periodoInicio = input.periodoInicio;
+    const periodoFim = input.periodoFim;
+    const dataVencimento = input.dataVencimento;
+    if (!userId || !Number.isFinite(valor) || valor <= 0) {
+        throw new functions.https.HttpsError('invalid-argument', 'userId e valor válidos são obrigatórios.');
+    }
+    const studentDoc = await db.collection('users').doc(userId).get();
+    if (!studentDoc.exists || studentDoc.data()?.role === 'admin') {
+        throw new functions.https.HttpsError('not-found', 'Aluno não encontrado.');
+    }
     const parsedStart = periodoInicio == null ? null : asDate(periodoInicio);
     const parsedEnd = periodoFim == null ? null : asDate(periodoFim);
     const parsedDue = dataVencimento == null ? null : asDate(dataVencimento);
@@ -671,23 +698,49 @@ exports.createCheckoutSession = functions.region('europe-west1').https.onCall(as
         throw new functions.https.HttpsError('invalid-argument', 'O início do período deve ser anterior ao fim.');
     }
     const paymentRef = await db.collection('pagamentos').add({
-        userId, valor, moeda: 'eur', status: 'pending',
-        descricao: descricao || 'Mensalidade',
+        userId, valor, moeda: 'eur', status: 'pending', descricao,
         data: admin.firestore.FieldValue.serverTimestamp(),
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         ...(parsedStart ? { periodoInicio: admin.firestore.Timestamp.fromDate(parsedStart) } : {}),
         ...(parsedEnd ? { periodoFim: admin.firestore.Timestamp.fromDate(parsedEnd) } : {}),
         ...(parsedDue ? { dataVencimento: admin.firestore.Timestamp.fromDate(parsedDue) } : {}),
     });
-    const session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'], mode: 'payment',
-        line_items: [{ price_data: { currency: 'eur', product_data: { name: descricao || 'Mensalidade GymBT' }, unit_amount: Math.round(valor * 100) }, quantity: 1 }],
-        metadata: { paymentId: paymentRef.id, userId },
-        success_url: 'https://gymbt-4ef87.web.app/perfil?pagamento=sucesso',
-        cancel_url: 'https://gymbt-4ef87.web.app/perfil?pagamento=cancelado',
-    });
-    await paymentRef.update({ stripeSessionId: session.id });
-    return { url: session.url, paymentId: paymentRef.id };
+    try {
+        const email = typeof studentDoc.data()?.email === 'string'
+            ? studentDoc.data()?.email
+            : undefined;
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            mode: 'payment',
+            line_items: [{
+                    price_data: {
+                        currency: 'eur',
+                        product_data: { name: descricao },
+                        unit_amount: Math.round(valor * 100),
+                    },
+                    quantity: 1,
+                }],
+            ...(email ? { customer_email: email } : {}),
+            metadata: { paymentId: paymentRef.id, userId },
+            success_url: 'https://gymbt-4ef87.web.app/perfil?pagamento=sucesso',
+            cancel_url: 'https://gymbt-4ef87.web.app/perfil?pagamento=cancelado',
+        });
+        if (!session.url) {
+            throw new functions.https.HttpsError('internal', 'O Stripe não devolveu um endereço de checkout.');
+        }
+        await paymentRef.update({
+            stripeSessionId: session.id,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return { url: session.url, paymentId: paymentRef.id };
+    }
+    catch (error) {
+        // Não deixar cobranças órfãs quando o Stripe rejeita a sessão.
+        await paymentRef.delete().catch(() => undefined);
+        if (error instanceof functions.https.HttpsError)
+            throw error;
+        throw stripeCheckoutHttpsError(error, 'pagamento');
+    }
 });
 // ──────────── FIRESTORE TRIGGERS ────────────
 // ═══ NOTIFICAÇÕES DE CHAT & BOOKING (callables v1 — compatível com eur3) ═══
@@ -1301,6 +1354,22 @@ function asDate(value) {
         return Number.isNaN(parsed.getTime()) ? null : parsed;
     }
     return null;
+}
+function stripeCheckoutHttpsError(error, operation) {
+    const stripeError = error;
+    console.error(`Stripe checkout (${operation}) failed`, {
+        type: stripeError?.type,
+        code: stripeError?.code,
+        message: stripeError?.message,
+        requestId: stripeError?.requestId,
+    });
+    if (stripeError?.type === 'StripeAuthenticationError') {
+        return new functions.https.HttpsError('failed-precondition', 'A chave secreta do Stripe é inválida, foi revogada ou não está configurada nas Functions.');
+    }
+    if (stripeError?.type === 'StripeInvalidRequestError') {
+        return new functions.https.HttpsError('invalid-argument', `O Stripe rejeitou os dados do checkout: ${stripeError.message || 'pedido inválido.'}`);
+    }
+    return new functions.https.HttpsError('internal', 'Não foi possível iniciar o checkout do Stripe. Consulta os logs da Function para mais detalhes.');
 }
 async function generateInvoicePdf(paymentId, userId) {
     const [paymentDoc, userDoc] = await Promise.all([db.collection('pagamentos').doc(paymentId).get(), db.collection('users').doc(userId).get()]);
