@@ -1,5 +1,7 @@
 import * as functions from 'firebase-functions';
+import { onCall as onCallV2 } from 'firebase-functions/v2/https';
 import * as admin from 'firebase-admin';
+import { createHash, randomBytes } from 'node:crypto';
 import Stripe from 'stripe';
 import PDFDocument from 'pdfkit';
 import { shouldDeactivateExpiredContract } from './contract_expiry.js';
@@ -10,6 +12,12 @@ import {
   isBillingType,
   type BillingType,
 } from './billing.js';
+import {
+  createNotification,
+  escapeHtml,
+  sendUserEmail,
+  sendUserPush,
+} from './notifications.js';
 
 admin.initializeApp();
 
@@ -18,9 +26,29 @@ const auth = admin.auth();
 const messaging = admin.messaging();
 
 // ═══ Stripe ═══
-const stripeConfig = functions.config().stripe;
-const stripeSecret: string | undefined = stripeConfig?.secret_key;
-const stripeWebhookSecret: string = stripeConfig?.webhook_secret || '';
+// functions.config() is unavailable in Cloud Functions 2nd gen. Keep the
+// legacy config for existing 1st gen functions, but use environment variables
+// when this module is loaded by a 2nd gen container.
+function runtimeConfig(): Record<string, any> {
+  if (process.env.K_CONFIGURATION) {
+    return {
+      stripe: {
+        secret_key: process.env.STRIPE_SECRET_KEY,
+        webhook_secret: process.env.STRIPE_WEBHOOK_SECRET,
+      },
+      resend: {
+        api_key: process.env.RESEND_API_KEY,
+        from_email: process.env.RESEND_FROM_EMAIL,
+      },
+    };
+  }
+  return functions.config();
+}
+
+const configured = runtimeConfig();
+const stripeConfig = configured.stripe ?? {};
+const stripeSecret: string | undefined = stripeConfig.secret_key;
+const stripeWebhookSecret: string = stripeConfig.webhook_secret || '';
 
 if (!stripeSecret) {
   console.warn('⚠️  Stripe secret_key não definida.');
@@ -29,6 +57,70 @@ if (!stripeSecret) {
 const stripe = stripeSecret
   ? new Stripe(stripeSecret, { apiVersion: '2025-06-30.acacia' as any })
   : null;
+
+const publicAppUrl = 'https://gymbt-4ef87.web.app';
+const recoveryTokenLifetimeMs = 7 * 24 * 60 * 60 * 1000;
+
+function hashRecoveryToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+async function issuePaymentRecovery(
+  paymentId: string,
+  userId: string,
+  reason: 'failed' | 'overdue',
+): Promise<void> {
+  const token = randomBytes(32).toString('base64url');
+  const tokenHash = hashRecoveryToken(token);
+  const expiresAt = new Date(Date.now() + recoveryTokenLifetimeMs);
+  await db.collection('paymentRecoveryTokens').doc(tokenHash).set({
+    paymentId,
+    userId,
+    expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await db.collection('pagamentos').doc(paymentId).update({
+    recoveryLastSentAt: admin.firestore.FieldValue.serverTimestamp(),
+    recoveryTokenExpiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+  }).catch(() => undefined);
+
+  const userDoc = await db.collection('users').doc(userId).get();
+  const user = userDoc.data() ?? {};
+  const name = String(user.nome ?? 'Cliente');
+  const payment = await db.collection('pagamentos').doc(paymentId).get();
+  const amount = Number(payment.data()?.valor ?? 0).toFixed(2);
+  const recoveryUrl = `${publicAppUrl}/?recoveryToken=${encodeURIComponent(token)}`;
+  const title = reason === 'failed'
+    ? 'Pagamento recusado — regulariza a tua mensalidade'
+    : 'Mensalidade em atraso — regulariza o teu acesso';
+  const body = reason === 'failed'
+    ? `A cobrança de ${amount} EUR não foi concluída. Usa o link para pagar manualmente.`
+    : `A mensalidade de ${amount} EUR está em atraso. Usa o link para recuperar o acesso.`;
+
+  await createNotification({
+    userId,
+    type: 'payment_recovery',
+    title,
+    body,
+    action: 'payment_recovery',
+    paymentId,
+    metadata: { recoveryUrl },
+  });
+  await sendUserPush(userId, title, body, {
+    type: 'payment_recovery',
+    paymentId,
+    link: recoveryUrl,
+  });
+  if (typeof user.email === 'string' && user.email.length > 0) {
+    await sendUserEmail(
+      user.email,
+      title,
+      `<p>Olá ${escapeHtml(name)},</p><p>${escapeHtml(body)}</p>` +
+        `<p><a href="${recoveryUrl}">Abrir portal de pagamento seguro</a></p>` +
+        `<p>Este link expira em 7 dias.</p>`,
+    );
+  }
+}
 
 // ──────────── AUTH ────────────
 
@@ -606,6 +698,21 @@ export const createPaymentSchedule = functions.region('europe-west1').https.onCa
     ),
   });
 
+  await createNotification({
+    userId,
+    type: 'payment_created',
+    title: 'Nova cobrança disponível 💳',
+    body: `Foi criada uma cobrança de ${valor.toFixed(2)} EUR. Abre o Perfil para pagar ou ativar o automático.`,
+    action: 'payment',
+    paymentId: paymentRef.id,
+  });
+  await sendUserPush(
+    userId,
+    'Nova cobrança disponível 💳',
+    `Foi criada uma cobrança de ${valor.toFixed(2)} EUR.`,
+    { type: 'payment_created', paymentId: paymentRef.id, link: `${publicAppUrl}/` },
+  );
+
   return {
     paymentId: paymentRef.id,
     periodoInicio: period.start.toISOString(),
@@ -614,7 +721,17 @@ export const createPaymentSchedule = functions.region('europe-west1').https.onCa
 });
 
 /** Cancela uma cobrança ainda não paga e interrompe a subscrição Stripe, se existir. */
-export const cancelPayment = functions.region('europe-west1').https.onCall(async (data, context) => {
+export const cancelPayment = onCallV2({
+  region: 'europe-west1',
+  cors: [
+    'https://gymbt-4ef87.web.app',
+    'https://gymbt-4ef87.firebaseapp.com',
+    /^https?:\/\/localhost(:\d+)?$/,
+  ],
+}, async (request) => {
+  const data = request.data as Record<string, unknown>;
+  const context = { auth: request.auth };
+
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
   }
@@ -694,7 +811,64 @@ export const cancelPayment = functions.region('europe-west1').https.onCall(async
     cancelledBy: context.auth.uid,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
+  await createNotification({
+    userId: String(payment.userId),
+    type: 'payment_cancelled',
+    title: 'Cobrança cancelada',
+    body: 'A cobrança foi cancelada pelo administrador e já não requer pagamento.',
+    action: 'payment',
+    paymentId,
+  });
+  await sendUserPush(
+    String(payment.userId),
+    'Cobrança cancelada',
+    'A cobrança foi cancelada pelo administrador.',
+    { type: 'payment_cancelled', paymentId, link: `${publicAppUrl}/` },
+  );
 
+  return { success: true, paymentId };
+});
+
+/** Agenda o cancelamento da renovação para o fim do período já pago. */
+export const cancelPaymentSubscription = functions.region('europe-west1').https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+  const caller = await db.collection('users').doc(context.auth.uid).get();
+  if (caller.data()?.role !== 'admin') {
+    throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
+  }
+  const paymentId = typeof data?.paymentId === 'string' ? data.paymentId.trim() : '';
+  const paymentRef = db.collection('pagamentos').doc(paymentId);
+  const paymentDoc = await paymentRef.get();
+  const payment = paymentDoc.data();
+  if (!paymentDoc.exists || !payment) {
+    throw new functions.https.HttpsError('not-found', 'Pagamento não encontrado.');
+  }
+  if (!payment.stripeSubscriptionId) {
+    throw new functions.https.HttpsError('failed-precondition', 'Não existe subscrição automática.');
+  }
+  if (!stripe) throw new functions.https.HttpsError('failed-precondition', 'Stripe não configurado.');
+
+  try {
+    await stripe.subscriptions.update(String(payment.stripeSubscriptionId), {
+      cancel_at_period_end: true,
+    });
+  } catch (error) {
+    throw stripeCheckoutHttpsError(error, 'cancelamento da renovação');
+  }
+
+  await paymentRef.update({
+    subscriptionCancelAtPeriodEnd: true,
+    subscriptionCancelRequestedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await createNotification({
+    userId: String(payment.userId),
+    type: 'subscription_cancelled',
+    title: 'Renovação automática desativada',
+    body: 'O acesso mantém-se ativo até ao fim do período já pago.',
+    action: 'payment',
+    paymentId,
+  });
   return { success: true, paymentId };
 });
 
@@ -783,6 +957,116 @@ export const createPaymentCheckoutSession = functions.region('europe-west1').htt
   });
   return { url: session.url, paymentId };
 });
+
+/**
+ * Cria um checkout público de recuperação. O token é aleatório, só o hash é
+ * guardado no Firestore e expira em sete dias. Não depende de Firebase Auth,
+ * porque o login do cliente fica bloqueado quando existe atraso.
+ */
+export const createPaymentRecoveryCheckoutSession = functions
+  .region('europe-west1')
+  .https.onCall(async (data) => {
+    if (!stripe) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Stripe não configurado.',
+      );
+    }
+    const token = typeof data?.token === 'string' ? data.token.trim() : '';
+    if (token.length < 32) {
+      throw new functions.https.HttpsError('invalid-argument', 'Token inválido.');
+    }
+
+    const tokenRef = db.collection('paymentRecoveryTokens').doc(hashRecoveryToken(token));
+    const tokenDoc = await tokenRef.get();
+    const recovery = tokenDoc.data();
+    const expiresAt = asDate(recovery?.expiresAt);
+    if (!tokenDoc.exists || !recovery || !expiresAt || expiresAt <= new Date()) {
+      throw new functions.https.HttpsError('not-found', 'Este link expirou ou não é válido.');
+    }
+
+    const paymentRef = db.collection('pagamentos').doc(String(recovery.paymentId));
+    const paymentDoc = await paymentRef.get();
+    const payment = paymentDoc.data();
+    if (!paymentDoc.exists || !payment || payment.userId !== recovery.userId) {
+      throw new functions.https.HttpsError('not-found', 'Cobrança não encontrada.');
+    }
+    if (payment.status === 'paid' || payment.status === 'cancelled' || payment.status === 'refunded') {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Esta cobrança já não está disponível.',
+      );
+    }
+
+    if (typeof payment.stripeHostedInvoiceUrl === 'string' &&
+        payment.stripeHostedInvoiceUrl.length > 0) {
+      return {
+        url: payment.stripeHostedInvoiceUrl,
+        paymentId: paymentRef.id,
+      };
+    }
+
+    const userDoc = await db.collection('users').doc(String(recovery.userId)).get();
+    const user = userDoc.data() ?? {};
+    const amount = Math.round(Number(payment.valor) * 100);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new functions.https.HttpsError('failed-precondition', 'Valor inválido.');
+    }
+
+    let session: Stripe.Checkout.Session;
+    try {
+      session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        line_items: [{
+          price_data: {
+            currency: payment.moeda || 'eur',
+            product_data: { name: payment.descricao || 'Regularização de mensalidade' },
+            unit_amount: amount,
+          },
+          quantity: 1,
+        }],
+        ...(typeof user.email === 'string' && user.email.length > 0
+          ? { customer_email: user.email }
+          : {}),
+        metadata: {
+          paymentId: paymentRef.id,
+          userId: String(recovery.userId),
+          recoveryTokenHash: tokenRef.id,
+        },
+        success_url: `${publicAppUrl}/?recovery=success`,
+        cancel_url: `${publicAppUrl}/?recovery=cancelled`,
+      });
+    } catch (error) {
+      throw stripeCheckoutHttpsError(error, 'recuperação');
+    }
+
+    if (!session.url) {
+      throw new functions.https.HttpsError('internal', 'O Stripe não devolveu o checkout.');
+    }
+    await paymentRef.update({
+      recoveryCheckoutSessionId: session.id,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { url: session.url, paymentId: paymentRef.id };
+  });
+
+/** Permite ao admin reenviar o acesso ao portal sem expor o token existente. */
+export const resendPaymentRecovery = functions
+  .region('europe-west1')
+  .https.onCall(async (data, context) => {
+    if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+    const caller = await db.collection('users').doc(context.auth.uid).get();
+    if (caller.data()?.role !== 'admin') {
+      throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
+    }
+    const paymentId = typeof data?.paymentId === 'string' ? data.paymentId.trim() : '';
+    const payment = await db.collection('pagamentos').doc(paymentId).get();
+    if (!payment.exists || !payment.data()?.userId) {
+      throw new functions.https.HttpsError('not-found', 'Pagamento não encontrado.');
+    }
+    await issuePaymentRecovery(paymentId, String(payment.data()!.userId), 'failed');
+    return { success: true };
+  });
 
 /**
  * Endpoint antigo mantido para clientes ainda não atualizados.
@@ -1150,7 +1434,85 @@ export const deactivateExpiredContractOnWrite = functions
     return null;
   });
 
+/** Mantém o centro de avisos sincronizado com ativações/desativações feitas pelo admin. */
+export const notifyUserAccessChange = functions
+  .region('europe-west1')
+  .firestore.document('users/{uid}')
+  .onUpdate(async (change, context) => {
+    const before = change.before.data() ?? {};
+    const after = change.after.data() ?? {};
+    const uid = context.params.uid as string;
+    if (after.role === 'admin') return null;
+
+    const wasActive = before.isActive !== false;
+    const isActive = after.isActive !== false;
+    const beforeEnd = asDate(before.contractEndsAt)?.getTime() ?? null;
+    const afterEnd = asDate(after.contractEndsAt)?.getTime() ?? null;
+    if (wasActive === isActive && beforeEnd === afterEnd) return null;
+
+    const title = !isActive ? 'Acesso desativado' : 'Acesso ativado ✅';
+    const body = !isActive
+      ? 'O teu acesso foi desativado. Contacta o administrador para obter ajuda.'
+      : 'O teu acesso foi ativado. Já podes utilizar a aplicação.';
+    await createNotification({ userId: uid, type: 'access_change', title, body, action: 'login' });
+    await sendUserPush(uid, title, body, { type: 'access_change', link: `${publicAppUrl}/` });
+    return null;
+  });
+
+/** Persiste avisos quando uma marcação é aceite, recusada ou cancelada. */
+export const notifyBookingStatusChange = functions
+  .region('europe-west1')
+  .firestore.document('agenda/{bookingId}')
+  .onUpdate(async (change, context) => {
+    const before = change.before.data() ?? {};
+    const after = change.after.data() ?? {};
+    if (before.status === after.status) return null;
+    const studentId = typeof after.studentId === 'string' ? after.studentId : '';
+    if (!studentId) return null;
+
+    const labels: Record<string, string> = {
+      confirmed: 'A tua aula foi aceite ✅',
+      cancelled: 'A tua aula foi recusada/cancelada ❌',
+      completed: 'A tua aula foi marcada como concluída',
+    };
+    const title = labels[String(after.status)] || 'A tua marcação foi atualizada';
+    await createNotification({
+      userId: studentId,
+      type: 'booking_update',
+      title,
+      body: 'Consulta a agenda para veres os detalhes da marcação.',
+      action: 'agenda',
+      metadata: { bookingId: context.params.bookingId as string },
+    });
+    // As callables de agenda já enviam o push; este trigger acrescenta apenas
+    // o histórico persistente para evitar notificações duplicadas.
+    return null;
+  });
+
 // ──────────── SCHEDULED ────────────
+
+export const sendPaymentRecoveryReminders = functions.pubsub
+  .schedule('every day 09:00')
+  .timeZone('Europe/Lisbon')
+  .onRun(async () => {
+    const unpaid = await db.collection('pagamentos')
+      .where('status', 'in', ['pending', 'failed'])
+      .get();
+    const now = Date.now();
+    for (const doc of unpaid.docs) {
+      const data = doc.data();
+      const isFailed = data.status === 'failed';
+      const dueAt = asDate(data.dataVencimento)?.getTime();
+      if (!isFailed && (!dueAt || dueAt > now)) continue;
+      const lastSent = asDate(data.recoveryLastSentAt)?.getTime() ?? 0;
+      if (now - lastSent < 24 * 60 * 60 * 1000) continue;
+      const userId = typeof data.userId === 'string' ? data.userId : '';
+      if (userId) {
+        await issuePaymentRecovery(doc.id, userId, isFailed ? 'failed' : 'overdue');
+      }
+    }
+    return null;
+  });
 
 export const sendWaterReminder = functions.pubsub
   .schedule('every 2 hours from 08:00 to 22:00').timeZone('Europe/Lisbon')
@@ -1271,6 +1633,24 @@ stripeApp.post('/', async (req: any, res: any) => {
     res.status(400).json({ error: `Webhook Error: ${e.message}` }); return;
   }
 
+  // Stripe pode reenviar o mesmo evento. Registar o ID antes do processamento
+  // torna o webhook idempotente e evita faturas/avisos duplicados.
+  const eventRef = db.collection('stripeEvents').doc(event.id);
+  const eventAlreadyProcessed = await db.runTransaction(async (transaction) => {
+    const existing = await transaction.get(eventRef);
+    if (existing.exists) return true;
+    transaction.create(eventRef, {
+      type: event.type,
+      receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return false;
+  });
+  if (eventAlreadyProcessed) {
+    res.status(200).json({ received: true, duplicate: true });
+    return;
+  }
+
+  try {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
     const { paymentId, userId } = session.metadata || {};
@@ -1316,8 +1696,28 @@ stripeApp.post('/', async (req: any, res: any) => {
           : session.payment_intent?.id,
         paidAt: admin.firestore.FieldValue.serverTimestamp(),
       });
-      if (userId) await generateInvoicePdf(paymentId, userId);
+      if (userId) {
+        await generateInvoicePdf(paymentId, userId);
+        await createNotification({
+          userId,
+          type: 'payment_paid',
+          title: 'Pagamento confirmado ✅',
+          body: 'A tua mensalidade foi paga com sucesso.',
+          action: 'payment',
+          paymentId,
+        });
+        await sendUserPush(
+          userId,
+          'Pagamento confirmado ✅',
+          'A tua mensalidade foi paga com sucesso.',
+          { type: 'payment_paid', paymentId, link: `${publicAppUrl}/` },
+        );
+      }
     }
+  }
+
+  if (event.type === 'customer.subscription.deleted') {
+    await handleSubscriptionDeleted(event.data.object as any);
   }
 
   if (event.type === 'invoice.paid') {
@@ -1327,11 +1727,42 @@ stripeApp.post('/', async (req: any, res: any) => {
   if (event.type === 'invoice.payment_failed') {
     await handleInvoicePaymentFailed(event.data.object as any);
   }
+  } catch (error) {
+    // Permitir que o Stripe reenvie um evento se o processamento falhar a
+    // meio, em vez de deixar um marcador "processado" permanentemente.
+    await eventRef.delete().catch(() => undefined);
+    console.error('Stripe webhook processing failed', error);
+    res.status(500).json({ error: 'Webhook processing failed.' });
+    return;
+  }
 
   res.status(200).json({ received: true });
 });
 
 export const stripeWebhook = functions.region('europe-west1').https.onRequest(stripeApp);
+
+async function handleSubscriptionDeleted(subscription: any): Promise<void> {
+  const metadata = subscription.metadata ?? {};
+  const paymentId = typeof metadata.paymentId === 'string' ? metadata.paymentId : '';
+  const userId = typeof metadata.userId === 'string' ? metadata.userId : '';
+  if (!paymentId || !userId) return;
+
+  const paymentRef = db.collection('pagamentos').doc(paymentId);
+  const payment = await paymentRef.get();
+  if (!payment.exists || payment.data()?.status === 'cancelled') return;
+  await paymentRef.update({
+    subscriptionEndedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await createNotification({
+    userId,
+    type: 'subscription_ended',
+    title: 'Renovação automática terminada',
+    body: 'A subscrição terminou. Se precisares, podes regularizar pelo próximo pagamento disponível.',
+    action: 'payment',
+    paymentId,
+  });
+}
 
 async function handleInvoicePaid(invoice: any): Promise<void> {
   const context = await getInvoiceSubscriptionContext(invoice);
@@ -1396,6 +1827,20 @@ async function handleInvoicePaid(invoice: any): Promise<void> {
   }
 
   await generateInvoicePdf(paymentRef.id, userId);
+  await createNotification({
+    userId,
+    type: 'payment_paid',
+    title: 'Pagamento confirmado ✅',
+    body: 'A tua mensalidade foi paga e o acesso foi atualizado.',
+    action: 'payment',
+    paymentId: paymentRef.id,
+  });
+  await sendUserPush(
+    userId,
+    'Pagamento confirmado ✅',
+    'A tua mensalidade foi paga e o acesso foi atualizado.',
+    { type: 'payment_paid', paymentId: paymentRef.id, link: `${publicAppUrl}/` },
+  );
 }
 
 async function handleInvoicePaymentFailed(invoice: any): Promise<void> {
@@ -1445,7 +1890,7 @@ async function handleInvoicePaymentFailed(invoice: any): Promise<void> {
   if (paymentRef) {
     await paymentRef.update(data);
   } else {
-    await db.collection('pagamentos').add({
+    paymentRef = await db.collection('pagamentos').add({
       userId,
       valor: amount ?? 0,
       moeda: 'eur',
@@ -1455,6 +1900,27 @@ async function handleInvoicePaymentFailed(invoice: any): Promise<void> {
       ...data,
     });
   }
+
+  // Se ainda não existe um período pago, não manter uma subscrição em
+  // cobrança/retry automático. O cliente recebe o portal para pagar uma vez
+  // manualmente; depois o webhook reativa o acesso.
+  const userDoc = await db.collection('users').doc(userId).get();
+  const currentContractEnd = asDate(userDoc.data()?.contractEndsAt);
+  if ((!currentContractEnd || currentContractEnd <= new Date()) && stripe) {
+    try {
+      await stripe.subscriptions.cancel(String(subscription.id));
+      await paymentRef.update({
+        subscriptionCancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    } catch (error) {
+      console.error('Could not cancel unpaid initial subscription', error);
+    }
+  }
+
+  // O primeiro pagamento recusado também precisa de recuperação pública;
+  // o utilizador pode estar impedido de iniciar sessão.
+  await issuePaymentRecovery(paymentRef.id, userId, 'failed');
 }
 
 async function getInvoiceSubscriptionContext(invoice: any): Promise<{

@@ -6575,6 +6575,83 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
         payment.status == 'failed';
   }
 
+  bool _canCancelSubscription(PaymentModel payment) {
+    return payment.stripeSubscriptionId != null &&
+        payment.isPaid &&
+        !payment.subscriptionCancelAtPeriodEnd;
+  }
+
+  Future<void> _cancelPaymentSubscription(PaymentModel payment) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Desativar renovação automática?'),
+        content: const Text(
+          'O cliente mantém o acesso até ao fim do período pago. O Stripe não fará novas cobranças depois dessa data.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Desativar renovação'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await ref.read(paymentRepositoryProvider).cancelPaymentSubscription(
+            paymentId: payment.id,
+          );
+      ref.invalidate(adminAllPaymentsProvider);
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Renovação automática desativada no fim do período.',
+          type: NotificationType.success,
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Não foi possível desativar a renovação: $error',
+          type: NotificationType.error,
+        );
+      }
+    }
+  }
+
+  bool _canResendRecovery(PaymentModel payment) {
+    return payment.status == 'failed' || payment.isOverdue;
+  }
+
+  Future<void> _resendRecovery(PaymentModel payment) async {
+    try {
+      await ref.read(paymentRepositoryProvider).resendPaymentRecovery(
+            paymentId: payment.id,
+          );
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Link de recuperação reenviado por e-mail/push.',
+          type: NotificationType.success,
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Não foi possível reenviar o link: $error',
+          type: NotificationType.error,
+        );
+      }
+    }
+  }
+
   Future<void> _cancelPayment(PaymentModel payment) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -6766,6 +6843,32 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                       ),
                     ),
                   ],
+                ),
+              ),
+            ],
+            if (_canResendRecovery(payment)) ...[
+              const SizedBox(height: 6),
+              TextButton.icon(
+                onPressed: () => _resendRecovery(payment),
+                icon: const Icon(Icons.forward_to_inbox_outlined, size: 15),
+                label: const Text('Reenviar recuperação'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.blue,
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 32),
+                ),
+              ),
+            ],
+            if (_canCancelSubscription(payment)) ...[
+              const SizedBox(height: 6),
+              TextButton.icon(
+                onPressed: () => _cancelPaymentSubscription(payment),
+                icon: const Icon(Icons.event_busy_outlined, size: 15),
+                label: const Text('Parar renovação'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.orange,
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 32),
                 ),
               ),
             ],

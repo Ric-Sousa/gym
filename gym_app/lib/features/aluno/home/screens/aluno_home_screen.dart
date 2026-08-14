@@ -364,6 +364,14 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
             payment.status != 'refunded')
         .toList() ??
         [];
+    final notifications = ref
+            .read(notificationsStreamProvider(userId))
+            .asData
+            ?.value ??
+        [];
+    unawaited(
+      ref.read(notificationRepositoryProvider).markAllAsRead(userId),
+    );
 
     showModalBottomSheet<void>(
       context: context,
@@ -372,17 +380,17 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
       builder: (sheetContext) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-          child: payments.isEmpty
+          child: payments.isEmpty && notifications.isEmpty
               ? const Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: Text('Não tens pagamentos pendentes.')),
+                  child: Center(child: Text('Não tens avisos pendentes.')),
                 )
               : Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Pagamentos pendentes',
+                      'Avisos',
                       style: GoogleFonts.montserrat(
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
@@ -398,6 +406,43 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
+                    ...notifications.map(
+                      (notification) => ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const CircleAvatar(
+                          backgroundColor: AppColors.primaryContainer,
+                          child: Icon(
+                            Icons.notifications_outlined,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        title: Text(
+                          notification.title,
+                          style: GoogleFonts.inter(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.onSurface,
+                          ),
+                        ),
+                        subtitle: Text(
+                          notification.body,
+                          style: GoogleFonts.inter(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (payments.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Pagamentos pendentes',
+                        style: GoogleFonts.inter(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                    ],
                     ...payments.map(
                       (payment) => ListTile(
                         contentPadding: EdgeInsets.zero,

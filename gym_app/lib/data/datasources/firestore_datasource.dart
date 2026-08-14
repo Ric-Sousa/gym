@@ -10,6 +10,7 @@ import '../models/progress_video_model.dart';
 import '../models/food_model.dart';
 import '../models/workout_log_model.dart';
 import '../models/payment_model.dart';
+import '../models/app_notification_model.dart';
 import '../models/booking_model.dart';
 import '../models/group_model.dart';
 import '../../core/config/app_constants.dart';
@@ -836,6 +837,45 @@ class FirestoreDataSource {
       throw ServerException(
         message: e.message ?? 'Erro ao atualizar pagamento',
       );
+    }
+  }
+
+  // ───────────────────── NOTIFICATIONS ─────────────────────
+
+  Stream<List<AppNotificationModel>> watchNotifications(String userId) {
+    if (userId.isEmpty) return Stream.value(const []);
+    return _firestore
+        .collection(AppConstants.notificationsCollection)
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snapshot) {
+          final notifications = snapshot.docs
+              .map((doc) => AppNotificationModel.fromMap(doc.id, doc.data()))
+              .toList();
+          notifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return notifications;
+        });
+  }
+
+  Future<void> markNotificationsRead(String userId) async {
+    final snapshot = await _firestore
+        .collection(AppConstants.notificationsCollection)
+        .where('userId', isEqualTo: userId)
+        .get();
+    final unreadDocs = snapshot.docs
+        .where((doc) => doc.data()['read'] != true)
+        .toList();
+    if (unreadDocs.isEmpty) return;
+    for (var offset = 0; offset < unreadDocs.length; offset += 450) {
+      final end = (offset + 450).clamp(0, unreadDocs.length);
+      final batch = _firestore.batch();
+      for (final doc in unreadDocs.sublist(offset, end)) {
+        batch.update(doc.reference, {
+          'read': true,
+          'readAt': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
     }
   }
 

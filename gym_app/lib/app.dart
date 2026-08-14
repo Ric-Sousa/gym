@@ -7,6 +7,7 @@ import 'core/config/admin_theme.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/privacy_policy_screen.dart';
+import 'features/auth/screens/payment_recovery_screen.dart';
 import 'features/aluno/home/screens/aluno_home_screen.dart';
 import 'features/aluno/nutricao/screens/nutrition_screen.dart';
 import 'features/aluno/treino/screens/workout_screen.dart';
@@ -238,6 +239,13 @@ class PersonalFitApp extends ConsumerWidget {
   }
 
   Widget _buildHome(AuthState authState) {
+    // O portal de recuperação é público para permitir pagar mesmo quando o
+    // login foi bloqueado por atraso. A query só é usada no Web.
+    final recoveryToken = Uri.base.queryParameters['recoveryToken'];
+    if (recoveryToken != null && recoveryToken.isNotEmpty) {
+      return PaymentRecoveryScreen(token: recoveryToken);
+    }
+
     switch (authState.status) {
       case AuthStatus.initial:
       case AuthStatus.loading:

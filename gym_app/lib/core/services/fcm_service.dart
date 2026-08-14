@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/config/app_colors.dart';
+import '../../core/config/firebase_messaging_config.dart';
 import '../../data/repositories/user_repository.dart';
 
 /// Serviço de Firebase Cloud Messaging (FCM).
@@ -17,7 +18,9 @@ class FCMService {
   final UserRepository _userRepository;
   String? _currentUserId;
   StreamSubscription<RemoteMessage>? _foregroundSubscription;
+  StreamSubscription<RemoteMessage>? _openedSubscription;
   StreamSubscription<String>? _tokenRefreshSubscription;
+  bool _initialized = false;
 
   // Callback para quando uma notificação é recebida em foreground
   void Function(RemoteMessage)? onForegroundMessage;
@@ -30,6 +33,10 @@ class FCMService {
 
   /// Inicializa o serviço FCM para um utilizador específico.
   Future<void> initialize(String userId) async {
+    if (_initialized && _currentUserId == userId) return;
+    await _foregroundSubscription?.cancel();
+    await _openedSubscription?.cancel();
+    await _tokenRefreshSubscription?.cancel();
     _currentUserId = userId;
 
     // 1. Pedir permissão
@@ -48,12 +55,12 @@ class FCMService {
 
     // 4. Configurar handlers de mensagens
     _configureMessageHandlers();
+    _initialized = true;
   }
 
   /// Pede permissão para notificações.
   Future<bool> _requestPermission() async {
-    // Web não suporta notificações push da mesma forma
-    if (kIsWeb) return false;
+    if (kIsWeb && fcmWebVapidKey.isEmpty) return false;
 
     try {
       final settings = await _messaging.requestPermission(
@@ -72,7 +79,11 @@ class FCMService {
   /// Obtém e guarda o token FCM no Firestore.
   Future<void> _registerToken(String userId) async {
     try {
-      final token = await _messaging.getToken();
+      final token = await _messaging.getToken(
+        vapidKey: kIsWeb && fcmWebVapidKey.isNotEmpty
+            ? fcmWebVapidKey
+            : null,
+      );
       if (token != null) {
         await _saveToken(userId, token);
       }
@@ -98,7 +109,7 @@ class FCMService {
     });
 
     // Quando o utilizador toca numa notificação
-    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+    _openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen((message) {
       // Pode ser usado para navegação futura baseada no tipo de notificação
     });
 
@@ -234,6 +245,7 @@ class FCMService {
   /// Liberta recursos.
   void dispose() {
     _foregroundSubscription?.cancel();
+    _openedSubscription?.cancel();
     _tokenRefreshSubscription?.cancel();
   }
 }

@@ -44,6 +44,7 @@ class AppConstants {
   static const String foodsCollection = 'alimentos';
   static const String exercisesCollection = 'exercicios';
   static const String paymentsCollection = 'pagamentos';
+  static const String notificationsCollection = 'notificacoes';
   static const String agendaCollection = 'agenda';
   static const String groupsCollection = 'grupos';
   static const String groupMessagesSubcollection = 'mensagens';

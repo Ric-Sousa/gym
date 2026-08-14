@@ -20,6 +20,7 @@ class PaymentModel {
   final DateTime? paidAt;
   final String? metodo;
   final String? comprovativoUrl;
+  final bool subscriptionCancelAtPeriodEnd;
 
   const PaymentModel({
     this.id = '',
@@ -42,6 +43,7 @@ class PaymentModel {
     this.paidAt,
     this.metodo,
     this.comprovativoUrl,
+    this.subscriptionCancelAtPeriodEnd = false,
   });
 
   factory PaymentModel.fromMap(String id, Map<String, dynamic> map) {
@@ -66,6 +68,8 @@ class PaymentModel {
       paidAt: _dateFromMap(map['paidAt']),
       metodo: map['metodo'] as String?,
       comprovativoUrl: map['comprovativoUrl'] as String?,
+      subscriptionCancelAtPeriodEnd:
+          map['subscriptionCancelAtPeriodEnd'] as bool? ?? false,
     );
   }
 
@@ -103,6 +107,8 @@ class PaymentModel {
       if (paidAt != null) 'paidAt': paidAt,
       if (metodo != null) 'metodo': metodo,
       if (comprovativoUrl != null) 'comprovativoUrl': comprovativoUrl,
+      if (subscriptionCancelAtPeriodEnd)
+        'subscriptionCancelAtPeriodEnd': true,
     };
   }
 

@@ -53,15 +53,15 @@ class AuthRepository {
         uid,
         userDoc.data()! as Map<String, dynamic>,
       );
-      if (!userModel.isAdmin &&
-          (!userModel.isAccessAllowed ||
-              await _hasOverduePayment(userModel.uid))) {
+      final hasOverdue = !userModel.isAdmin &&
+          await _hasOverduePayment(userModel.uid);
+      if (!userModel.isAdmin && (!userModel.isAccessAllowed || hasOverdue)) {
         await _authDataSource.signOut();
         throw AuthFailure(
           message: userModel.accessStatus == 'Contrato terminado'
-              ? 'O teu contrato terminou. Contacta o administrador.'
-              : await _hasOverduePayment(userModel.uid)
-              ? 'Existe uma mensalidade em atraso. Contacta o administrador.'
+              ? 'O teu contrato terminou. Usa o portal enviado por e-mail para regularizar.'
+              : hasOverdue
+              ? 'Existe uma mensalidade em atraso. Usa o portal enviado por e-mail para regularizar.'
               : 'O teu perfil está inativo. Contacta o administrador.',
           code: 'account-inactive',
         );
@@ -88,14 +88,14 @@ class AuthRepository {
       user.uid,
       userDoc.data()! as Map<String, dynamic>,
     );
-    if (!userModel.isAdmin &&
-        (!userModel.isAccessAllowed ||
-            await _hasOverduePayment(userModel.uid))) {
+    final hasOverdue = !userModel.isAdmin &&
+        await _hasOverduePayment(userModel.uid);
+    if (!userModel.isAdmin && (!userModel.isAccessAllowed || hasOverdue)) {
       throw AuthFailure(
         message: userModel.accessStatus == 'Contrato terminado'
-            ? 'O teu contrato terminou. Contacta o administrador.'
-            : await _hasOverduePayment(userModel.uid)
-            ? 'Existe uma mensalidade em atraso. Contacta o administrador.'
+            ? 'O teu contrato terminou. Usa o portal enviado por e-mail para regularizar.'
+            : hasOverdue
+            ? 'Existe uma mensalidade em atraso. Usa o portal enviado por e-mail para regularizar.'
             : 'O teu perfil está inativo. Contacta o administrador.',
         code: 'account-inactive',
       );

@@ -72,6 +72,27 @@ class PaymentRepository {
     await callable.call<Map<String, dynamic>>({'paymentId': paymentId});
   }
 
+  /// Cancela apenas a renovação automática no fim do período pago.
+  Future<void> cancelPaymentSubscription({required String paymentId}) async {
+    final fn = FirebaseFunctions.instanceFor(region: 'europe-west1');
+    final callable = fn.httpsCallable('cancelPaymentSubscription');
+    await callable.call<Map<String, dynamic>>({'paymentId': paymentId});
+  }
+
+  /// Cria checkout público para um cliente bloqueado por atraso.
+  Future<String> createRecoveryCheckoutSession({required String token}) async {
+    final fn = FirebaseFunctions.instanceFor(region: 'europe-west1');
+    final callable = fn.httpsCallable('createPaymentRecoveryCheckoutSession');
+    final result = await callable.call<Map<String, dynamic>>({'token': token});
+    return result.data['url'] as String;
+  }
+
+  Future<void> resendPaymentRecovery({required String paymentId}) async {
+    final fn = FirebaseFunctions.instanceFor(region: 'europe-west1');
+    final callable = fn.httpsCallable('resendPaymentRecovery');
+    await callable.call<Map<String, dynamic>>({'paymentId': paymentId});
+  }
+
   /// Obtém pagamentos de um utilizador específico.
   Future<List<PaymentModel>> getPayments(String userId) {
     return _firestore.getPayments(userId);

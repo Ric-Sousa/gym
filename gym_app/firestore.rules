@@ -187,6 +187,21 @@ service cloud.firestore {
     }
 
     // ══════════════════════════════════════════════════════
+    // PERSISTENT NOTIFICATIONS
+    // ══════════════════════════════════════════════════════
+    match /notificacoes/{docId} {
+      allow read: if isAdmin() ||
+        (isOwner(request.auth.uid) && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin() ||
+        (isOwner(request.auth.uid) &&
+         resource.data.userId == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['read', 'readAt']) &&
+         request.resource.data.get('read', false) == true);
+      allow create, delete: if isAdmin();
+    }
+
+    // ══════════════════════════════════════════════════════
     // GROUPS collection
     // ══════════════════════════════════════════════════════
     match /grupos/{groupId} {
