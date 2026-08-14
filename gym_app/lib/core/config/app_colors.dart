@@ -94,9 +94,9 @@ class AppColors {
   static const Color stepsLight = Color(0xFF1A2E10);
 
   // ── Macronutrientes ──────────────────────────────────────
-  static const Color carbs = Color(0xFF2196F3);    // Azul
-  static const Color protein = Color(0xFFE91E63);   // Rosa
-  static const Color fat = Color(0xFFFFC107);       // Amarelo
+  static const Color carbs = Color(0xFF2196F3); // Azul
+  static const Color protein = Color(0xFFE91E63); // Rosa
+  static const Color fat = Color(0xFFFFC107); // Amarelo
 
   // ── Rating stars ───────────────────────────────────────────────
   static const Color starFilled = Color(0xFFFFB300);
@@ -168,10 +168,14 @@ class AppColors {
   static Color adminShadowElevatedDark = Colors.white.withValues(alpha: 0.06);
 
   /// Sombra de cartão (modo claro).
-  static Color adminLightShadow = const Color(0xFF1A1B2E).withValues(alpha: 0.05);
+  static Color adminLightShadow = const Color(
+    0xFF1A1B2E,
+  ).withValues(alpha: 0.05);
 
   /// Sombra elevada (modo claro).
-  static Color adminLightShadowElevated = const Color(0xFF1A1B2E).withValues(alpha: 0.10);
+  static Color adminLightShadowElevated = const Color(
+    0xFF1A1B2E,
+  ).withValues(alpha: 0.10);
 
   // Alias compat (deprecated)
   static Color get adminShadow => adminShadowDark;
@@ -181,17 +185,21 @@ class AppColors {
   /// Cor para overlays com efeito de vidro (60% opacidade).
   static Color glassOverlay = surfaceHighest.withValues(alpha: 0.6);
 
-  // ── Paleta Masculina (Azul/Teal) ────────────────────────────
-  static const Color malePrimary = Color(0xFF0D7377);
-  static const Color malePrimaryDim = Color(0xFF0A5C5F);
-  static const Color malePrimaryContainer = Color(0xFFD2F0F2);
-  static const Color maleOnPrimaryContainer = Color(0xFF0D7377);
+  // ── Paleta Masculina (Azul) ─────────────────────────────────
+  static const Color malePrimary = Color(0xFF1976D2);
+  static const Color malePrimaryDim = Color(0xFF0D47A1);
+  static const Color malePrimaryContainer = Color(0xFFD6E8FF);
+  static const Color maleOnPrimaryContainer = Color(0xFF0D47A1);
+  static const Color malePrimaryFixed = Color(0xFFD6E8FF);
+  static const Color malePrimaryFixedDim = Color(0xFF90CAF9);
 
   // ── Paleta Feminina (Magenta atual) ──────────────────────────
   static const Color femalePrimary = primary;
   static const Color femalePrimaryDim = Color(0xFF8A0060);
   static const Color femalePrimaryContainer = primaryContainer;
   static const Color femaleOnPrimaryContainer = onPrimaryContainer;
+  static const Color femalePrimaryFixed = primaryFixed;
+  static const Color femalePrimaryFixedDim = primaryFixedDim;
 
   /// Cor primária baseada no género do utilizador.
   static Color primaryFor(String? genero) {

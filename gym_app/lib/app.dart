@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'core/config/app_colors.dart';
 import 'core/config/app_strings.dart';
 import 'core/config/admin_theme.dart';
+import 'core/config/student_theme.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/aluno/home/screens/aluno_home_screen.dart';
@@ -51,21 +52,36 @@ class PersonalFitApp extends ConsumerWidget {
     // Observa o género diretamente do Firestore — atualiza o tema sem reiniciar
     final generoAsync = ref.watch(currentUserGeneroProvider);
     final genero = generoAsync.asData?.value;
+    final isAdmin = authState.isAdmin;
+    // O género só personaliza a área do aluno. O painel admin mantém a sua
+    // paleta própria, mesmo que exista um documento de utilizador sem género.
+    final themeGenero = isAdmin ? null : genero;
+    final studentColors = StudentThemeColors.forGenero(themeGenero);
+    final lightAccent = isAdmin
+        ? AppColors.adminLightLime
+        : studentColors.primary;
+    final lightAccentContainer = isAdmin
+        ? AppColors.adminLightLimeDim
+        : studentColors.primaryContainer;
 
     // Aplica a preferência de som do utilizador autenticado (admin/aluno)
     // assim que o perfil carrega e desbloqueia o áudio no primeiro gesto em
     // qualquer parte da app — não apenas no chat.
-    final lightTheme = _buildKineticDarkTheme(genero).copyWith(
+    final lightTheme = _buildKineticDarkTheme(themeGenero).copyWith(
       brightness: Brightness.light,
       colorScheme: ColorScheme.light(
-        primary: AppColors.adminLightLime,
+        primary: lightAccent,
         onPrimary: AppColors.adminLightText,
+        primaryContainer: lightAccentContainer,
+        onPrimaryContainer: isAdmin
+            ? AppColors.adminLightText
+            : studentColors.primary,
         surface: AppColors.adminLightSurface,
         onSurface: AppColors.adminLightText,
         outline: AppColors.adminLightBorder,
       ),
       scaffoldBackgroundColor: AppColors.adminLightBg,
-      appBarTheme: _buildKineticDarkTheme(genero).appBarTheme.copyWith(
+      appBarTheme: _buildKineticDarkTheme(themeGenero).appBarTheme.copyWith(
         backgroundColor: AppColors.adminLightSurface,
         foregroundColor: AppColors.adminLightText,
         titleTextStyle: GoogleFonts.montserrat(
@@ -103,21 +119,18 @@ class PersonalFitApp extends ConsumerWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(
-            color: AppColors.adminLightLime,
-            width: 1.5,
-          ),
+          borderSide: BorderSide(color: lightAccent, width: 1.5),
         ),
         labelStyle: GoogleFonts.inter(color: AppColors.adminLightMuted),
         floatingLabelStyle: GoogleFonts.inter(
           fontWeight: FontWeight.w600,
-          color: AppColors.adminLightLime,
+          color: lightAccent,
         ),
         hintStyle: GoogleFonts.inter(color: AppColors.adminLightMuted),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.adminLightLime,
+          backgroundColor: lightAccent,
           foregroundColor: AppColors.adminLightText,
           minimumSize: const Size(0, 48),
           shape: RoundedRectangleBorder(
@@ -143,7 +156,7 @@ class PersonalFitApp extends ConsumerWidget {
           fontSize: 12,
           color: AppColors.adminLightText,
         ),
-        selectedColor: AppColors.adminLightLime,
+        selectedColor: lightAccent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         side: const BorderSide(color: AppColors.adminLightBorder),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -158,7 +171,7 @@ class PersonalFitApp extends ConsumerWidget {
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: AppColors.adminLightSurface,
-        indicatorColor: AppColors.adminLightLimeDim,
+        indicatorColor: lightAccentContainer,
         height: 78,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
@@ -207,11 +220,11 @@ class PersonalFitApp extends ConsumerWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         behavior: SnackBarBehavior.floating,
       ),
-      extensions: [AdminThemeColors.light],
+      extensions: [AdminThemeColors.light, studentColors],
     );
-    final darkTheme = _buildKineticDarkTheme(
-      genero,
-    ).copyWith(extensions: [AdminThemeColors.dark]);
+    final darkTheme = _buildKineticDarkTheme(themeGenero).copyWith(
+      extensions: [AdminThemeColors.dark, StudentThemeColors.forGenero(genero)],
+    );
     // Apply the same workspace component rules to both areas. The color
     // extension remains the source of truth for each existing palette.
     final workspaceLightTheme = buildWorkspaceTheme(
@@ -231,12 +244,19 @@ class PersonalFitApp extends ConsumerWidget {
         theme: workspaceLightTheme,
         darkTheme: workspaceDarkTheme,
         themeMode: adminThemeMode,
-        home: _buildHome(authState),
+        home: _buildHome(
+          authState,
+          primaryColor: isAdmin
+              ? (adminThemeMode == ThemeMode.light
+                    ? AppColors.adminLightLime
+                    : AppColors.primary)
+              : studentColors.primary,
+        ),
       ),
     );
   }
 
-  Widget _buildHome(AuthState authState) {
+  Widget _buildHome(AuthState authState, {required Color primaryColor}) {
     switch (authState.status) {
       case AuthStatus.initial:
       case AuthStatus.loading:
@@ -246,14 +266,14 @@ class PersonalFitApp extends ConsumerWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.fitness_center, size: 64, color: AppColors.primary),
+                Icon(Icons.fitness_center, size: 64, color: primaryColor),
                 const SizedBox(height: 24),
                 SizedBox(
                   width: 36,
                   height: 36,
                   child: CircularProgressIndicator(
                     strokeWidth: 3,
-                    color: AppColors.primary,
+                    color: primaryColor,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -280,6 +300,7 @@ class PersonalFitApp extends ConsumerWidget {
   }
 
   ThemeData _buildKineticDarkTheme([String? genero]) {
+    final studentColors = StudentThemeColors.forGenero(genero);
     final interTextTheme = GoogleFonts.interTextTheme();
     final montserratTextTheme = GoogleFonts.montserratTextTheme();
 
@@ -297,13 +318,13 @@ class PersonalFitApp extends ConsumerWidget {
       ),
       brightness: Brightness.dark,
       scaffoldBackgroundColor: AppColors.background,
-      splashColor: AppColors.primary.withValues(alpha: 0.12),
-      highlightColor: AppColors.primary.withValues(alpha: 0.06),
+      splashColor: studentColors.primary.withValues(alpha: 0.12),
+      highlightColor: studentColors.primary.withValues(alpha: 0.06),
       colorScheme: ColorScheme.dark(
-        primary: AppColors.primaryFor(genero),
+        primary: studentColors.primary,
         onPrimary: AppColors.textOnPrimary,
-        primaryContainer: AppColors.primaryContainerFor(genero),
-        onPrimaryContainer: AppColors.primaryFor(genero),
+        primaryContainer: studentColors.primaryContainer,
+        onPrimaryContainer: studentColors.primary,
         secondary: AppColors.secondary,
         onSecondary: AppColors.onSecondary,
         secondaryContainer: AppColors.secondaryContainer,
@@ -442,7 +463,7 @@ class PersonalFitApp extends ConsumerWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide: BorderSide(color: studentColors.primary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -459,7 +480,7 @@ class PersonalFitApp extends ConsumerWidget {
         floatingLabelStyle: GoogleFonts.inter(
           fontSize: 13,
           fontWeight: FontWeight.w600,
-          color: AppColors.primary,
+          color: studentColors.primary,
         ),
         hintStyle: GoogleFonts.inter(
           fontSize: 14,
@@ -472,9 +493,11 @@ class PersonalFitApp extends ConsumerWidget {
       // ── Buttons ──────────────────────────────────────────────
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
+          backgroundColor: studentColors.primary,
           foregroundColor: AppColors.textOnPrimary,
-          disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.45),
+          disabledBackgroundColor: studentColors.primary.withValues(
+            alpha: 0.45,
+          ),
           disabledForegroundColor: AppColors.textOnPrimary.withValues(
             alpha: 0.7,
           ),
@@ -508,7 +531,7 @@ class PersonalFitApp extends ConsumerWidget {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.primary,
+          foregroundColor: studentColors.primary,
           minimumSize: const Size(44, 44),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
@@ -524,7 +547,7 @@ class PersonalFitApp extends ConsumerWidget {
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.surfaceHigh,
         labelStyle: GoogleFonts.inter(fontSize: 12, color: AppColors.onSurface),
-        selectedColor: AppColors.primary,
+        selectedColor: studentColors.primary,
         secondaryLabelStyle: GoogleFonts.inter(
           fontSize: 12,
           color: AppColors.textOnPrimary,
@@ -542,15 +565,15 @@ class PersonalFitApp extends ConsumerWidget {
       ),
 
       // ── Bottom Navigation Bar ────────────────────────────────
-      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        selectedItemColor: AppColors.primaryFixed,
+        selectedItemColor: studentColors.primaryFixed,
         unselectedItemColor: AppColors.secondaryFixedDim,
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: AppColors.surfaceLow.withValues(alpha: 0.94),
-        indicatorColor: AppColors.primaryFixed.withValues(alpha: 0.12),
+        indicatorColor: studentColors.primaryFixed.withValues(alpha: 0.12),
         height: 78,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
@@ -563,7 +586,7 @@ class PersonalFitApp extends ConsumerWidget {
             return GoogleFonts.inter(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: AppColors.primaryFixed,
+              color: studentColors.primaryFixed,
             );
           }
           return GoogleFonts.inter(
@@ -574,7 +597,7 @@ class PersonalFitApp extends ConsumerWidget {
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const IconThemeData(color: AppColors.primaryFixed);
+            return IconThemeData(color: studentColors.primaryFixed);
           }
           return const IconThemeData(color: AppColors.secondaryFixedDim);
         }),
@@ -582,9 +605,9 @@ class PersonalFitApp extends ConsumerWidget {
 
       // ── Tab Bar ──────────────────────────────────────────────
       tabBarTheme: TabBarThemeData(
-        labelColor: AppColors.primary,
+        labelColor: studentColors.primary,
         unselectedLabelColor: AppColors.textSecondary,
-        indicatorColor: AppColors.primary,
+        indicatorColor: studentColors.primary,
         dividerColor: AppColors.outline,
         labelStyle: GoogleFonts.inter(
           fontSize: 14,

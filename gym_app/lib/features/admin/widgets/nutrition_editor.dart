@@ -48,286 +48,481 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
   }
 
   Widget _buildEditor(NutritionPlanModel? plan) {
+    final colors = AdminThemeColors.of(context);
+
     if (plan == null) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const EmptyState(
-              icon: Icons.restaurant_menu,
-              title: AppStrings.noPlanAssigned,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _createEmptyPlan,
-              icon: const Icon(Icons.add, size: 16),
-              label: Text(
-                'Criar plano',
+        child: AdminSurface(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+          borderRadius: BorderRadius.circular(18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.restaurant_menu_outlined,
+                size: 30,
+                color: colors.lime,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Ainda não existe um plano',
                 style: GoogleFonts.inter(
-                  fontSize: 13,
+                  fontSize: 16,
                   fontWeight: FontWeight.w700,
+                  color: colors.text,
                 ),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AdminThemeColors.of(context).lime,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
+              const SizedBox(height: 5),
+              Text(
+                'Cria um plano base para começar a configurar a rotina.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(fontSize: 12, color: colors.muted),
               ),
-            ),
-          ],
+              const SizedBox(height: 18),
+              ElevatedButton.icon(
+                onPressed: _createEmptyPlan,
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Criar plano'),
+              ),
+            ],
+          ),
         ),
       );
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 620;
+          final metricWidth = compact
+              ? constraints.maxWidth
+              : (constraints.maxWidth - 12) / 2;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Meta calórica:',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AdminThemeColors.of(context).text,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${plan.metaCalorias} kcal',
-                style: GoogleFonts.montserrat(
-                  fontSize: 14,
-                  color: AdminThemeColors.of(context).orange,
-                ),
-              ),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: () => _editMetaCalorias(plan),
-                icon: const Icon(Icons.edit, size: 14, color: Colors.white),
-                label: Text(
-                  'Editar meta',
-                  style: GoogleFonts.inter(fontSize: 12, color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // ── Suplementos ───────────────────────────────
-          _buildSuplementosEditor(plan),
-          const SizedBox(height: 16),
-          ...plan.refeicoes.map(
-            (meal) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: AdminSurface(
-                padding: EdgeInsets.zero,
-                borderRadius: BorderRadius.circular(14),
-                child: ExpansionTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: AdminThemeColors.of(context).limeDim,
-                      borderRadius: BorderRadius.circular(14),
+                      color: colors.limeDim,
+                      borderRadius: BorderRadius.circular(13),
                     ),
                     child: Icon(
-                      Icons.restaurant,
-                      color: AdminThemeColors.of(context).lime,
-                      size: 16,
+                      Icons.restaurant_menu_outlined,
+                      color: colors.lime,
+                      size: 21,
                     ),
                   ),
-                  title: Text(
-                    meal.tipo,
-                    style: GoogleFonts.inter(
-                      fontWeight: FontWeight.w600,
-                      color: AdminThemeColors.of(context).text,
-                    ),
-                  ),
-                  subtitle: Text(
-                    '${meal.totalCalorias.toStringAsFixed(0)} kcal',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: AdminThemeColors.of(context).muted,
-                    ),
-                  ),
-                  children: [
-                    ...meal.alimentos.map(
-                      (a) => ListTile(
-                        dense: true,
-                        title: Text(
-                          a.nome,
-                          style: GoogleFonts.inter(
-                            color: AdminThemeColors.of(context).text,
-                            fontSize: 14,
-                          ),
-                        ),
-                        subtitle: Text(
-                          a.quantidade,
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: AdminThemeColors.of(context).muted,
-                          ),
-                        ),
-                        trailing: Text(
-                          '${a.calorias.toStringAsFixed(0)} kcal',
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Plano nutricional',
                           style: GoogleFonts.montserrat(
-                            fontSize: 13,
-                            color: AdminThemeColors.of(context).muted,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: colors.text,
+                            letterSpacing: -0.3,
                           ),
                         ),
-                      ),
-                    ),
-                    Divider(
-                      color: AdminThemeColors.of(context).border,
-                      height: 1,
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: TextButton.icon(
-                        onPressed: () => _addAlimentoToMeal(plan, meal.tipo),
-                        icon: const Icon(
-                          Icons.add,
-                          size: 14,
-                          color: Colors.white,
-                        ),
-                        label: Text(
-                          'Adicionar alimento',
+                        const SizedBox(height: 3),
+                        Text(
+                          'Configuração base aplicada a todos os dias da semana.',
                           style: GoogleFonts.inter(
                             fontSize: 12,
-                            color: Colors.white,
+                            color: colors.muted,
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
+                  const SizedBox(width: 8),
+                  _dayBadge(colors),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  SizedBox(
+                    width: metricWidth,
+                    child: _buildGoalCard(
+                      icon: Icons.local_fire_department_outlined,
+                      label: 'Meta calórica',
+                      value: '${plan.metaCalorias.toStringAsFixed(0)} kcal',
+                      accent: colors.orange,
+                      onEdit: () => _editMetaCalorias(plan),
+                    ),
+                  ),
+                  SizedBox(
+                    width: metricWidth,
+                    child: _buildGoalCard(
+                      icon: Icons.water_drop_outlined,
+                      label: 'Meta de água',
+                      value: '${(plan.metaAgua / 1000).toStringAsFixed(1)} L',
+                      accent: colors.blue,
+                      onEdit: () => _editMetaAgua(plan),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 26),
+              AdminSectionHeading(
+                title: 'Refeições',
+                subtitle: plan.refeicoes.isEmpty
+                    ? 'Adiciona as refeições do dia.'
+                    : '${plan.refeicoes.length} ${plan.refeicoes.length == 1 ? 'refeição planeada' : 'refeições planeadas'}',
+                action: _sectionAction(
+                  label: 'Adicionar',
+                  icon: Icons.add,
+                  onPressed: () => _addMeal(plan),
                 ),
               ),
+              const SizedBox(height: 10),
+              if (plan.refeicoes.isEmpty)
+                _buildInlineEmpty(
+                  icon: Icons.restaurant_outlined,
+                  text: 'Nenhuma refeição adicionada.',
+                )
+              else
+                ...plan.refeicoes.map((meal) => _buildMealEditor(plan, meal)),
+              const SizedBox(height: 22),
+              _buildSuplementosEditor(plan),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _dayBadge(AdminThemeColors colors) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: colors.surface2,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colors.border.withValues(alpha: 0.55)),
+      ),
+      child: Text(
+        'BASE',
+        style: GoogleFonts.inter(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.7,
+          color: colors.muted,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGoalCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color accent,
+    required VoidCallback onEdit,
+  }) {
+    final colors = AdminThemeColors.of(context);
+    return AdminSurface(
+      padding: const EdgeInsets.fromLTRB(14, 14, 8, 14),
+      borderRadius: BorderRadius.circular(14),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 18, color: accent),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.inter(fontSize: 11, color: colors.muted),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: GoogleFonts.montserrat(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: colors.text,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => _addMeal(plan),
-              icon: const Icon(Icons.add, size: 14),
-              label: Text(
-                'Adicionar refeição',
-                style: GoogleFonts.inter(fontSize: 12),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: BorderSide(color: AdminThemeColors.of(context).lime),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-            ),
+          IconButton(
+            onPressed: onEdit,
+            tooltip: 'Editar $label',
+            icon: Icon(Icons.edit_outlined, size: 17, color: colors.muted),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSuplementosEditor(NutritionPlanModel plan) {
+  Widget _sectionAction({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    final colors = AdminThemeColors.of(context);
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 15, color: colors.lime),
+      label: Text(
+        label,
+        style: GoogleFonts.inter(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: colors.lime,
+        ),
+      ),
+      style: TextButton.styleFrom(
+        backgroundColor: colors.limeDim,
+        minimumSize: const Size(0, 36),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+      ),
+    );
+  }
+
+  Widget _buildInlineEmpty({required IconData icon, required String text}) {
+    final colors = AdminThemeColors.of(context);
     return AdminSurface(
-      padding: const EdgeInsets.all(16),
-      borderRadius: BorderRadius.circular(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+      borderRadius: BorderRadius.circular(12),
+      child: Row(
         children: [
-          Row(
+          Icon(icon, size: 19, color: colors.muted),
+          const SizedBox(width: 10),
+          Text(
+            text,
+            style: GoogleFonts.inter(fontSize: 12, color: colors.muted),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMealEditor(NutritionPlanModel plan, PlannedMeal meal) {
+    final colors = AdminThemeColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: AdminSurface(
+        padding: EdgeInsets.zero,
+        borderRadius: BorderRadius.circular(13),
+        child: Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 2,
+            ),
+            childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+            leading: Icon(
+              Icons.restaurant_outlined,
+              color: colors.lime,
+              size: 20,
+            ),
+            title: Text(
+              meal.tipo,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: colors.text,
+              ),
+            ),
+            subtitle: Text(
+              '${meal.alimentos.length} ${meal.alimentos.length == 1 ? 'alimento' : 'alimentos'} • ${meal.totalCalorias.toStringAsFixed(0)} kcal',
+              style: GoogleFonts.inter(fontSize: 11, color: colors.muted),
+            ),
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AdminThemeColors.of(context).limeDim,
-                  borderRadius: BorderRadius.circular(14),
+              if (meal.alimentos.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Sem alimentos adicionados.',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: colors.muted,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                ...meal.alimentos.map(
+                  (food) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 5,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: colors.lime,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: Text(
+                            food.nome,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: colors.text,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 78,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                food.quantidade,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  color: colors.muted,
+                                ),
+                              ),
+                              Text(
+                                '${food.calorias.toStringAsFixed(0)} kcal',
+                                style: GoogleFonts.montserrat(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: colors.muted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                child: Icon(
-                  Icons.medication,
-                  color: AdminThemeColors.of(context).purple,
-                  size: 16,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'SUPLEMENTOS',
-                style: GoogleFonts.barlowCondensed(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AdminThemeColors.of(context).text,
-                ),
-              ),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: () => _addSuplemento(plan),
-                icon: const Icon(Icons.add, size: 14, color: Colors.white),
-                label: Text(
-                  'Adicionar',
-                  style: GoogleFonts.inter(fontSize: 12, color: Colors.white),
+              const SizedBox(height: 5),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => _addAlimentoToMeal(plan, meal.tipo),
+                  icon: Icon(Icons.add, size: 14, color: colors.lime),
+                  label: Text(
+                    'Adicionar alimento',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: colors.lime,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    minimumSize: const Size(0, 32),
+                  ),
                 ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSuplementosEditor(NutritionPlanModel plan) {
+    final colors = AdminThemeColors.of(context);
+    return AdminSurface(
+      padding: const EdgeInsets.fromLTRB(14, 13, 14, 14),
+      borderRadius: BorderRadius.circular(13),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AdminSectionHeading(
+            title: 'Suplementos',
+            subtitle: plan.suplementos.isEmpty
+                ? 'Opcional'
+                : '${plan.suplementos.length} ${plan.suplementos.length == 1 ? 'item' : 'itens'}',
+            action: _sectionAction(
+              label: 'Adicionar',
+              icon: Icons.add,
+              onPressed: () => _addSuplemento(plan),
+            ),
+          ),
           if (plan.suplementos.isEmpty)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.only(top: 14, left: 2),
               child: Text(
                 'Nenhum suplemento adicionado.',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: AdminThemeColors.of(context).muted,
-                ),
+                style: GoogleFonts.inter(fontSize: 12, color: colors.muted),
               ),
             )
           else
             ...plan.suplementos.asMap().entries.map((entry) {
-              final s = entry.value;
-              final idx = entry.key;
-              return Container(
-                margin: const EdgeInsets.only(top: 8),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AdminThemeColors.of(context).bg,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: AdminThemeColors.of(context).border,
-                  ),
-                ),
+              final supplement = entry.value;
+              final index = entry.key;
+              return Padding(
+                padding: const EdgeInsets.only(top: 10),
                 child: Row(
                   children: [
+                    Icon(
+                      Icons.medication_outlined,
+                      size: 17,
+                      color: colors.purple,
+                    ),
+                    const SizedBox(width: 9),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            s.nome,
+                            supplement.nome,
                             style: GoogleFonts.inter(
-                              fontWeight: FontWeight.w600,
-                              color: AdminThemeColors.of(context).text,
-                              fontSize: 13,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: colors.text,
                             ),
                           ),
+                          const SizedBox(height: 2),
                           Text(
-                            '${s.dosagem} • ${s.horario}',
+                            '${supplement.dosagem} • ${supplement.horario}',
                             style: GoogleFonts.inter(
                               fontSize: 11,
-                              color: AdminThemeColors.of(context).muted,
+                              color: colors.muted,
                             ),
                           ),
                         ],
                       ),
                     ),
                     IconButton(
-                      icon: Icon(
-                        Icons.delete_outline,
-                        size: 16,
-                        color: AdminThemeColors.of(context).muted,
-                      ),
-                      onPressed: () => _removeSuplemento(plan, idx),
+                      onPressed: () => _removeSuplemento(plan, index),
+                      tooltip: 'Remover suplemento',
+                      icon: Icon(Icons.close, size: 16, color: colors.muted),
                     ),
                   ],
                 ),
@@ -351,6 +546,7 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
   Future<void> _createEmptyPlan() async {
     await _saveToAllDays({
       'metaCalorias': 2000,
+      'metaAgua': 2500,
       'refeicoes': [],
       'suplementos': [],
     });
@@ -504,6 +700,63 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
     );
     if (result != null && result > 0) {
       await _saveToAllDays({'metaCalorias': result});
+    }
+  }
+
+  Future<void> _editMetaAgua(NutritionPlanModel plan) async {
+    final controller = TextEditingController(
+      text: plan.metaAgua.toStringAsFixed(0),
+    );
+    final result = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AdminResponsiveAlertDialog(
+        backgroundColor: AdminThemeColors.of(context).surface,
+        title: Text(
+          'Meta diária de água',
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w700,
+            color: AdminThemeColors.of(context).text,
+          ),
+        ),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
+          decoration: const InputDecoration(
+            labelText: 'Quantidade de água',
+            suffixText: 'ml',
+            hintText: 'Ex.: 2500',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              AppStrings.cancel,
+              style: GoogleFonts.inter(
+                color: AdminThemeColors.of(context).muted,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(
+              ctx,
+              double.tryParse(controller.text.replaceAll(',', '.')),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminThemeColors.of(context).lime,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(
+              AppStrings.save,
+              style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (result != null && result > 0) {
+      await _saveToAllDays({'metaAgua': result});
     }
   }
 

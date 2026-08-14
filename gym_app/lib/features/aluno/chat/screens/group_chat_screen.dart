@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import '../../../../core/config/app_colors.dart';
+import '../../../../core/config/student_theme.dart';
 import '../../../../data/models/group_model.dart';
 import '../../../../data/models/message_model.dart';
 import '../../../../shared/providers/global_providers.dart';
@@ -101,15 +102,19 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.12),
+                color: StudentThemeColors.of(
+                  context,
+                ).primary.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: AppColors.primary.withValues(alpha: 0.24),
+                  color: StudentThemeColors.of(
+                    context,
+                  ).primary.withValues(alpha: 0.24),
                 ),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.group_outlined,
-                color: AppColors.primary,
+                color: StudentThemeColors.of(context).primary,
                 size: 18,
               ),
             ),
@@ -146,7 +151,9 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
             child: AppSurface(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              color: AppColors.primary.withValues(alpha: 0.08),
+              color: StudentThemeColors.of(
+                context,
+              ).primary.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(18),
               child: LayoutBuilder(
                 builder: (context, constraints) {
@@ -155,7 +162,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                     children: [
                       Icon(
                         Icons.forum_outlined,
-                        color: AppColors.primary,
+                        color: StudentThemeColors.of(context).primary,
                         size: 20,
                       ),
                       const SizedBox(width: 10),
@@ -195,7 +202,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                         AppStatusPill(
                           label: '${widget.group.membros.length}',
                           icon: Icons.people_outline,
-                          color: AppColors.primary,
+                          color: StudentThemeColors.of(context).primary,
                         ),
                       ],
                     );
@@ -207,7 +214,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                       AppStatusPill(
                         label: '${widget.group.membros.length}',
                         icon: Icons.people_outline,
-                        color: AppColors.primary,
+                        color: StudentThemeColors.of(context).primary,
                       ),
                     ],
                   );
@@ -218,8 +225,10 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
           Expanded(
             child: messagesAsync.when(
               data: (messages) => _buildMessageList(messages),
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
+              loading: () => Center(
+                child: CircularProgressIndicator(
+                  color: StudentThemeColors.of(context).primary,
+                ),
               ),
               error: (_, __) => const Center(
                 child: Text(
@@ -345,10 +354,14 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: isMine ? AppColors.primary : AppColors.surface,
+                    color: isMine
+                        ? StudentThemeColors.of(context).primary
+                        : AppColors.surface,
                     border: Border.all(
                       color: isMine
-                          ? AppColors.primaryFixed.withValues(alpha: 0.18)
+                          ? StudentThemeColors.of(
+                              context,
+                            ).primaryFixed.withValues(alpha: 0.18)
                           : AppColors.outline.withValues(alpha: 0.65),
                     ),
                     borderRadius: BorderRadius.only(
@@ -364,7 +377,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                           isMine: isMine,
                           activeColor: isMine
                               ? Colors.white
-                              : AppColors.primary,
+                              : StudentThemeColors.of(context).primary,
                           inactiveColor: isMine
                               ? Colors.white70
                               : AppColors.textSecondary,
@@ -464,7 +477,9 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide(
-                  color: AppColors.primary.withValues(alpha: 0.55),
+                  color: StudentThemeColors.of(
+                    context,
+                  ).primary.withValues(alpha: 0.55),
                   width: 1.4,
                 ),
               ),
@@ -478,11 +493,13 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
           width: 50,
           height: 50,
           decoration: BoxDecoration(
-            color: AppColors.primary,
+            color: StudentThemeColors.of(context).primary,
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.24),
+                color: StudentThemeColors.of(
+                  context,
+                ).primary.withValues(alpha: 0.24),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -554,7 +571,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                       child: AudioRecordButton(
                         fullWidth: true,
                         color: AppColors.surfaceHigh,
-                        iconColor: AppColors.primary,
+                        iconColor: StudentThemeColors.of(context).primary,
                         enabled: !_sending,
                         onRecordingChanged: (recording) {
                           if (mounted) setState(() => _isRecording = recording);

@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import '../../../../core/config/app_colors.dart';
+import '../../../../core/config/student_theme.dart';
 import '../../../../core/config/app_constants.dart';
 import '../../../../core/utils/progress_photo_normalizer.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
@@ -83,8 +84,8 @@ class _ProgressSubmissionScreenState
       body: Theme(
         data: Theme.of(context).copyWith(
           colorScheme: Theme.of(context).colorScheme.copyWith(
-            primary: AppColors.primary,
-            secondary: AppColors.primary,
+            primary: StudentThemeColors.of(context).primary,
+            secondary: StudentThemeColors.of(context).primary,
           ),
         ),
         child: Stepper(
@@ -103,7 +104,7 @@ class _ProgressSubmissionScreenState
                   ElevatedButton(
                     onPressed: details.onStepContinue,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
+                      backgroundColor: StudentThemeColors.of(context).primary,
                       foregroundColor: Colors.white,
                       minimumSize: const Size(0, 50),
                       elevation: 0,
@@ -390,13 +391,13 @@ class _ProgressSubmissionScreenState
           ],
           if (_saving) ...[
             const SizedBox(height: 16),
-            const Center(
+            Center(
               child: SizedBox(
                 width: 24,
                 height: 24,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: AppColors.primary,
+                  color: StudentThemeColors.of(context).primary,
                 ),
               ),
             ),
@@ -487,14 +488,14 @@ class _ProgressSubmissionScreenState
                 children: [
                   Icon(
                     Icons.add_a_photo_outlined,
-                    color: AppColors.primary,
+                    color: StudentThemeColors.of(context).primary,
                     size: 28,
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Adicionar foto',
                     style: GoogleFonts.inter(
-                      color: AppColors.primary,
+                      color: StudentThemeColors.of(context).primary,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),

@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:video_player/video_player.dart';
 import '../../../../core/config/app_colors.dart';
+import '../../../../core/config/student_theme.dart';
 import '../../../../core/config/app_constants.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../data/models/workout_plan_model.dart';
@@ -393,7 +394,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                           leading: CircleAvatar(
                             backgroundColor: log.concluido
                                 ? AppColors.success
-                                : AppColors.primary,
+                                : StudentThemeColors.of(context).primary,
                             radius: 16,
                             child: Icon(
                               log.concluido
@@ -422,7 +423,9 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                                   '${(log.progresso * 100).toInt()}%',
                                   style: GoogleFonts.inter(
                                     fontWeight: FontWeight.w700,
-                                    color: AppColors.primary,
+                                    color: StudentThemeColors.of(
+                                      context,
+                                    ).primary,
                                   ),
                                 ),
                         );
@@ -473,8 +476,10 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                 }
                 return _buildStudentPlansOverview(plans, userId, isMobile);
               },
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
+              loading: () => Center(
+                child: CircularProgressIndicator(
+                  color: StudentThemeColors.of(context).primary,
+                ),
               ),
               error: (error, _) => EmptyState(
                 icon: Icons.error_outline,
@@ -523,10 +528,12 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
             children: [
               CircleAvatar(
                 radius: 24,
-                backgroundColor: AppColors.primary.withValues(alpha: 0.16),
-                child: const Icon(
+                backgroundColor: StudentThemeColors.of(
+                  context,
+                ).primary.withValues(alpha: 0.16),
+                child: Icon(
                   Icons.fitness_center,
-                  color: AppColors.primary,
+                  color: StudentThemeColors.of(context).primary,
                 ),
               ),
               const SizedBox(width: 14),
@@ -711,8 +718,10 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                                                   height: 32,
                                                   alignment: Alignment.center,
                                                   decoration: BoxDecoration(
-                                                    color: AppColors.primary
-                                                        .withValues(
+                                                    color:
+                                                        StudentThemeColors.of(
+                                                          context,
+                                                        ).primary.withValues(
                                                           alpha: 0.12,
                                                         ),
                                                     borderRadius:
@@ -720,9 +729,12 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                                                           10,
                                                         ),
                                                   ),
-                                                  child: const Icon(
+                                                  child: Icon(
                                                     Icons.fitness_center,
-                                                    color: AppColors.primary,
+                                                    color:
+                                                        StudentThemeColors.of(
+                                                          context,
+                                                        ).primary,
                                                     size: 16,
                                                   ),
                                                 ),
@@ -922,12 +934,12 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                         child: Row(
                           children: [
                             CircleAvatar(
-                              backgroundColor: AppColors.primary.withValues(
-                                alpha: 0.14,
-                              ),
-                              child: const Icon(
+                              backgroundColor: StudentThemeColors.of(
+                                context,
+                              ).primary.withValues(alpha: 0.14),
+                              child: Icon(
                                 Icons.fitness_center,
-                                color: AppColors.primary,
+                                color: StudentThemeColors.of(context).primary,
                                 size: 18,
                               ),
                             ),
@@ -1288,11 +1300,13 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
               children: [
                 CircleAvatar(
                   radius: 17,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+                  backgroundColor: StudentThemeColors.of(
+                    context,
+                  ).primary.withValues(alpha: 0.12),
                   child: Text(
                     '${entry.key + 1}',
                     style: GoogleFonts.inter(
-                      color: AppColors.primary,
+                      color: StudentThemeColors.of(context).primary,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -1491,8 +1505,10 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
         }
 
         if (_activeLog == null) {
-          return const Center(
-            child: CircularProgressIndicator(color: AppColors.primary),
+          return Center(
+            child: CircularProgressIndicator(
+              color: StudentThemeColors.of(context).primary,
+            ),
           );
         }
 
@@ -1554,8 +1570,10 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
           ],
         );
       },
-      loading: () => const Center(
-        child: CircularProgressIndicator(color: AppColors.primary),
+      loading: () => Center(
+        child: CircularProgressIndicator(
+          color: StudentThemeColors.of(context).primary,
+        ),
       ),
       error: (error, _) => Center(
         child: Padding(
@@ -2200,7 +2218,9 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
               Icon(
                 finished ? Icons.verified_rounded : Icons.track_changes_rounded,
                 size: 17,
-                color: finished ? AppColors.success : AppColors.primary,
+                color: finished
+                    ? AppColors.success
+                    : StudentThemeColors.of(context).primary,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -2239,7 +2259,9 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
               minHeight: 6,
               backgroundColor: AppColors.surfaceHighest,
               valueColor: AlwaysStoppedAnimation(
-                finished ? AppColors.success : AppColors.primary,
+                finished
+                    ? AppColors.success
+                    : StudentThemeColors.of(context).primary,
               ),
             ),
           ),
@@ -2371,7 +2393,10 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: AppColors.primary, width: 1.4),
+            borderSide: BorderSide(
+              color: StudentThemeColors.of(context).primary,
+              width: 1.4,
+            ),
           ),
         ),
         onChanged: onChanged,
@@ -2475,7 +2500,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
               style: ElevatedButton.styleFrom(
                 backgroundColor: exerciseLog.todasConcluidas
                     ? AppColors.success
-                    : AppColors.primary,
+                    : StudentThemeColors.of(context).primary,
                 foregroundColor: Colors.white,
                 minimumSize: const Size(0, 50),
                 elevation: 0,
@@ -2544,7 +2569,10 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
               decoration: BoxDecoration(
                 color: AppColors.surfaceHigh,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.primary, width: 2),
+                border: Border.all(
+                  color: StudentThemeColors.of(context).primary,
+                  width: 2,
+                ),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -2573,7 +2601,10 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                     height: 120,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.primary, width: 4),
+                      border: Border.all(
+                        color: StudentThemeColors.of(context).primary,
+                        width: 4,
+                      ),
                     ),
                     child: Center(
                       child: Text(
@@ -2581,7 +2612,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                         style: GoogleFonts.montserrat(
                           fontSize: 48,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.primary,
+                          color: StudentThemeColors.of(context).primary,
                         ),
                       ),
                     ),
@@ -2648,8 +2679,8 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                       value: progress,
                       minHeight: 6,
                       backgroundColor: AppColors.outline,
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        AppColors.primary,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        StudentThemeColors.of(context).primary,
                       ),
                     ),
                   ),
@@ -2660,7 +2691,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                   style: GoogleFonts.inter(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
+                    color: StudentThemeColors.of(context).primary,
                   ),
                 ),
               ],
@@ -2684,7 +2715,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: allDone
-                      ? AppColors.primary
+                      ? StudentThemeColors.of(context).primary
                       : AppColors.outline,
                   foregroundColor: Colors.white,
                   minimumSize: const Size(0, 50),
@@ -2932,9 +2963,11 @@ class _VideoPlayerSheetState extends State<_VideoPlayerSheet> {
               ),
             )
           else if (!_initialized)
-            const Padding(
-              padding: EdgeInsets.all(32),
-              child: CircularProgressIndicator(color: AppColors.primary),
+            Padding(
+              padding: const EdgeInsets.all(32),
+              child: CircularProgressIndicator(
+                color: StudentThemeColors.of(context).primary,
+              ),
             )
           else
             AspectRatio(
@@ -2946,8 +2979,8 @@ class _VideoPlayerSheetState extends State<_VideoPlayerSheet> {
                   VideoProgressIndicator(
                     _controller,
                     allowScrubbing: true,
-                    colors: const VideoProgressColors(
-                      playedColor: AppColors.primary,
+                    colors: VideoProgressColors(
+                      playedColor: StudentThemeColors.of(context).primary,
                       bufferedColor: AppColors.outlineVariant,
                       backgroundColor: AppColors.outline,
                     ),

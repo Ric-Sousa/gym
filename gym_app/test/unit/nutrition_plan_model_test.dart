@@ -125,7 +125,12 @@ void main() {
         'instrucoes': 'Comer devagar',
         'alimentos': [
           {'nome': 'Arroz', 'quantidade': '150g', 'calorias': 195.0},
-          {'nome': 'Frango', 'quantidade': '200g', 'calorias': 330.0, 'proteinas': 62.0},
+          {
+            'nome': 'Frango',
+            'quantidade': '200g',
+            'calorias': 330.0,
+            'proteinas': 62.0,
+          },
         ],
       };
 
@@ -186,6 +191,7 @@ void main() {
     test('fromMap cria plano nutricional com refeições', () {
       final map = {
         'metaCalorias': 2000.0,
+        'metaAgua': 3000.0,
         'refeicoes': [
           {
             'tipo': 'Pequeno-almoço',
@@ -207,6 +213,7 @@ void main() {
       expect(plan.dia, dia);
       expect(plan.userId, userId);
       expect(plan.metaCalorias, 2000.0);
+      expect(plan.metaAgua, 3000.0);
       expect(plan.refeicoes.length, 2);
       expect(plan.refeicoes[0].tipo, 'Pequeno-almoço');
       expect(plan.refeicoes[1].tipo, 'Almoço');
@@ -218,6 +225,7 @@ void main() {
       final plan = NutritionPlanModel.fromMap(dia, userId, map);
 
       expect(plan.metaCalorias, 0.0);
+      expect(plan.metaAgua, 2500.0);
       expect(plan.refeicoes, isEmpty);
     });
 
@@ -226,6 +234,7 @@ void main() {
         dia: dia,
         userId: userId,
         metaCalorias: 1800.0,
+        metaAgua: 3000.0,
         refeicoes: [
           PlannedMeal(
             tipo: 'Jantar',
@@ -239,6 +248,7 @@ void main() {
       final map = plan.toMap();
 
       expect(map['metaCalorias'], 1800.0);
+      expect(map['metaAgua'], 3000.0);
       expect(map['refeicoes'], isA<List>());
       expect((map['refeicoes'] as List).length, 1);
     });

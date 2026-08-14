@@ -5,18 +5,19 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../core/config/app_colors.dart';
+import '../../../../core/config/student_theme.dart';
 import '../../../../core/config/app_constants.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../core/services/sound_service.dart';
 import '../../../../data/models/diary_model.dart';
 import '../../../../data/models/workout_plan_model.dart';
+import '../../../../data/models/nutrition_plan_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/providers/chat_notification_providers.dart';
 import '../../../../shared/widgets/star_rating.dart';
 import '../../../aluno/agenda/screens/calendar_screen.dart';
 import '../../../../shared/widgets/offline_banner.dart';
-import '../../../../shared/widgets/app_notification.dart';
 import '../../../../shared/widgets/app_design_system.dart';
 
 /// Provider que monitora mensagens nao lidas do aluno para o contador visual.
@@ -273,6 +274,13 @@ final todayDateProvider = Provider<String>((ref) {
   return DateFormat(AppConstants.dateFormat).format(DateTime.now());
 });
 
+/// Meta de água do plano nutricional do dia atual.
+final todayNutritionPlanProvider =
+    FutureProvider.family<NutritionPlanModel?, String>((ref, userId) async {
+      final diaSemana = AppStrings.daysOfWeek[DateTime.now().weekday - 1];
+      return ref.read(nutritionRepositoryProvider).getPlan(userId, diaSemana);
+    });
+
 final todayDiaryProvider = StreamProvider.family<DiaryModel?, String>((
   ref,
   userId,
@@ -371,7 +379,9 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
               height: 40,
               decoration: BoxDecoration(
                 border: Border.all(
-                  color: AppColors.primaryFixed.withValues(alpha: 0.3),
+                  color: StudentThemeColors.of(
+                    context,
+                  ).primaryFixed.withValues(alpha: 0.3),
                   width: 2,
                 ),
                 shape: BoxShape.circle,
@@ -382,7 +392,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                       child: Text(
                         nome.isNotEmpty ? nome[0].toUpperCase() : '?',
                         style: GoogleFonts.montserrat(
-                          color: AppColors.primaryFixed,
+                          color: StudentThemeColors.of(context).primaryFixed,
                           fontWeight: FontWeight.w700,
                           fontSize: 16,
                         ),
@@ -423,9 +433,9 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
       ),
       actions: [
         IconButton(
-          icon: const Icon(
+          icon: Icon(
             Icons.notifications_outlined,
-            color: AppColors.primaryFixed,
+            color: StudentThemeColors.of(context).primaryFixed,
             size: 22,
           ),
           onPressed: () {},
@@ -441,12 +451,16 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
     final todayDiary = ref.watch(todayDiaryProvider(userId));
     return todayDiary.when(
       data: (diary) => diary == null
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
+          ? Center(
+              child: CircularProgressIndicator(
+                color: StudentThemeColors.of(context).primary,
+              ),
             )
           : _buildDashboard(userId, diary, isOffline),
-      loading: () => const Center(
-        child: CircularProgressIndicator(color: AppColors.primary),
+      loading: () => Center(
+        child: CircularProgressIndicator(
+          color: StudentThemeColors.of(context).primary,
+        ),
       ),
       error: (_, __) => Center(
         child: Column(
@@ -469,10 +483,14 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
   }
 
   Widget _buildDashboard(String userId, DiaryModel diary, bool isOffline) {
-    final waterPct = (diary.agua / AppConstants.dailyWaterGoalMl).clamp(
-      0.0,
-      1.0,
-    );
+    final nutritionPlanAsync = ref.watch(todayNutritionPlanProvider(userId));
+    final metaAgua =
+        nutritionPlanAsync.value?.metaAgua ??
+        AppConstants.dailyWaterGoalMl.toDouble();
+    final safeMetaAgua = metaAgua > 0
+        ? metaAgua
+        : AppConstants.dailyWaterGoalMl.toDouble();
+    final waterPct = (diary.agua / safeMetaAgua).clamp(0.0, 1.0);
     final nome = ref.read(authProvider).user?.nome.split(' ').first ?? 'Aluno';
     return RefreshIndicator(
       onRefresh: () async {
@@ -481,7 +499,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
         ref.invalidate(todayWorkoutPlanProvider(userId));
         ref.invalidate(weeklyWorkoutPlansProvider(userId));
       },
-      color: AppColors.primary,
+      color: StudentThemeColors.of(context).primary,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 42),
@@ -497,7 +515,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
             const SizedBox(height: AppDesignTokens.sectionGap),
             _buildHeroCard(userId),
             const SizedBox(height: AppDesignTokens.pageGap),
-            _buildBentoGrid(diary, waterPct, isOffline, userId),
+            _buildBentoGrid(diary, waterPct, safeMetaAgua, isOffline, userId),
             const SizedBox(height: AppDesignTokens.pageGap),
             _buildWeeklyActivity(userId),
             const SizedBox(height: AppDesignTokens.pageGap),
@@ -539,7 +557,9 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.15),
+                  color: StudentThemeColors.of(
+                    context,
+                  ).primary.withValues(alpha: 0.15),
                   blurRadius: 20,
                 ),
               ],
@@ -550,7 +570,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                 border: Border(
                   left: BorderSide(
                     color: hasWorkout
-                        ? AppColors.primaryFixed
+                        ? StudentThemeColors.of(context).primaryFixed
                         : AppColors.onSurfaceVariant,
                     width: 4,
                   ),
@@ -570,14 +590,18 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                         decoration: BoxDecoration(
                           color:
                               (hasWorkout
-                                      ? AppColors.primaryFixed
+                                      ? StudentThemeColors.of(
+                                          context,
+                                        ).primaryFixed
                                       : AppColors.onSurfaceVariant)
                                   .withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
                             color:
                                 (hasWorkout
-                                        ? AppColors.primaryFixed
+                                        ? StudentThemeColors.of(
+                                            context,
+                                          ).primaryFixed
                                         : AppColors.onSurfaceVariant)
                                     .withValues(alpha: 0.2),
                           ),
@@ -589,7 +613,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.1,
                             color: hasWorkout
-                                ? AppColors.primaryFixed
+                                ? StudentThemeColors.of(context).primaryFixed
                                 : AppColors.onSurfaceVariant,
                           ),
                         ),
@@ -601,7 +625,9 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                             : Icons.self_improvement,
                         color:
                             (hasWorkout
-                                    ? AppColors.primaryFixed
+                                    ? StudentThemeColors.of(
+                                        context,
+                                      ).primaryFixed
                                     : AppColors.onSurfaceVariant)
                                 .withValues(alpha: 0.3),
                         size: 60,
@@ -648,7 +674,9 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                             ),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
+                            backgroundColor: StudentThemeColors.of(
+                              context,
+                            ).primary,
                             foregroundColor: Colors.white,
                             minimumSize: const Size(0, 50),
                             elevation: 0,
@@ -686,8 +714,10 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppColors.outline.withValues(alpha: 0.5)),
         ),
-        child: const Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
+        child: Center(
+          child: CircularProgressIndicator(
+            color: StudentThemeColors.of(context).primary,
+          ),
         ),
       ),
     );
@@ -717,6 +747,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
   Widget _buildBentoGrid(
     DiaryModel diary,
     double waterPct,
+    double metaAgua,
     bool isOffline,
     String userId,
   ) {
@@ -730,7 +761,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
             _glassStatCard(
               width: halfW,
               icon: Icons.local_fire_department,
-              iconColor: AppColors.primaryFixed,
+              iconColor: StudentThemeColors.of(context).primaryFixed,
               label: 'CALORIAS',
               value: diary.totalCalorias.toStringAsFixed(0),
               unit: 'kcal',
@@ -739,19 +770,20 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
             _glassStatCard(
               width: halfW,
               icon: Icons.water_drop,
-              iconColor: AppColors.primaryFixed,
+              iconColor: StudentThemeColors.of(context).primaryFixed,
               label: 'HIDRATAÇÃO',
               value: (diary.agua / 1000).toStringAsFixed(1),
-              unit:
-                  '/ ${(AppConstants.dailyWaterGoalMl / 1000).toStringAsFixed(0)}L',
+              unit: '/ ${(metaAgua / 1000).toStringAsFixed(1)}L',
               progress: waterPct,
               height: 140,
-              onTap: isOffline ? null : () => _addWater(userId),
+              // A hidratação é atualizada pelo stream do diário; o card é
+              // apenas informativo e não abre nenhuma ação ao tocar.
+              onTap: null,
             ),
             _glassStatCard(
               width: constraints.maxWidth,
               icon: Icons.timer,
-              iconColor: AppColors.primaryFixed,
+              iconColor: StudentThemeColors.of(context).primaryFixed,
               label: 'TEMPO EM ATIVIDADE',
               value: '48',
               unit: 'minutos',
@@ -849,8 +881,8 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                 child: LinearProgressIndicator(
                   value: progress,
                   backgroundColor: AppColors.surfaceHighest,
-                  valueColor: const AlwaysStoppedAnimation(
-                    AppColors.primaryFixed,
+                  valueColor: AlwaysStoppedAnimation(
+                    StudentThemeColors.of(context).primaryFixed,
                   ),
                   minHeight: 3,
                 ),
@@ -984,7 +1016,9 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                                               ? FontWeight.w700
                                               : FontWeight.w400,
                                           color: isToday
-                                              ? AppColors.primaryFixed
+                                              ? StudentThemeColors.of(
+                                                  context,
+                                                ).primaryFixed
                                               : AppColors.onSurfaceVariant,
                                         ),
                                       ),
@@ -1003,7 +1037,9 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                                         ),
                                         decoration: BoxDecoration(
                                           color: isToday
-                                              ? AppColors.primaryFixed
+                                              ? StudentThemeColors.of(
+                                                  context,
+                                                ).primaryFixed
                                               : AppColors.surfaceHighest,
                                           borderRadius:
                                               const BorderRadius.vertical(
@@ -1033,7 +1069,9 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                                         ? FontWeight.w700
                                         : FontWeight.w400,
                                     color: isToday
-                                        ? AppColors.primaryFixed
+                                        ? StudentThemeColors.of(
+                                            context,
+                                          ).primaryFixed
                                         : AppColors.secondaryFixedDim,
                                   ),
                                 ),
@@ -1046,10 +1084,12 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                   ),
                 );
               },
-              loading: () => const SizedBox(
+              loading: () => SizedBox(
                 height: 100,
                 child: Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
+                  child: CircularProgressIndicator(
+                    color: StudentThemeColors.of(context).primary,
+                  ),
                 ),
               ),
               error: (_, __) => SizedBox(
@@ -1199,7 +1239,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                             ),
                             _detailStatChip(
                               Icons.water_drop,
-                              AppColors.primaryFixed,
+                              StudentThemeColors.of(context).primaryFixed,
                               '${(diary.agua / 1000).toStringAsFixed(1)}L',
                             ),
                             if (diary.avaliacao > 0)
@@ -1288,14 +1328,18 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
   Widget _detailSectionHeader(IconData icon, String title) {
     return Row(
       children: [
-        Icon(icon, size: 16, color: AppColors.primaryFixed),
+        Icon(
+          icon,
+          size: 16,
+          color: StudentThemeColors.of(context).primaryFixed,
+        ),
         const SizedBox(width: 8),
         Text(
           title,
           style: GoogleFonts.inter(
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: AppColors.primaryFixed,
+            color: StudentThemeColors.of(context).primaryFixed,
           ),
         ),
       ],
@@ -1368,8 +1412,8 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
           Container(
             width: 4,
             height: 4,
-            decoration: const BoxDecoration(
-              color: AppColors.primaryFixed,
+            decoration: BoxDecoration(
+              color: StudentThemeColors.of(context).primaryFixed,
               shape: BoxShape.circle,
             ),
           ),
@@ -1492,9 +1536,9 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.calendar_today,
-                      color: AppColors.primaryFixed,
+                      color: StudentThemeColors.of(context).primaryFixed,
                       size: 18,
                     ),
                     const SizedBox(width: 8),
@@ -1518,7 +1562,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                         'Ver agenda',
                         style: GoogleFonts.inter(
                           fontSize: 12,
-                          color: AppColors.primaryFixed,
+                          color: StudentThemeColors.of(context).primaryFixed,
                         ),
                       ),
                     ),
@@ -1561,9 +1605,9 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: b.isConfirmed
-                                      ? AppColors.primary.withValues(
-                                          alpha: 0.12,
-                                        )
+                                      ? StudentThemeColors.of(
+                                          context,
+                                        ).primary.withValues(alpha: 0.12)
                                       : AppColors.calories.withValues(
                                           alpha: 0.12,
                                         ),
@@ -1577,7 +1621,9 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                                         fontWeight: FontWeight.w700,
                                         fontSize: 13,
                                         color: b.isConfirmed
-                                            ? AppColors.primary
+                                            ? StudentThemeColors.of(
+                                                context,
+                                              ).primary
                                             : AppColors.calories,
                                       ),
                                     ),
@@ -1637,22 +1683,6 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
   // ═══════════════════════════════════════════════════════════════
   // ACTIONS
   // ═══════════════════════════════════════════════════════════════
-
-  Future<void> _addWater(String userId) async {
-    final today = DateFormat(AppConstants.dateFormat).format(DateTime.now());
-    try {
-      await ref
-          .read(diaryRepositoryProvider)
-          .addWater(userId, today, AppConstants.waterIncrementMl);
-    } catch (_) {
-      if (mounted)
-        showAppNotification(
-          context,
-          AppStrings.networkError,
-          type: NotificationType.error,
-        );
-    }
-  }
 
   Future<void> _setRating(String userId, int rating) async {
     final today = DateFormat(AppConstants.dateFormat).format(DateTime.now());

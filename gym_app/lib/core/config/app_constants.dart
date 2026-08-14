@@ -3,7 +3,7 @@ class AppConstants {
   AppConstants._();
 
   // Water
-  static const int dailyWaterGoalMl = 2500;
+  static const double dailyWaterGoalMl = 2500.0;
   static const int waterIncrementMl = 250;
 
   // Steps

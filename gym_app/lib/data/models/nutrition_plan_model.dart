@@ -1,3 +1,5 @@
+import '../../core/config/app_constants.dart';
+
 /// Alimento individual no plano nutricional.
 class Alimento {
   final String nome;
@@ -108,15 +110,15 @@ class PlannedMeal {
     };
   }
 
-  double get totalCalorias =>
-      alimentos.fold(0.0, (sum, a) => sum + a.calorias);
+  double get totalCalorias => alimentos.fold(0.0, (sum, a) => sum + a.calorias);
 }
 
 /// Suplemento no plano nutricional.
 class Suplemento {
   final String nome;
   final String dosagem;
-  final String horario; // 'pré-treino', 'pós-treino', 'manhã', 'noite', 'qualquer'
+  final String
+  horario; // 'pré-treino', 'pós-treino', 'manhã', 'noite', 'qualquer'
 
   const Suplemento({
     required this.nome,
@@ -133,11 +135,7 @@ class Suplemento {
   }
 
   Map<String, dynamic> toMap() {
-    return {
-      'nome': nome,
-      'dosagem': dosagem,
-      'horario': horario,
-    };
+    return {'nome': nome, 'dosagem': dosagem, 'horario': horario};
   }
 }
 
@@ -146,6 +144,9 @@ class NutritionPlanModel {
   final String dia; // 'Segunda-feira', etc.
   final String userId;
   final double metaCalorias;
+
+  /// Meta diária de água em mililitros.
+  final double metaAgua;
   final List<PlannedMeal> refeicoes;
   final List<Suplemento> suplementos;
 
@@ -153,17 +154,25 @@ class NutritionPlanModel {
     required this.dia,
     required this.userId,
     this.metaCalorias = 0.0,
+    this.metaAgua = AppConstants.dailyWaterGoalMl,
     this.refeicoes = const [],
     this.suplementos = const [],
   });
 
   factory NutritionPlanModel.fromMap(
-      String dia, String userId, Map<String, dynamic> map) {
+    String dia,
+    String userId,
+    Map<String, dynamic> map,
+  ) {
     final refeicoesList = map['refeicoes'] as List? ?? [];
     return NutritionPlanModel(
       dia: dia,
       userId: userId,
       metaCalorias: (map['metaCalorias'] as num?)?.toDouble() ?? 0.0,
+      // Documentos antigos ainda não têm este campo; mantém a meta anterior.
+      metaAgua:
+          (map['metaAgua'] as num?)?.toDouble() ??
+          AppConstants.dailyWaterGoalMl,
       refeicoes: refeicoesList
           .map((r) => PlannedMeal.fromMap(r as Map<String, dynamic>))
           .toList(),
@@ -176,6 +185,7 @@ class NutritionPlanModel {
   Map<String, dynamic> toMap() {
     return {
       'metaCalorias': metaCalorias,
+      'metaAgua': metaAgua,
       'refeicoes': refeicoes.map((r) => r.toMap()).toList(),
       'suplementos': suplementos.map((s) => s.toMap()).toList(),
     };

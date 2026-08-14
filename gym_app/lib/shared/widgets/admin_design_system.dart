@@ -45,7 +45,10 @@ ThemeData buildWorkspaceTheme(ThemeData baseTheme, AdminThemeColors colors) {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(11),
-        borderSide: BorderSide(color: colors.lime, width: 1.3),
+        borderSide: BorderSide(
+          color: baseTheme.colorScheme.primary,
+          width: 1.3,
+        ),
       ),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(

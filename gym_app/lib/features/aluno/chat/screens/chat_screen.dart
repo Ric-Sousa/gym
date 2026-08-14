@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../core/config/app_colors.dart';
+import '../../../../core/config/student_theme.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../data/models/message_model.dart';
 import '../../../../data/models/group_model.dart';
@@ -282,7 +283,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           children: [
             CircleAvatar(
               radius: 16,
-              backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+              backgroundColor: StudentThemeColors.of(
+                context,
+              ).primary.withValues(alpha: 0.15),
               backgroundImage: partnerPhoto != null
                   ? NetworkImage(partnerPhoto)
                   : null,
@@ -292,7 +295,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       style: GoogleFonts.montserrat(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.primary,
+                        color: StudentThemeColors.of(context).primary,
                       ),
                     )
                   : null,
@@ -316,7 +319,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     otherSubtitle,
                     style: GoogleFonts.inter(
                       fontSize: 11,
-                      color: AppColors.primary,
+                      color: StudentThemeColors.of(context).primary,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -380,8 +383,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   itemBuilder: (_, index) => items[index],
                 );
               },
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
+              loading: () => Center(
+                child: CircularProgressIndicator(
+                  color: StudentThemeColors.of(context).primary,
+                ),
               ),
               error: (_, __) => Center(
                 child: Text(
@@ -408,15 +413,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                           children: [
                             CircleAvatar(
                               radius: 10,
-                              backgroundColor: AppColors.primary.withValues(
-                                alpha: 0.15,
-                              ),
+                              backgroundColor: StudentThemeColors.of(
+                                context,
+                              ).primary.withValues(alpha: 0.15),
                               child: Text(
                                 otherInitials,
                                 style: GoogleFonts.montserrat(
                                   fontSize: 7,
                                   fontWeight: FontWeight.w700,
-                                  color: AppColors.primary,
+                                  color: StudentThemeColors.of(context).primary,
                                 ),
                               ),
                             ),
@@ -425,7 +430,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               '$otherName está a escrever',
                               style: GoogleFonts.inter(
                                 fontSize: 12,
-                                color: AppColors.primary,
+                                color: StudentThemeColors.of(context).primary,
                                 fontStyle: FontStyle.italic,
                               ),
                             ),
@@ -467,13 +472,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: _isFocused
-                    ? AppColors.primary.withValues(alpha: 0.4)
+                    ? StudentThemeColors.of(
+                        context,
+                      ).primary.withValues(alpha: 0.4)
                     : AppColors.outline.withValues(alpha: 0.3),
               ),
               boxShadow: _isFocused
                   ? [
                       BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.08),
+                        color: StudentThemeColors.of(
+                          context,
+                        ).primary.withValues(alpha: 0.08),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -516,11 +525,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               width: 50,
               height: 50,
               decoration: BoxDecoration(
-                color: AppColors.primary,
+                color: StudentThemeColors.of(context).primary,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.22),
+                    color: StudentThemeColors.of(
+                      context,
+                    ).primary.withValues(alpha: 0.22),
                     blurRadius: 12,
                     offset: const Offset(0, 3),
                   ),
@@ -584,7 +595,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       child: AudioRecordButton(
                         fullWidth: true,
                         color: AppColors.surface,
-                        iconColor: AppColors.primary,
+                        iconColor: StudentThemeColors.of(context).primary,
                         onRecordingChanged: (recording) {
                           if (mounted) setState(() => _isRecording = recording);
                         },
@@ -721,10 +732,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   children: groups.map((g) => _groupTile(g)).toList(),
                 );
               },
-              loading: () => const Padding(
-                padding: EdgeInsets.all(20),
+              loading: () => Padding(
+                padding: const EdgeInsets.all(20),
                 child: Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
+                  child: CircularProgressIndicator(
+                    color: StudentThemeColors.of(context).primary,
+                  ),
                 ),
               ),
               error: (_, __) => _buildEmptyGroupsState(
@@ -835,7 +848,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+            border: Border.all(
+              color: StudentThemeColors.of(
+                context,
+              ).primary.withValues(alpha: 0.2),
+            ),
           ),
           child: Row(
             children: [
@@ -843,8 +860,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppColors.primary, Color(0xFFD81B60)],
+                  gradient: LinearGradient(
+                    colors: [
+                      StudentThemeColors.of(context).primary,
+                      StudentThemeColors.of(context).primaryDim,
+                    ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -879,15 +899,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       'Personal Trainer',
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: AppColors.primary.withValues(alpha: 0.7),
+                        color: StudentThemeColors.of(
+                          context,
+                        ).primary.withValues(alpha: 0.7),
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(
+              Icon(
                 Icons.chevron_right,
-                color: AppColors.primary,
+                color: StudentThemeColors.of(context).primary,
                 size: 20,
               ),
             ],
@@ -926,12 +948,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.12),
+                    color: StudentThemeColors.of(
+                      context,
+                    ).primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.group,
-                    color: AppColors.primary,
+                    color: StudentThemeColors.of(context).primary,
                     size: 22,
                   ),
                 ),
@@ -1136,14 +1160,16 @@ class _MessageBubble extends StatelessWidget {
     final avatar = CircleAvatar(
       radius: 14,
       backgroundColor: isMine
-          ? AppColors.primary.withValues(alpha: 0.2)
+          ? StudentThemeColors.of(context).primary.withValues(alpha: 0.2)
           : AppColors.secondary.withValues(alpha: 0.2),
       child: Text(
         senderInitials,
         style: GoogleFonts.montserrat(
           fontSize: 10,
           fontWeight: FontWeight.w700,
-          color: isMine ? AppColors.primary : AppColors.secondary,
+          color: isMine
+              ? StudentThemeColors.of(context).primary
+              : AppColors.secondary,
         ),
       ),
     );
@@ -1185,7 +1211,9 @@ class _MessageBubble extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: isMine
-                        ? AppColors.primary.withValues(alpha: 0.15)
+                        ? StudentThemeColors.of(
+                            context,
+                          ).primary.withValues(alpha: 0.15)
                         : AppColors.surfaceHigh,
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(16),
@@ -1199,7 +1227,9 @@ class _MessageBubble extends StatelessWidget {
                     ),
                     border: Border.all(
                       color: isMine
-                          ? AppColors.primary.withValues(alpha: 0.25)
+                          ? StudentThemeColors.of(
+                              context,
+                            ).primary.withValues(alpha: 0.25)
                           : AppColors.outline.withValues(alpha: 0.4),
                     ),
                   ),
@@ -1213,7 +1243,7 @@ class _MessageBubble extends StatelessWidget {
                           url: message.audioUrl!,
                           isMine: isMine,
                           activeColor: isMine
-                              ? AppColors.primary
+                              ? StudentThemeColors.of(context).primary
                               : AppColors.secondary,
                           inactiveColor: AppColors.textSecondary,
                           durationMs: message.audioDurationMs,
@@ -1378,7 +1408,9 @@ class _TypingDotsState extends State<_TypingDots>
       width: 6,
       height: 6,
       decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.3 + opacity * 0.7),
+        color: StudentThemeColors.of(
+          context,
+        ).primary.withValues(alpha: 0.3 + opacity * 0.7),
         shape: BoxShape.circle,
       ),
     );

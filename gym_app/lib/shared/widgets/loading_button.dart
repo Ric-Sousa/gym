@@ -28,9 +28,12 @@ class LoadingButton extends StatelessWidget {
       child: ElevatedButton(
         onPressed: isLoading ? null : onPressed,
         style: ElevatedButton.styleFrom(
-          backgroundColor: backgroundColor ?? AppColors.primary,
+          backgroundColor:
+              backgroundColor ?? Theme.of(context).colorScheme.primary,
           foregroundColor: foregroundColor ?? AppColors.textOnPrimary,
-          disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.6),
+          disabledBackgroundColor: Theme.of(
+            context,
+          ).colorScheme.primary.withValues(alpha: 0.6),
           disabledForegroundColor: AppColors.textOnPrimary.withValues(
             alpha: 0.7,
           ),

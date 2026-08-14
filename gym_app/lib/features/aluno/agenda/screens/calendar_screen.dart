@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import '../../../../core/config/app_colors.dart';
+import '../../../../core/config/student_theme.dart';
 import '../../../../data/models/booking_model.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/app_notification.dart';
@@ -73,8 +74,10 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                   ],
                 );
               },
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
+              loading: () => Center(
+                child: CircularProgressIndicator(
+                  color: StudentThemeColors.of(context).primary,
+                ),
               ),
               error: (e, _) => Center(
                 child: Column(
@@ -150,11 +153,13 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 margin: const EdgeInsets.symmetric(horizontal: 3),
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
-                  color: isSelected ? AppColors.primary : AppColors.surface,
+                  color: isSelected
+                      ? StudentThemeColors.of(context).primary
+                      : AppColors.surface,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: isToday && !isSelected
-                        ? AppColors.primary
+                        ? StudentThemeColors.of(context).primary
                         : AppColors.outline,
                   ),
                 ),
@@ -324,8 +329,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         'Aguardando',
       ),
       _SlotState.confirmedMine => (
-        AppColors.primary.withValues(alpha: 0.2),
-        AppColors.primary,
+        StudentThemeColors.of(context).primary.withValues(alpha: 0.2),
+        StudentThemeColors.of(context).primary,
         Icons.check_circle,
         'Confirmada',
       ),
@@ -406,10 +411,10 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                   ),
                 ],
                 if (isAvailable) ...[
-                  const Icon(
+                  Icon(
                     Icons.add_circle_outline,
                     size: 18,
-                    color: AppColors.primary,
+                    color: StudentThemeColors.of(context).primary,
                   ),
                   const SizedBox(width: 6),
                   Text(
@@ -417,7 +422,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.primary,
+                      color: StudentThemeColors.of(context).primary,
                     ),
                   ),
                 ],
@@ -473,7 +478,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
+              backgroundColor: StudentThemeColors.of(context).primary,
               foregroundColor: Colors.white,
               minimumSize: const Size(0, 50),
               elevation: 0,

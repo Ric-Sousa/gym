@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import '../../../../core/config/app_colors.dart';
+import '../../../../core/config/student_theme.dart';
 import '../../../../core/config/app_constants.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../data/models/progress_model.dart';
@@ -87,8 +88,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             children: [Expanded(child: _buildProfileContent(user))],
           );
         },
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
+        loading: () => Center(
+          child: CircularProgressIndicator(
+            color: StudentThemeColors.of(context).primary,
+          ),
         ),
         error: (_, __) => const Center(
           child: Text(
@@ -141,8 +144,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              AppColors.primary,
-              Color.lerp(AppColors.primary, Colors.black, 0.35)!,
+              StudentThemeColors.of(context).primary,
+              Color.lerp(
+                StudentThemeColors.of(context).primary,
+                Colors.black,
+                0.35,
+              )!,
             ],
           ),
           borderRadius: BorderRadius.circular(14),
@@ -207,7 +214,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white,
-                foregroundColor: AppColors.primary,
+                foregroundColor: StudentThemeColors.of(context).primary,
                 minimumSize: const Size(0, 50),
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(
@@ -254,7 +261,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       children: [
         CircleAvatar(
           radius: 50,
-          backgroundColor: AppColors.primary.withValues(alpha: 0.15),
+          backgroundColor: StudentThemeColors.of(
+            context,
+          ).primary.withValues(alpha: 0.15),
           backgroundImage: user.fotoPerfil != null
               ? NetworkImage(user.fotoPerfil!)
               : null,
@@ -264,7 +273,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   style: GoogleFonts.montserrat(
                     fontSize: 36,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
+                    color: StudentThemeColors.of(context).primary,
                   ),
                 )
               : null,
@@ -336,7 +345,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ),
       child: Column(
         children: [
-          Icon(icon, color: AppColors.primary, size: 22),
+          Icon(icon, color: StudentThemeColors.of(context).primary, size: 22),
           const SizedBox(height: 8),
           Text(
             value,
@@ -683,10 +692,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Widget _buildProgressComparisonLoading() {
     return _buildProgressComparisonShell(
-      child: const SizedBox(
+      child: SizedBox(
         height: 260,
         child: Center(
-          child: CircularProgressIndicator(color: AppColors.primary),
+          child: CircularProgressIndicator(
+            color: StudentThemeColors.of(context).primary,
+          ),
         ),
       ),
     );
@@ -719,7 +730,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               TextButton(
                 onPressed: onAction,
                 style: TextButton.styleFrom(
-                  foregroundColor: AppColors.primary,
+                  foregroundColor: StudentThemeColors.of(context).primary,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 10,
@@ -891,7 +902,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       );
                     },
                     style: TextButton.styleFrom(
-                      foregroundColor: AppColors.primary,
+                      foregroundColor: StudentThemeColors.of(context).primary,
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       minimumSize: const Size(0, 36),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -918,7 +929,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   afterImage: afterImage,
                   width: width,
                   height: height,
-                  dividerColor: AppColors.primary,
+                  dividerColor: StudentThemeColors.of(context).primary,
                   imageFit: BoxFit.cover,
                   edgeToEdge: true,
                   beforeLabel: '',
@@ -982,7 +993,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 );
               },
               style: TextButton.styleFrom(
-                foregroundColor: AppColors.primary,
+                foregroundColor: StudentThemeColors.of(context).primary,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 10,
@@ -1109,13 +1120,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ? AppColors.onSurface
             : AppColors.textSecondary.withValues(alpha: 0.45),
         backgroundColor: selected
-            ? AppColors.primary
+            ? StudentThemeColors.of(context).primary
             : available
             ? AppColors.surfaceHighest
             : AppColors.surfaceHighest.withValues(alpha: 0.35),
         side: BorderSide(
           color: selected
-              ? AppColors.primary
+              ? StudentThemeColors.of(context).primary
               : AppColors.outline.withValues(alpha: available ? 1 : 0.35),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
@@ -1166,7 +1177,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+          borderSide: BorderSide(
+            color: StudentThemeColors.of(context).primary,
+            width: 1.5,
+          ),
         ),
       ),
       style: GoogleFonts.inter(color: AppColors.onSurface, fontSize: 13),
@@ -1202,12 +1216,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
+                  color: StudentThemeColors.of(
+                    context,
+                  ).primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.compare_arrows_rounded,
-                  color: AppColors.primary,
+                  color: StudentThemeColors.of(context).primary,
                   size: 20,
                 ),
               ),
@@ -1284,13 +1300,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   .map((e) => FlSpot(e.key.toDouble(), e.value.peso!))
                   .toList(),
               isCurved: true,
-              color: AppColors.primary,
+              color: StudentThemeColors.of(context).primary,
               barWidth: 3,
               isStrokeCapRound: true,
               dotData: const FlDotData(show: true),
               belowBarData: BarAreaData(
                 show: true,
-                color: AppColors.primary.withValues(alpha: 0.1),
+                color: StudentThemeColors.of(
+                  context,
+                ).primary.withValues(alpha: 0.1),
               ),
             ),
           ],
@@ -1323,9 +1341,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.photo_library_outlined,
-                color: AppColors.primary,
+                color: StudentThemeColors.of(context).primary,
                 size: 20,
               ),
               const SizedBox(width: 8),
@@ -1403,9 +1421,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         if (progress == null) return child;
                         return Container(
                           color: AppColors.surfaceHigh,
-                          child: const Center(
+                          child: Center(
                             child: CircularProgressIndicator(
-                              color: AppColors.primary,
+                              color: StudentThemeColors.of(context).primary,
                             ),
                           ),
                         );
@@ -1463,12 +1481,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
+                  color: StudentThemeColors.of(
+                    context,
+                  ).primary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.notifications_none_rounded,
-                  color: AppColors.primary,
+                  color: StudentThemeColors.of(context).primary,
                   size: 20,
                 ),
               ),
@@ -1505,14 +1525,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               color: AppColors.surfaceHighest,
               borderRadius: BorderRadius.circular(13),
               border: Border.all(
-                color: AppColors.primary.withValues(alpha: 0.28),
+                color: StudentThemeColors.of(
+                  context,
+                ).primary.withValues(alpha: 0.28),
               ),
             ),
             child: Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.check_circle_rounded,
-                  color: AppColors.primary,
+                  color: StudentThemeColors.of(context).primary,
                   size: 18,
                 ),
                 const SizedBox(width: 9),
@@ -1545,9 +1567,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   onPressed: () => _previewSound(selectedOption, currentSound),
                   tooltip: 'Ouvir som atual',
                   icon: const Icon(Icons.play_arrow_rounded),
-                  color: AppColors.primary,
+                  color: StudentThemeColors.of(context).primary,
                   style: IconButton.styleFrom(
-                    backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+                    backgroundColor: StudentThemeColors.of(
+                      context,
+                    ).primary.withValues(alpha: 0.12),
                     minimumSize: const Size(38, 38),
                     padding: EdgeInsets.zero,
                   ),
@@ -1572,7 +1596,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               padding: const EdgeInsets.only(bottom: 4),
               child: Material(
                 color: isSelected
-                    ? AppColors.primary.withValues(alpha: 0.08)
+                    ? StudentThemeColors.of(
+                        context,
+                      ).primary.withValues(alpha: 0.08)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
                 child: InkWell(
@@ -1590,7 +1616,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               ? Icons.radio_button_checked_rounded
                               : Icons.radio_button_unchecked_rounded,
                           color: isSelected
-                              ? AppColors.primary
+                              ? StudentThemeColors.of(context).primary
                               : AppColors.textSecondary,
                           size: 19,
                         ),
@@ -1684,7 +1710,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             onPressed: () => Navigator.pop(ctx, ImageSource.camera),
             child: Row(
               children: [
-                const Icon(Icons.camera_alt, color: AppColors.primary),
+                Icon(
+                  Icons.camera_alt,
+                  color: StudentThemeColors.of(context).primary,
+                ),
                 const SizedBox(width: 12),
                 Text(
                   'Câmara',
@@ -1697,7 +1726,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             onPressed: () => Navigator.pop(ctx, ImageSource.gallery),
             child: Row(
               children: [
-                const Icon(Icons.photo_library, color: AppColors.primary),
+                Icon(
+                  Icons.photo_library,
+                  color: StudentThemeColors.of(context).primary,
+                ),
                 const SizedBox(width: 12),
                 Text(
                   'Galeria',
@@ -1804,7 +1836,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Widget _paymentCard(PaymentModel payment) {
     final statusColors = {
-      'paid': AppColors.primary,
+      'paid': StudentThemeColors.of(context).primary,
       'pending': AppColors.calories,
       'failed': AppColors.error,
       'refunded': AppColors.textSecondary,
@@ -1899,9 +1931,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           if (payment.faturaUrl != null) ...[
             const SizedBox(width: 8),
             IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.picture_as_pdf,
-                color: AppColors.primary,
+                color: StudentThemeColors.of(context).primary,
                 size: 22,
               ),
               onPressed: () => launchUrl(
@@ -1963,8 +1995,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(
-                      color: AppColors.primary,
+                    borderSide: BorderSide(
+                      color: StudentThemeColors.of(context).primary,
                       width: 1.5,
                     ),
                   ),
@@ -1992,8 +2024,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(
-                      color: AppColors.primary,
+                    borderSide: BorderSide(
+                      color: StudentThemeColors.of(context).primary,
                       width: 1.5,
                     ),
                   ),
@@ -2021,8 +2053,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(
-                      color: AppColors.primary,
+                    borderSide: BorderSide(
+                      color: StudentThemeColors.of(context).primary,
                       width: 1.5,
                     ),
                   ),
@@ -2050,8 +2082,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(
-                      color: AppColors.primary,
+                    borderSide: BorderSide(
+                      color: StudentThemeColors.of(context).primary,
                       width: 1.5,
                     ),
                   ),
@@ -2093,7 +2125,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
+              backgroundColor: StudentThemeColors.of(context).primary,
               foregroundColor: Colors.white,
               minimumSize: const Size(0, 50),
               elevation: 0,
@@ -2251,7 +2283,7 @@ class _PhotoViewerState extends State<_PhotoViewer> {
                                   ? progress.cumulativeBytesLoaded /
                                         progress.expectedTotalBytes!
                                   : null,
-                              color: AppColors.primary,
+                              color: StudentThemeColors.of(context).primary,
                             ),
                           );
                         },
