@@ -335,12 +335,16 @@ class StudentNavigationRail extends StatelessWidget {
   final int selectedIndex;
   final List<NavigationDestination> destinations;
   final ValueChanged<int> onDestinationSelected;
+  final int chatUnreadCount;
+  final String? chatPreview;
 
   const StudentNavigationRail({
     super.key,
     required this.selectedIndex,
     required this.destinations,
     required this.onDestinationSelected,
+    this.chatUnreadCount = 0,
+    this.chatPreview,
   });
 
   @override
@@ -427,12 +431,13 @@ class StudentNavigationRail extends StatelessWidget {
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          _destinationIcon(item, selected),
-                          size: 19,
+                        _NavigationIcon(
+                          icon: _destinationIcon(item, selected),
                           color: selected
                               ? scheme.primary
                               : scheme.onSurfaceVariant,
+                          badge: index == 4 ? chatUnreadCount : 0,
+                          preview: index == 4 ? chatPreview : null,
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -498,16 +503,107 @@ IconData? _destinationIcon(NavigationDestination destination, bool selected) {
   return icon is Icon ? icon.icon : null;
 }
 
+class _NavigationIcon extends StatelessWidget {
+  final IconData? icon;
+  final Color color;
+  final int badge;
+  final String? preview;
+
+  const _NavigationIcon({
+    required this.icon,
+    required this.color,
+    required this.badge,
+    this.preview,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Icon(icon, size: 19, color: color),
+        if (badge > 0) ...[
+          if (preview != null && preview!.isNotEmpty)
+            Positioned(
+              top: -24,
+              right: -48,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 145),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.error,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.surface,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
+                    child: Text(
+                      preview!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w700,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          Positioned(
+            top: -7,
+            right: -8,
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
+              padding: const EdgeInsets.symmetric(horizontal: 3),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.error,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.surface,
+                  width: 1.5,
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                badge > 99 ? '99+' : '$badge',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 8,
+                  fontWeight: FontWeight.w800,
+                  height: 1,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 class StudentFloatingDock extends StatelessWidget {
   final int selectedIndex;
   final List<NavigationDestination> destinations;
   final ValueChanged<int> onDestinationSelected;
+  final int chatUnreadCount;
+  final String? chatPreview;
 
   const StudentFloatingDock({
     super.key,
     required this.selectedIndex,
     required this.destinations,
     required this.onDestinationSelected,
+    this.chatUnreadCount = 0,
+    this.chatPreview,
   });
 
   @override
@@ -552,12 +648,13 @@ class StudentFloatingDock extends StatelessWidget {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            _destinationIcon(item, selected),
-                            size: 19,
+                          _NavigationIcon(
+                            icon: _destinationIcon(item, selected),
                             color: selected
                                 ? scheme.primary
                                 : scheme.onSurfaceVariant,
+                            badge: entry.key == 4 ? chatUnreadCount : 0,
+                            preview: entry.key == 4 ? chatPreview : null,
                           ),
                           if (!compact) ...[
                             const SizedBox(height: 3),

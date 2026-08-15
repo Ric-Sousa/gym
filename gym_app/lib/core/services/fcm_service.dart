@@ -22,8 +22,11 @@ class FCMService {
   StreamSubscription<String>? _tokenRefreshSubscription;
   bool _initialized = false;
 
-  // Callback para quando uma notificação é recebida em foreground
+  // Callback para quando uma notificação é recebida em foreground.
   void Function(RemoteMessage)? onForegroundMessage;
+
+  // Callback para abrir a área correspondente ao tocar numa notificação.
+  void Function(RemoteMessage)? onNotificationOpened;
 
   FCMService({
     FirebaseMessaging? messaging,
@@ -110,12 +113,12 @@ class FCMService {
 
     // Quando o utilizador toca numa notificação
     _openedSubscription = FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      // Pode ser usado para navegação futura baseada no tipo de notificação
+      onNotificationOpened?.call(message);
     });
 
-    // Quando a app estava fechada e foi aberta por notificação
+    // Quando a app estava fechada e foi aberta por notificação.
     _messaging.getInitialMessage().then((message) {
-      // Pode ser usado para navegação futura
+      if (message != null) onNotificationOpened?.call(message);
     });
   }
 

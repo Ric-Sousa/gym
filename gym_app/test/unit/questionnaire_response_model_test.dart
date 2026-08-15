@@ -7,6 +7,16 @@ void main() {
     final answers = {
       for (final id in QuestionnaireResponse.labels.keys) id: 'Resposta',
     };
+    for (final id in const [
+      'pathologiesHas',
+      'familyPathologiesHas',
+      'surgeryHas',
+      'medicationHas',
+      'supplementsHas',
+      'allergiesHas',
+    ]) {
+      answers[id] = 'não';
+    }
     expect(QuestionnaireResponse.labels['genero'], 'Sexo');
     final response = QuestionnaireResponse(
       version: QuestionnaireResponse.currentVersion,
@@ -19,6 +29,29 @@ void main() {
     expect(decoded.isCurrent, isTrue);
     expect(decoded.isComplete, isTrue);
     expect(decoded.answers['objective'], 'Resposta');
+  });
+
+  test('resposta sim exige os detalhes correspondentes', () {
+    final answers = {
+      for (final id in QuestionnaireResponse.labels.keys) id: 'Resposta',
+    };
+    answers['medicationHas'] = 'sim';
+    answers['medication'] = '';
+    answers['supplementsHas'] = 'não';
+    answers['pathologiesHas'] = 'não';
+    answers['familyPathologiesHas'] = 'não';
+    answers['surgeryHas'] = 'não';
+    answers['allergiesHas'] = 'não';
+
+    final incomplete = QuestionnaireResponse(
+      version: QuestionnaireResponse.currentVersion,
+      completedAt: DateTime(2026, 8, 15),
+      answers: answers,
+    );
+    expect(incomplete.isComplete, isFalse);
+
+    answers['medication'] = 'Vitamina prescrita';
+    expect(incomplete.isComplete, isTrue);
   });
 
   test('perfil antigo precisa da ficha inicial', () {

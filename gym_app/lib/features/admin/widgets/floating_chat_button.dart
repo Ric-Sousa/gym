@@ -1,24 +1,32 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod/legacy.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/config/admin_theme.dart';
+import '../../../core/config/app_constants.dart';
 import '../../../core/services/audio_recording_model.dart';
 import '../../../core/services/sound_service.dart';
 import '../../../shared/utils/new_message_detector.dart';
 import '../../../data/models/message_model.dart';
+import '../../../data/models/group_model.dart';
 import '../../../data/models/user_model.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../shared/providers/global_providers.dart';
+import '../../../shared/providers/admin_providers.dart';
 import '../../../shared/providers/chat_notification_providers.dart';
 import '../../aluno/chat/screens/chat_screen.dart'; // for chatMessagesProvider
+import '../../aluno/chat/screens/group_chat_screen.dart';
 import '../../../shared/widgets/audio_message_player.dart';
+import '../../../shared/widgets/group_members_preview.dart';
 import '../../../shared/widgets/audio_record_button.dart';
 import '../../../shared/utils/audio_chat_message.dart';
+import '../../../shared/utils/chat_attachment.dart';
 import 'admin_messages_view.dart';
 
 // ─── Color constants ──────────────────────────────────────────────
@@ -45,6 +53,98 @@ final adminUnreadCountProvider = Provider<int>((ref) {
       0;
 });
 
+/// Conta mensagens não lidas dos grupos para o badge do chat do admin.
+/// A leitura inicial também é considerada: o contador representa o estado
+/// persistido em `lida`, e não apenas mensagens recebidas enquanto a tela está
+/// aberta.
+final adminGroupUnreadCountProvider = StreamProvider<int>((ref) {
+  final adminId = ref.watch(authProvider.select((state) => state.user?.uid ?? ''));
+  if (adminId.isEmpty) return Stream.value(0);
+
+  final firestore = FirebaseFirestore.instance;
+  final controller = StreamController<int>();
+  final counts = <String, int>{};
+  final readAtByGroup = <String, DateTime?>{};
+  final messagesByGroup = <String, List<Map<String, dynamic>>>{};
+  final subscriptions =
+      <String, StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>{};
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? groupsSubscription;
+
+  void emitTotal() {
+    if (!controller.isClosed) {
+      controller.add(counts.values.fold<int>(0, (total, value) => total + value));
+    }
+  }
+
+  DateTime? timestampOf(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return DateTime.tryParse(value?.toString() ?? '');
+  }
+
+  void recalculate(String groupId) {
+    final readAt = readAtByGroup[groupId];
+    final messages = messagesByGroup[groupId] ?? const <Map<String, dynamic>>[];
+    counts[groupId] = messages.where((data) {
+      final timestamp = timestampOf(data['timestamp']);
+      return data['lida'] != true &&
+          data['remetenteId'] != adminId &&
+          (readAt == null ||
+              (timestamp != null && timestamp.isAfter(readAt)));
+    }).length;
+  }
+
+  void watchGroup(String groupId) {
+    if (subscriptions.containsKey(groupId)) return;
+    subscriptions[groupId] = firestore
+        .collection(AppConstants.groupsCollection)
+        .doc(groupId)
+        .collection(AppConstants.groupMessagesSubcollection)
+        .snapshots()
+        .listen((snapshot) {
+      messagesByGroup[groupId] = snapshot.docs.map((doc) => doc.data()).toList();
+      recalculate(groupId);
+      emitTotal();
+    }, onError: (_) {
+      counts[groupId] = 0;
+      emitTotal();
+    });
+  }
+
+  groupsSubscription = firestore.collection(AppConstants.groupsCollection).snapshots().listen(
+    (snapshot) {
+      final currentIds = snapshot.docs.map((doc) => doc.id).toSet();
+      for (final oldId in subscriptions.keys.toList()) {
+        if (!currentIds.contains(oldId)) {
+          subscriptions.remove(oldId)?.cancel();
+          counts.remove(oldId);
+          readAtByGroup.remove(oldId);
+          messagesByGroup.remove(oldId);
+        }
+      }
+      for (final doc in snapshot.docs) {
+        final raw = (doc.data()['lastReadAtByUser'] as Map?)?[adminId];
+        readAtByGroup[doc.id] = timestampOf(raw);
+        recalculate(doc.id);
+      }
+      for (final groupId in currentIds) {
+        watchGroup(groupId);
+      }
+      emitTotal();
+    },
+    onError: (_) => emitTotal(),
+  );
+
+  ref.onDispose(() {
+    groupsSubscription?.cancel();
+    for (final subscription in subscriptions.values) {
+      subscription.cancel();
+    }
+    controller.close();
+  });
+  return controller.stream;
+});
+
 /// Tracks whether the admin chat modal is currently open.
 final isChatModalOpenProvider = StateProvider<bool>((ref) => false);
 
@@ -58,9 +158,11 @@ class FloatingChatButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final unreadCount = ref.watch(
-      adminUnreadCountProvider,
-    ); // O som observa eventos de mensagem diretamente, não o contador visual.
+    final directUnreadCount = ref.watch(adminUnreadCountProvider);
+    final groupUnreadCount = ref.watch(adminGroupUnreadCountProvider).value ?? 0;
+    final unreadCount = directUnreadCount + groupUnreadCount;
+    final adminId = ref.watch(authProvider).user?.uid ?? '';
+    final chatPreview = ref.watch(latestChatPreviewProvider(adminId));
     // Assim alterações de lida/readAt nunca são confundidas com mensagens.
     void playIncomingSound() {
       final soundEnabled = ref.read(authProvider).user?.soundEnabled ?? true;
@@ -103,12 +205,19 @@ class FloatingChatButton extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: const [],
                 ),
-                child: Text(
-                  '$unreadCount ${unreadCount == 1 ? 'nova mensagem' : 'novas mensagens'}',
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: compact ? 240 : 300),
+                  child: Text(
+                    chatPreview != null && chatPreview.isNotEmpty
+                        ? '$unreadCount · $chatPreview'
+                        : '$unreadCount ${unreadCount == 1 ? 'nova mensagem' : 'novas mensagens'}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
@@ -237,6 +346,7 @@ class _ChatPopover extends ConsumerStatefulWidget {
 
 class _ChatPopoverState extends ConsumerState<_ChatPopover> {
   ConversationPreview? _selectedConversation;
+  GroupModel? _selectedGroup;
 
   /// Atualiza apenas o cursor local antes da transição para o detalhe.
   /// A única escrita no Firestore é feita pelo detalhe, depois de receber a
@@ -284,7 +394,7 @@ class _ChatPopoverState extends ConsumerState<_ChatPopover> {
           duration: const Duration(milliseconds: 250),
           switchInCurve: Curves.easeOut,
           switchOutCurve: Curves.easeIn,
-          child: _selectedConversation == null
+          child: _selectedConversation == null && _selectedGroup == null
               ? _ConversationListView(
                   key: const ValueKey('conversation_list'),
                   onClose: widget.onClose,
@@ -297,6 +407,15 @@ class _ChatPopoverState extends ConsumerState<_ChatPopover> {
                     );
                     _setOptimisticReadCursor(conv);
                   },
+                  onSelectGroup: (group) =>
+                      setState(() => _selectedGroup = group),
+                )
+              : _selectedGroup != null
+              ? GroupChatScreen(
+                  key: ValueKey('group_chat_${_selectedGroup!.id}'),
+                  group: _selectedGroup!,
+                  isAdminChat: true,
+                  onExit: () => setState(() => _selectedGroup = null),
                 )
               : _ChatDetailView(
                   key: ValueKey('chat_detail_${_selectedConversation!.roomId}'),
@@ -315,11 +434,13 @@ class _ChatPopoverState extends ConsumerState<_ChatPopover> {
 class _ConversationListView extends ConsumerWidget {
   final VoidCallback onClose;
   final void Function(ConversationPreview) onSelectConversation;
+  final void Function(GroupModel) onSelectGroup;
 
   const _ConversationListView({
     super.key,
     required this.onClose,
     required this.onSelectConversation,
+    required this.onSelectGroup,
   });
 
   @override
@@ -365,6 +486,18 @@ class _ConversationListView extends ConsumerWidget {
                 ),
               ),
               IconButton(
+                tooltip: 'Criar grupo',
+                onPressed: () => showCreateGroupDialog(context, ref),
+                icon: Icon(
+                  Icons.group_add_outlined,
+                  size: 20,
+                  color: AdminThemeColors.of(context).lime,
+                ),
+                splashRadius: 18,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+              IconButton(
                 onPressed: onClose,
                 icon: Icon(
                   Icons.close,
@@ -380,72 +513,261 @@ class _ConversationListView extends ConsumerWidget {
         ),
         // Content
         Expanded(
-          child: conversationsAsync.when(
-            data: (conversations) {
-              if (conversations.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+          child: DefaultTabController(
+            length: 2,
+            child: Column(
+              children: [
+                TabBar(
+                  labelColor: AdminThemeColors.of(context).lime,
+                  unselectedLabelColor: AdminThemeColors.of(context).muted,
+                  indicatorColor: AdminThemeColors.of(context).lime,
+                  labelStyle: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  tabs: const [
+                    Tab(text: 'Alunos'),
+                    Tab(text: 'Grupos'),
+                  ],
+                ),
+                Expanded(
+                  child: TabBarView(
                     children: [
-                      Icon(
-                        Icons.chat_outlined,
-                        size: 44,
-                        color: AdminThemeColors.of(context).border,
+                      conversationsAsync.when(
+                        data: (conversations) {
+                          if (conversations.isEmpty) {
+                            return _buildEmptyChatState(context);
+                          }
+                          return ListView.separated(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            itemCount: conversations.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 6),
+                            itemBuilder: (context, index) {
+                              final conv = conversations[index];
+                              return _ConversationListTile(
+                                preview: conv,
+                                onTap: () => onSelectConversation(conv),
+                              );
+                            },
+                          );
+                        },
+                        loading: () => _buildLoadingState(context),
+                        error: (_, __) => _buildErrorState(context),
                       ),
-                      const SizedBox(height: 14),
-                      Text(
-                        'Nenhuma conversa',
-                        style: GoogleFonts.inter(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: AdminThemeColors.of(context).muted,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'As mensagens dos alunos\naparecerão aqui',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: AdminThemeColors.of(context).muted,
-                        ),
+                      ref.watch(adminGroupsProvider).when(
+                        data: (groups) {
+                          if (groups.isEmpty) {
+                            return _buildEmptyGroupsState(context);
+                          }
+                          return ListView.separated(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            itemCount: groups.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 6),
+                            itemBuilder: (context, index) => _AdminGroupTile(
+                              group: groups[index],
+                              onTap: () => onSelectGroup(groups[index]),
+                            ),
+                          );
+                        },
+                        loading: () => _buildLoadingState(context),
+                        error: (_, __) => _buildErrorState(context),
                       ),
                     ],
                   ),
-                );
-              }
-              return ListView.separated(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
                 ),
-                itemCount: conversations.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 6),
-                itemBuilder: (context, index) {
-                  final conv = conversations[index];
-                  return _ConversationListTile(
-                    preview: conv,
-                    onTap: () => onSelectConversation(conv),
-                  );
-                },
-              );
-            },
-            loading: () => Center(
-              child: CircularProgressIndicator(
-                color: AdminThemeColors.of(context).lime,
-              ),
-            ),
-            error: (_, __) => Center(
-              child: Text(
-                'Erro ao carregar',
-                style: GoogleFonts.inter(
-                  color: AdminThemeColors.of(context).muted,
-                ),
-              ),
+              ],
             ),
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildLoadingState(BuildContext context) {
+    return Center(
+      child: CircularProgressIndicator(
+        color: AdminThemeColors.of(context).lime,
+      ),
+    );
+  }
+
+  Widget _buildErrorState(BuildContext context) {
+    return Center(
+      child: Text(
+        'Erro ao carregar',
+        style: GoogleFonts.inter(
+          color: AdminThemeColors.of(context).muted,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyChatState(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.chat_outlined,
+            size: 44,
+            color: AdminThemeColors.of(context).border,
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Nenhuma conversa',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: AdminThemeColors.of(context).muted,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'As mensagens dos alunos\naparecerão aqui',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: AdminThemeColors.of(context).muted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyGroupsState(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.groups_outlined,
+            size: 44,
+            color: AdminThemeColors.of(context).border,
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Nenhum grupo criado',
+            style: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: AdminThemeColors.of(context).muted,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Usa o botão + para criar um grupo',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: AdminThemeColors.of(context).muted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Group List Tile ───────────────────────────────────────────────
+
+class _AdminGroupTile extends StatelessWidget {
+  final GroupModel group;
+  final VoidCallback onTap;
+
+  const _AdminGroupTile({required this.group, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = AdminThemeColors.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.border),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: theme.limeDim,
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: group.imagemUrl != null && group.imagemUrl!.isNotEmpty
+                    ? Image.network(
+                        group.imagemUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Icon(
+                          Icons.groups_outlined,
+                          color: theme.lime,
+                          size: 21,
+                        ),
+                      )
+                    : Icon(
+                        Icons.groups_outlined,
+                        color: theme.lime,
+                        size: 21,
+                      ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      group.nome,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: theme.text,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    GroupMembersPreview(
+                      group: group,
+                      textColor: theme.text,
+                      mutedColor: theme.muted,
+                      accentColor: theme.lime,
+                      compact: true,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      group.lastMessage?.isNotEmpty == true
+                          ? group.lastMessage!
+                          : '${group.membros.length} membros',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: theme.muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: theme.muted, size: 18),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -669,6 +991,7 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
     with NewMessageDetector {
   final TextEditingController _msgController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final _imagePicker = ImagePicker();
   bool _isMarkingAsRead = false;
   bool _didInitialScroll = false;
   bool _isRecording = false;
@@ -802,6 +1125,37 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Não foi possível enviar o áudio.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _sendAttachment() async {
+    final adminId = ref.read(authProvider).user?.uid ?? '';
+    if (adminId.isEmpty) return;
+
+    try {
+      final file = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 88,
+        maxWidth: 1800,
+      );
+      if (file == null) return;
+      final message = await createUploadedImageMessage(
+        storage: ref.read(storageDataSourceProvider),
+        senderId: adminId,
+        chatId: widget.conversation.roomId,
+        file: file,
+      );
+      await ref
+          .read(chatRepositoryProvider)
+          .sendMessage(widget.conversation.roomId, message);
+      _scrollToBottom();
+    } catch (error) {
+      debugPrint('Erro ao enviar imagem do admin: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Não foi possível enviar a imagem.')),
         );
       }
     }
@@ -1125,6 +1479,21 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
                               duration: const Duration(milliseconds: 160),
                               child: Row(
                                 children: [
+                                  IconButton(
+                                    tooltip: 'Enviar imagem',
+                                    onPressed: _sendAttachment,
+                                    icon: Icon(
+                                      Icons.image_outlined,
+                                      color: AdminThemeColors.of(context).muted,
+                                      size: 20,
+                                    ),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints.tightFor(
+                                      width: 38,
+                                      height: 42,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 2),
                                   Expanded(
                                     child: Container(
                                       constraints: const BoxConstraints(
@@ -1424,14 +1793,22 @@ class _ChatBubble extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                   child: Image.network(
                     msg.attachmentUrl!,
-                    width: 220,
-                    height: 170,
+                    width: (MediaQuery.sizeOf(context).width - 72)
+                        .clamp(140.0, 220.0)
+                        .toDouble(),
+                    height: (MediaQuery.sizeOf(context).width - 72)
+                        .clamp(140.0, 220.0)
+                        .toDouble() * 0.77,
                     fit: BoxFit.cover,
                     loadingBuilder: (context, child, progress) {
                       if (progress == null) return child;
                       return SizedBox(
-                        width: 220,
-                        height: 170,
+                        width: (MediaQuery.sizeOf(context).width - 72)
+                            .clamp(140.0, 220.0)
+                            .toDouble(),
+                        height: (MediaQuery.sizeOf(context).width - 72)
+                            .clamp(140.0, 220.0)
+                            .toDouble() * 0.77,
                         child: Center(
                           child: CircularProgressIndicator(
                             strokeWidth: 2,

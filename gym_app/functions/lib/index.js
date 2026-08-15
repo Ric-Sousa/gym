@@ -1125,23 +1125,35 @@ exports.sendChatNotification = functions
         const groupDoc = await db.collection('grupos').doc(salaId).get();
         if (!groupDoc.exists)
             return { ok: true };
-        const members = groupDoc.data()?.membros;
-        if (!Array.isArray(members))
-            return { ok: true };
-        recipientIds = members.filter((id) => typeof id === 'string' && id !== remetenteId);
+        const groupData = groupDoc.data() ?? {};
+        const members = Array.isArray(groupData.membros)
+            ? groupData.membros
+            : [];
+        const groupAdmin = groupData.criadoPor;
+        recipientIds = [...members, groupAdmin]
+            .filter((id) => typeof id === 'string' && id.length > 0 && id !== remetenteId)
+            .filter((id, index, ids) => ids.indexOf(id) === index);
     }
     if (recipientIds.length === 0)
         return { ok: true };
-    const recipientDocs = await Promise.all(recipientIds.map((id) => db.collection('users').doc(id).get()));
-    const sends = recipientDocs
-        .map((doc) => ({ id: doc.id, token: doc.data()?.fcmToken }))
-        .filter((recipient) => Boolean(recipient.token))
-        .map(({ token }) => messaging.send({
-        token,
-        notification,
-        data: { type: 'chat', salaId },
+    const link = `${publicAppUrl}/?destino=chat`;
+    await Promise.all(recipientIds.map(async (recipientId) => {
+        // A notificação persistente mantém o aviso disponível mesmo quando o
+        // dispositivo não tem token push ou está offline.
+        await (0, notifications_js_1.createNotification)({
+            userId: recipientId,
+            type: 'chat',
+            title,
+            body: notification.body,
+            action: 'chat',
+            metadata: { salaId, link },
+        });
+        await (0, notifications_js_1.sendUserPush)(recipientId, title, notification.body, {
+            type: 'chat',
+            salaId,
+            link,
+        });
     }));
-    await Promise.all(sends);
     return { ok: true };
 });
 exports.notifyNewBooking = functions

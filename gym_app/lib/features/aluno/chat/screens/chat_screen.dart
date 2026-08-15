@@ -17,6 +17,7 @@ import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/app_notification.dart';
 import '../../../../shared/widgets/audio_message_player.dart';
 import '../../../../shared/widgets/audio_record_button.dart';
+import '../../../../shared/widgets/group_members_preview.dart';
 import '../../../../core/services/audio_recording_model.dart';
 import '../../../../shared/utils/audio_chat_message.dart';
 import '../../../../shared/utils/chat_attachment.dart';
@@ -952,7 +953,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                           color: AppColors.onSurface,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
+                      GroupMembersPreview(
+                        group: group,
+                        textColor: AppColors.onSurface,
+                        mutedColor: AppColors.textSecondary,
+                        accentColor: StudentThemeColors.of(context).primary,
+                        compact: true,
+                      ),
+                      const SizedBox(height: 3),
                       Text(
                         hasPreview
                             ? (group.lastMessage!.length > 40

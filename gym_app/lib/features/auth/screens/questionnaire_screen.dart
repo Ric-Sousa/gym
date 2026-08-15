@@ -23,7 +23,6 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
   static const _choiceOptions = <String, List<String>>{
     'genero': ['masculino', 'feminino'],
     'activity': ['Sim, regularmente', 'Às vezes', 'Ainda não'],
-    'sedentary': ['Sim', 'Não', 'Não sei'],
     'meals': ['1–2', '3', '4–5', '6 ou mais'],
     'water': ['Menos de 1 L', '1–2 L', '2–3 L', 'Mais de 3 L'],
     'sleep': ['Menos de 5 h', '5–6 h', '7–8 h', 'Mais de 8 h'],
@@ -49,11 +48,25 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
     'familyPathologies',
     'surgery',
     'medication',
+    'supplements',
     'allergies',
     'dislikedFoods',
     'preferredFoods',
     'outsideMeals',
   ];
+
+  static const _profileBinaryQuestions = <String, String>{
+    'sedentary': 'Consideras-te uma pessoa sedentária?',
+  };
+
+  static const _healthBinaryQuestions = <String, String>{
+    'pathologiesHas': 'Tens alguma patologia, lesão ou limitação?',
+    'familyPathologiesHas': 'Existe histórico familiar relevante?',
+    'surgeryHas': 'Foste operado/a nos últimos 5 anos?',
+    'medicationHas': 'Tomas alguma medicação?',
+    'supplementsHas': 'Tomas algum suplemento?',
+    'allergiesHas': 'Tens alergias ou intolerâncias alimentares?',
+  };
 
   late final Map<String, TextEditingController> _controllers;
   final Map<String, String> _choices = {};
@@ -108,24 +121,42 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
           'genero',
           'profession',
           'activity',
-          'sedentary',
+          ..._profileBinaryQuestions.keys,
           'meals',
           'water',
           'sleep',
         ],
-      1 => ['pathologies', 'familyPathologies', 'surgery', 'medication'],
+      1 => _healthBinaryQuestions.keys.toList(),
       _ => [
-          'allergies',
           'dislikedFoods',
           'preferredFoods',
           'outsideMeals',
           'objective',
         ],
     };
-    final missing = required.where((id) {
+    final missing = <String>[];
+    for (final id in required) {
       final value = _choices[id] ?? _controllers[id]?.text ?? '';
-      return value.trim().isEmpty;
-    }).toList();
+      if (value.trim().isEmpty) missing.add(id);
+    }
+
+    if (_step == 1) {
+      const details = <String, String>{
+        'pathologiesHas': 'pathologies',
+        'familyPathologiesHas': 'familyPathologies',
+        'surgeryHas': 'surgery',
+        'medicationHas': 'medication',
+        'supplementsHas': 'supplements',
+        'allergiesHas': 'allergies',
+      };
+      for (final entry in details.entries) {
+        if (_choices[entry.key] == 'sim' &&
+            (_controllers[entry.value]?.text.trim().isEmpty ?? true)) {
+          missing.add(entry.value);
+        }
+      }
+    }
+
     if (missing.isEmpty) return true;
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -426,7 +457,10 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
         _textField('profession', 'Profissão', hint: 'Ex.: estudante, professora, motorista'),
         SizedBox(height: MediaQuery.sizeOf(context).width < 480 ? 12 : 18),
         _choiceField('activity', 'Já praticas ginásio ou algum desporto?'),
-        _choiceField('sedentary', 'Consideras-te uma pessoa sedentária?'),
+        _binaryField(
+          'sedentary',
+          _profileBinaryQuestions['sedentary']!,
+        ),
         _choiceField('meals', 'Quantas refeições costumas fazer por dia?'),
         _choiceField('water', 'Que quantidade de água bebes diariamente?'),
         _choiceField('sleep', 'Em média, quantas horas dormes?'),
@@ -438,15 +472,76 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionTitle('Saúde e rotina', 'Responde com transparência. Se não se aplicar, escreve “Nenhum”.'),
+        _sectionTitle('Saúde e rotina', 'Assinala Sim ou Não. Se responderes Sim, descreve a situação.'),
         const SizedBox(height: 16),
-        _textField('pathologies', 'Tens alguma patologia, lesão ou limitação?', multiline: true),
+        _binaryField('pathologiesHas', _healthBinaryQuestions['pathologiesHas']!),
+        if (_choices['pathologiesHas'] == 'sim') ...[
+          const SizedBox(height: 8),
+          _textField(
+            'pathologies',
+            'Descreve a patologia, lesão ou limitação',
+            multiline: true,
+            detail: true,
+          ),
+        ],
         const SizedBox(height: 12),
-        _textField('familyPathologies', 'Existe histórico familiar relevante?', multiline: true),
+        _binaryField(
+          'familyPathologiesHas',
+          _healthBinaryQuestions['familyPathologiesHas']!,
+        ),
+        if (_choices['familyPathologiesHas'] == 'sim') ...[
+          const SizedBox(height: 8),
+          _textField(
+            'familyPathologies',
+            'Descreve o histórico familiar relevante',
+            multiline: true,
+            detail: true,
+          ),
+        ],
         const SizedBox(height: 12),
-        _textField('surgery', 'Foste operado/a nos últimos 5 anos? Se sim, porquê?', multiline: true),
+        _binaryField('surgeryHas', _healthBinaryQuestions['surgeryHas']!),
+        if (_choices['surgeryHas'] == 'sim') ...[
+          const SizedBox(height: 8),
+          _textField(
+            'surgery',
+            'Indica qual foi a cirurgia e quando aconteceu',
+            multiline: true,
+            detail: true,
+          ),
+        ],
         const SizedBox(height: 12),
-        _textField('medication', 'Fazes alguma medicação ou tomas suplementos?', multiline: true),
+        _binaryField('medicationHas', _healthBinaryQuestions['medicationHas']!),
+        if (_choices['medicationHas'] == 'sim') ...[
+          const SizedBox(height: 8),
+          _textField(
+            'medication',
+            'Qual medicação tomas?',
+            multiline: true,
+            detail: true,
+          ),
+        ],
+        const SizedBox(height: 12),
+        _binaryField('supplementsHas', _healthBinaryQuestions['supplementsHas']!),
+        if (_choices['supplementsHas'] == 'sim') ...[
+          const SizedBox(height: 8),
+          _textField(
+            'supplements',
+            'Quais suplementos tomas?',
+            multiline: true,
+            detail: true,
+          ),
+        ],
+        const SizedBox(height: 12),
+        _binaryField('allergiesHas', _healthBinaryQuestions['allergiesHas']!),
+        if (_choices['allergiesHas'] == 'sim') ...[
+          const SizedBox(height: 8),
+          _textField(
+            'allergies',
+            'Indica as alergias ou intolerâncias',
+            multiline: true,
+            detail: true,
+          ),
+        ],
       ],
     );
   }
@@ -457,8 +552,6 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
       children: [
         _sectionTitle('Alimentação e objetivo', 'Estas respostas ajudam a preparar um plano realista para ti.'),
         const SizedBox(height: 16),
-        _textField('allergies', 'Tens alergias ou intolerâncias alimentares?', multiline: true),
-        const SizedBox(height: 12),
         _textField('dislikedFoods', 'Que alimentos não gostas ou preferes evitar?', multiline: true),
         const SizedBox(height: 12),
         _textField('preferredFoods', 'Que alimentos gostas e tens facilidade em comer?', multiline: true),
@@ -502,10 +595,11 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
     String? hint,
     bool readOnly = false,
     bool multiline = false,
+    bool detail = false,
     VoidCallback? onTap,
   }) {
     final compact = MediaQuery.sizeOf(context).width < 480;
-    return TextField(
+    final field = TextField(
       controller: _controllers[id],
       cursorColor: Colors.white,
       style: GoogleFonts.inter(
@@ -514,25 +608,49 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
       ),
       readOnly: readOnly,
       onTap: onTap,
-      minLines: multiline ? 2 : 1,
-      maxLines: multiline ? 4 : 1,
+      minLines: multiline ? (detail ? 1 : 2) : 1,
+      maxLines: multiline ? (detail ? 3 : 4) : 1,
       textInputAction: multiline ? TextInputAction.newline : TextInputAction.next,
       textAlign: TextAlign.center,
+      // Mantém o texto no centro do campo mesmo quando o label flutua.
+      // O alinhamento anterior com y positivo fazia o conteúdo parecer colado
+      // à parte superior do input destacado.
+      textAlignVertical: TextAlignVertical.center,
       decoration: InputDecoration(
         labelText: label,
-        hintText: hint,
+        hintText: hint ?? (detail ? 'Descreve aqui...' : null),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: detail ? 12 : 14,
+          vertical: detail ? 12 : 12,
+        ),
+        alignLabelWithHint: false,
+        filled: true,
+        fillColor: detail ? AppColors.surfaceHigh : AppColors.surface,
         suffixIcon: readOnly ? const Icon(Icons.calendar_today_outlined, size: 18) : null,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderSide: detail
+              ? BorderSide(
+                  color: _questionnairePrimary.withValues(alpha: 0.35),
+                )
+              : BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderSide: detail
+              ? BorderSide(
+                  color: _questionnairePrimary.withValues(alpha: 0.35),
+                )
+              : BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(
+            color: detail
+                ? _questionnairePrimary
+                : Colors.transparent,
+            width: detail ? 1.2 : 0,
+          ),
         ),
         labelStyle: GoogleFonts.inter(
           color: Colors.white,
@@ -540,8 +658,17 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
         ),
         floatingLabelStyle: GoogleFonts.inter(
           color: Colors.white,
-          fontSize: compact ? 12 : 14,
+          fontSize: detail ? (compact ? 11 : 12) : (compact ? 12 : 14),
         ),
+      ),
+    );
+
+    if (!detail) return field;
+    return Align(
+      alignment: Alignment.center,
+      child: FractionallySizedBox(
+        widthFactor: compact ? 0.86 : 0.82,
+        child: field,
       ),
     );
   }
@@ -554,12 +681,28 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
     return AppColors.surfaceHighest;
   }
 
-  Widget _choiceField(String id, String label) {
-    final options = _choiceOptions[id]!;
+  Widget _binaryField(String id, String label) {
+    return _choiceField(id, label, options: const ['sim', 'não']);
+  }
+
+  String _choiceDisplayLabel(String id, String value) {
+    return _choiceLabels[id]?[value] ?? switch (value) {
+      'sim' => 'Sim',
+      'não' => 'Não',
+      _ => value,
+    };
+  }
+
+  Widget _choiceField(
+    String id,
+    String label, {
+    List<String>? options,
+  }) {
+    final resolvedOptions = options ?? _choiceOptions[id]!;
     final selected = _choices[id];
     final selectedLabel = selected == null
         ? null
-        : (_choiceLabels[id]?[selected] ?? selected);
+        : _choiceDisplayLabel(id, selected);
     final primary = _questionnairePrimary;
 
     final compact = MediaQuery.sizeOf(context).width < 480;
@@ -591,7 +734,7 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
                 EdgeInsets.symmetric(vertical: 6),
               ),
             ),
-            menuChildren: options
+            menuChildren: resolvedOptions
                 .map(
                   (option) => MenuItemButton(
                     onPressed: _saving
@@ -600,7 +743,7 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
                     child: SizedBox(
                       width: fieldWidth - 28,
                       child: Text(
-                        _choiceLabels[id]?[option] ?? option,
+                        _choiceDisplayLabel(id, option),
                         textAlign: TextAlign.center,
                         style: GoogleFonts.inter(
                           fontSize: compact ? 12 : 13,

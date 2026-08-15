@@ -161,6 +161,8 @@ final alunoGroupUnreadCountProvider = StreamProvider.family<int, String>((
   final controller = StreamController<int>();
   final counts = <String, int>{};
   final initializedGroups = <String>{};
+  final readAtByGroup = <String, DateTime?>{};
+  final messagesByGroup = <String, List<Map<String, dynamic>>>{};
   var activeGroupIds = <String>{};
   final messageSubscriptions =
       <String, StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>{};
@@ -174,6 +176,24 @@ final alunoGroupUnreadCountProvider = StreamProvider.family<int, String>((
     }
   }
 
+  DateTime? timestampOf(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return DateTime.tryParse(value?.toString() ?? '');
+  }
+
+  void recalculate(String groupId) {
+    final readAt = readAtByGroup[groupId];
+    final messages = messagesByGroup[groupId] ?? const <Map<String, dynamic>>[];
+    counts[groupId] = messages.where((data) {
+      final timestamp = timestampOf(data['timestamp']);
+      return data['lida'] != true &&
+          data['remetenteId'] != userId &&
+          (readAt == null ||
+              (timestamp != null && timestamp.isAfter(readAt)));
+    }).length;
+  }
+
   void watchGroup(String groupId) {
     if (messageSubscriptions.containsKey(groupId)) return;
     messageSubscriptions[groupId] = firestore
@@ -184,16 +204,15 @@ final alunoGroupUnreadCountProvider = StreamProvider.family<int, String>((
         .listen(
           (snap) {
             initializedGroups.add(groupId);
-            counts[groupId] = snap.docs.where((message) {
-              final data = message.data();
-              return data['lida'] != true && data['remetenteId'] != userId;
-            }).length;
+            messagesByGroup[groupId] = snap.docs.map((message) => message.data()).toList();
+            recalculate(groupId);
             if (activeGroupIds.every(initializedGroups.contains)) {
               emitTotal();
             }
           },
           onError: (_) {
             initializedGroups.add(groupId);
+            messagesByGroup[groupId] = const [];
             counts[groupId] = 0;
             emitTotal();
           },
@@ -207,10 +226,17 @@ final alunoGroupUnreadCountProvider = StreamProvider.family<int, String>((
       .listen((snap) {
         final currentIds = snap.docs.map((doc) => doc.id).toSet();
         activeGroupIds = currentIds;
+        for (final doc in snap.docs) {
+          final raw = (doc.data()['lastReadAtByUser'] as Map?)?[userId];
+          readAtByGroup[doc.id] = timestampOf(raw);
+          recalculate(doc.id);
+        }
         for (final oldId in messageSubscriptions.keys.toList()) {
           if (!currentIds.contains(oldId)) {
             messageSubscriptions.remove(oldId)?.cancel();
             counts.remove(oldId);
+            readAtByGroup.remove(oldId);
+            messagesByGroup.remove(oldId);
           }
         }
         initializedGroups.removeWhere((id) => !currentIds.contains(id));

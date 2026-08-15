@@ -23,6 +23,9 @@ void main() {
     expect(find.text('Data de nascimento'), findsOneWidget);
     expect(find.text('Qual é o teu sexo?'), findsWidgets);
     expect(find.text('Continuar'), findsOneWidget);
+    expect(find.text('Consideras-te uma pessoa sedentária?'), findsOneWidget);
+    expect(find.byType(Checkbox), findsNothing);
+    expect(find.byType(MenuAnchor), findsWidgets);
 
     final questionnaireTheme = Theme.of(
       tester.element(find.byType(Card)),

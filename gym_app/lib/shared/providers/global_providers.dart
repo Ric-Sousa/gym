@@ -227,6 +227,25 @@ final notificationsStreamProvider =
 
 /// Número total de avisos que requerem atenção, incluindo cobranças antigas
 /// que foram criadas antes do centro persistente existir.
+/// Pré-visualização da última mensagem de chat ainda não lida.
+/// As Cloud Functions guardam a notificação persistente, permitindo mostrar
+/// este resumo mesmo depois de a app ter sido fechada.
+final latestChatPreviewProvider = Provider.family<String?, String>((
+  ref,
+  userId,
+) {
+  if (userId.isEmpty) return null;
+  final notifications = ref.watch(notificationsStreamProvider(userId)).asData?.value;
+  for (final notification in notifications ?? const <AppNotificationModel>[]) {
+    if (notification.type == 'chat' &&
+        !notification.read &&
+        notification.body.trim().isNotEmpty) {
+      return notification.body.trim();
+    }
+  }
+  return null;
+});
+
 final paymentNotificationCountProvider = Provider.family<int, String>((
   ref,
   userId,

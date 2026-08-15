@@ -22,9 +22,18 @@ class GroupRepository {
   Future<String> createGroup(Map<String, dynamic> data) =>
       _firestore.createGroup(data);
 
+  Future<void> updateGroup(String groupId, Map<String, dynamic> data) =>
+      _firestore.updateGroup(groupId, data);
+
   Future<void> sendMessage(String groupId, Map<String, dynamic> data) =>
       _firestore.sendGroupMessage(groupId, data);
 
   Stream<List<MessageModel>> watchMessages(String groupId) =>
       _firestore.watchGroupMessages(groupId);
+
+  Future<void> markAsRead(
+    String groupId,
+    String userId,
+    DateTime readAt,
+  ) => _firestore.markGroupAsRead(groupId, userId, readAt);
 }

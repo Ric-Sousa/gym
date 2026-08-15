@@ -100,6 +100,12 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
     if (userId != null && userId.isNotEmpty) {
       _fcmInitialized = true;
       final fcmService = ref.read(fcmServiceProvider);
+      fcmService.onNotificationOpened = (message) {
+        if (!mounted) return;
+        if (message.data['type'] == 'chat') {
+          _navigate(AdminView.messages);
+        }
+      };
       fcmService.initialize(userId);
     }
   }

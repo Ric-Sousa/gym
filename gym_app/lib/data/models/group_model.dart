@@ -23,6 +23,12 @@ class GroupModel {
   final DateTime createdAt;
   final String? lastMessage;
   final DateTime? lastTimestamp;
+  final String? imagemUrl;
+  final Map<String, String> membrosNomes;
+  final Map<String, String> membrosFotos;
+  final Map<String, DateTime> lastReadAtByUser;
+  final String? criadoPorNome;
+  final String? criadoPorFoto;
 
   const GroupModel({
     this.id = '',
@@ -32,6 +38,12 @@ class GroupModel {
     required this.createdAt,
     this.lastMessage,
     this.lastTimestamp,
+    this.imagemUrl,
+    this.membrosNomes = const {},
+    this.membrosFotos = const {},
+    this.lastReadAtByUser = const {},
+    this.criadoPorNome,
+    this.criadoPorFoto,
   });
 
   factory GroupModel.fromMap(String id, Map<String, dynamic> map) {
@@ -45,6 +57,28 @@ class GroupModel {
       lastTimestamp: map['lastTimestamp'] == null
           ? null
           : _parseTimestamp(map['lastTimestamp']),
+      imagemUrl: map['imagemUrl'] as String?,
+      membrosNomes: Map<String, String>.from(
+        (map['membrosNomes'] as Map?)?.map(
+              (key, value) => MapEntry(key.toString(), value.toString()),
+            ) ??
+            const <String, String>{},
+      ),
+      membrosFotos: Map<String, String>.from(
+        (map['membrosFotos'] as Map?)?.map(
+              (key, value) => MapEntry(key.toString(), value.toString()),
+            ) ??
+            const <String, String>{},
+      ),
+      lastReadAtByUser: Map<String, DateTime>.fromEntries(
+        ((map['lastReadAtByUser'] as Map?) ?? const {}).entries
+            .map((entry) => MapEntry(
+                  entry.key.toString(),
+                  _parseTimestamp(entry.value),
+                )),
+      ),
+      criadoPorNome: map['criadoPorNome'] as String?,
+      criadoPorFoto: map['criadoPorFoto'] as String?,
     );
   }
 
@@ -56,6 +90,41 @@ class GroupModel {
       'createdAt': createdAt,
       if (lastMessage != null) 'lastMessage': lastMessage,
       if (lastTimestamp != null) 'lastTimestamp': lastTimestamp,
+      if (imagemUrl != null && imagemUrl!.isNotEmpty) 'imagemUrl': imagemUrl,
+      if (membrosNomes.isNotEmpty) 'membrosNomes': membrosNomes,
+      if (membrosFotos.isNotEmpty) 'membrosFotos': membrosFotos,
+      if (lastReadAtByUser.isNotEmpty) 'lastReadAtByUser': lastReadAtByUser,
+      if (criadoPorNome != null && criadoPorNome!.isNotEmpty)
+        'criadoPorNome': criadoPorNome,
+      if (criadoPorFoto != null && criadoPorFoto!.isNotEmpty)
+        'criadoPorFoto': criadoPorFoto,
     };
+  }
+
+  GroupModel copyWith({
+    String? nome,
+    List<String>? membros,
+    String? imagemUrl,
+    Map<String, String>? membrosNomes,
+    Map<String, String>? membrosFotos,
+    Map<String, DateTime>? lastReadAtByUser,
+    String? criadoPorNome,
+    String? criadoPorFoto,
+  }) {
+    return GroupModel(
+      id: id,
+      nome: nome ?? this.nome,
+      membros: membros ?? this.membros,
+      criadoPor: criadoPor,
+      createdAt: createdAt,
+      lastMessage: lastMessage,
+      lastTimestamp: lastTimestamp,
+      imagemUrl: imagemUrl ?? this.imagemUrl,
+      membrosNomes: membrosNomes ?? this.membrosNomes,
+      membrosFotos: membrosFotos ?? this.membrosFotos,
+      lastReadAtByUser: lastReadAtByUser ?? this.lastReadAtByUser,
+      criadoPorNome: criadoPorNome ?? this.criadoPorNome,
+      criadoPorFoto: criadoPorFoto ?? this.criadoPorFoto,
+    );
   }
 }

@@ -1305,6 +1305,20 @@ class FirestoreDataSource {
     }
   }
 
+  /// Atualiza os dados de um grupo (admin).
+  Future<void> updateGroup(String groupId, Map<String, dynamic> data) async {
+    try {
+      await _firestore
+          .collection(AppConstants.groupsCollection)
+          .doc(groupId)
+          .update(data);
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao atualizar grupo',
+      );
+    }
+  }
+
   /// Envia mensagem para um grupo e atualiza o preview no documento pai.
   ///
   /// As duas escritas usam o mesmo batch. Assim, o listener do documento do
@@ -1327,7 +1341,9 @@ class FirestoreDataSource {
       batch.set(groupRef, {
         'lastMessage': (data['texto'] as String?)?.isNotEmpty == true
             ? data['texto']
-            : 'Mensagem de áudio',
+            : (data['attachmentUrl'] != null
+                ? 'Imagem'
+                : 'Mensagem de áudio'),
         'lastTimestamp': timestamp,
         'lastSenderId': data['remetenteId'] ?? '',
         'lastMessageId': messageRef.id,
@@ -1336,6 +1352,23 @@ class FirestoreDataSource {
       await batch.commit();
     } on FirebaseException catch (e) {
       throw ServerException(message: e.message ?? 'Erro ao enviar mensagem');
+    }
+  }
+
+  /// Marca como lidas, para um utilizador, as mensagens visíveis do grupo.
+  /// Usa um cursor por utilizador para não marcar as mensagens como lidas para
+  /// os restantes participantes.
+  Future<void> markGroupAsRead(
+    String groupId,
+    String userId,
+    DateTime readAt,
+  ) async {
+    try {
+      await _firestore.collection(AppConstants.groupsCollection).doc(groupId).update({
+        'lastReadAtByUser.$userId': readAt,
+      });
+    } on FirebaseException catch (e) {
+      throw ServerException(message: e.message ?? 'Erro ao marcar grupo como lido');
     }
   }
 

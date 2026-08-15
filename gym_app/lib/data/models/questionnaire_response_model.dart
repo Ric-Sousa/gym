@@ -1,6 +1,6 @@
 /// Respostas da ficha inicial de anamnese do aluno.
 class QuestionnaireResponse {
-  static const currentVersion = 'questionnaire-2026-08-gender';
+  static const currentVersion = 'questionnaire-2026-08-health-v2';
 
   /// IDs e rótulos usados tanto pelo formulário como pelo painel admin.
   static const labels = <String, String>{
@@ -12,11 +12,18 @@ class QuestionnaireResponse {
     'meals': 'Refeições por dia',
     'water': 'Água ingerida por dia',
     'sleep': 'Horas de sono',
-    'pathologies': 'Patologias ou limitações',
-    'familyPathologies': 'Histórico familiar relevante',
-    'surgery': 'Cirurgias nos últimos 5 anos',
-    'medication': 'Medicação ou suplementos',
-    'allergies': 'Alergias ou intolerâncias',
+    'pathologiesHas': 'Tem patologias ou limitações',
+    'pathologies': 'Detalhes de patologias ou limitações',
+    'familyPathologiesHas': 'Tem histórico familiar relevante',
+    'familyPathologies': 'Detalhes do histórico familiar',
+    'surgeryHas': 'Teve cirurgias nos últimos 5 anos',
+    'surgery': 'Detalhes das cirurgias',
+    'medicationHas': 'Toma medicação',
+    'medication': 'Medicação que toma',
+    'supplementsHas': 'Toma suplementos',
+    'supplements': 'Suplementos que toma',
+    'allergiesHas': 'Tem alergias ou intolerâncias',
+    'allergies': 'Detalhes de alergias ou intolerâncias',
     'dislikedFoods': 'Alimentos que não gosta',
     'preferredFoods': 'Alimentos que prefere',
     'outsideMeals': 'Refeições fora da dieta',
@@ -71,8 +78,40 @@ class QuestionnaireResponse {
 
   bool get isCurrent => version == QuestionnaireResponse.currentVersion;
 
-  bool get isComplete => labels.keys.every((key) {
-        final value = answers[key]?.trim();
-        return value != null && value.isNotEmpty;
-      });
+  static const _conditionalDetails = <String, String>{
+    'pathologiesHas': 'pathologies',
+    'familyPathologiesHas': 'familyPathologies',
+    'surgeryHas': 'surgery',
+    'medicationHas': 'medication',
+    'supplementsHas': 'supplements',
+    'allergiesHas': 'allergies',
+  };
+
+  static const _conditionalDetailKeys = <String>{
+    'pathologies',
+    'familyPathologies',
+    'surgery',
+    'medication',
+    'supplements',
+    'allergies',
+  };
+
+  bool get isComplete {
+    for (final key in labels.keys) {
+      final detailKey = _conditionalDetails[key];
+      if (detailKey != null) {
+        final answer = answers[key]?.trim().toLowerCase();
+        if (answer != 'sim' && answer != 'não') return false;
+        if (answer == 'sim' && (answers[detailKey]?.trim().isEmpty ?? true)) {
+          return false;
+        }
+        continue;
+      }
+      if (_conditionalDetailKeys.contains(key)) {
+        continue;
+      }
+      if (answers[key]?.trim().isEmpty ?? true) return false;
+    }
+    return true;
+  }
 }

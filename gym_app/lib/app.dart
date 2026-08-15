@@ -312,7 +312,11 @@ class PersonalFitApp extends ConsumerWidget {
         return _AlunoShell(
           // O Checkout volta à raiz da aplicação; levar o utilizador
           // diretamente ao Perfil evita que tenha de procurar o pagamento.
-          initialIndex: Uri.base.queryParameters['destino'] == 'perfil' ? 5 : 0,
+          initialIndex: Uri.base.queryParameters['destino'] == 'perfil'
+              ? 5
+              : Uri.base.queryParameters['destino'] == 'chat'
+              ? 4
+              : 0,
         );
       case AuthStatus.unauthenticated:
       case AuthStatus.error:
@@ -767,6 +771,12 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
     if (userId != null && userId.isNotEmpty) {
       _fcmInitialized = true;
       final fcmService = ref.read(fcmServiceProvider);
+      fcmService.onNotificationOpened = (message) {
+        if (!mounted) return;
+        if (message.data['type'] == 'chat') {
+          _selectDestination(4);
+        }
+      };
       fcmService.initialize(userId);
     }
   }
@@ -784,6 +794,12 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
 
   @override
   Widget build(BuildContext context) {
+    final userId = ref.watch(authProvider).user?.uid ?? '';
+    final directChatUnread = ref.watch(alunoUnreadCountProvider(userId)).value ?? 0;
+    final groupChatUnread =
+        ref.watch(alunoGroupUnreadCountProvider(userId)).value ?? 0;
+    final chatUnreadCount = directChatUnread + groupChatUnread;
+    final chatPreview = ref.watch(latestChatPreviewProvider(userId));
     final isWide = MediaQuery.sizeOf(context).width >= 900;
     final navigationDestinations = const [
       NavigationDestination(
@@ -836,6 +852,8 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
                   selectedIndex: _currentIndex,
                   onDestinationSelected: _selectDestination,
                   destinations: navigationDestinations,
+                  chatUnreadCount: chatUnreadCount,
+                  chatPreview: chatPreview,
                 ),
                 Expanded(child: content),
               ],
@@ -847,6 +865,8 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
               selectedIndex: _currentIndex,
               onDestinationSelected: _selectDestination,
               destinations: navigationDestinations,
+              chatUnreadCount: chatUnreadCount,
+              chatPreview: chatPreview,
             ),
     );
   }

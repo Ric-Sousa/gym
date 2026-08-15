@@ -13,6 +13,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../shared/providers/global_providers.dart';
 import '../../../shared/widgets/admin_responsive_dialog.dart';
 import '../../../shared/widgets/admin_design_system.dart';
+import '../../../shared/widgets/group_members_preview.dart';
 import '../../../shared/providers/admin_providers.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/aluno/chat/screens/group_chat_screen.dart';
@@ -243,7 +244,7 @@ class AdminMessagesView extends ConsumerWidget {
             subtitle: 'Acompanha conversas individuais e grupos de alunos.',
             icon: Icons.forum_outlined,
             action: ElevatedButton.icon(
-              onPressed: () => _showCreateGroupDialog(context, ref),
+              onPressed: () => showCreateGroupDialog(context, ref),
               icon: const Icon(Icons.add, size: 16),
               label: const Text('Novo grupo'),
             ),
@@ -362,11 +363,26 @@ class AdminMessagesView extends ConsumerWidget {
                                 color: AdminThemeColors.of(context).limeDim,
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: Icon(
-                                Icons.group,
-                                color: AdminThemeColors.of(context).lime,
-                                size: 18,
-                              ),
+                              child: g.imagemUrl != null && g.imagemUrl!.isNotEmpty
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(10),
+                                      child: Image.network(
+                                        g.imagemUrl!,
+                                        width: 36,
+                                        height: 36,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Icon(
+                                          Icons.group,
+                                          color: AdminThemeColors.of(context).lime,
+                                          size: 18,
+                                        ),
+                                      ),
+                                    )
+                                  : Icon(
+                                      Icons.group,
+                                      color: AdminThemeColors.of(context).lime,
+                                      size: 18,
+                                    ),
                             ),
                             const SizedBox(width: 10),
                             Expanded(
@@ -381,12 +397,12 @@ class AdminMessagesView extends ConsumerWidget {
                                       color: AdminThemeColors.of(context).text,
                                     ),
                                   ),
-                                  Text(
-                                    '${g.membros.length} membros',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 11,
-                                      color: AdminThemeColors.of(context).muted,
-                                    ),
+                                  GroupMembersPreview(
+                                    group: g,
+                                    textColor: AdminThemeColors.of(context).text,
+                                    mutedColor: AdminThemeColors.of(context).muted,
+                                    accentColor: AdminThemeColors.of(context).lime,
+                                    compact: true,
                                   ),
                                 ],
                               ),
@@ -480,7 +496,7 @@ class AdminMessagesView extends ConsumerWidget {
 }
 
 /// Diálogo para criar um novo grupo.
-Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
+Future<void> showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
   final nomeCtrl = TextEditingController();
   // Aguarda os alunos do Firestore — o FutureProvider inline não bloqueava
   List<UserModel> alunos;
@@ -603,11 +619,29 @@ Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
                 ? null
                 : () async {
                     try {
+                      final selectedStudents = alunos.where(
+                        (aluno) => selectedIds.contains(aluno.uid),
+                      );
+                      final adminUser = ref.read(authProvider).user;
+                      final adminPhoto = adminUser?.fotoPerfil;
                       await ref.read(groupRepositoryProvider).createGroup({
                         'nome': nomeCtrl.text.trim(),
                         'membros': selectedIds.toList(),
+                        'membrosNomes': {
+                          for (final aluno in selectedStudents)
+                            aluno.uid: aluno.nome,
+                        },
+                        'membrosFotos': {
+                          for (final aluno in selectedStudents)
+                            if (aluno.fotoPerfil != null &&
+                                aluno.fotoPerfil!.isNotEmpty)
+                              aluno.uid: aluno.fotoPerfil!,
+                        },
                         'criadoPor':
                             FirebaseAuth.instance.currentUser?.uid ?? '',
+                        'criadoPorNome': adminUser?.nome ?? 'Administrador',
+                        if (adminPhoto != null && adminPhoto.isNotEmpty)
+                          'criadoPorFoto': adminPhoto,
                         'createdAt': DateTime.now(),
                       });
                       ref.invalidate(adminGroupsProvider);

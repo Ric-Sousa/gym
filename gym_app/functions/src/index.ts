@@ -1242,30 +1242,40 @@ export const sendChatNotification = functions
     } else {
       const groupDoc = await db.collection('grupos').doc(salaId).get();
       if (!groupDoc.exists) return { ok: true };
-      const members = groupDoc.data()?.membros;
-      if (!Array.isArray(members)) return { ok: true };
-      recipientIds = members.filter((id: unknown): id is string =>
-        typeof id === 'string' && id !== remetenteId,
-      );
+      const groupData = groupDoc.data() ?? {};
+      const members = Array.isArray(groupData.membros)
+        ? groupData.membros
+        : [];
+      const groupAdmin = groupData.criadoPor;
+      recipientIds = [...members, groupAdmin]
+        .filter((id: unknown): id is string =>
+          typeof id === 'string' && id.length > 0 && id !== remetenteId,
+        )
+        .filter((id, index, ids) => ids.indexOf(id) === index);
     }
 
     if (recipientIds.length === 0) return { ok: true };
 
-    const recipientDocs = await Promise.all(
-      recipientIds.map((id) => db.collection('users').doc(id).get()),
+    const link = `${publicAppUrl}/?destino=chat`;
+    await Promise.all(
+      recipientIds.map(async (recipientId) => {
+        // A notificação persistente mantém o aviso disponível mesmo quando o
+        // dispositivo não tem token push ou está offline.
+        await createNotification({
+          userId: recipientId,
+          type: 'chat',
+          title,
+          body: notification.body,
+          action: 'chat',
+          metadata: { salaId, link },
+        });
+        await sendUserPush(recipientId, title, notification.body, {
+          type: 'chat',
+          salaId,
+          link,
+        });
+      }),
     );
-    const sends = recipientDocs
-      .map((doc) => ({ id: doc.id, token: doc.data()?.fcmToken as string | undefined }))
-      .filter((recipient): recipient is { id: string; token: string } =>
-        Boolean(recipient.token),
-      )
-      .map(({ token }) => messaging.send({
-        token,
-        notification,
-        data: { type: 'chat', salaId },
-      }));
-
-    await Promise.all(sends);
     return { ok: true };
   });
 
