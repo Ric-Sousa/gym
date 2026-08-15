@@ -26,6 +26,16 @@ class NutritionRepository {
     }
   }
 
+  /// Stream do plano nutricional para um dia.
+  Stream<NutritionPlanModel?> watchPlan(String userId, String diaSemana) {
+    return _firestoreDataSource.nutritionPlanStream(userId, diaSemana);
+  }
+
+  /// Stream de todos os alimentos locais.
+  Stream<List<FoodModel>> watchAllFoods() {
+    return _firestoreDataSource.watchAllFoods();
+  }
+
   /// Guarda/atualiza plano nutricional.
   Future<void> savePlan(
     String userId,

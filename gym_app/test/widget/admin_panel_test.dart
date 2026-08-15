@@ -37,9 +37,9 @@ void main() {
         overrides: [
           authProvider.overrideWith((ref) => MockAuthNotifier(adminAuthState)),
           fcmServiceProvider.overrideWith((ref) => mockFcm),
-          alunosListProvider.overrideWith((ref) => Future.value(<UserModel>[])),
+          alunosListProvider.overrideWith((ref) => Stream.value(<UserModel>[])),
           adminDashboardStatsProvider.overrideWith(
-            (ref) => Future.value(
+            (ref) => Stream.value(
               const AdminDashboardStats(
                 totalAlunos: 0,
                 activeAlunos: 0,
@@ -53,7 +53,7 @@ void main() {
           ).overrideWith((ref) => Stream.value(<BookingModel>[])),
           adminStudentNamesProvider(
             trainerId,
-          ).overrideWith((ref) => Future.value(<String, String>{})),
+          ).overrideWith((ref) => Stream.value(<String, String>{})),
         ],
         child: const AdminPanelScreen(),
       ),
@@ -73,9 +73,9 @@ void main() {
         overrides: [
           authProvider.overrideWith((ref) => MockAuthNotifier(adminAuthState)),
           fcmServiceProvider.overrideWith((ref) => mockFcm),
-          alunosListProvider.overrideWith((ref) => Future.value(<UserModel>[])),
+          alunosListProvider.overrideWith((ref) => Stream.value(<UserModel>[])),
           adminDashboardStatsProvider.overrideWith(
-            (ref) => Future.value(
+            (ref) => Stream.value(
               const AdminDashboardStats(
                 totalAlunos: 0,
                 activeAlunos: 0,
@@ -89,7 +89,7 @@ void main() {
           ).overrideWith((ref) => Stream.value(<BookingModel>[])),
           adminStudentNamesProvider(
             trainerId,
-          ).overrideWith((ref) => Future.value(<String, String>{})),
+          ).overrideWith((ref) => Stream.value(<String, String>{})),
         ],
         child: const AdminPanelScreen(),
       ),

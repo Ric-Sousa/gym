@@ -32,10 +32,19 @@ class PaymentRepository {
   }) async {
     final fn = FirebaseFunctions.instanceFor(region: 'europe-west1');
     final callable = fn.httpsCallable('createPaymentCheckoutSession');
+    final origin = _currentWebOrigin;
     final result = await callable.call<Map<String, dynamic>>({
       'paymentId': paymentId,
+      if (origin != null) 'returnOrigin': origin,
     });
     return result.data['url'] as String;
+  }
+
+  String? get _currentWebOrigin {
+    final uri = Uri.base;
+    if (uri.scheme != 'http' && uri.scheme != 'https') return null;
+    final port = uri.hasPort ? ':${uri.port}' : '';
+    return '${uri.scheme}://${uri.host}$port';
   }
 
   /// Compatibilidade com sessões Stripe antigas criadas pelo admin.
@@ -103,6 +112,11 @@ class PaymentRepository {
   /// Obtém todos os pagamentos (admin).
   Future<List<PaymentModel>> getAllPayments() {
     return _firestore.getAllPayments();
+  }
+
+  /// Stream de todos os pagamentos para o painel administrativo.
+  Stream<List<PaymentModel>> watchAllPayments() {
+    return _firestore.watchAllPayments();
   }
 
   Future<void> addManualPayment(Map<String, dynamic> data) {

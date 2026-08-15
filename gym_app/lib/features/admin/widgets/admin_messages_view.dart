@@ -258,7 +258,7 @@ class AdminMessagesView extends ConsumerWidget {
                 children: [
                   Text(
                     'GRUPOS DE ALUNOS',
-                    style: GoogleFonts.barlowCondensed(
+                    style: GoogleFonts.montserrat(
                       fontSize: isMobile ? 18 : 24,
                       fontWeight: FontWeight.w900,
                       letterSpacing: -0.01,
@@ -395,7 +395,7 @@ class AdminMessagesView extends ConsumerWidget {
           // ── Conversas Individuais ──
           Text(
             'CONVERSAS',
-            style: GoogleFonts.barlowCondensed(
+            style: GoogleFonts.montserrat(
               fontSize: isMobile ? 18 : 24,
               fontWeight: FontWeight.w900,
               letterSpacing: -0.01,
@@ -684,7 +684,7 @@ class _ConversationTile extends StatelessWidget {
                             aluno.nome.isNotEmpty
                                 ? aluno.nome[0].toUpperCase()
                                 : '?',
-                            style: GoogleFonts.barlowCondensed(
+                            style: GoogleFonts.montserrat(
                               color: AdminThemeColors.of(context).lime,
                               fontWeight: FontWeight.w700,
                               fontSize: 18,

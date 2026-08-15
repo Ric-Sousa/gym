@@ -2,6 +2,7 @@ import '../../core/errors/exceptions.dart';
 import '../../core/errors/failures.dart';
 import '../datasources/firestore_datasource.dart';
 import '../models/workout_plan_model.dart';
+import '../models/workout_log_model.dart';
 
 /// Dados de progressão entre dois treinos consecutivos.
 class ProgressionData {
@@ -41,6 +42,11 @@ class WorkoutRepository {
     } on ServerException catch (e) {
       throw ServerFailure(message: e.message);
     }
+  }
+
+  /// Stream dos planos globais para o painel administrativo.
+  Stream<List<WorkoutPlanModel>> watchGlobalPlans() {
+    return _firestoreDataSource.watchGlobalWorkoutPlans();
   }
 
   /// Elimina um plano global.
@@ -103,6 +109,16 @@ class WorkoutRepository {
     }
   }
 
+  /// Stream de todos os planos atribuídos a um aluno.
+  Stream<List<WorkoutPlanModel>> watchAllPlans(String userId) {
+    return _firestoreDataSource.watchAllWorkoutPlans(userId);
+  }
+
+  /// Stream dos exercícios disponíveis.
+  Stream<List<Map<String, dynamic>>> watchExercises({String? grupoMuscular}) {
+    return _firestoreDataSource.watchExercises(grupoMuscular: grupoMuscular);
+  }
+
   /// Elimina um plano atribuído a um aluno.
   Future<void> deletePlan(String userId, String planId) async {
     try {
@@ -138,63 +154,71 @@ class WorkoutRepository {
     }
   }
 
+  /// Stream da progressão; recalcula quando um treino é criado ou alterado.
+  Stream<List<ProgressionData>> watchProgression(String userId) {
+    return _firestoreDataSource
+        .watchWorkoutLogHistory(userId, limit: 30)
+        .map(_calculateProgression);
+  }
+
   /// Calcula progressão comparando os últimos 2 treinos concluídos.
   /// Retorna lista de [ProgressionData] por exercício.
   Future<List<ProgressionData>> getProgression(String userId) async {
     try {
       final history = await _firestoreDataSource.getWorkoutLogHistory(
         userId,
-        limit: 2,
+        limit: 30,
       );
-
-      final completed = history.where((l) => l.concluido).toList();
-      if (completed.length < 2) return [];
-
-      final atual = completed[0]; // mais recente
-      final anterior = completed[1];
-
-      final progressions = <ProgressionData>[];
-
-      for (final exAtual in atual.exercicios) {
-        final exAnterior = anterior.exercicios
-            .where((e) => e.nome == exAtual.nome)
-            .toList();
-        if (exAnterior.isEmpty) continue;
-
-        final cargaAtual = exAtual.cargaMaxima;
-        final cargaAnterior = exAnterior.first.cargaMaxima;
-        final repsAtual = exAtual.series
-            .where((s) => s.repeticoes != null)
-            .fold<int>(0, (sum, s) => sum + (s.repeticoes ?? 0));
-        final repsAnterior = exAnterior.first.series
-            .where((s) => s.repeticoes != null)
-            .fold<int>(0, (sum, s) => sum + (s.repeticoes ?? 0));
-
-        double? aumentoKg;
-        double? aumentoPercentual;
-        if (cargaAtual != null && cargaAnterior != null) {
-          aumentoKg = cargaAtual - cargaAnterior;
-          aumentoPercentual = cargaAnterior > 0
-              ? ((cargaAtual - cargaAnterior) / cargaAnterior) * 100
-              : null;
-        }
-
-        progressions.add(
-          ProgressionData(
-            exerciseName: exAtual.nome,
-            cargaAnterior: cargaAnterior,
-            cargaAtual: cargaAtual,
-            repsAnteriores: repsAnterior > 0 ? repsAnterior : null,
-            repsAtuais: repsAtual > 0 ? repsAtual : null,
-            aumentoKg: aumentoKg,
-            aumentoPercentual: aumentoPercentual,
-          ),
-        );
-      }
-
-      return progressions;
+      return _calculateProgression(history);
     } on ServerException catch (e) {
       throw ServerFailure(message: e.message);
     }
+  }
+
+  List<ProgressionData> _calculateProgression(List<WorkoutLogModel> history) {
+    final completed = history.where((log) => log.concluido).toList();
+    if (completed.length < 2) return [];
+
+    final atual = completed[0];
+    final anterior = completed[1];
+    final progressions = <ProgressionData>[];
+
+    for (final exAtual in atual.exercicios) {
+      final exAnterior = anterior.exercicios
+          .where((exercise) => exercise.nome == exAtual.nome)
+          .toList();
+      if (exAnterior.isEmpty) continue;
+
+      final cargaAtual = exAtual.cargaMaxima;
+      final cargaAnterior = exAnterior.first.cargaMaxima;
+      final repsAtual = exAtual.series
+          .where((serie) => serie.repeticoes != null)
+          .fold<int>(0, (sum, serie) => sum + (serie.repeticoes ?? 0));
+      final repsAnterior = exAnterior.first.series
+          .where((serie) => serie.repeticoes != null)
+          .fold<int>(0, (sum, serie) => sum + (serie.repeticoes ?? 0));
+
+      double? aumentoKg;
+      double? aumentoPercentual;
+      if (cargaAtual != null && cargaAnterior != null) {
+        aumentoKg = cargaAtual - cargaAnterior;
+        aumentoPercentual = cargaAnterior > 0
+            ? ((cargaAtual - cargaAnterior) / cargaAnterior) * 100
+            : null;
+      }
+
+      progressions.add(
+        ProgressionData(
+          exerciseName: exAtual.nome,
+          cargaAnterior: cargaAnterior,
+          cargaAtual: cargaAtual,
+          repsAnteriores: repsAnterior > 0 ? repsAnterior : null,
+          repsAtuais: repsAtual > 0 ? repsAtual : null,
+          aumentoKg: aumentoKg,
+          aumentoPercentual: aumentoPercentual,
+        ),
+      );
+    }
+    return progressions;
   }
 }

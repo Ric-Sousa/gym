@@ -60,6 +60,27 @@ const stripe = stripeSecret
 const publicAppUrl = 'https://gymbt-4ef87.web.app';
 const recoveryTokenLifetimeMs = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * Keeps the Stripe return on the same origin that started the checkout. This
+ * matters on Flutter Web development servers because Firebase Auth persistence
+ * is scoped to an origin. Never accept an arbitrary origin from the client.
+ */
+function paymentReturnOrigin(value: unknown): string {
+  if (typeof value !== 'string' || value.length === 0) return publicAppUrl;
+  try {
+    const parsed = new URL(value);
+    const isProduction =
+      parsed.origin === 'https://gymbt-4ef87.web.app' ||
+      parsed.origin === 'https://gymbt-4ef87.firebaseapp.com';
+    const isLocal =
+      (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
+      (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1');
+    return isProduction || isLocal ? parsed.origin : publicAppUrl;
+  } catch (_) {
+    return publicAppUrl;
+  }
+}
+
 function hashRecoveryToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
@@ -206,14 +227,18 @@ createStudentApp.post('/', async (req: any, res: any) => {
   try {
     const temporaryPassword = password || (Math.random().toString(36).slice(-10) + 'A1!');
     const userRecord = await auth.createUser({ email, password: temporaryPassword, displayName: nome });
+    // Todo o aluno criado pelo admin começa com um período inicial de um mês.
+    // O cálculo usa meses de calendário: 15/08 -> 15/09, incluindo a
+    // proteção para meses que não têm o mesmo número de dia.
+    const activationPeriod = calculateBillingPeriod(new Date(), 'mensal');
     await db.collection('users').doc(userRecord.uid).set({
       nome, email, role: 'aluno',
       personalId: personalId || null,
       genero: genero || 'feminino',
       pesoAtual: null, altura: null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      isActive,
-      ...(isActive ? {} : { deactivatedAt: admin.firestore.FieldValue.serverTimestamp() }),
+      isActive: true,
+      contractEndsAt: admin.firestore.Timestamp.fromDate(activationPeriod.end),
     });
     res.json({ uid: userRecord.uid, email, created: true, temporaryPassword: password ? undefined : temporaryPassword });
   } catch (e: any) {
@@ -910,6 +935,7 @@ export const createPaymentCheckoutSession = functions.region('europe-west1').htt
 
   const userDoc = await db.collection('users').doc(context.auth.uid).get();
   const user = userDoc.data() ?? {};
+  const returnOrigin = paymentReturnOrigin(data?.returnOrigin);
   const periodStart = asDate(payment.periodoInicio);
   const trialEnd = periodStart && periodStart.getTime() > Date.now() + 60_000
     ? Math.floor(periodStart.getTime() / 1000)
@@ -945,8 +971,8 @@ export const createPaymentCheckoutSession = functions.region('europe-west1').htt
       payment_method_collection: 'always',
       subscription_data: subscriptionData as any,
       metadata: { paymentId, userId: context.auth.uid },
-      success_url: 'https://gymbt-4ef87.web.app/?pagamento=sucesso',
-      cancel_url: 'https://gymbt-4ef87.web.app/?pagamento=cancelado',
+      success_url: `${returnOrigin}/?pagamento=sucesso&destino=perfil`,
+      cancel_url: `${returnOrigin}/?pagamento=cancelado&destino=perfil`,
     });
   } catch (error) {
     throw stripeCheckoutHttpsError(error, 'subscrição');
@@ -1144,8 +1170,8 @@ export const createCheckoutSession = functions.region('europe-west1').https.onCa
       }],
       ...(email ? { customer_email: email } : {}),
       metadata: { paymentId: paymentRef.id, userId },
-      success_url: 'https://gymbt-4ef87.web.app/?pagamento=sucesso',
-      cancel_url: 'https://gymbt-4ef87.web.app/?pagamento=cancelado',
+      success_url: 'https://gymbt-4ef87.web.app/?pagamento=sucesso&destino=perfil',
+      cancel_url: 'https://gymbt-4ef87.web.app/?pagamento=cancelado&destino=perfil',
     });
 
     if (!session.url) {

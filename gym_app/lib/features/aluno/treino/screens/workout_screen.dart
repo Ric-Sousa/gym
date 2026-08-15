@@ -18,9 +18,9 @@ import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/app_notification.dart';
 
 final workoutPlansProvider =
-    FutureProvider.family<List<WorkoutPlanModel>, String>((ref, userId) {
-      return ref.read(workoutRepositoryProvider).getAllPlans(userId);
-    });
+    StreamProvider.family<List<WorkoutPlanModel>, String>((ref, userId) {
+  return ref.read(workoutRepositoryProvider).watchAllPlans(userId);
+});
 
 final todayWorkoutDiaryProvider = StreamProvider.family<DiaryModel?, String>((
   ref,
@@ -30,12 +30,11 @@ final todayWorkoutDiaryProvider = StreamProvider.family<DiaryModel?, String>((
   return ref.read(diaryRepositoryProvider).diaryEntryStream(userId, today);
 });
 
-final todayWorkoutLogProvider = FutureProvider.family<WorkoutLogModel?, String>(
-  (ref, userId) {
-    final today = DateFormat(AppConstants.dateFormat).format(DateTime.now());
-    return ref.read(workoutLogRepositoryProvider).getLog(userId, today);
-  },
-);
+final todayWorkoutLogProvider =
+    StreamProvider.family<WorkoutLogModel?, String>((ref, userId) {
+  final today = DateFormat(AppConstants.dateFormat).format(DateTime.now());
+  return ref.read(workoutLogRepositoryProvider).logStream(userId, today);
+});
 
 /// Ecrã de treino — Execução interativa com registo de séries, timer e vídeos.
 class WorkoutScreen extends ConsumerStatefulWidget {
@@ -346,10 +345,10 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
         expand: false,
         initialChildSize: 0.7,
         builder: (_, scrollController) {
-          return FutureBuilder<List<WorkoutLogModel>>(
-            future: ref
+          return StreamBuilder<List<WorkoutLogModel>>(
+            stream: ref
                 .read(workoutLogRepositoryProvider)
-                .getHistory(userId, limit: 30),
+                .watchHistory(userId, limit: 30),
             builder: (context, snapshot) {
               final logs = (snapshot.data ?? [])
                 ..sort((a, b) => b.data.compareTo(a.data));
@@ -522,7 +521,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
           decoration: BoxDecoration(
             color: AppColors.surfaceHigh,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: AppColors.outline),
+            border: null,
           ),
           child: Row(
             children: [
@@ -603,7 +602,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColors.outline),
+                          border: null,
                         ),
                         child: Row(
                           children: [
@@ -664,7 +663,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                           decoration: BoxDecoration(
                             color: AppColors.surfaceHigh,
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: AppColors.outlineVariant),
+                            border: null,
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -929,7 +928,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: AppColors.outline),
+                          border: null,
                         ),
                         child: Row(
                           children: [
@@ -993,7 +992,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       padding: const EdgeInsets.fromLTRB(10, 10, 12, 12),
       decoration: const BoxDecoration(
         color: AppColors.surfaceHigh,
-        border: Border(bottom: BorderSide(color: AppColors.outline)),
+        border: null,
       ),
       child: Row(
         children: [
@@ -1035,7 +1034,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
             decoration: BoxDecoration(
               color: AppColors.surfaceHighest,
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: AppColors.outlineVariant),
+              border: null,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -1104,7 +1103,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                 decoration: BoxDecoration(
                   color: AppColors.surfaceHighest,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.outlineVariant),
+                  border: null,
                 ),
                 child: Text(
                   workout.foco.isEmpty ? 'TREINO' : workout.foco.toUpperCase(),
@@ -1129,7 +1128,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
         decoration: BoxDecoration(
           color: AppColors.surfaceLow,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.surface),
+          border: null,
         ),
         child: Row(
           children: [
@@ -1250,6 +1249,8 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     return 'Verifica a ligação à internet ou pede ao administrador para confirmar o plano.';
   }
 
+  // Mantido para compatibilidade com layouts antigos de consulta.
+  // ignore: unused_element
   Widget _buildWorkoutPreview(WorkoutDay workout) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
@@ -1273,9 +1274,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
           decoration: BoxDecoration(
             color: AppColors.warning.withValues(alpha: 0.10),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: AppColors.warning.withValues(alpha: 0.25),
-            ),
+            border: null,
           ),
           child: Text(
             'Este é um dia alternativo do plano. A execução e o registo ficam disponíveis no dia agendado.',
@@ -1294,7 +1293,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
             decoration: BoxDecoration(
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.outline),
+              border: null,
             ),
             child: Row(
               children: [
@@ -1388,7 +1387,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       decoration: BoxDecoration(
         color: AppColors.warning.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.warning.withValues(alpha: 0.25)),
+        border: null,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1733,7 +1732,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
         border: Border.all(
           color: allDone
               ? AppColors.success.withValues(alpha: 0.55)
-              : AppColors.outline,
+              : Colors.transparent,
         ),
       ),
       child: Column(
@@ -1799,9 +1798,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                     decoration: BoxDecoration(
                       color: AppColors.info.withValues(alpha: 0.16),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: AppColors.info.withValues(alpha: 0.6),
-                      ),
+                      border: null,
                     ),
                     child: const Icon(
                       Icons.info_outline,
@@ -2018,7 +2015,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                                   border: Border.all(
                                     color: serie.concluida
                                         ? AppColors.success
-                                        : AppColors.outlineVariant,
+                                        : Colors.transparent,
                                   ),
                                 ),
                                 child: Text(
@@ -2086,7 +2083,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                                     border: Border.all(
                                       color: serie.concluida
                                           ? AppColors.success
-                                          : AppColors.outlineVariant,
+                                          : Colors.transparent,
                                       width: 1.5,
                                     ),
                                     boxShadow: serie.concluida
@@ -2157,7 +2154,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                         decoration: BoxDecoration(
                           color: AppColors.surfaceHigh,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.outline),
+                          border: null,
                         ),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2207,7 +2204,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
         border: Border.all(
           color: finished
               ? AppColors.success.withValues(alpha: 0.42)
-              : AppColors.outlineVariant,
+              : Colors.transparent,
         ),
       ),
       child: Column(
@@ -2285,7 +2282,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       decoration: BoxDecoration(
         color: AppColors.surfaceHigh,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
+        border: null,
       ),
       child: Row(
         children: [
@@ -2383,21 +2380,9 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
           isDense: true,
           filled: true,
           fillColor: AppColors.surfaceHigh,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: AppColors.outlineVariant),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: AppColors.outlineVariant),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(
-              color: StudentThemeColors.of(context).primary,
-              width: 1.4,
-            ),
-          ),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
         ),
         onChanged: onChanged,
         onEditingComplete: () {
@@ -2652,10 +2637,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     final allDone = progress >= 1.0;
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceHigh,
-        border: const Border(top: BorderSide(color: AppColors.outline)),
-      ),
+      decoration: const BoxDecoration(color: AppColors.surfaceHigh),
       child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -2784,9 +2766,6 @@ class _InlineExercisePreviewState extends State<_InlineExercisePreview> {
   @override
   Widget build(BuildContext context) {
     final controller = _controller;
-    final borderColor = widget.completed
-        ? AppColors.success.withValues(alpha: 0.7)
-        : AppColors.outlineVariant;
     final ready = controller?.value.isInitialized == true && !_error;
 
     return Material(
@@ -2805,7 +2784,11 @@ class _InlineExercisePreviewState extends State<_InlineExercisePreview> {
                 decoration: BoxDecoration(
                   color: AppColors.surfaceHigh,
                   borderRadius: BorderRadius.circular(9),
-                  border: Border.all(color: borderColor),
+                  border: Border.all(
+                    color: widget.completed
+                        ? AppColors.success.withValues(alpha: 0.7)
+                        : Colors.transparent,
+                  ),
                 ),
                 child: ready
                     ? FittedBox(

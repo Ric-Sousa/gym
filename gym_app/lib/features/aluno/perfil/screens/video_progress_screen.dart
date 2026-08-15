@@ -12,9 +12,9 @@ import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 
 final progressVideosProvider =
-    FutureProvider.family<List<ProgressVideoModel>, String>((ref, userId) {
-      return ref.read(progressVideoRepositoryProvider).getVideos(userId);
-    });
+    StreamProvider.family<List<ProgressVideoModel>, String>((ref, userId) {
+  return ref.read(progressVideoRepositoryProvider).watchVideos(userId);
+});
 
 class VideoProgressScreen extends ConsumerStatefulWidget {
   final String userId;

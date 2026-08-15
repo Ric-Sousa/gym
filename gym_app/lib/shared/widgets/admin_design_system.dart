@@ -6,27 +6,75 @@ import '../../core/config/admin_theme.dart';
 /// Shared visual primitives for the Admin workspace.
 ///
 /// These widgets deliberately use surface contrast, spacing and typography as
-/// the main hierarchy tools. Borders and shadows stay subtle so pages read as
-/// one workspace instead of a collection of unrelated cards.
+/// the main hierarchy tools. They avoid decorative borders and shadows so pages
+/// read as one clean workspace instead of a collection of cards.
 /// Applies the shared workspace controls used by Admin and Aluno.
 ///
 /// Keeping this in one place prevents the two workspaces from drifting apart:
 /// cards, fields, buttons and menus use the same proportions and interaction
 /// states while the existing app colors remain untouched.
 ThemeData buildWorkspaceTheme(ThemeData baseTheme, AdminThemeColors colors) {
+  final textTheme = baseTheme.textTheme.copyWith(
+    titleLarge: GoogleFonts.montserrat(
+      fontSize: 22,
+      fontWeight: FontWeight.w700,
+      height: 1.2,
+      color: colors.text,
+    ),
+    titleMedium: GoogleFonts.montserrat(
+      fontSize: 17,
+      fontWeight: FontWeight.w700,
+      height: 1.25,
+      color: colors.text,
+    ),
+    titleSmall: GoogleFonts.inter(
+      fontSize: 14,
+      fontWeight: FontWeight.w700,
+      height: 1.3,
+      color: colors.text,
+    ),
+    bodyLarge: GoogleFonts.inter(
+      fontSize: 16,
+      height: 1.5,
+      color: colors.text,
+    ),
+    bodyMedium: GoogleFonts.inter(
+      fontSize: 14,
+      height: 1.45,
+      color: colors.text,
+    ),
+    bodySmall: GoogleFonts.inter(
+      fontSize: 13,
+      height: 1.4,
+      color: colors.muted,
+    ),
+    labelLarge: GoogleFonts.inter(
+      fontSize: 14,
+      fontWeight: FontWeight.w700,
+      height: 1.2,
+      color: colors.text,
+    ),
+    labelMedium: GoogleFonts.inter(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+      height: 1.2,
+      color: colors.muted,
+    ),
+  );
   final subtleButtonBackground = baseTheme.brightness == Brightness.light
       ? colors.text.withValues(alpha: 0.68)
       : colors.surface2.withValues(alpha: 0.22);
 
   return baseTheme.copyWith(
     scaffoldBackgroundColor: colors.bg,
+    textTheme: textTheme,
     cardTheme: CardThemeData(
       color: colors.surface,
       elevation: 0,
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         side: BorderSide(color: colors.border.withValues(alpha: 0.55)),
       ),
     ),
@@ -36,17 +84,17 @@ ThemeData buildWorkspaceTheme(ThemeData baseTheme, AdminThemeColors colors) {
       fillColor: colors.surface,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(11),
+        borderRadius: BorderRadius.circular(13),
         borderSide: BorderSide(color: colors.border),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(11),
+        borderRadius: BorderRadius.circular(13),
         borderSide: BorderSide(color: colors.border),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(11),
+        borderRadius: BorderRadius.circular(13),
         borderSide: BorderSide(
-          color: baseTheme.colorScheme.primary,
+          color: colors.border,
           width: 1.3,
         ),
       ),
@@ -107,7 +155,7 @@ ThemeData buildWorkspaceTheme(ThemeData baseTheme, AdminThemeColors colors) {
       elevation: 0,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         side: BorderSide(color: colors.border.withValues(alpha: 0.65)),
       ),
       titleTextStyle: GoogleFonts.montserrat(
@@ -141,8 +189,8 @@ class AdminDesignTokens {
   static const pageBottom = 32.0;
   static const sectionGap = 22.0;
   static const controlHeight = 42.0;
-  static const radius = 16.0;
-  static const smallRadius = 11.0;
+  static const radius = 18.0;
+  static const smallRadius = 12.0;
 }
 
 class AdminPageFrame extends StatelessWidget {
@@ -218,7 +266,7 @@ class AdminPageHeader extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.inter(
                   color: colors.text,
-                  fontSize: 28,
+                  fontSize: 30,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.8,
                 ),
@@ -237,8 +285,8 @@ class AdminPageHeader extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.inter(
                 color: colors.muted,
-                fontSize: 12,
-                height: 1.35,
+                fontSize: 13,
+                height: 1.45,
               ),
             ),
           ],
@@ -273,7 +321,7 @@ class AdminSurface extends StatelessWidget {
   const AdminSurface({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(18),
+    this.padding = const EdgeInsets.all(24),
     this.color,
     this.emphasized = false,
     this.borderRadius = const BorderRadius.all(
@@ -346,7 +394,7 @@ class AdminMetric extends StatelessWidget {
     final colors = AdminThemeColors.of(context);
     final color = accent ?? colors.lime;
     return AdminSurface(
-      padding: const EdgeInsets.fromLTRB(16, 15, 16, 14),
+      padding: const EdgeInsets.fromLTRB(20, 19, 20, 18),
       child: Row(
         children: [
           Icon(icon, size: 18, color: color),
@@ -361,7 +409,7 @@ class AdminMetric extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(
                     color: colors.muted,
-                    fontSize: 9,
+                    fontSize: 10,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.7,
                   ),
@@ -371,7 +419,7 @@ class AdminMetric extends StatelessWidget {
                   value,
                   style: GoogleFonts.montserrat(
                     color: colors.text,
-                    fontSize: 21,
+                    fontSize: 22,
                     fontWeight: FontWeight.w800,
                     height: 1,
                   ),
@@ -380,7 +428,7 @@ class AdminMetric extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     detail!,
-                    style: GoogleFonts.inter(fontSize: 10, color: colors.muted),
+                    style: GoogleFonts.inter(                fontSize: 12, color: colors.muted),
                   ),
                 ],
               ],
@@ -417,7 +465,7 @@ class AdminSectionHeading extends StatelessWidget {
                 title,
                 style: GoogleFonts.inter(
                   color: colors.text,
-                  fontSize: 15,
+                  fontSize: 16,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -425,7 +473,7 @@ class AdminSectionHeading extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   subtitle!,
-                  style: GoogleFonts.inter(fontSize: 11, color: colors.muted),
+                  style: GoogleFonts.inter(                fontSize: 12, color: colors.muted),
                 ),
               ],
             ],

@@ -12,7 +12,6 @@ import '../../../../core/config/student_theme.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../data/models/message_model.dart';
 import '../../../../data/models/group_model.dart';
-import '../../../../data/repositories/group_repository.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/app_notification.dart';
@@ -34,28 +33,9 @@ final chatMessagesProvider = StreamProvider.family<List<MessageModel>, String>((
 
 /// Provider estável dos grupos do aluno. Não criar providers dentro de build:
 /// cada rebuild recriava a consulta e podia entrar num ciclo de listeners.
-Future<List<GroupModel>> _loadStudentGroups(
-  GroupRepository repository,
-  String userId,
-) async {
-  if (userId.isEmpty) return const <GroupModel>[];
-
-  try {
-    // O timeout evita que a aba fique presa no loading quando a ligação ao
-    // Firestore está indisponível. Nesse caso a UI apresenta o estado vazio.
-    return await repository
-        .getMyGroups(userId)
-        .timeout(const Duration(seconds: 3));
-  } catch (_) {
-    return const <GroupModel>[];
-  }
-}
-
-final alunoGroupsProvider = FutureProvider.family<List<GroupModel>, String>((
-  ref,
-  userId,
-) {
-  return _loadStudentGroups(ref.read(groupRepositoryProvider), userId);
+final alunoGroupsProvider =
+    StreamProvider.family<List<GroupModel>, String>((ref, userId) {
+  return ref.read(groupRepositoryProvider).watchMyGroups(userId);
 });
 
 /// Ecrã de chat — Kinetic Dark.

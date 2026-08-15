@@ -3,7 +3,7 @@ import 'app_colors.dart';
 
 /// Theme extension que expõe as cores do admin via `Theme.of(context)`.
 /// Regista-se no `ThemeData.extensions` para dark e light.
-/// Agora usa o mesmo tema Kinetic Dark (rosa) que a app do aluno.
+/// Mantém a estrutura visual do admin sem bordas nem sombras decorativas.
 class AdminThemeColors extends ThemeExtension<AdminThemeColors> {
   final Color bg;
   final Color surface;
@@ -39,12 +39,12 @@ class AdminThemeColors extends ThemeExtension<AdminThemeColors> {
     required this.shadowElevated,
   });
 
-  /// Paleta Kinetic Dark (rosa) — igual ao tema do aluno.
+  /// Paleta escura do admin, sem bordas nem sombras decorativas.
   static final dark = AdminThemeColors(
     bg: AppColors.background,
     surface: AppColors.surfaceHigh,
     surface2: AppColors.surfaceHighest,
-    border: AppColors.outline,
+    border: Colors.transparent,
     lime: AppColors.primary,
     limeDim: AppColors.primary.withValues(alpha: 0.12),
     text: AppColors.onSurface,
@@ -54,8 +54,8 @@ class AdminThemeColors extends ThemeExtension<AdminThemeColors> {
     orange: AppColors.calories,
     purple: AppColors.protein,
     green: AppColors.success,
-    shadow: AppColors.primary.withValues(alpha: 0.08),
-    shadowElevated: AppColors.primary.withValues(alpha: 0.15),
+    shadow: Colors.transparent,
+    shadowElevated: Colors.transparent,
   );
 
   /// Paleta clara baseada nos valores admin já existentes.
@@ -63,7 +63,7 @@ class AdminThemeColors extends ThemeExtension<AdminThemeColors> {
     bg: AppColors.adminLightBg,
     surface: AppColors.adminLightSurface,
     surface2: AppColors.adminLightSurface2,
-    border: AppColors.adminLightBorder,
+    border: Colors.transparent,
     lime: AppColors.adminLightLime,
     limeDim: AppColors.adminLightLimeDim,
     text: AppColors.adminLightText,
@@ -73,8 +73,8 @@ class AdminThemeColors extends ThemeExtension<AdminThemeColors> {
     orange: AppColors.adminLightOrange,
     purple: AppColors.adminLightPurple,
     green: AppColors.adminLightGreen,
-    shadow: AppColors.adminLightShadow,
-    shadowElevated: AppColors.adminLightShadowElevated,
+    shadow: Colors.transparent,
+    shadowElevated: Colors.transparent,
   );
 
   /// Shortcut: `AdminThemeColors.of(context)`.

@@ -591,6 +591,10 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
+                isDense: true,
+                menuMaxHeight: 320,
+                elevation: 2,
+                borderRadius: BorderRadius.circular(14),
                 initialValue: horario,
                 decoration: const InputDecoration(labelText: 'Horário'),
                 items:

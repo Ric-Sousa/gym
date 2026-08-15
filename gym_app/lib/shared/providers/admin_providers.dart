@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod/legacy.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import '../../data/models/progress_model.dart';
 import '../../data/models/payment_model.dart';
 import '../../data/models/booking_model.dart';
 import '../../data/models/group_model.dart';
+import '../../data/models/questionnaire_response_model.dart';
 import '../../core/config/app_constants.dart';
 import '../../core/config/admin_theme.dart';
 import '../../data/repositories/workout_repository.dart';
@@ -32,29 +34,35 @@ final adminColorsProvider = Provider<AdminThemeColors>((ref) {
 
 /// Provider do plano nutricional do aluno (admin view).
 final adminNutritionPlanProvider =
-    FutureProvider.family<NutritionPlanModel?, (String, String)>((ref, params) {
+    StreamProvider.family<NutritionPlanModel?, (String, String)>((ref, params) {
       final (userId, diaSemana) = params;
-      return ref.read(nutritionRepositoryProvider).getPlan(userId, diaSemana);
+      return ref.read(nutritionRepositoryProvider).watchPlan(userId, diaSemana);
     });
 
 /// Provider do plano de treino do aluno (admin view).
 final adminWorkoutPlansProvider =
-    FutureProvider.family<List<WorkoutPlanModel>, String>((ref, userId) {
-      return ref.read(workoutRepositoryProvider).getAllPlans(userId);
+    StreamProvider.family<List<WorkoutPlanModel>, String>((ref, userId) {
+      return ref.read(workoutRepositoryProvider).watchAllPlans(userId);
+    });
+
+/// Respostas da ficha inicial do aluno (admin view).
+final adminQuestionnaireProvider =
+    StreamProvider.family<QuestionnaireResponse?, String>((ref, userId) {
+      return ref.read(userRepositoryProvider).questionnaireStream(userId);
     });
 
 /// Provider de progresso (admin view).
 final adminProgressProvider =
-    FutureProvider.family<List<ProgressModel>, String>((ref, userId) {
-      return ref.read(progressRepositoryProvider).getHistory(userId);
+    StreamProvider.family<List<ProgressModel>, String>((ref, userId) {
+      return ref.read(progressRepositoryProvider).watchHistory(userId);
     });
 
 /// Provider de logs de treino para gráfico de progressão de cargas (admin).
 final adminWorkoutLogsProvider =
-    FutureProvider.family<List<WorkoutLogModel>, String>((ref, userId) {
+    StreamProvider.family<List<WorkoutLogModel>, String>((ref, userId) {
       return ref
           .read(workoutLogRepositoryProvider)
-          .getHistory(userId, limit: 30);
+          .watchHistory(userId, limit: 30);
     });
 
 // ─── Dashboard Analytics ──────────────────────────────────────────
@@ -74,97 +82,147 @@ class AdminDashboardStats {
   });
 }
 
-final adminDashboardStatsProvider = FutureProvider<AdminDashboardStats>((
-  ref,
-) async {
+final adminDashboardStatsProvider = StreamProvider<AdminDashboardStats>((ref) {
   final firestore = FirebaseFirestore.instance;
-  final now = DateTime.now();
-  final startOfMonth = DateTime(now.year, now.month, 1);
+  final controller = StreamController<AdminDashboardStats>();
+  final diarySubscriptions =
+      <String, StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>{};
+  final diaryCounts = <String, (int total, int month)>{};
+  var alunoSnapshot = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
 
-  // Todos os alunos
-  final alunosSnap = await firestore
-      .collection(AppConstants.usersCollection)
-      .where('role', isEqualTo: AppConstants.roleAluno)
-      .get();
+  DateTime? asDate(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return value == null ? null : DateTime.tryParse(value.toString());
+  }
 
-  final totalAlunos = alunosSnap.docs.length;
-  int activeAlunos = 0;
-  int sessoesTotal = 0;
-  int sessoesMes = 0;
-
-  for (final doc in alunosSnap.docs) {
-    final data = doc.data();
-    final ultimaAtividade = data['ultimaAtividade'] as Timestamp?;
-    if (ultimaAtividade != null &&
-        now.difference(ultimaAtividade.toDate()).inDays < 30) {
-      activeAlunos++;
-    }
-
-    // Contar sessões (treinos concluídos) do diário de cada aluno
-    final diarySnap = await firestore
-        .collection(AppConstants.usersCollection)
-        .doc(doc.id)
-        .collection(AppConstants.diarySubcollection)
-        .where('treinoConcluido', isEqualTo: true)
-        .get();
-
-    for (final diary in diarySnap.docs) {
-      final diaryData = diary.data();
-      final completedAt = diaryData['treinoData'] != null
-          ? diaryData['treinoData']['completedAt']
-          : null;
-      sessoesTotal++;
-
-      if (completedAt != null) {
-        final date = DateTime.tryParse(completedAt.toString());
-        if (date != null && date.isAfter(startOfMonth)) {
-          sessoesMes++;
-        }
+  void emit() {
+    final now = DateTime.now();
+    var active = 0;
+    for (final doc in alunoSnapshot) {
+      final lastActivity = asDate(doc.data()['ultimaAtividade']);
+      if (lastActivity != null && now.difference(lastActivity).inDays < 30) {
+        active++;
       }
+    }
+    final totalSessions = diaryCounts.values.fold<int>(
+      0,
+      (total, entry) => total + entry.$1,
+    );
+    final monthSessions = diaryCounts.values.fold<int>(
+      0,
+      (total, entry) => total + entry.$2,
+    );
+    if (!controller.isClosed) {
+      controller.add(AdminDashboardStats(
+        totalAlunos: alunoSnapshot.length,
+        activeAlunos: active,
+        sessoesMes: monthSessions,
+        sessoesTotal: totalSessions,
+      ));
     }
   }
 
-  return AdminDashboardStats(
-    totalAlunos: totalAlunos,
-    activeAlunos: activeAlunos,
-    sessoesMes: sessoesMes,
-    sessoesTotal: sessoesTotal,
-  );
+  void watchDiary(String userId) {
+    if (diarySubscriptions.containsKey(userId)) return;
+    diarySubscriptions[userId] = firestore
+        .collection(AppConstants.usersCollection)
+        .doc(userId)
+        .collection(AppConstants.diarySubcollection)
+        .snapshots()
+        .listen((snapshot) {
+          var total = 0;
+          var month = 0;
+          final startOfMonth = DateTime(DateTime.now().year, DateTime.now().month, 1);
+          for (final doc in snapshot.docs) {
+            final data = doc.data();
+            if (data['treinoConcluido'] != true) continue;
+            total++;
+            final treinoData = data['treinoData'];
+            final completedAt = treinoData is Map
+                ? asDate(treinoData['completedAt'])
+                : null;
+            if (completedAt != null && completedAt.isAfter(startOfMonth)) {
+              month++;
+            }
+          }
+          diaryCounts[userId] = (total, month);
+          emit();
+        }, onError: (_) {
+          diaryCounts[userId] = (0, 0);
+          emit();
+        });
+  }
+
+  final usersSubscription = firestore
+      .collection(AppConstants.usersCollection)
+      .where('role', isEqualTo: AppConstants.roleAluno)
+      .snapshots()
+      .listen((snapshot) {
+        alunoSnapshot = snapshot.docs;
+        final ids = alunoSnapshot.map((doc) => doc.id).toSet();
+        for (final id in diarySubscriptions.keys.toList()) {
+          if (!ids.contains(id)) {
+            diarySubscriptions.remove(id)?.cancel();
+            diaryCounts.remove(id);
+          }
+        }
+        for (final id in ids) {
+          watchDiary(id);
+        }
+        emit();
+      });
+
+  ref.onDispose(() {
+    usersSubscription.cancel();
+    for (final subscription in diarySubscriptions.values) {
+      subscription.cancel();
+    }
+    controller.close();
+  });
+  return controller.stream;
 });
 
 // ─── Exercises ────────────────────────────────────────────────────
 
-final adminExercisesProvider = FutureProvider<List<Map<String, dynamic>>>((
-  ref,
-) {
-  return ref.read(workoutRepositoryProvider).getExercises();
+final adminExercisesProvider =
+    StreamProvider<List<Map<String, dynamic>>>((ref) {
+  return ref.read(workoutRepositoryProvider).watchExercises();
 });
 
 // ─── Foods ────────────────────────────────────────────────────────
 
-final adminFoodsProvider = FutureProvider<List<FoodModel>>((ref) {
-  return ref.read(nutritionRepositoryProvider).getAllFoods();
+final adminFoodsProvider = StreamProvider<List<FoodModel>>((ref) {
+  return ref.read(nutritionRepositoryProvider).watchAllFoods();
 });
 
-final adminFoodsSearchProvider = FutureProvider.family<List<FoodModel>, String>(
-  (ref, query) {
-    if (query.isEmpty)
-      return ref.read(nutritionRepositoryProvider).getAllFoods();
-    return ref.read(nutritionRepositoryProvider).searchFoods(query);
-  },
-);
+final adminFoodsSearchProvider =
+    StreamProvider.family<List<FoodModel>, String>((ref, query) {
+  final foods = ref.watch(adminFoodsProvider);
+  return foods.when(
+    data: (items) {
+      if (query.trim().isEmpty) return Stream.value(items);
+      final lower = query.trim().toLowerCase();
+      return Stream.value(
+        items.where((food) => food.nome.toLowerCase().contains(lower)).toList(),
+      );
+    },
+    loading: () => const Stream.empty(),
+    error: (error, stack) => Stream.error(error, stack),
+  );
+});
 
 // ─── Payments ─────────────────────────────────────────────────────
 
 /// Provider de todos os pagamentos (admin).
-final adminAllPaymentsProvider = FutureProvider<List<PaymentModel>>((ref) {
-  return ref.read(paymentRepositoryProvider).getAllPayments();
+final adminAllPaymentsProvider = StreamProvider<List<PaymentModel>>((ref) {
+  return ref.read(paymentRepositoryProvider).watchAllPayments();
 });
 
 /// Provider de pagamentos de um aluno específico (admin).
 final adminUserPaymentsProvider =
-    FutureProvider.family<List<PaymentModel>, String>((ref, userId) {
-      return ref.read(paymentRepositoryProvider).getPayments(userId);
+    StreamProvider.family<List<PaymentModel>, String>((ref, userId) {
+      return ref.read(paymentRepositoryProvider).watchPayments(userId);
     });
 
 /// Provider de agenda do trainer (admin) — Stream para atualizações em tempo real.
@@ -178,23 +236,22 @@ final adminTrainerBookingsProvider =
 
 /// Provider de progressão de cargas para clientes online.
 final onlineProgressionProvider =
-    FutureProvider.family<List<ProgressionData>, String>((ref, userId) {
-      return ref.read(workoutRepositoryProvider).getProgression(userId);
-    });
+    StreamProvider.family<List<ProgressionData>, String>((ref, userId) {
+  return ref.read(workoutRepositoryProvider).watchProgression(userId);
+});
 
 /// Provider de todos os grupos (admin).
-final adminGroupsProvider = FutureProvider<List<GroupModel>>((ref) {
-  return ref.read(groupRepositoryProvider).getAllGroups();
+final adminGroupsProvider = StreamProvider<List<GroupModel>>((ref) {
+  return ref.read(groupRepositoryProvider).watchAllGroups();
 });
 
 /// Provider de nomes de alunos para a agenda (batch fetch).
 final adminStudentNamesProvider =
-    FutureProvider.family<Map<String, String>, String>((ref, trainerId) async {
-      if (trainerId.isEmpty) return {};
-      // Lê os bookings atuais (StreamProvider) — se estiver em loading/error, retorna vazio
-      final bookingsAsync = ref.read(adminTrainerBookingsProvider(trainerId));
-      final bookings = bookingsAsync.asData?.value ?? [];
-      final uids = bookings.map((b) => b.studentId).toSet().toList();
-      if (uids.isEmpty) return {};
-      return ref.read(userRepositoryProvider).getUserNames(uids);
-    });
+    StreamProvider.family<Map<String, String>, String>((ref, trainerId) {
+  if (trainerId.isEmpty) return Stream.value({});
+  final bookingsAsync = ref.watch(adminTrainerBookingsProvider(trainerId));
+  final bookings = bookingsAsync.asData?.value ?? const <BookingModel>[];
+  final uids = bookings.map((booking) => booking.studentId).toSet().toList();
+  if (uids.isEmpty) return Stream.value({});
+  return Stream.fromFuture(ref.read(userRepositoryProvider).getUserNames(uids));
+});

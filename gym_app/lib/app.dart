@@ -8,6 +8,7 @@ import 'core/config/student_theme.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/privacy_policy_screen.dart';
+import 'features/auth/screens/questionnaire_screen.dart';
 import 'features/auth/screens/payment_recovery_screen.dart';
 import 'features/aluno/home/screens/aluno_home_screen.dart';
 import 'features/aluno/nutricao/screens/nutrition_screen.dart';
@@ -22,6 +23,7 @@ import 'shared/widgets/sound_preference_sync.dart';
 import 'shared/widgets/app_page_frame.dart';
 import 'shared/widgets/app_design_system.dart';
 import 'shared/widgets/admin_design_system.dart';
+import 'shared/widgets/app_notification.dart';
 
 class _FadePageTransitionsBuilder extends PageTransitionsBuilder {
   const _FadePageTransitionsBuilder();
@@ -100,7 +102,7 @@ class PersonalFitApp extends ConsumerWidget {
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.adminLightBorder),
+          side: BorderSide.none,
         ),
         margin: const EdgeInsets.only(bottom: 16),
       ),
@@ -200,7 +202,7 @@ class PersonalFitApp extends ConsumerWidget {
         insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: AppColors.adminLightBorder),
+          side: BorderSide.none,
         ),
         titleTextStyle: GoogleFonts.montserrat(
           fontSize: 20,
@@ -243,10 +245,6 @@ class PersonalFitApp extends ConsumerWidget {
         key: ValueKey(genero ?? 'default'),
         title: AppStrings.appName,
         debugShowCheckedModeBanner: false,
-        builder: (context, child) => _PaymentReturnNotice(
-          status: Uri.base.queryParameters['pagamento'],
-          child: child ?? const SizedBox.shrink(),
-        ),
         theme: workspaceLightTheme,
         darkTheme: workspaceDarkTheme,
         themeMode: adminThemeMode,
@@ -308,7 +306,14 @@ class PersonalFitApp extends ConsumerWidget {
         if (authState.needsPrivacyPolicy) {
           return PrivacyPolicyScreen(user: authState.user!);
         }
-        return const _AlunoShell();
+        if (authState.needsQuestionnaire) {
+          return QuestionnaireScreen(user: authState.user!);
+        }
+        return _AlunoShell(
+          // O Checkout volta à raiz da aplicação; levar o utilizador
+          // diretamente ao Perfil evita que tenha de procurar o pagamento.
+          initialIndex: Uri.base.queryParameters['destino'] == 'perfil' ? 5 : 0,
+        );
       case AuthStatus.unauthenticated:
       case AuthStatus.error:
         return const LoginScreen();
@@ -455,7 +460,7 @@ class PersonalFitApp extends ConsumerWidget {
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppColors.outline, width: 1),
+          side: BorderSide.none,
         ),
         margin: const EdgeInsets.only(bottom: 16),
       ),
@@ -699,102 +704,60 @@ class PersonalFitApp extends ConsumerWidget {
   }
 }
 
-class _PaymentReturnNotice extends StatefulWidget {
-  final String? status;
-  final Widget child;
-
-  const _PaymentReturnNotice({required this.status, required this.child});
-
-  @override
-  State<_PaymentReturnNotice> createState() => _PaymentReturnNoticeState();
-}
-
-class _PaymentReturnNoticeState extends State<_PaymentReturnNotice> {
-  String? _shownStatus;
-
-  @override
-  void initState() {
-    super.initState();
-    _scheduleNotice();
-  }
-
-  @override
-  void didUpdateWidget(covariant _PaymentReturnNotice oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.status != widget.status) _scheduleNotice();
-  }
-
-  void _scheduleNotice() {
-    final status = widget.status;
-    if ((status != 'sucesso' && status != 'cancelado') ||
-        status == _shownStatus) {
-      return;
-    }
-    _shownStatus = status;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final succeeded = status == 'sucesso';
-      showDialog<void>(
-        context: context,
-        barrierDismissible: true,
-        builder: (dialogContext) => AlertDialog(
-          icon: Icon(
-            succeeded ? Icons.check_circle_rounded : Icons.info_outline,
-            color: succeeded ? AppColors.success : AppColors.warning,
-            size: 48,
-          ),
-          title: Text(
-            succeeded
-                ? 'Pagamento efetuado com sucesso'
-                : 'Pagamento cancelado',
-            textAlign: TextAlign.center,
-          ),
-          content: Text(
-            succeeded
-                ? 'Recebemos o teu pagamento. O teu acesso será atualizado automaticamente.'
-                : 'O pagamento não foi concluído. Podes tentar novamente quando quiseres.',
-            textAlign: TextAlign.center,
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Continuar'),
-            ),
-          ],
-        ),
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) => widget.child;
-}
-
 /// Shell para navegação do aluno com BottomNavigationBar.
 class _AlunoShell extends ConsumerStatefulWidget {
-  const _AlunoShell();
+  final int initialIndex;
+
+  const _AlunoShell({this.initialIndex = 0});
 
   @override
   ConsumerState<_AlunoShell> createState() => _AlunoShellState();
 }
 
 class _AlunoShellState extends ConsumerState<_AlunoShell> {
-  int _currentIndex = 0;
+  late int _currentIndex;
+  late final List<Widget> _screens;
   bool _fcmInitialized = false;
-
-  final _screens = const [
-    AlunoHomeScreen(),
-    NutritionScreen(),
-    WorkoutScreen(),
-    CalendarScreen(),
-    ChatScreen(trackChatPresence: false),
-    ProfileScreen(),
-  ];
+  bool _paymentReturnNoticeShown = false;
 
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialIndex;
+    _screens = [
+      AlunoHomeScreen(onNavigate: _selectDestination),
+      const NutritionScreen(),
+      const WorkoutScreen(),
+      const CalendarScreen(),
+      const ChatScreen(trackChatPresence: false),
+      const ProfileScreen(),
+    ];
     _initFCMIfNeeded();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _showPaymentReturnNotice(),
+    );
+  }
+
+  void _showPaymentReturnNotice() {
+    if (!mounted || _paymentReturnNoticeShown) return;
+    final status = Uri.base.queryParameters['pagamento'];
+    if (status != 'sucesso' &&
+        status != 'cancelado' &&
+        status != 'falhou' &&
+        status != 'failed') {
+      return;
+    }
+
+    _paymentReturnNoticeShown = true;
+    final succeeded = status == 'sucesso';
+    showAppNotification(
+      context,
+      succeeded
+          ? 'Pagamento efetuado com sucesso.'
+          : 'O pagamento falhou ou foi cancelado.',
+      type: succeeded ? NotificationType.success : NotificationType.error,
+      duration: const Duration(seconds: 5),
+    );
   }
 
   void _initFCMIfNeeded() {
@@ -806,6 +769,17 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
       final fcmService = ref.read(fcmServiceProvider);
       fcmService.initialize(userId);
     }
+  }
+
+  void _selectDestination(int index) {
+    if (index < 0 || index >= _screens.length || !mounted) return;
+    setState(() => _currentIndex = index);
+    final inChat = index == 4;
+    Future.microtask(() {
+      if (mounted) {
+        ref.read(isAlunoInChatProvider.notifier).state = inChat;
+      }
+    });
   }
 
   @override
@@ -844,18 +818,6 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
       ),
     ];
 
-    void selectDestination(int index) {
-      setState(() => _currentIndex = index);
-      // O estado do chat tem de acompanhar a aba visível, e não apenas o
-      // ciclo de vida do widget.
-      final inChat = index == 4;
-      Future.microtask(() {
-        if (mounted) {
-          ref.read(isAlunoInChatProvider.notifier).state = inChat;
-        }
-      });
-    }
-
     // Monta apenas a aba atual. O IndexedStack mantinha todos os ecrãs
     // vivos ao mesmo tempo e cada um abria listeners Firestore (diário,
     // agenda, chat, perfil e pagamentos), mesmo quando a aba não estava
@@ -872,7 +834,7 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
               children: [
                 StudentNavigationRail(
                   selectedIndex: _currentIndex,
-                  onDestinationSelected: selectDestination,
+                  onDestinationSelected: _selectDestination,
                   destinations: navigationDestinations,
                 ),
                 Expanded(child: content),
@@ -883,7 +845,7 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
           ? null
           : StudentFloatingDock(
               selectedIndex: _currentIndex,
-              onDestinationSelected: selectDestination,
+              onDestinationSelected: _selectDestination,
               destinations: navigationDestinations,
             ),
     );

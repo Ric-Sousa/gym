@@ -14,6 +14,11 @@ class GroupRepository {
 
   Future<List<GroupModel>> getAllGroups() => _firestore.getAllGroups();
 
+  Stream<List<GroupModel>> watchMyGroups(String userId) =>
+      _firestore.watchMyGroups(userId);
+
+  Stream<List<GroupModel>> watchAllGroups() => _firestore.watchAllGroups();
+
   Future<String> createGroup(Map<String, dynamic> data) =>
       _firestore.createGroup(data);
 

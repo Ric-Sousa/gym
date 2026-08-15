@@ -9,8 +9,8 @@ class AppDesignTokens {
 
   // Same proportions used by the Admin workspace.
   static const radiusSmall = 11.0;
-  static const radiusMedium = 16.0;
-  static const radiusLarge = 24.0;
+  static const radiusMedium = 18.0;
+  static const radiusLarge = 26.0;
   static const pageGap = 20.0;
   static const sectionGap = 22.0;
 }
@@ -28,7 +28,7 @@ class AppSurface extends StatelessWidget {
   const AppSurface({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(20),
+    this.padding = const EdgeInsets.all(24),
     this.margin,
     this.color,
     this.borderRadius = const BorderRadius.all(
@@ -229,7 +229,7 @@ class AppMetricTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = accent ?? Theme.of(context).colorScheme.primary;
     return AppSurface(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(22),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -248,7 +248,7 @@ class AppMetricTile extends StatelessWidget {
           Text(
             value,
             style: GoogleFonts.montserrat(
-              fontSize: 24,
+              fontSize: 25,
               fontWeight: FontWeight.w800,
               color: Theme.of(context).colorScheme.onSurface,
             ),

@@ -53,12 +53,41 @@ service cloud.firestore {
         ]) &&
         request.resource.data.get('privacyPolicyVersion', '') == 'privacy-2026-08-draft' &&
         request.resource.data.get('privacyPolicyAcceptedAt', request.time) <= request.time
+      ) || (
+        isActiveOwner(uid) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'questionnaireCompletedAt', 'questionnaireVersion'
+        ]) &&
+        request.resource.data.get('questionnaireVersion', '') == 'questionnaire-2026-08' &&
+        request.resource.data.get('questionnaireCompletedAt', request.time) <= request.time
       );
       allow create: if isAdmin();
 
       // Notas internas nunca são visíveis ao aluno.
       match /adminData/{docId} {
         allow read, write: if isAdmin();
+      }
+
+      // ── INITIAL QUESTIONNAIRE ────────────────────
+      // A ficha contém informação de saúde e só pode ser lida pelo aluno
+      // ou por um administrador. O aluno só pode preencher a resposta fixa.
+      match /questionario/{docId} {
+        allow read: if isAdmin() || isOwner(uid);
+        allow create, update: if isAdmin() || (
+          isActiveOwner(uid) &&
+          docId == 'resposta' &&
+          request.resource.data.get('version', '') == 'questionnaire-2026-08' &&
+          request.resource.data.keys().hasOnly([
+            'version', 'completedAt', 'answers'
+          ]) &&
+          request.resource.data.get('answers', {}).keys().hasOnly([
+            'birthDate', 'profession', 'activity', 'sedentary', 'meals',
+            'water', 'sleep', 'pathologies', 'familyPathologies', 'surgery',
+            'medication', 'allergies', 'dislikedFoods', 'preferredFoods',
+            'outsideMeals', 'objective'
+          ])
+        );
+        allow delete: if false;
       }
 
       // ── DIARY subcollection ──────────────────────

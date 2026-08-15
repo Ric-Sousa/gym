@@ -9,6 +9,7 @@ import '../../../../core/config/student_theme.dart';
 import '../../../../core/config/app_constants.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../core/services/sound_service.dart';
+import '../../../../data/models/app_notification_model.dart';
 import '../../../../data/models/diary_model.dart';
 import '../../../../data/models/workout_plan_model.dart';
 import '../../../../data/models/nutrition_plan_model.dart';
@@ -237,37 +238,29 @@ final alunoGroupUnreadCountProvider = StreamProvider.family<int, String>((
 });
 
 /// Provider do plano de treino de hoje (se existir).
-final todayWorkoutPlanProvider = FutureProvider.family<WorkoutDay?, String>((
-  ref,
-  userId,
-) async {
-  final workoutRepo = ref.watch(workoutRepositoryProvider);
-  final plans = await workoutRepo.getAllPlans(userId);
-  if (plans.isEmpty) return null;
-
+final todayWorkoutPlanProvider =
+    StreamProvider.family<WorkoutDay?, String>((ref, userId) {
   final weekday = DateTime.now().weekday - 1;
   final diaSemana = AppStrings.daysOfWeek[weekday];
-
-  // Procura um treino para hoje em qualquer plano
-  for (final plan in plans) {
-    final workout = plan.getWorkoutForDay(diaSemana);
-    if (workout != null && workout.exercicios.isNotEmpty) {
-      return workout;
+  return ref.read(workoutRepositoryProvider).watchAllPlans(userId).map((plans) {
+    for (final plan in plans) {
+      final workout = plan.getWorkoutForDay(diaSemana);
+      if (workout != null && workout.exercicios.isNotEmpty) return workout;
     }
-  }
-  return null;
+    return null;
+  });
 });
 
 /// Provider do histórico semanal (últimos 7 dias).
-final weeklyHistoryProvider = FutureProvider.family<List<DiaryModel>, String>((
-  ref,
-  userId,
-) async {
-  final diaryRepo = ref.watch(diaryRepositoryProvider);
-  final history = await diaryRepo.getHistory(userId, limit: 7);
-  // Ordena mais antigo primeiro
-  history.sort((a, b) => a.data.compareTo(b.data));
-  return history;
+final weeklyHistoryProvider =
+    StreamProvider.family<List<DiaryModel>, String>((ref, userId) {
+  return ref.read(diaryRepositoryProvider).watchHistory(userId, limit: 7).map(
+    (history) {
+      final sorted = [...history];
+      sorted.sort((a, b) => a.data.compareTo(b.data));
+      return sorted;
+    },
+  );
 });
 
 final todayDateProvider = Provider<String>((ref) {
@@ -276,10 +269,10 @@ final todayDateProvider = Provider<String>((ref) {
 
 /// Meta de água do plano nutricional do dia atual.
 final todayNutritionPlanProvider =
-    FutureProvider.family<NutritionPlanModel?, String>((ref, userId) async {
-      final diaSemana = AppStrings.daysOfWeek[DateTime.now().weekday - 1];
-      return ref.read(nutritionRepositoryProvider).getPlan(userId, diaSemana);
-    });
+    StreamProvider.family<NutritionPlanModel?, String>((ref, userId) {
+  final diaSemana = AppStrings.daysOfWeek[DateTime.now().weekday - 1];
+  return ref.read(nutritionRepositoryProvider).watchPlan(userId, diaSemana);
+});
 
 final todayDiaryProvider = StreamProvider.family<DiaryModel?, String>((
   ref,
@@ -292,10 +285,9 @@ final todayDiaryProvider = StreamProvider.family<DiaryModel?, String>((
 
 /// Provider de todos os planos de treino (para cruzar com o grafico semanal).
 final weeklyWorkoutPlansProvider =
-    FutureProvider.family<List<WorkoutPlanModel>, String>((ref, userId) async {
-      final workoutRepo = ref.watch(workoutRepositoryProvider);
-      return await workoutRepo.getAllPlans(userId);
-    });
+    StreamProvider.family<List<WorkoutPlanModel>, String>((ref, userId) {
+  return ref.read(workoutRepositoryProvider).watchAllPlans(userId);
+});
 
 final ensureDiaryProvider = FutureProvider.family<void, String>((
   ref,
@@ -307,7 +299,9 @@ final ensureDiaryProvider = FutureProvider.family<void, String>((
 
 /// Dashboard do aluno — Kinetic Dark + Glassmorphism (Stitch).
 class AlunoHomeScreen extends ConsumerStatefulWidget {
-  const AlunoHomeScreen({super.key});
+  final ValueChanged<int>? onNavigate;
+
+  const AlunoHomeScreen({super.key, this.onNavigate});
 
   @override
   ConsumerState<AlunoHomeScreen> createState() => _AlunoHomeScreenState();
@@ -381,33 +375,85 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
       ref.read(notificationRepositoryProvider).markAllAsRead(userId),
     );
 
-    showModalBottomSheet<void>(
+    showDialog<void>(
       context: context,
-      backgroundColor: AppColors.surface,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-          child: payments.isEmpty && notifications.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: Text('Não tens avisos pendentes.')),
+      barrierDismissible: true,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: AppColors.surface,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: 560,
+            maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.78,
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+            child: payments.isEmpty && notifications.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 34),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.mark_email_read_outlined,
+                        color: AppColors.textSecondary,
+                        size: 34,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Não tens avisos pendentes.',
+                        style: GoogleFonts.inter(
+                          color: AppColors.textSecondary,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
                 )
               : Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Avisos',
-                      style: GoogleFonts.montserrat(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.onSurface,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: StudentThemeColors.of(context)
+                                .primary
+                                .withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.notifications_none_rounded,
+                            color: StudentThemeColors.of(context).primary,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Avisos',
+                            style: GoogleFonts.montserrat(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.onSurface,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          icon: const Icon(Icons.close_rounded),
+                          tooltip: 'Fechar',
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Text(
-                      'Abre o teu Perfil para efetuar o pagamento.',
+                      'Toca num aviso para abrir a área correspondente.',
                       style: GoogleFonts.inter(
                         color: AppColors.textSecondary,
                         fontSize: 13,
@@ -416,12 +462,22 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                     const SizedBox(height: 12),
                     ...notifications.map(
                       (notification) => ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const CircleAvatar(
-                          backgroundColor: AppColors.primaryContainer,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        onTap: () => _openNotification(dialogContext, notification),
+                        tileColor: AppColors.surfaceHigh.withValues(alpha: 0.72),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        trailing: const Icon(
+                          Icons.chevron_right_rounded,
+                          color: AppColors.textSecondary,
+                        ),
+                        leading: CircleAvatar(
+                          backgroundColor: StudentThemeColors.of(context)
+                              .primaryContainer,
                           child: Icon(
                             Icons.notifications_outlined,
-                            color: AppColors.primary,
+                            color: StudentThemeColors.of(context).primary,
                           ),
                         ),
                         title: Text(
@@ -453,12 +509,25 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                     ],
                     ...payments.map(
                       (payment) => ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const CircleAvatar(
-                          backgroundColor: AppColors.primaryContainer,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        onTap: () {
+                          Navigator.of(dialogContext).pop();
+                          widget.onNavigate?.call(5);
+                        },
+                        tileColor: AppColors.surfaceHigh.withValues(alpha: 0.72),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        trailing: const Icon(
+                          Icons.chevron_right_rounded,
+                          color: AppColors.textSecondary,
+                        ),
+                        leading: CircleAvatar(
+                          backgroundColor: StudentThemeColors.of(context)
+                              .primaryContainer,
                           child: Icon(
                             Icons.payment_outlined,
-                            color: AppColors.primary,
+                            color: StudentThemeColors.of(context).primary,
                           ),
                         ),
                         title: Text(
@@ -479,9 +548,34 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                     ),
                   ],
                 ),
+          ),
         ),
       ),
     );
+  }
+
+  void _openNotification(
+    BuildContext dialogContext,
+    AppNotificationModel notification,
+  ) {
+    Navigator.of(dialogContext).pop();
+    final destination = _notificationDestination(
+      action: notification.action,
+      type: notification.type,
+    );
+    if (destination != null) widget.onNavigate?.call(destination);
+  }
+
+  int? _notificationDestination({String? action, required String type}) {
+    if (action == 'payment' ||
+        action == 'payment_recovery' ||
+        type.startsWith('payment_')) {
+      return 5; // Perfil
+    }
+    if (action == 'agenda' || type == 'booking_update') return 3;
+    if (action == 'chat' || type == 'chat') return 4;
+    if (action == 'profile' || type == 'progress_request') return 5;
+    return null;
   }
 
   PreferredSizeWidget _buildAppBar(

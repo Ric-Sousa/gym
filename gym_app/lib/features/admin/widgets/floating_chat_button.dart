@@ -100,13 +100,7 @@ class FloatingChatButton extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: _badgeBlack,
                   borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
+                  boxShadow: const [],
                 ),
                 child: Text(
                   '$unreadCount ${unreadCount == 1 ? 'nova mensagem' : 'novas mensagens'}',
@@ -120,10 +114,8 @@ class FloatingChatButton extends ConsumerWidget {
             ),
           // Main floating button
           Material(
-            elevation: 8,
-            shadowColor: AdminThemeColors.of(
-              context,
-            ).lime.withValues(alpha: 0.35),
+            elevation: 0,
+            shadowColor: AdminThemeColors.of(context).shadowElevated,
             borderRadius: BorderRadius.circular(30),
             child: InkWell(
               onTap: () => _openChatModal(context, ref),
@@ -141,15 +133,7 @@ class FloatingChatButton extends ConsumerWidget {
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AdminThemeColors.of(
-                        context,
-                      ).lime.withValues(alpha: 0.3),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
+                  boxShadow: const [],
                 ),
                 child: Stack(
                   alignment: Alignment.center,
@@ -170,7 +154,7 @@ class FloatingChatButton extends ConsumerWidget {
                           decoration: BoxDecoration(
                             color: _badgeBlack,
                             shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
+                            border: Border.all(color: Colors.transparent),
                           ),
                           alignment: Alignment.center,
                           child: Text(
@@ -290,14 +274,7 @@ class _ChatPopoverState extends ConsumerState<_ChatPopover> {
           color: AdminThemeColors.of(context).surface,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(color: AdminThemeColors.of(context).border),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18),
-              blurRadius: 44,
-              spreadRadius: 2,
-              offset: const Offset(0, 18),
-            ),
-          ],
+          boxShadow: const [],
         ),
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 250),
@@ -375,7 +352,7 @@ class _ConversationListView extends ConsumerWidget {
               Expanded(
                 child: Text(
                   'MENSAGENS',
-                  style: GoogleFonts.barlowCondensed(
+                  style: GoogleFonts.montserrat(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.5,
@@ -512,7 +489,7 @@ class _ConversationListTile extends StatelessWidget {
                               aluno.nome.isNotEmpty
                                   ? aluno.nome[0].toUpperCase()
                                   : '?',
-                              style: GoogleFonts.barlowCondensed(
+                              style: GoogleFonts.montserrat(
                                 color: AdminThemeColors.of(context).lime,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 15,
@@ -625,7 +602,7 @@ class _ConversationListTile extends StatelessWidget {
                     backgroundColor: AdminThemeColors.of(context).surface2,
                     child: Text(
                       aluno.nome.isNotEmpty ? aluno.nome[0].toUpperCase() : '?',
-                      style: GoogleFonts.barlowCondensed(
+                      style: GoogleFonts.montserrat(
                         color: AdminThemeColors.of(context).lime,
                         fontWeight: FontWeight.w700,
                         fontSize: 50,
@@ -870,7 +847,7 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
                     backgroundColor: AdminThemeColors.of(context).surface2,
                     child: Text(
                       aluno.nome.isNotEmpty ? aluno.nome[0].toUpperCase() : '?',
-                      style: GoogleFonts.barlowCondensed(
+                      style: GoogleFonts.montserrat(
                         color: AdminThemeColors.of(context).lime,
                         fontWeight: FontWeight.w700,
                         fontSize: 50,
@@ -940,7 +917,7 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
                           aluno.nome.isNotEmpty
                               ? aluno.nome[0].toUpperCase()
                               : '?',
-                          style: GoogleFonts.barlowCondensed(
+                          style: GoogleFonts.montserrat(
                             color: AdminThemeColors.of(context).lime,
                             fontWeight: FontWeight.w700,
                             fontSize: 13,
@@ -1264,7 +1241,7 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
               left: position.dx - 120,
               top: position.dy + 4,
               child: Material(
-                elevation: 12,
+                elevation: 0,
                 borderRadius: BorderRadius.circular(14),
                 color: AdminThemeColors.of(context).surface,
                 child: Container(

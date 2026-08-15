@@ -2,6 +2,7 @@ import '../../core/errors/exceptions.dart';
 import '../../core/errors/failures.dart';
 import '../datasources/firestore_datasource.dart';
 import '../models/user_model.dart';
+import '../models/questionnaire_response_model.dart';
 
 /// Repository para operações de utilizador.
 class UserRepository {
@@ -38,6 +39,27 @@ class UserRepository {
     }
   }
 
+  /// Obtém as respostas da ficha de anamnese de um aluno.
+  Future<QuestionnaireResponse?> getQuestionnaire(String uid) async {
+    try {
+      return await _firestoreDataSource.getQuestionnaire(uid);
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
+  }
+
+  /// Guarda a ficha de anamnese preenchida pelo aluno.
+  Future<void> saveQuestionnaire(
+    String uid,
+    QuestionnaireResponse response,
+  ) async {
+    try {
+      await _firestoreDataSource.saveQuestionnaire(uid, response);
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
+  }
+
   /// Obtém a nota privada do administrador para um cliente.
   Future<String> getAdminNote(String uid) async {
     try {
@@ -54,6 +76,16 @@ class UserRepository {
     } on ServerException catch (e) {
       throw ServerFailure(message: e.message);
     }
+  }
+
+  /// Stream de todos os alunos (admin).
+  Stream<List<UserModel>> watchAllAlunos() {
+    return _firestoreDataSource.watchAllAlunos();
+  }
+
+  /// Stream da ficha de anamnese de um aluno.
+  Stream<QuestionnaireResponse?> questionnaireStream(String uid) {
+    return _firestoreDataSource.questionnaireStream(uid);
   }
 
   /// Lista todos os alunos (admin).

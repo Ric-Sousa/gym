@@ -76,7 +76,7 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
           color: AdminThemeColors.of(context).lime,
         ),
       ),
-      error: (_, __) => Center(
+      error: (_, _) => Center(
         child: Text(
           'Erro ao carregar planos',
           style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
@@ -423,6 +423,10 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
+                isDense: true,
+                menuMaxHeight: 320,
+                elevation: 2,
+                borderRadius: BorderRadius.circular(14),
                 initialValue: selectedDay,
                 dropdownColor: AdminThemeColors.of(context).surface,
                 style: GoogleFonts.inter(
@@ -457,6 +461,10 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
               const SizedBox(height: 12),
               // Categoria com ícones
               DropdownButtonFormField<String>(
+                isDense: true,
+                menuMaxHeight: 320,
+                elevation: 2,
+                borderRadius: BorderRadius.circular(14),
                 initialValue: selectedCategoria,
                 dropdownColor: AdminThemeColors.of(context).surface,
                 style: GoogleFonts.inter(
@@ -492,6 +500,10 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
               const SizedBox(height: 12),
               // Equipamento
               DropdownButtonFormField<String>(
+                isDense: true,
+                menuMaxHeight: 320,
+                elevation: 2,
+                borderRadius: BorderRadius.circular(14),
                 initialValue: selectedEquipamento,
                 dropdownColor: AdminThemeColors.of(context).surface,
                 style: GoogleFonts.inter(

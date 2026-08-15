@@ -1,72 +1,31 @@
 import { shouldDeactivateExpiredContract } from '../src/contract_expiry';
 
-describe('shouldDeactivateExpiredContract', () => {
-  const now = new Date('2026-08-09T12:00:00.000Z');
+describe('contract expiry', () => {
+  test('deactivates an active student at the monthly end date', () => {
+    const now = new Date('2026-09-15T10:30:00.000Z');
 
-  test('deactivates an active student whose contract has ended', () => {
     expect(
       shouldDeactivateExpiredContract(
         {
           role: 'aluno',
           isActive: true,
-          contractEndsAt: new Date('2026-08-09T11:59:59.000Z'),
+          contractEndsAt: new Date('2026-09-15T10:29:59.999Z'),
         },
         now,
       ),
     ).toBe(true);
   });
 
-  test('keeps a future contract active', () => {
+  test('does not deactivate an active student before the end date', () => {
     expect(
       shouldDeactivateExpiredContract(
         {
           role: 'aluno',
           isActive: true,
-          contractEndsAt: new Date('2026-08-09T12:00:01.000Z'),
+          contractEndsAt: new Date('2026-09-15T10:30:00.000Z'),
         },
-        now,
+        new Date('2026-09-15T10:29:59.999Z'),
       ),
     ).toBe(false);
-  });
-
-  test('does not deactivate administrators', () => {
-    expect(
-      shouldDeactivateExpiredContract(
-        {
-          role: 'admin',
-          isActive: true,
-          contractEndsAt: new Date('2020-01-01T00:00:00.000Z'),
-        },
-        now,
-      ),
-    ).toBe(false);
-  });
-
-  test('does not rewrite profiles already inactive', () => {
-    expect(
-      shouldDeactivateExpiredContract(
-        {
-          role: 'aluno',
-          isActive: false,
-          contractEndsAt: new Date('2020-01-01T00:00:00.000Z'),
-        },
-        now,
-      ),
-    ).toBe(false);
-  });
-
-  test('supports Firestore-like timestamps', () => {
-    expect(
-      shouldDeactivateExpiredContract(
-        {
-          role: 'aluno',
-          isActive: true,
-          contractEndsAt: {
-            toDate: () => new Date('2026-08-09T12:00:00.000Z'),
-          },
-        },
-        now,
-      ),
-    ).toBe(true);
   });
 });

@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:riverpod/legacy.dart';
 import '../../../core/errors/failures.dart';
 import '../../../data/models/user_model.dart';
+import '../../../data/models/questionnaire_response_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../screens/privacy_policy_screen.dart';
 import '../../../shared/providers/global_providers.dart';
@@ -42,6 +43,11 @@ class AuthState {
 
   bool get isAdmin => user?.isAdmin ?? false;
   bool get isAluno => user?.isAluno ?? false;
+  bool get needsQuestionnaire =>
+      user != null &&
+      user!.isAluno &&
+      (!user!.hasCompletedQuestionnaire ||
+          user!.questionnaireVersion != QuestionnaireResponse.currentVersion);
   bool get needsPrivacyPolicy =>
       user != null &&
       user!.isAluno &&
@@ -55,8 +61,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
   StreamSubscription<User?>? _authSubscription;
   StreamSubscription<UserModel>? _profileSubscription;
   Timer? _accessTimer;
+  Timer? _paymentReturnGraceTimer;
+  bool _allowPaymentReturn =
+      Uri.base.queryParameters['pagamento'] == 'sucesso';
 
   AuthNotifier(this._authRepository) : super(const AuthState()) {
+    if (_allowPaymentReturn) {
+      // O webhook pode demorar alguns segundos a marcar o pagamento e a
+      // renovar o contrato. Não expulsar a sessão durante esse retorno.
+      _paymentReturnGraceTimer = Timer(const Duration(minutes: 5), () {
+        if (state.user != null && !state.user!.isAccessAllowed) {
+          signOut();
+        }
+        _allowPaymentReturn = false;
+      });
+    }
     _listenAuthChanges();
   }
 
@@ -67,7 +86,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
           // Mostra loading enquanto carrega o UserModel do Firestore
           state = state.copyWith(status: AuthStatus.loading);
           try {
-            final userModel = await _authRepository.getUserModel();
+            final userModel = await _authRepository.getUserModel(
+              allowPaymentReturn: _allowPaymentReturn,
+            );
             state = AuthState(
               status: AuthStatus.authenticated,
               user: userModel,
@@ -133,6 +154,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     final delay = user.contractEndsAt!.difference(DateTime.now());
     if (delay.isNegative || delay == Duration.zero) {
+      if (_allowPaymentReturn) return;
       signOut();
       return;
     }
@@ -150,9 +172,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
       userModel,
     ) async {
       if (!userModel.isAccessAllowed) {
+        if (_allowPaymentReturn) {
+          // Mantém a sessão enquanto o webhook Stripe sincroniza o novo
+          // período. O timer de segurança encerra-a se isso não acontecer.
+          if (state.status == AuthStatus.authenticated) {
+            state = state.copyWith(user: userModel);
+          }
+          return;
+        }
         await signOut();
         return;
       }
+
+      _allowPaymentReturn = false;
+      _paymentReturnGraceTimer?.cancel();
+      _paymentReturnGraceTimer = null;
       if (state.status == AuthStatus.authenticated) {
         state = state.copyWith(user: userModel);
         _startAccessTimer();
@@ -187,7 +221,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final fbUser = state.firebaseUser;
     if (fbUser == null) return;
     try {
-      final userModel = await _authRepository.getUserModel();
+      final userModel = await _authRepository.getUserModel(
+        allowPaymentReturn: _allowPaymentReturn,
+      );
       state = state.copyWith(user: userModel, status: AuthStatus.authenticated);
     } catch (_) {}
   }
@@ -197,6 +233,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     _authSubscription?.cancel();
     _profileSubscription?.cancel();
     _accessTimer?.cancel();
+    _paymentReturnGraceTimer?.cancel();
     super.dispose();
   }
 }

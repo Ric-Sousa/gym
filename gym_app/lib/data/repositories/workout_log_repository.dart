@@ -19,6 +19,11 @@ class WorkoutLogRepository {
     }
   }
 
+  /// Stream do registo de treino de hoje.
+  Stream<WorkoutLogModel?> logStream(String userId, String date) {
+    return _firestoreDataSource.workoutLogStream(userId, date);
+  }
+
   /// Guarda/atualiza registo de treino.
   Future<void> saveLog(
     String userId,
@@ -30,6 +35,14 @@ class WorkoutLogRepository {
     } on ServerException catch (e) {
       throw ServerFailure(message: e.message);
     }
+  }
+
+  /// Stream do histórico de treinos do aluno.
+  Stream<List<WorkoutLogModel>> watchHistory(
+    String userId, {
+    int limit = 30,
+  }) {
+    return _firestoreDataSource.watchWorkoutLogHistory(userId, limit: limit);
   }
 
   /// Obtém histórico de treinos do aluno.

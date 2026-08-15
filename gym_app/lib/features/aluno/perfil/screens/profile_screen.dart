@@ -33,9 +33,9 @@ final userProfileProvider = StreamProvider.family<UserModel, String>((
 });
 
 final progressHistoryProvider =
-    FutureProvider.family<List<ProgressModel>, String>((ref, userId) {
-      return ref.read(progressRepositoryProvider).getHistory(userId);
-    });
+    StreamProvider.family<List<ProgressModel>, String>((ref, userId) {
+  return ref.read(progressRepositoryProvider).watchHistory(userId);
+});
 
 /// Ecrã de perfil — Kinetic Dark.
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -1161,6 +1161,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ? selectedKey
         : _progressKey(options.first);
     return DropdownButtonFormField<String>(
+      isDense: true,
+      menuMaxHeight: 320,
+      elevation: 2,
+      borderRadius: BorderRadius.circular(14),
       initialValue: safeKey,
       isExpanded: true,
       dropdownColor: AppColors.surfaceHigh,
@@ -2227,6 +2231,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               const SizedBox(height: 12),
               // Seletor de género
               DropdownButtonFormField<String>(
+                isDense: true,
+                menuMaxHeight: 320,
+                elevation: 2,
+                borderRadius: BorderRadius.circular(14),
                 initialValue: genero,
                 decoration: InputDecoration(
                   labelText: 'Género',

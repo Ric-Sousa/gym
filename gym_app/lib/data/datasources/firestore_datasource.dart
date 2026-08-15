@@ -13,6 +13,7 @@ import '../models/payment_model.dart';
 import '../models/app_notification_model.dart';
 import '../models/booking_model.dart';
 import '../models/group_model.dart';
+import '../models/questionnaire_response_model.dart';
 import '../../core/config/app_constants.dart';
 
 /// Data source para operações no Cloud Firestore.
@@ -87,6 +88,63 @@ class FirestoreDataSource {
     }
   }
 
+  /// Obtém a ficha inicial de anamnese do aluno.
+  Future<QuestionnaireResponse?> getQuestionnaire(String uid) async {
+    try {
+      final doc = await _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(uid)
+          .collection('questionario')
+          .doc('resposta')
+          .get();
+      if (!doc.exists || doc.data() == null) return null;
+      return QuestionnaireResponse.fromMap(doc.data()!);
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao obter questionário',
+      );
+    }
+  }
+
+  /// Guarda as respostas e marca o perfil como concluído numa operação lógica.
+  Future<void> saveQuestionnaire(
+    String uid,
+    QuestionnaireResponse response,
+  ) async {
+    try {
+      final userRef = _firestore
+          .collection(AppConstants.usersCollection)
+          .doc(uid);
+      final responseRef = userRef.collection('questionario').doc('resposta');
+      final batch = _firestore.batch();
+      batch.set(responseRef, response.toMap());
+      // A versão é gravada no mesmo batch e funciona como o marcador
+      // atómico de conclusão; a data fica com a hora oficial do servidor.
+      batch.update(userRef, {
+        'questionnaireCompletedAt': FieldValue.serverTimestamp(),
+        'questionnaireVersion': response.version,
+      });
+      await batch.commit();
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao guardar questionário',
+      );
+    }
+  }
+
+  /// Stream da ficha inicial do aluno.
+  Stream<QuestionnaireResponse?> questionnaireStream(String uid) {
+    return _firestore
+        .collection(AppConstants.usersCollection)
+        .doc(uid)
+        .collection('questionario')
+        .doc('resposta')
+        .snapshots()
+        .map((doc) => doc.exists && doc.data() != null
+            ? QuestionnaireResponse.fromMap(doc.data()!)
+            : null);
+  }
+
   /// Stream de um utilizador.
   Stream<UserModel> userStream(String uid) {
     return _firestore
@@ -97,6 +155,17 @@ class FirestoreDataSource {
           if (!doc.exists) throw DocumentNotFoundException();
           return UserModel.fromMap(uid, doc.data()!);
         });
+  }
+
+  /// Stream de todos os alunos. Atualiza criação, edição e remoção sem refresh.
+  Stream<List<UserModel>> watchAllAlunos() {
+    return _firestore
+        .collection(AppConstants.usersCollection)
+        .where('role', isEqualTo: AppConstants.roleAluno)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => UserModel.fromMap(doc.id, doc.data()))
+            .toList());
   }
 
   /// Lista todos os alunos.
@@ -224,6 +293,25 @@ class FirestoreDataSource {
     }
   }
 
+  /// Stream do histórico de diários (para o dashboard do aluno).
+  Stream<List<DiaryModel>> watchDiaryHistory(
+    String userId, {
+    int limit = 90,
+  }) {
+    return _firestore
+        .collection(AppConstants.usersCollection)
+        .doc(userId)
+        .collection(AppConstants.diarySubcollection)
+        .snapshots()
+        .map((snapshot) {
+          final entries = snapshot.docs
+              .map((doc) => DiaryModel.fromMap(doc.id, userId, doc.data()))
+              .toList();
+          entries.sort((a, b) => b.data.compareTo(a.data));
+          return entries.take(limit).toList();
+        });
+  }
+
   /// Obtém histórico de diários (para progresso).
   Future<List<DiaryModel>> getDiaryHistory(
     String userId, {
@@ -245,6 +333,22 @@ class FirestoreDataSource {
   }
 
   // ───────────────────── NUTRITION PLAN ─────────────────────
+
+  /// Stream do plano nutricional de um dia da semana.
+  Stream<NutritionPlanModel?> nutritionPlanStream(
+    String userId,
+    String diaSemana,
+  ) {
+    return _firestore
+        .collection(AppConstants.usersCollection)
+        .doc(userId)
+        .collection(AppConstants.nutritionPlanSubcollection)
+        .doc(diaSemana)
+        .snapshots()
+        .map((doc) => doc.exists && doc.data() != null
+            ? NutritionPlanModel.fromMap(diaSemana, userId, doc.data()!)
+            : null);
+  }
 
   /// Obtém plano nutricional para um dia da semana.
   Future<NutritionPlanModel?> getNutritionPlan(
@@ -288,6 +392,16 @@ class FirestoreDataSource {
   }
 
   // ───────────────────── GLOBAL WORKOUT PLANS ─────────────────────
+
+  /// Stream dos planos globais criados pelo administrador.
+  Stream<List<WorkoutPlanModel>> watchGlobalWorkoutPlans() {
+    return _firestore
+        .collection(AppConstants.globalWorkoutPlansCollection)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => WorkoutPlanModel.fromMap(doc.id, '', doc.data()))
+            .toList());
+  }
 
   /// Lista os planos globais criados pelo administrador.
   Future<List<WorkoutPlanModel>> getGlobalWorkoutPlans() async {
@@ -402,6 +516,18 @@ class FirestoreDataSource {
         message: e.message ?? 'Erro ao verificar atribuição do plano',
       );
     }
+  }
+
+  /// Stream de todos os planos de treino do aluno.
+  Stream<List<WorkoutPlanModel>> watchAllWorkoutPlans(String userId) {
+    return _firestore
+        .collection(AppConstants.usersCollection)
+        .doc(userId)
+        .collection(AppConstants.workoutPlanSubcollection)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => WorkoutPlanModel.fromMap(doc.id, userId, doc.data()))
+            .toList());
   }
 
   /// Lista todos os planos de treino do aluno.
@@ -576,6 +702,23 @@ class FirestoreDataSource {
 
   // ───────────────────── PROGRESS ─────────────────────
 
+  /// Stream de registos de progresso.
+  Stream<List<ProgressModel>> watchProgressHistory(
+    String userId, {
+    int limit = 50,
+  }) {
+    return _firestore
+        .collection(AppConstants.usersCollection)
+        .doc(userId)
+        .collection(AppConstants.progressSubcollection)
+        .orderBy('data', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => ProgressModel.fromMap(doc.id, userId, doc.data()))
+            .toList());
+  }
+
   /// Obtém registos de progresso.
   Future<List<ProgressModel>> getProgressHistory(
     String userId, {
@@ -614,6 +757,18 @@ class FirestoreDataSource {
   }
 
   // ───────────────────── PROGRESS VIDEOS ─────────────────────
+
+  Stream<List<ProgressVideoModel>> watchProgressVideos(String userId) {
+    return _firestore
+        .collection(AppConstants.usersCollection)
+        .doc(userId)
+        .collection('progressVideos')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => ProgressVideoModel.fromMap(doc.id, userId, doc.data()))
+            .toList());
+  }
 
   Future<List<ProgressVideoModel>> getProgressVideos(String userId) async {
     try {
@@ -673,6 +828,17 @@ class FirestoreDataSource {
 
   // ───────────────────── FOODS ─────────────────────
 
+  /// Stream de todos os alimentos.
+  Stream<List<FoodModel>> watchAllFoods() {
+    return _firestore
+        .collection(AppConstants.foodsCollection)
+        .orderBy('nome')
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => FoodModel.fromMap(doc.id, doc.data()))
+            .toList());
+  }
+
   /// Lista todos os alimentos.
   Future<List<FoodModel>> getAllFoods() async {
     try {
@@ -713,6 +879,19 @@ class FirestoreDataSource {
   }
 
   // ───────────────────── WORKOUT LOGS ─────────────────────
+
+  /// Stream do registo de treino de um dia específico.
+  Stream<WorkoutLogModel?> workoutLogStream(String userId, String date) {
+    return _firestore
+        .collection(AppConstants.usersCollection)
+        .doc(userId)
+        .collection(AppConstants.workoutLogSubcollection)
+        .doc(date)
+        .snapshots()
+        .map((doc) => doc.exists && doc.data() != null
+            ? WorkoutLogModel.fromMap(doc.id, userId, doc.data()!)
+            : null);
+  }
 
   /// Obtém registo de treino de um dia específico.
   Future<WorkoutLogModel?> getWorkoutLog(String userId, String date) async {
@@ -757,6 +936,23 @@ class FirestoreDataSource {
     }
   }
 
+  /// Stream de histórico de registos de treino.
+  Stream<List<WorkoutLogModel>> watchWorkoutLogHistory(
+    String userId, {
+    int limit = 30,
+  }) {
+    return _firestore
+        .collection(AppConstants.usersCollection)
+        .doc(userId)
+        .collection(AppConstants.workoutLogSubcollection)
+        .orderBy('data', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => WorkoutLogModel.fromMap(doc.id, userId, doc.data()))
+            .toList());
+  }
+
   /// Obtém histórico de registos de treino.
   Future<List<WorkoutLogModel>> getWorkoutLogHistory(
     String userId, {
@@ -781,6 +977,32 @@ class FirestoreDataSource {
   }
 
   // ───────────────────── PAYMENTS ─────────────────────
+
+  /// Stream de pagamentos de um utilizador.
+  Stream<List<PaymentModel>> watchPayments(String userId) {
+    return _firestore
+        .collection(AppConstants.paymentsCollection)
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snapshot) {
+          final payments = snapshot.docs
+              .map((doc) => PaymentModel.fromMap(doc.id, doc.data()))
+              .toList();
+          payments.sort((a, b) => b.data.compareTo(a.data));
+          return payments;
+        });
+  }
+
+  /// Stream de todos os pagamentos para o painel administrativo.
+  Stream<List<PaymentModel>> watchAllPayments() {
+    return _firestore
+        .collection(AppConstants.paymentsCollection)
+        .orderBy('data', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => PaymentModel.fromMap(doc.id, doc.data()))
+            .toList());
+  }
 
   /// Obtém pagamentos de um utilizador.
   Future<List<PaymentModel>> getPayments(String userId) async {
@@ -1009,6 +1231,35 @@ class FirestoreDataSource {
 
   // ─── Grupos ──────────────────────────────────────────────────
 
+  /// Stream dos grupos onde o utilizador é membro.
+  Stream<List<GroupModel>> watchMyGroups(String userId) {
+    return _firestore
+        .collection(AppConstants.groupsCollection)
+        .where('membros', arrayContains: userId)
+        .snapshots()
+        .map((snapshot) {
+          final groups = snapshot.docs
+              .map((doc) => GroupModel.fromMap(doc.id, doc.data()))
+              .toList();
+          groups.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return groups;
+        });
+  }
+
+  /// Stream de todos os grupos para o admin.
+  Stream<List<GroupModel>> watchAllGroups() {
+    return _firestore
+        .collection(AppConstants.groupsCollection)
+        .snapshots()
+        .map((snapshot) {
+          final groups = snapshot.docs
+              .map((doc) => GroupModel.fromMap(doc.id, doc.data()))
+              .toList();
+          groups.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return groups;
+        });
+  }
+
   /// Obtém grupos onde o utilizador é membro.
   Future<List<GroupModel>> getMyGroups(String userId) async {
     try {
@@ -1102,6 +1353,20 @@ class FirestoreDataSource {
   }
 
   // ───────────────────── EXERCISES ─────────────────────
+
+  /// Stream de todos os exercícios ou filtrado por grupo muscular.
+  Stream<List<Map<String, dynamic>>> watchExercises({String? grupoMuscular}) {
+    Query<Map<String, dynamic>> query =
+        _firestore.collection(AppConstants.exercisesCollection);
+    if (grupoMuscular != null) {
+      query = query.where('grupoMuscular', isEqualTo: grupoMuscular);
+    }
+    return query.orderBy('nome').snapshots().map((snapshot) => snapshot.docs.map((doc) {
+      final data = Map<String, dynamic>.from(doc.data());
+      data['id'] = doc.id;
+      return data;
+    }).toList());
+  }
 
   /// Lista todos os exercícios ou filtra por grupo muscular.
   Future<List<Map<String, dynamic>>> getExercises({

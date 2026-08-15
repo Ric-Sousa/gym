@@ -31,6 +31,14 @@ class ProgressRepository {
     }
   }
 
+  /// Stream do histórico de progresso.
+  Stream<List<ProgressModel>> watchHistory(
+    String userId, {
+    int limit = 50,
+  }) {
+    return _firestoreDataSource.watchProgressHistory(userId, limit: limit);
+  }
+
   /// Adiciona nova entrada de progresso.
   Future<void> addProgress(String userId, Map<String, dynamic> data) async {
     try {

@@ -24,6 +24,10 @@ class ProgressVideoRepository {
     }
   }
 
+  Stream<List<ProgressVideoModel>> watchVideos(String userId) {
+    return _firestore.watchProgressVideos(userId);
+  }
+
   Future<ProgressVideoModel> uploadVideo({
     required String userId,
     required String uploaderId,

@@ -33,7 +33,7 @@ class AdminResponsiveDialog extends StatelessWidget {
         horizontal: isCompact ? 12 : 28,
         vertical: isCompact ? 16 : 28,
       ),
-      shadowColor: Colors.black.withValues(alpha: 0.42),
+      shadowColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       child: TweenAnimationBuilder<double>(
         tween: Tween(begin: 0.94, end: 1),
@@ -50,8 +50,8 @@ class AdminResponsiveDialog extends StatelessWidget {
             color: colors.surface,
             borderRadius: BorderRadius.circular(isCompact ? 22 : 28),
             clipBehavior: Clip.antiAlias,
-            elevation: 18,
-            shadowColor: Colors.black.withValues(alpha: 0.32),
+            elevation: 0,
+            shadowColor: Colors.transparent,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -212,7 +212,7 @@ class AdminResponsiveAlertDialog extends StatelessWidget {
         horizontal: compact ? 12 : 28,
         vertical: compact ? 16 : 28,
       ),
-      shadowColor: Colors.black.withValues(alpha: 0.42),
+      shadowColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       child: TweenAnimationBuilder<double>(
         tween: Tween(begin: 0.94, end: 1),
@@ -233,8 +233,8 @@ class AdminResponsiveAlertDialog extends StatelessWidget {
                   borderRadius: BorderRadius.circular(compact ? 22 : 28),
                   side: BorderSide(color: colors.border.withValues(alpha: 0.9)),
                 ),
-            elevation: 18,
-            shadowColor: Colors.black.withValues(alpha: 0.32),
+            elevation: 0,
+            shadowColor: Colors.transparent,
             clipBehavior: Clip.antiAlias,
             child: Column(
               mainAxisSize: MainAxisSize.min,

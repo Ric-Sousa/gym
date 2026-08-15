@@ -32,8 +32,17 @@ class UserModel {
   /// Registo da aceitação da política de privacidade pelo utilizador.
   final DateTime? privacyPolicyAcceptedAt;
   final String? privacyPolicyVersion;
-  bool get hasAcceptedPrivacyPolicy =>
-      privacyPolicyAcceptedAt != null && privacyPolicyVersion != null;
+
+  /// Registo da conclusão da ficha inicial de anamnese.
+  final DateTime? questionnaireCompletedAt;
+  final String? questionnaireVersion;
+
+  // A versão é o marcador de aceitação atómico; a data pode ficar
+  // temporariamente nula enquanto o serverTimestamp é confirmado.
+  bool get hasAcceptedPrivacyPolicy => privacyPolicyVersion != null;
+  // A versão é o marcador de conclusão atómico, gravado juntamente com as
+  // respostas. A data é informativa e pode faltar em perfis migrados.
+  bool get hasCompletedQuestionnaire => questionnaireVersion != null;
 
   const UserModel({
     required this.uid,
@@ -57,6 +66,8 @@ class UserModel {
     this.deactivatedAt,
     this.privacyPolicyAcceptedAt,
     this.privacyPolicyVersion,
+    this.questionnaireCompletedAt,
+    this.questionnaireVersion,
   });
 
   /// Cria a partir do documento Firestore.
@@ -89,6 +100,8 @@ class UserModel {
       deactivatedAt: _dateFromMap(map['deactivatedAt']),
       privacyPolicyAcceptedAt: _dateFromMap(map['privacyPolicyAcceptedAt']),
       privacyPolicyVersion: map['privacyPolicyVersion'] as String?,
+      questionnaireCompletedAt: _dateFromMap(map['questionnaireCompletedAt']),
+      questionnaireVersion: map['questionnaireVersion'] as String?,
     );
   }
 
@@ -129,6 +142,10 @@ class UserModel {
         'privacyPolicyAcceptedAt': privacyPolicyAcceptedAt,
       if (privacyPolicyVersion != null)
         'privacyPolicyVersion': privacyPolicyVersion,
+      if (questionnaireCompletedAt != null)
+        'questionnaireCompletedAt': questionnaireCompletedAt,
+      if (questionnaireVersion != null)
+        'questionnaireVersion': questionnaireVersion,
     };
   }
 
@@ -159,6 +176,8 @@ class UserModel {
     bool clearDeactivatedAt = false,
     DateTime? privacyPolicyAcceptedAt,
     String? privacyPolicyVersion,
+    DateTime? questionnaireCompletedAt,
+    String? questionnaireVersion,
   }) {
     return UserModel(
       uid: uid,
@@ -187,6 +206,9 @@ class UserModel {
       privacyPolicyAcceptedAt:
           privacyPolicyAcceptedAt ?? this.privacyPolicyAcceptedAt,
       privacyPolicyVersion: privacyPolicyVersion ?? this.privacyPolicyVersion,
+      questionnaireCompletedAt:
+          questionnaireCompletedAt ?? this.questionnaireCompletedAt,
+      questionnaireVersion: questionnaireVersion ?? this.questionnaireVersion,
     );
   }
 

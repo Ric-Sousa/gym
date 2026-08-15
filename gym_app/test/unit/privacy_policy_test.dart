@@ -11,4 +11,12 @@ void main() {
     expect(user.hasAcceptedPrivacyPolicy, isTrue);
     expect(user.toMap()['privacyPolicyVersion'], 'privacy-2026-08-draft');
   });
+
+  test('versão gravada mantém a aceitação mesmo antes de chegar a data', () {
+    final user = UserModel.fromMap('u1', {
+      'privacyPolicyVersion': 'privacy-2026-08-draft',
+    });
+
+    expect(user.hasAcceptedPrivacyPolicy, isTrue);
+  });
 }

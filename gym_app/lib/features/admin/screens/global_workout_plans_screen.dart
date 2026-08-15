@@ -10,10 +10,9 @@ import '../../../shared/providers/global_providers.dart';
 import '../../../shared/widgets/admin_responsive_dialog.dart';
 import '../../../shared/widgets/admin_design_system.dart';
 
-final globalWorkoutPlansProvider = FutureProvider<List<WorkoutPlanModel>>((
-  ref,
-) {
-  return ref.read(workoutRepositoryProvider).getGlobalPlans();
+final globalWorkoutPlansProvider =
+    StreamProvider<List<WorkoutPlanModel>>((ref) {
+  return ref.read(workoutRepositoryProvider).watchGlobalPlans();
 });
 
 class GlobalWorkoutPlansScreen extends ConsumerStatefulWidget {
@@ -168,7 +167,7 @@ class _GlobalWorkoutPlansScreenState
           Expanded(
             child: ListView.separated(
               itemCount: plans.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 6),
+              separatorBuilder: (_, _) => const SizedBox(height: 6),
               itemBuilder: (_, index) {
                 final plan = plans[index];
                 final selected = index == selectedIndex;
@@ -187,11 +186,7 @@ class _GlobalWorkoutPlansScreenState
                       padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(15),
-                        border: Border.all(
-                          color: selected
-                              ? colors.lime.withValues(alpha: 0.45)
-                              : colors.border.withValues(alpha: 0.55),
-                        ),
+                        border: null,
                       ),
                       child: Row(
                         children: [
@@ -274,7 +269,7 @@ class _GlobalWorkoutPlansScreenState
         decoration: BoxDecoration(
           color: colors.surface,
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: colors.border),
+          border: null,
         ),
         child: Row(
           children: [
@@ -283,6 +278,10 @@ class _GlobalWorkoutPlansScreenState
             Expanded(
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<int>(
+                  isDense: true,
+                  menuMaxHeight: 320,
+                  elevation: 2,
+                  borderRadius: BorderRadius.circular(14),
                   value: selectedIndex,
                   isExpanded: true,
                   dropdownColor: colors.surface,
@@ -414,7 +413,7 @@ class _GlobalWorkoutPlansScreenState
       decoration: BoxDecoration(
         color: colors.surface2,
         borderRadius: BorderRadius.circular(16),
-        border: Border(left: BorderSide(color: colors.lime, width: 3)),
+        border: null,
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -499,13 +498,15 @@ class _GlobalWorkoutPlansScreenState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     identity,
-                    if (count != null) ...[const SizedBox(height: 12), count],
+                    ...?(count == null
+                        ? null
+                        : <Widget>[const SizedBox(height: 12), count]),
                   ],
                 )
               : Row(
                   children: [
                     Expanded(child: identity),
-                    if (count != null) count,
+                    ...?(count == null ? null : <Widget>[count]),
                   ],
                 );
         },
@@ -520,7 +521,7 @@ class _GlobalWorkoutPlansScreenState
       decoration: BoxDecoration(
         color: colors.surface.withValues(alpha: 0.52),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colors.border.withValues(alpha: 0.7)),
+        border: null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -625,7 +626,7 @@ class _GlobalWorkoutPlansScreenState
           decoration: BoxDecoration(
             color: colors.surface,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: colors.border.withValues(alpha: 0.9)),
+            border: null,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -763,7 +764,7 @@ class _GlobalWorkoutPlansScreenState
                         decoration: BoxDecoration(
                           color: colors.surface2,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: colors.border),
+                          border: null,
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -952,7 +953,7 @@ class _GlobalWorkoutPlansScreenState
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colors.border.withValues(alpha: 0.7)),
+        border: null,
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(18),
@@ -1043,9 +1044,7 @@ class _GlobalWorkoutPlansScreenState
                         decoration: BoxDecoration(
                           color: colors.bg.withValues(alpha: 0.55),
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: colors.border.withValues(alpha: 0.7),
-                          ),
+                          border: null,
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1167,15 +1166,7 @@ class _GlobalWorkoutPlansScreenState
     final colors = AdminThemeColors.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 9),
-      decoration: BoxDecoration(
-        border: isLast
-            ? null
-            : Border(
-                bottom: BorderSide(
-                  color: colors.border.withValues(alpha: 0.65),
-                ),
-              ),
-      ),
+      decoration: const BoxDecoration(),
       child: Row(
         children: [
           Container(
@@ -1454,6 +1445,10 @@ class _GlobalWorkoutPlansScreenState
                 ),
               ),
               DropdownButtonFormField<String>(
+                isDense: true,
+                menuMaxHeight: 320,
+                elevation: 2,
+                borderRadius: BorderRadius.circular(14),
                 initialValue: weekday,
                 decoration: const InputDecoration(labelText: 'Dia da semana'),
                 items: AppStrings.daysOfWeek
@@ -1513,6 +1508,7 @@ class _GlobalWorkoutPlansScreenState
         target = plan.dias.first;
       }
     }
+    if (!mounted) return;
     final selectedTarget = target;
     final name = TextEditingController();
     final sets = TextEditingController(text: '3');
@@ -1539,6 +1535,10 @@ class _GlobalWorkoutPlansScreenState
                   decoration: const InputDecoration(labelText: 'Exercício'),
                 ),
                 DropdownButtonFormField<String>(
+                isDense: true,
+                menuMaxHeight: 320,
+                elevation: 2,
+                borderRadius: BorderRadius.circular(14),
                   initialValue: category,
                   decoration: const InputDecoration(labelText: 'Categoria'),
                   items: const [
@@ -1560,6 +1560,10 @@ class _GlobalWorkoutPlansScreenState
                       setDialogState(() => category = value ?? 'musculação'),
                 ),
                 DropdownButtonFormField<String>(
+                isDense: true,
+                menuMaxHeight: 320,
+                elevation: 2,
+                borderRadius: BorderRadius.circular(14),
                   initialValue: equipment,
                   decoration: const InputDecoration(labelText: 'Equipamento'),
                   items: const [
@@ -1735,7 +1739,7 @@ class _GlobalWorkoutPlansScreenState
                   height: 340,
                   child: ListView.separated(
                     itemCount: students.length,
-                    separatorBuilder: (_, __) => Divider(color: colors.border),
+                    separatorBuilder: (_, _) => const SizedBox(height: 1),
                     itemBuilder: (_, index) {
                       final student = students[index];
                       return ListTile(
@@ -1870,7 +1874,7 @@ class _AssignedStudentsDialogState extends State<_AssignedStudentsDialog> {
                   decoration: BoxDecoration(
                     color: colors.surface2,
                     borderRadius: BorderRadius.circular(15),
-                    border: Border.all(color: colors.border),
+                    border: null,
                   ),
                   child: Row(
                     children: [
@@ -2087,7 +2091,7 @@ class _AssignPlanDialogState extends ConsumerState<_AssignPlanDialog> {
             decoration: BoxDecoration(
               color: colors.limeDim,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: colors.lime.withValues(alpha: 0.28)),
+              border: null,
             ),
             child: Row(
               children: [

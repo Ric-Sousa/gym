@@ -110,6 +110,11 @@ class DiaryRepository {
     }
   }
 
+  /// Stream do histórico de diários.
+  Stream<List<DiaryModel>> watchHistory(String userId, {int limit = 90}) {
+    return _firestoreDataSource.watchDiaryHistory(userId, limit: limit);
+  }
+
   /// Obtém histórico de diários.
   Future<List<DiaryModel>> getHistory(String userId, {int limit = 90}) async {
     try {

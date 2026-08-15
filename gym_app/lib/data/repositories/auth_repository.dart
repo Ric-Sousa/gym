@@ -79,7 +79,7 @@ class AuthRepository {
 
   /// Obtém o UserModel do Firestore para o utilizador atual.
   /// Usado quando o Firebase Auth restaura a sessão (ex: F5 no browser).
-  Future<UserModel> getUserModel() async {
+  Future<UserModel> getUserModel({bool allowPaymentReturn = false}) async {
     final user = _authDataSource.currentUser;
     if (user == null)
       throw const AuthFailure(message: 'Sem sessão ativa', code: 'no-session');
@@ -89,8 +89,15 @@ class AuthRepository {
       userDoc.data()! as Map<String, dynamic>,
     );
     final hasOverdue = !userModel.isAdmin &&
+        !allowPaymentReturn &&
         await _hasOverduePayment(userModel.uid);
-    if (!userModel.isAdmin && (!userModel.isAccessAllowed || hasOverdue)) {
+    // Ao regressar do Checkout, o webhook pode ainda estar a atualizar o
+    // pagamento/contrato. Preservamos a sessão durante esse curto intervalo;
+    // fora deste retorno, os bloqueios continuam a ser aplicados normalmente.
+    final manuallyDeactivated = !userModel.isActive;
+    if (!userModel.isAdmin &&
+        (!allowPaymentReturn &&
+            (manuallyDeactivated || !userModel.isAccessAllowed || hasOverdue))) {
       throw AuthFailure(
         message: userModel.accessStatus == 'Contrato terminado'
             ? 'O teu contrato terminou. Usa o portal enviado por e-mail para regularizar.'

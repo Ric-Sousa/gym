@@ -17,10 +17,10 @@ import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/app_notification.dart';
 
 final nutritionPlanProvider =
-    FutureProvider.family<NutritionPlanModel?, (String, String)>((ref, params) {
-      final (userId, diaSemana) = params;
-      return ref.read(nutritionRepositoryProvider).getPlan(userId, diaSemana);
-    });
+    StreamProvider.family<NutritionPlanModel?, (String, String)>((ref, params) {
+  final (userId, diaSemana) = params;
+  return ref.read(nutritionRepositoryProvider).watchPlan(userId, diaSemana);
+});
 
 /// Calorias totais já consumidas hoje (do diário).
 final todayConsumedCaloriesProvider = StreamProvider.family<double, String>((
