@@ -38,5 +38,17 @@ void main() {
         reason: 'Profile screen should render multiple widgets',
       );
     });
+
+    testWidgets('perfil não cria overflow horizontal em 320px', (tester) async {
+      tester.view.physicalSize = const Size(320, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(_wrapProfile());
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+    });
   });
 }

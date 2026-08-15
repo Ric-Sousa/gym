@@ -82,6 +82,9 @@ class _VideoProgressScreenState extends ConsumerState<VideoProgressScreen> {
     final feedback = await showDialog<String?>(
       context: context,
       builder: (ctx) => AlertDialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
         title: Text(status == 'approved' ? 'Aprovar vídeo' : 'Rejeitar vídeo'),
         content: TextField(
           controller: feedbackController,
@@ -296,15 +299,9 @@ class _VideoProgressScreenState extends ConsumerState<VideoProgressScreen> {
             ),
           ],
           const SizedBox(height: 8),
-          Row(
-            children: [
-              TextButton.icon(
-                onPressed: () => _openVideo(video.videoUrl),
-                icon: const Icon(Icons.play_circle_outline),
-                label: const Text('Ver vídeo'),
-              ),
-              if (widget.isAdmin && video.isPending) ...[
-                const Spacer(),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final reviewActions = <Widget>[
                 TextButton(
                   onPressed: () => _review(video, 'rejected'),
                   child: const Text('Rejeitar'),
@@ -313,8 +310,23 @@ class _VideoProgressScreenState extends ConsumerState<VideoProgressScreen> {
                   onPressed: () => _review(video, 'approved'),
                   child: const Text('Aprovar'),
                 ),
-              ],
-            ],
+              ];
+              final watchButton = TextButton.icon(
+                onPressed: () => _openVideo(video.videoUrl),
+                icon: const Icon(Icons.play_circle_outline),
+                label: const Text('Ver vídeo'),
+              );
+              if (!widget.isAdmin || !video.isPending) return watchButton;
+              if (constraints.maxWidth < 420) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [watchButton, ...reviewActions],
+                );
+              }
+              return Row(
+                children: [watchButton, const Spacer(), ...reviewActions],
+              );
+            },
           ),
         ],
       ),
@@ -357,25 +369,37 @@ class _ProgressVideoPlayerState extends State<_ProgressVideoPlayer> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      contentPadding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
       title: const Text('Vídeo de progressão'),
       content: FutureBuilder<void>(
         future: _initialization,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
-            return const SizedBox(
-              width: 420,
-              height: 240,
-              child: Center(child: CircularProgressIndicator()),
+            final width = (MediaQuery.sizeOf(context).width - 72)
+                .clamp(220.0, 560.0)
+                .toDouble();
+            return SizedBox(
+              width: width,
+              height: width * 9 / 16,
+              child: const Center(child: CircularProgressIndicator()),
             );
           }
           if (snapshot.hasError) {
             return const Text('Não foi possível reproduzir este vídeo.');
           }
-          return AspectRatio(
-            aspectRatio: _controller.value.aspectRatio == 0
-                ? 16 / 9
-                : _controller.value.aspectRatio,
-            child: VideoPlayer(_controller),
+          final maxWidth = (MediaQuery.sizeOf(context).width - 72)
+              .clamp(220.0, 560.0)
+              .toDouble();
+          return ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            child: AspectRatio(
+              aspectRatio: _controller.value.aspectRatio == 0
+                  ? 16 / 9
+                  : _controller.value.aspectRatio,
+              child: VideoPlayer(_controller),
+            ),
           );
         },
       ),

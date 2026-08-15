@@ -1229,21 +1229,29 @@ class _MessageBubble extends StatelessWidget {
                           durationMs: message.audioDurationMs,
                         )
                       else if (message.isAttachment)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.network(
-                            message.attachmentUrl!,
-                            width: 210,
-                            height: 170,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const SizedBox(
-                              width: 210,
-                              height: 170,
-                              child: Center(
-                                child: Icon(Icons.broken_image_outlined),
+                        Builder(
+                          builder: (context) {
+                            final imageWidth = (MediaQuery.sizeOf(context).width * 0.52)
+                                .clamp(140.0, 210.0)
+                                .toDouble();
+                            final imageHeight = imageWidth * 0.81;
+                            return ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Image.network(
+                                message.attachmentUrl!,
+                                width: imageWidth,
+                                height: imageHeight,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => SizedBox(
+                                  width: imageWidth,
+                                  height: imageHeight,
+                                  child: const Center(
+                                    child: Icon(Icons.broken_image_outlined),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
+                            );
+                          },
                         )
                       else
                         Text(

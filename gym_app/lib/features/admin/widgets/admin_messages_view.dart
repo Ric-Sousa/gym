@@ -321,18 +321,33 @@ class AdminMessagesView extends ConsumerWidget {
                           context: context,
                           builder: (_) => Dialog(
                             backgroundColor: Colors.transparent,
-                            insetPadding: const EdgeInsets.all(16),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(24),
-                              child: SizedBox(
-                                width: isMobile
-                                    ? MediaQuery.of(context).size.width - 24
-                                    : 420,
-                                height:
-                                    MediaQuery.of(context).size.height * 0.72,
-                                child: GroupChatScreen(
-                                  group: g,
-                                  isAdminChat: true,
+                            elevation: 0,
+                            insetPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 16,
+                            ),
+                            child: SafeArea(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(24),
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxWidth: 520,
+                                    maxHeight: (MediaQuery.of(context).size.height * 0.78)
+                                        .clamp(320.0, 760.0)
+                                        .toDouble(),
+                                  ),
+                                  child: SizedBox(
+                                    width: isMobile
+                                        ? MediaQuery.of(context).size.width - 24
+                                        : 420,
+                                    height: (MediaQuery.of(context).size.height * 0.78)
+                                        .clamp(320.0, 760.0)
+                                        .toDouble(),
+                                    child: GroupChatScreen(
+                                      group: g,
+                                      isAdminChat: true,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -483,7 +498,6 @@ Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
         backgroundColor: AdminThemeColors.of(context).surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: AdminThemeColors.of(context).border),
         ),
         title: Text(
           'Criar Grupo',
@@ -493,7 +507,7 @@ Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
           ),
         ),
         content: SizedBox(
-          width: 400,
+          width: double.infinity,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -535,10 +549,9 @@ Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
                   ),
                 )
               else
-                Flexible(
-                  child: SizedBox(
-                    height: 200,
-                    child: ListView(
+                SizedBox(
+                  height: 200,
+                  child: ListView(
                       shrinkWrap: true,
                       children: alunos
                           .map(
@@ -572,7 +585,6 @@ Future<void> _showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
                           .toList(),
                     ),
                   ),
-                ),
             ],
           ),
         ),

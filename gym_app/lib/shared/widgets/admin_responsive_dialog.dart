@@ -231,7 +231,7 @@ class AdminResponsiveAlertDialog extends StatelessWidget {
                 shape ??
                 RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(compact ? 22 : 28),
-                  side: BorderSide(color: colors.border.withValues(alpha: 0.9)),
+                  side: BorderSide.none,
                 ),
             elevation: 0,
             shadowColor: Colors.transparent,

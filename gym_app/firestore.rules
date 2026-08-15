@@ -56,9 +56,10 @@ service cloud.firestore {
       ) || (
         isActiveOwner(uid) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'questionnaireCompletedAt', 'questionnaireVersion'
+          'questionnaireCompletedAt', 'questionnaireVersion', 'genero'
         ]) &&
-        request.resource.data.get('questionnaireVersion', '') == 'questionnaire-2026-08' &&
+        request.resource.data.get('questionnaireVersion', '') == 'questionnaire-2026-08-gender' &&
+        request.resource.data.get('genero', '') in ['masculino', 'feminino'] &&
         request.resource.data.get('questionnaireCompletedAt', request.time) <= request.time
       );
       allow create: if isAdmin();
@@ -76,12 +77,12 @@ service cloud.firestore {
         allow create, update: if isAdmin() || (
           isActiveOwner(uid) &&
           docId == 'resposta' &&
-          request.resource.data.get('version', '') == 'questionnaire-2026-08' &&
+          request.resource.data.get('version', '') == 'questionnaire-2026-08-gender' &&
           request.resource.data.keys().hasOnly([
             'version', 'completedAt', 'answers'
           ]) &&
           request.resource.data.get('answers', {}).keys().hasOnly([
-            'birthDate', 'profession', 'activity', 'sedentary', 'meals',
+            'birthDate', 'genero', 'profession', 'activity', 'sedentary', 'meals',
             'water', 'sleep', 'pathologies', 'familyPathologies', 'surgery',
             'medication', 'allergies', 'dislikedFoods', 'preferredFoods',
             'outsideMeals', 'objective'

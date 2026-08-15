@@ -109,8 +109,9 @@ class FirestoreDataSource {
   /// Guarda as respostas e marca o perfil como concluído numa operação lógica.
   Future<void> saveQuestionnaire(
     String uid,
-    QuestionnaireResponse response,
-  ) async {
+    QuestionnaireResponse response, {
+    String? genero,
+  }) async {
     try {
       final userRef = _firestore
           .collection(AppConstants.usersCollection)
@@ -123,6 +124,7 @@ class FirestoreDataSource {
       batch.update(userRef, {
         'questionnaireCompletedAt': FieldValue.serverTimestamp(),
         'questionnaireVersion': response.version,
+        if (genero != null) 'genero': genero,
       });
       await batch.commit();
     } on FirebaseException catch (e) {

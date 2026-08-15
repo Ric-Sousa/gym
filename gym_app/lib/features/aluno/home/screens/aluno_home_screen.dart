@@ -308,6 +308,20 @@ class AlunoHomeScreen extends ConsumerStatefulWidget {
 }
 
 class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
+  final LayerLink _notificationLayerLink = LayerLink();
+  OverlayEntry? _notificationOverlay;
+
+  void _closeNotificationOverlay() {
+    _notificationOverlay?.remove();
+    _notificationOverlay = null;
+  }
+
+  @override
+  void dispose() {
+    _closeNotificationOverlay();
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -375,18 +389,45 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
       ref.read(notificationRepositoryProvider).markAllAsRead(userId),
     );
 
-    showDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      builder: (dialogContext) => Dialog(
-        backgroundColor: AppColors.surface,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
-        ),
-        child: ConstrainedBox(
+    if (_notificationOverlay != null) {
+      _closeNotificationOverlay();
+      return;
+    }
+
+    final overlay = Overlay.of(context);
+    late OverlayEntry notificationEntry;
+
+    notificationEntry = OverlayEntry(
+      builder: (dialogContext) => Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _closeNotificationOverlay,
+              child: const SizedBox.expand(),
+            ),
+          ),
+          CompositedTransformFollower(
+            link: _notificationLayerLink,
+            showWhenUnlinked: false,
+            targetAnchor: Alignment.bottomRight,
+            followerAnchor: Alignment.topRight,
+            offset: const Offset(0, 10),
+            child: Material(
+              color: AppColors.surface,
+              elevation: 8,
+              shadowColor: Colors.black.withValues(alpha: 0.18),
+              surfaceTintColor: Colors.transparent,
+              borderRadius: BorderRadius.circular(18),
+              clipBehavior: Clip.antiAlias,
+              child: ConstrainedBox(
           constraints: BoxConstraints(
-            maxWidth: 560,
+            minWidth: (MediaQuery.sizeOf(dialogContext).width - 24)
+                .clamp(280.0, 400.0)
+                .toDouble(),
+            maxWidth: (MediaQuery.sizeOf(dialogContext).width - 24)
+                .clamp(280.0, 400.0)
+                .toDouble(),
             maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.78,
           ),
           child: SingleChildScrollView(
@@ -445,7 +486,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                           ),
                         ),
                         IconButton(
-                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          onPressed: _closeNotificationOverlay,
                           icon: const Icon(Icons.close_rounded),
                           tooltip: 'Fechar',
                         ),
@@ -511,7 +552,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                       (payment) => ListTile(
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                         onTap: () {
-                          Navigator.of(dialogContext).pop();
+                          _closeNotificationOverlay();
                           widget.onNavigate?.call(5);
                         },
                         tileColor: AppColors.surfaceHigh.withValues(alpha: 0.72),
@@ -551,14 +592,20 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
           ),
         ),
       ),
+      ),
+    ],
+  ),
     );
+
+    _notificationOverlay = notificationEntry;
+    overlay.insert(notificationEntry);
   }
 
   void _openNotification(
     BuildContext dialogContext,
     AppNotificationModel notification,
   ) {
-    Navigator.of(dialogContext).pop();
+    _closeNotificationOverlay();
     final destination = _notificationDestination(
       action: notification.action,
       type: notification.type,
@@ -655,7 +702,9 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
         ],
       ),
       actions: [
-        IconButton(
+        CompositedTransformTarget(
+          link: _notificationLayerLink,
+          child: IconButton(
           icon: Stack(
             clipBehavior: Clip.none,
             children: [
@@ -699,6 +748,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
           ),
           tooltip: 'Notificações de pagamentos',
           onPressed: () => _showPaymentNotifications(context, userId),
+          ),
         ),
         const SizedBox(width: 8),
       ],
@@ -805,6 +855,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                   : 'TREINO DE HOJE'
             : null;
         final exerciseCount = hasWorkout ? todayWorkout.exercicios.length : 0;
+        final compact = MediaQuery.sizeOf(context).width < 380;
 
         return ClipRRect(
           borderRadius: BorderRadius.circular(16),
@@ -890,19 +941,21 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                                       ).primaryFixed
                                     : AppColors.onSurfaceVariant)
                                 .withValues(alpha: 0.3),
-                        size: 60,
+                        size: compact ? 48 : 60,
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Text(
                     hasWorkout ? workoutName! : 'DIA DE DESCANSO',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.montserrat(
-                      fontSize: 34,
+                      fontSize: compact ? 28 : 34,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.02,
                       color: Colors.white,
-                      height: 1,
+                      height: 1.05,
                     ),
                   ),
                   const SizedBox(height: 4),

@@ -51,10 +51,15 @@ class UserRepository {
   /// Guarda a ficha de anamnese preenchida pelo aluno.
   Future<void> saveQuestionnaire(
     String uid,
-    QuestionnaireResponse response,
-  ) async {
+    QuestionnaireResponse response, {
+    String? genero,
+  }) async {
     try {
-      await _firestoreDataSource.saveQuestionnaire(uid, response);
+      await _firestoreDataSource.saveQuestionnaire(
+        uid,
+        response,
+        genero: genero,
+      );
     } on ServerException catch (e) {
       throw ServerFailure(message: e.message);
     }

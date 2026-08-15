@@ -45,6 +45,11 @@ class AuthException implements Exception {
           code: code,
           message: 'Demasiadas tentativas. Tenta novamente mais tarde.',
         );
+      case 'operation-not-allowed':
+        return AuthException(
+          code: code,
+          message: 'A recuperação de palavra-passe não está ativada.',
+        );
       default:
         return AuthException(
           code: code,

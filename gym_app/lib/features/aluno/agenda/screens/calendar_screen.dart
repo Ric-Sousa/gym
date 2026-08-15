@@ -455,6 +455,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
         backgroundColor: AppColors.surfaceHigh,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
@@ -595,6 +598,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
         backgroundColor: AppColors.surfaceHigh,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
@@ -682,6 +688,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
         backgroundColor: AppColors.surfaceHigh,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(

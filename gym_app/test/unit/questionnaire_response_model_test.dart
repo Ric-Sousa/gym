@@ -7,6 +7,7 @@ void main() {
     final answers = {
       for (final id in QuestionnaireResponse.labels.keys) id: 'Resposta',
     };
+    expect(QuestionnaireResponse.labels['genero'], 'Sexo');
     final response = QuestionnaireResponse(
       version: QuestionnaireResponse.currentVersion,
       completedAt: DateTime(2026, 8, 15),

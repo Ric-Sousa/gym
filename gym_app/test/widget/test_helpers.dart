@@ -10,7 +10,9 @@ import 'package:gym_app/core/config/admin_theme.dart';
 /// Permite controlar o estado de autenticação sem Firebase.
 class MockAuthNotifier extends StateNotifier<AuthState>
     implements AuthNotifier {
-  MockAuthNotifier(super.state);
+  final Future<String?> Function(String email)? onPasswordReset;
+
+  MockAuthNotifier(super.state, {this.onPasswordReset});
 
   @override
   Future<void> signIn(String email, String password) async {}
@@ -19,7 +21,9 @@ class MockAuthNotifier extends StateNotifier<AuthState>
   Future<void> signOut() async {}
 
   @override
-  Future<String?> sendPasswordResetEmail(String email) async => null;
+  Future<String?> sendPasswordResetEmail(String email) async {
+    return onPasswordReset?.call(email);
+  }
 
   @override
   Future<void> refreshUser() async {}

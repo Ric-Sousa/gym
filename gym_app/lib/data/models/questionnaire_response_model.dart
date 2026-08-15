@@ -1,10 +1,11 @@
 /// Respostas da ficha inicial de anamnese do aluno.
 class QuestionnaireResponse {
-  static const currentVersion = 'questionnaire-2026-08';
+  static const currentVersion = 'questionnaire-2026-08-gender';
 
   /// IDs e rótulos usados tanto pelo formulário como pelo painel admin.
   static const labels = <String, String>{
     'birthDate': 'Data de nascimento',
+    'genero': 'Sexo',
     'profession': 'Profissão',
     'activity': 'Prática de exercício físico',
     'sedentary': 'Rotina sedentária',

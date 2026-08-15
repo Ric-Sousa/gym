@@ -1628,6 +1628,9 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
         title: const Text('Eliminar série?'),
         content: Text(
           'A série S${serie.numero} adicionada manualmente será eliminada.',

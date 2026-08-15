@@ -46,6 +46,8 @@ class _PrivacyPolicyScreenState extends ConsumerState<PrivacyPolicyScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.sizeOf(context).width < 500;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -98,12 +100,26 @@ class _PrivacyPolicyScreenState extends ConsumerState<PrivacyPolicyScreen> {
                               : (value) =>
                                     setState(() => _accepted = value ?? false),
                           contentPadding: EdgeInsets.zero,
+                          dense: isCompact,
+                          visualDensity: isCompact
+                              ? VisualDensity.compact
+                              : VisualDensity.standard,
                           controlAffinity: ListTileControlAffinity.leading,
-                          title: const Text(
+                          title: Text(
                             'Li e aceito a política de privacidade.',
+                            style: GoogleFonts.inter(
+                              fontSize: isCompact ? 12 : 14,
+                              height: 1.2,
+                              color: AppColors.onSurface,
+                            ),
                           ),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'Este texto é um rascunho e deve ser revisto antes de produção.',
+                            style: GoogleFonts.inter(
+                              fontSize: isCompact ? 10.5 : 12,
+                              height: 1.25,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 8),

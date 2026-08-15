@@ -9,6 +9,18 @@ import '../../../shared/widgets/app_notification.dart';
 import '../../../shared/widgets/app_page_frame.dart';
 import '../providers/auth_provider.dart';
 
+const _loginBackground = AppColors.background;
+const _loginPanel = AppColors.surfaceLow;
+const _loginField = AppColors.surface;
+const _loginBorder = AppColors.outline;
+const _loginMuted = AppColors.textSecondary;
+const _loginAccent = AppColors.onSurface;
+const _loginAccentSoft = AppColors.outlineVariant;
+const _loginFocusBorder = AppColors.outline;
+const _loginButtonBackground = AppColors.surfaceHighest;
+const _loginButtonText = AppColors.onSurface;
+const _loginError = AppColors.onSurface;
+
 /// Ecrã de login — Kinetic Dark.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -22,6 +34,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isSendingPasswordReset = false;
 
   @override
   void dispose() {
@@ -38,51 +51,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _handleForgotPassword() async {
-    final email = _emailController.text.trim();
-    final controller = TextEditingController(text: email);
-
     final result = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          AppStrings.forgotPassword,
-          style: GoogleFonts.montserrat(
-            fontWeight: FontWeight.w700,
-            color: AppColors.onSurface,
-          ),
-        ),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            hintText: AppStrings.emailHint,
-            labelText: AppStrings.email,
-          ),
-          keyboardType: TextInputType.emailAddress,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text(AppStrings.cancel),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Enviar'),
-          ),
-        ],
+      builder: (_) => _PasswordResetDialog(
+        initialEmail: _emailController.text.trim(),
       ),
     );
 
-    if (result != null && result.isNotEmpty) {
-      final error = await ref
-          .read(authProvider.notifier)
-          .sendPasswordResetEmail(result);
-      if (!mounted) return;
-      showAppNotification(
-        context,
-        error ?? AppStrings.passwordResetSent,
-        type: error != null ? NotificationType.error : NotificationType.success,
-      );
-    }
+    if (result == null || result.isEmpty || !mounted) return;
+
+    setState(() => _isSendingPasswordReset = true);
+    final error = await ref
+        .read(authProvider.notifier)
+        .sendPasswordResetEmail(result);
+    if (!mounted) return;
+    setState(() => _isSendingPasswordReset = false);
+    showAppNotification(
+      context,
+      error ?? AppStrings.passwordResetSent,
+      type: error != null ? NotificationType.error : NotificationType.success,
+    );
   }
 
   @override
@@ -90,9 +78,104 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final authState = ref.watch(authProvider);
 
     final theme = Theme.of(context);
+    final loginTheme = theme.copyWith(
+      brightness: Brightness.dark,
+      scaffoldBackgroundColor: _loginBackground,
+      focusColor: Colors.transparent,
+      hoverColor: Colors.transparent,
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      colorScheme: theme.colorScheme.copyWith(
+        primary: _loginButtonBackground,
+        onPrimary: _loginButtonText,
+        primaryContainer: AppColors.surfaceHighest,
+        onPrimaryContainer: AppColors.onSurface,
+        surface: _loginPanel,
+        onSurface: Colors.white,
+        outline: _loginBorder,
+        outlineVariant: AppColors.outlineVariant,
+        error: _loginError,
+        onError: _loginButtonText,
+      ),
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: _loginBorder,
+        selectionColor: _loginBorder.withValues(alpha: 0.28),
+        selectionHandleColor: _loginBorder,
+      ),
+      cardTheme: theme.cardTheme.copyWith(
+        color: _loginPanel,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide.none,
+        ),
+      ),
+      inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+        filled: true,
+        fillColor: _loginField,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 16,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _loginBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _loginBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _loginFocusBorder, width: 1),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _loginError),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _loginError, width: 1.4),
+        ),
+        labelStyle: GoogleFonts.inter(color: _loginMuted),
+        floatingLabelStyle: GoogleFonts.inter(
+          fontWeight: FontWeight.w600,
+          color: _loginMuted,
+        ),
+        hintStyle: GoogleFonts.inter(color: _loginMuted),
+        prefixIconColor: _loginMuted,
+        suffixIconColor: _loginMuted,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _loginButtonBackground,
+          foregroundColor: _loginButtonText,
+          disabledBackgroundColor: _loginAccentSoft,
+          disabledForegroundColor: _loginButtonText.withValues(alpha: 0.7),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: _loginAccent),
+      ),
+      dialogTheme: theme.dialogTheme.copyWith(
+        backgroundColor: _loginPanel,
+        surfaceTintColor: Colors.transparent,
+        titleTextStyle: GoogleFonts.montserrat(
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+        ),
+        contentTextStyle: GoogleFonts.inter(
+          fontSize: 14,
+          color: const Color(0xFFD0D0D0),
+        ),
+      ),
+    );
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+    return Theme(
+      data: loginTheme,
+      child: Scaffold(
+        backgroundColor: _loginBackground,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -101,6 +184,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               maxWidth: 480,
               padding: EdgeInsets.zero,
               child: Card(
+                color: _loginPanel,
                 margin: EdgeInsets.zero,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(28, 32, 28, 28),
@@ -110,29 +194,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // Logo — magenta glow effect
+                        // Logo — brilho neutro em cinza
                         Container(
                           width: 80,
                           height: 80,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: AppColors.primary.withValues(alpha: 0.1),
+                            color: _loginAccent.withValues(alpha: 0.1),
                             border: Border.all(
-                              color: AppColors.primary.withValues(alpha: 0.3),
+                              color: _loginAccent.withValues(alpha: 0.35),
                               width: 2,
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.primary.withValues(alpha: 0.2),
-                                blurRadius: 20,
-                                spreadRadius: 2,
-                              ),
-                            ],
+                            boxShadow: const [],
                           ),
                           child: const Icon(
                             Icons.fitness_center,
                             size: 36,
-                            color: AppColors.primary,
+                            color: _loginAccent,
                           ),
                         ),
                         const SizedBox(height: 24),
@@ -202,11 +280,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton(
-                            onPressed: _handleForgotPassword,
+                            onPressed: _isSendingPasswordReset
+                                ? null
+                                : _handleForgotPassword,
                             child: Text(
                               AppStrings.forgotPassword,
                               style: GoogleFonts.inter(
-                                color: AppColors.primary,
+                                color: _loginAccent,
                                 fontSize: 13,
                               ),
                             ),
@@ -228,19 +308,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: AppColors.errorContainer.withValues(
-                                alpha: 0.3,
-                              ),
+                              color: _loginAccentSoft.withValues(alpha: 0.18),
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: AppColors.error.withValues(alpha: 0.3),
+                                color: _loginAccent.withValues(alpha: 0.35),
                               ),
                             ),
                             child: Row(
                               children: [
                                 const Icon(
                                   Icons.error_outline,
-                                  color: AppColors.error,
+                                  color: _loginAccent,
                                   size: 20,
                                 ),
                                 const SizedBox(width: 8),
@@ -248,7 +326,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   child: Text(
                                     authState.errorMessage!,
                                     style: GoogleFonts.inter(
-                                      color: AppColors.error,
+                                      color: _loginAccent,
                                       fontSize: 13,
                                     ),
                                   ),
@@ -265,6 +343,168 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           ),
         ),
+      ),
+      ),
+    );
+  }
+}
+
+class _PasswordResetDialog extends StatefulWidget {
+  final String initialEmail;
+
+  const _PasswordResetDialog({required this.initialEmail});
+
+  @override
+  State<_PasswordResetDialog> createState() => _PasswordResetDialogState();
+}
+
+class _PasswordResetDialogState extends State<_PasswordResetDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialEmail);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_formKey.currentState?.validate() ?? false) {
+      Navigator.of(context).pop(_controller.text.trim());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final baseTheme = Theme.of(context);
+    final dialogTheme = baseTheme.copyWith(
+      brightness: Brightness.dark,
+      colorScheme: baseTheme.colorScheme.copyWith(
+        primary: _loginButtonBackground,
+        onPrimary: _loginButtonText,
+        surface: _loginPanel,
+        onSurface: AppColors.onSurface,
+        outline: _loginBorder,
+        outlineVariant: AppColors.outlineVariant,
+        error: _loginError,
+      ),
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: _loginBorder,
+        selectionColor: _loginBorder.withValues(alpha: 0.28),
+        selectionHandleColor: _loginBorder,
+      ),
+      dialogTheme: baseTheme.dialogTheme.copyWith(
+        backgroundColor: _loginPanel,
+        surfaceTintColor: Colors.transparent,
+      ),
+      inputDecorationTheme: baseTheme.inputDecorationTheme.copyWith(
+        filled: true,
+        fillColor: _loginField,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _loginBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _loginBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _loginFocusBorder, width: 1),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _loginError),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: _loginError, width: 1),
+        ),
+        labelStyle: GoogleFonts.inter(color: _loginMuted),
+        floatingLabelStyle: GoogleFonts.inter(color: _loginMuted),
+        hintStyle: GoogleFonts.inter(color: _loginMuted),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _loginButtonBackground,
+          foregroundColor: _loginButtonText,
+          elevation: 0,
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: _loginAccent),
+      ),
+    );
+
+    return Theme(
+      data: dialogTheme,
+      child: AlertDialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      title: Text(
+        AppStrings.forgotPassword,
+        style: GoogleFonts.montserrat(
+          fontWeight: FontWeight.w700,
+          color: AppColors.onSurface,
+        ),
+      ),
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          controller: _controller,
+          autofocus: true,
+          cursorColor: _loginBorder,
+          style: GoogleFonts.inter(color: _loginButtonText),
+          decoration: InputDecoration(
+            hintText: AppStrings.emailHint,
+            labelText: AppStrings.email,
+            filled: true,
+            fillColor: _loginField,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 16,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: _loginBorder),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: _loginBorder),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: _loginFocusBorder, width: 1),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: _loginError),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: _loginError, width: 1),
+            ),
+          ),
+          keyboardType: TextInputType.emailAddress,
+          textInputAction: TextInputAction.done,
+          validator: Validators.email,
+          onFieldSubmitted: (_) => _submit(),
+        ),
+      ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text(AppStrings.cancel),
+          ),
+          ElevatedButton(onPressed: _submit, child: const Text('Enviar')),
+        ],
       ),
     );
   }

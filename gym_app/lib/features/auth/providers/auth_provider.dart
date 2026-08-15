@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:riverpod/legacy.dart';
+import '../../../core/errors/exceptions.dart';
 import '../../../core/errors/failures.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/models/questionnaire_response_model.dart';
@@ -209,9 +210,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       await _authRepository.sendPasswordResetEmail(email);
       return null;
-    } on NetworkFailure {
-      return 'Sem ligação à internet.';
-    } catch (e) {
+    } on NetworkFailure catch (e) {
+      return e.message;
+    } on AuthException catch (e) {
+      return e.message;
+    } on ServerException catch (e) {
+      return e.message;
+    } catch (_) {
       return 'Erro ao enviar e-mail de recuperação.';
     }
   }

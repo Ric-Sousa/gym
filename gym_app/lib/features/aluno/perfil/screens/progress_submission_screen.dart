@@ -258,36 +258,24 @@ class _ProgressSubmissionScreenState
           ),
         ),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(child: _medidaField(_cinturaController, 'Cintura')),
-            const SizedBox(width: 8),
-            Expanded(child: _medidaField(_abdomenController, 'Abdómen')),
-          ],
+        _responsiveMeasurementPair(
+          _medidaField(_cinturaController, 'Cintura'),
+          _medidaField(_abdomenController, 'Abdómen'),
         ),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(child: _medidaField(_quadrilController, 'Quadril')),
-            const SizedBox(width: 8),
-            Expanded(child: _medidaField(_peitoController, 'Peito')),
-          ],
+        _responsiveMeasurementPair(
+          _medidaField(_quadrilController, 'Quadril'),
+          _medidaField(_peitoController, 'Peito'),
         ),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(child: _medidaField(_bracoDController, 'Braço D')),
-            const SizedBox(width: 8),
-            Expanded(child: _medidaField(_bracoEController, 'Braço E')),
-          ],
+        _responsiveMeasurementPair(
+          _medidaField(_bracoDController, 'Braço D'),
+          _medidaField(_bracoEController, 'Braço E'),
         ),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(child: _medidaField(_coxaDController, 'Coxa D')),
-            const SizedBox(width: 8),
-            Expanded(child: _medidaField(_coxaEController, 'Coxa E')),
-          ],
+        _responsiveMeasurementPair(
+          _medidaField(_coxaDController, 'Coxa D'),
+          _medidaField(_coxaEController, 'Coxa E'),
         ),
         const SizedBox(height: 8),
         TextField(
@@ -300,6 +288,29 @@ class _ProgressSubmissionScreenState
           ),
         ),
       ],
+    );
+  }
+
+  Widget _responsiveMeasurementPair(Widget first, Widget second) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 420) {
+          return Column(
+            children: [
+              first,
+              const SizedBox(height: 8),
+              second,
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: first),
+            const SizedBox(width: 8),
+            Expanded(child: second),
+          ],
+        );
+      },
     );
   }
 
@@ -561,7 +572,10 @@ class _ProgressSubmissionScreenState
       context: context,
       builder: (ctx) => SimpleDialog(
         backgroundColor: AppColors.surfaceHigh,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        titlePadding: const EdgeInsets.fromLTRB(24, 22, 24, 8),
+        contentPadding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
         title: Text(
           'Adicionar foto',
           style: GoogleFonts.montserrat(
@@ -571,6 +585,7 @@ class _ProgressSubmissionScreenState
         ),
         children: [
           SimpleDialogOption(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             onPressed: () => Navigator.pop(ctx, ImageSource.camera),
             child: const Row(
               children: [
@@ -581,6 +596,7 @@ class _ProgressSubmissionScreenState
             ),
           ),
           SimpleDialogOption(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             onPressed: () => Navigator.pop(ctx, ImageSource.gallery),
             child: const Row(
               children: [

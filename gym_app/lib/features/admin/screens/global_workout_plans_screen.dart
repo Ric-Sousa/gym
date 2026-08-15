@@ -1444,6 +1444,7 @@ class _GlobalWorkoutPlansScreenState
                   hintText: 'Ex.: Treino A',
                 ),
               ),
+              const SizedBox(height: 10),
               DropdownButtonFormField<String>(
                 isDense: true,
                 menuMaxHeight: 320,
@@ -1460,6 +1461,7 @@ class _GlobalWorkoutPlansScreenState
                   () => weekday = value ?? AppStrings.daysOfWeek.first,
                 ),
               ),
+              const SizedBox(height: 10),
               TextField(
                 controller: focus,
                 decoration: const InputDecoration(labelText: 'Foco (opcional)'),
@@ -1534,6 +1536,7 @@ class _GlobalWorkoutPlansScreenState
                   controller: name,
                   decoration: const InputDecoration(labelText: 'Exercício'),
                 ),
+                const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
                 isDense: true,
                 menuMaxHeight: 320,
@@ -1559,6 +1562,7 @@ class _GlobalWorkoutPlansScreenState
                   onChanged: (value) =>
                       setDialogState(() => category = value ?? 'musculação'),
                 ),
+                const SizedBox(height: 10),
                 DropdownButtonFormField<String>(
                 isDense: true,
                 menuMaxHeight: 320,
@@ -1587,6 +1591,7 @@ class _GlobalWorkoutPlansScreenState
                   onChanged: (value) =>
                       setDialogState(() => equipment = value ?? 'outro'),
                 ),
+                const SizedBox(height: 10),
                 Row(
                   children: [
                     Expanded(

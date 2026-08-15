@@ -21,7 +21,7 @@ class AppStrings {
   static const String wrongPassword = 'Palavra-passe incorreta';
   static const String accountDisabled = 'Conta desativada. Contacta o suporte.';
   static const String passwordResetSent =
-      'E-mail de recuperação enviado. Verifica a tua caixa de entrada.';
+      'E-mail de recuperação enviado. Verifica a caixa de entrada e o spam.';
   static const String noUserDoc =
       'Documento de utilizador não encontrado. Contacta o suporte.';
 

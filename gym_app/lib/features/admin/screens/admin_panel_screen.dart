@@ -2104,7 +2104,6 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
     final nomeCtrl = TextEditingController();
     final emailCtrl = TextEditingController();
     final passwordCtrl = TextEditingController();
-    String genero = 'feminino';
     bool obscurePassword = true;
     bool loading = false;
 
@@ -2116,7 +2115,6 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
           backgroundColor: AdminThemeColors.of(context).surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
-            side: BorderSide(color: AdminThemeColors.of(context).border),
           ),
           title: Text(
             'Novo Cliente',
@@ -2207,44 +2205,6 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  isDense: true,
-                  menuMaxHeight: 320,
-                  elevation: 2,
-                  borderRadius: BorderRadius.circular(14),
-                  initialValue: genero,
-                  decoration: InputDecoration(
-                    labelText: 'Género',
-                    labelStyle: GoogleFonts.inter(
-                      color: AdminThemeColors.of(context).muted,
-                    ),
-                    filled: true,
-                    fillColor: AdminThemeColors.of(context).bg,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(
-                        color: AdminThemeColors.of(context).border,
-                      ),
-                    ),
-                  ),
-                  dropdownColor: AdminThemeColors.of(context).surface,
-                  style: GoogleFonts.inter(
-                    color: AdminThemeColors.of(context).text,
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'feminino',
-                      child: Text('🌸 Feminino'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'masculino',
-                      child: Text('💪 Masculino'),
-                    ),
-                  ],
-                  onChanged: (v) =>
-                      setDialogState(() => genero = v ?? 'feminino'),
-                ),
-                const SizedBox(height: 8),
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(
@@ -2323,7 +2283,6 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                           'nome': nomeCtrl.text.trim(),
                           'email': emailCtrl.text.trim(),
                           'personalId': adminId,
-                          'genero': genero,
                           'authToken': token ?? '',
                         };
                         if (pw.isNotEmpty) body['password'] = pw;
@@ -2704,7 +2663,6 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
         backgroundColor: AdminThemeColors.of(context).surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
-          side: BorderSide(color: AdminThemeColors.of(context).border),
         ),
         title: Text(
           'Terminar contrato',
@@ -3358,14 +3316,19 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                   children: [
                     identity,
                     const SizedBox(height: 12),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(child: metrics),
-                        const SizedBox(width: 10),
-                        actions,
-                      ],
-                    ),
+                    if (isMobile) ...[
+                      metrics,
+                      const SizedBox(height: 12),
+                      actions,
+                    ] else
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(child: metrics),
+                          const SizedBox(width: 10),
+                          actions,
+                        ],
+                      ),
                   ],
                 )
               : Row(
@@ -4259,7 +4222,6 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
         backgroundColor: AdminThemeColors.of(context).surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: AdminThemeColors.of(context).border),
         ),
         title: Text(
           'Reset Password',
@@ -5021,6 +4983,13 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
 
     int beforeIdx = withPhotos.length - 1; // mais antigo
     int afterIdx = 0; // mais recente
+    final comparisonWidth = (MediaQuery.sizeOf(context).width -
+            (MediaQuery.sizeOf(context).width < 600 ? 60 : 108))
+        .clamp(1.0, 560.0)
+        .toDouble();
+    final comparisonHeight = (comparisonWidth * 0.78)
+        .clamp(220.0, 360.0)
+        .toDouble();
 
     showDialog(
       context: context,
@@ -5029,7 +4998,6 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
           backgroundColor: AdminThemeColors.of(context).surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
-            side: BorderSide(color: AdminThemeColors.of(context).border),
           ),
           title: Row(
             children: [
@@ -5057,14 +5025,8 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                 ImageComparisonSlider(
                   beforeImage: withPhotos[beforeIdx].fotos.first,
                   afterImage: withPhotos[afterIdx].fotos.first,
-                  width:
-                      (MediaQuery.sizeOf(context).width -
-                              (MediaQuery.sizeOf(context).width < 600
-                                  ? 60
-                                  : 108))
-                          .clamp(1.0, 560.0)
-                          .toDouble(),
-                  height: 360,
+                  width: comparisonWidth,
+                  height: comparisonHeight,
                   dividerColor: AdminThemeColors.of(context).lime,
                   beforeLabel: 'Inicial',
                   afterLabel: 'Atual',
@@ -5917,7 +5879,6 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
           backgroundColor: AdminThemeColors.of(context).surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
-            side: BorderSide(color: AdminThemeColors.of(context).border),
           ),
           title: Text(
             'Novo Exercício',
@@ -6120,10 +6081,12 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
             ),
           ),
           const SizedBox(height: 20),
-          SizedBox(
-            width: 360,
-            height: 40,
-            child: TextField(
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: SizedBox(
+              width: double.infinity,
+              height: 40,
+              child: TextField(
               onChanged: (v) => setState(() => _search = v),
               style: GoogleFonts.inter(
                 fontSize: 13,
@@ -6161,6 +6124,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
               ),
             ),
           ),
+        ),
           const SizedBox(height: 24),
           foodsAsync.when(
             data: (foods) {
@@ -6376,7 +6340,6 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
           backgroundColor: AdminThemeColors.of(context).surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
-            side: BorderSide(color: AdminThemeColors.of(context).border),
           ),
           title: Text(
             'Novo Alimento',
@@ -6673,9 +6636,10 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
   }
 
   Widget _buildPaymentsTable(List<PaymentModel> payments) {
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
     if (payments.isEmpty) {
       return Container(
-        padding: const EdgeInsets.all(60),
+        padding: EdgeInsets.all(isMobile ? 24 : 60),
         decoration: _cardDecoration(),
         child: Center(
           child: Column(
@@ -6715,8 +6679,9 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-          // Header
-          Container(
+          // O cabeçalho de colunas é útil no desktop, mas em mobile cada
+          // pagamento já é apresentado como um cartão vertical completo.
+          if (!isMobile) Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: AdminThemeColors.of(context).surface2,
@@ -6772,7 +6737,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
   Future<void> _cancelPaymentSubscription(PaymentModel payment) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => AdminResponsiveAlertDialog(
         title: const Text('Desativar renovação automática?'),
         content: const Text(
           'O cliente mantém o acesso até ao fim do período pago. O Stripe não fará novas cobranças depois dessa data.',
@@ -6843,7 +6808,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
   Future<void> _cancelPayment(PaymentModel payment) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => AdminResponsiveAlertDialog(
         title: const Text('Cancelar cobrança?'),
         content: Text(
           'A cobrança de ${payment.valorFormatado} deixará de aparecer para o cliente e a subscrição automática será cancelada, se já tiver sido criada.',
@@ -7247,7 +7212,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
     final data = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
+        builder: (ctx, setState) => AdminResponsiveAlertDialog(
           title: const Text('Registar pagamento manual'),
           content: SingleChildScrollView(
             child: Column(
@@ -7268,6 +7233,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                       .toList(),
                   onChanged: (v) => setState(() => aluno = v),
                 ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: valor,
                   keyboardType: const TextInputType.numberWithOptions(
@@ -7275,10 +7241,12 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                   ),
                   decoration: const InputDecoration(labelText: 'Valor (€)'),
                 ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: descricao,
                   decoration: const InputDecoration(labelText: 'Descrição'),
                 ),
+                const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   isDense: true,
                   menuMaxHeight: 320,
@@ -7299,7 +7267,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                   ],
                   onChanged: (v) => setState(() => metodo = v ?? metodo),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: OutlinedButton.icon(
@@ -7320,18 +7288,21 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: inicio,
                   decoration: const InputDecoration(
                     labelText: 'Início do período (AAAA-MM-DD)',
                   ),
                 ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: fim,
                   decoration: const InputDecoration(
                     labelText: 'Fim do período (AAAA-MM-DD)',
                   ),
                 ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: vencimento,
                   decoration: const InputDecoration(
@@ -7485,7 +7456,6 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
           backgroundColor: AdminThemeColors.of(context).surface,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
-            side: BorderSide(color: AdminThemeColors.of(context).border),
           ),
           title: Text(
             'Nova cobrança',
@@ -7739,27 +7709,39 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
                   );
                 }),
                 tooltip: 'Semana anterior',
+                padding: EdgeInsets.zero,
+                constraints: BoxConstraints(
+                  minWidth: isMobile ? 34 : 40,
+                  minHeight: isMobile ? 34 : 40,
+                ),
               ),
-              GestureDetector(
-                onTap: () => _pickMonth(),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      DateFormat('MMMM yyyy', 'pt').format(_selectedDate),
-                      style: GoogleFonts.inter(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AdminThemeColors.of(context).text,
+              Flexible(
+                child: GestureDetector(
+                  onTap: () => _pickMonth(),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          DateFormat('MMMM yyyy', 'pt').format(_selectedDate),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            fontSize: isMobile ? 14 : 16,
+                            fontWeight: FontWeight.w600,
+                            color: AdminThemeColors.of(context).text,
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.arrow_drop_down,
-                      size: 20,
-                      color: AdminThemeColors.of(context).muted,
-                    ),
-                  ],
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.arrow_drop_down,
+                        size: 20,
+                        color: AdminThemeColors.of(context).muted,
+                      ),
+                    ],
+                  ),
                 ),
               ),
               IconButton(
@@ -7771,6 +7753,11 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
                   _selectedDate = _selectedDate.add(const Duration(days: 7));
                 }),
                 tooltip: 'Próxima semana',
+                padding: EdgeInsets.zero,
+                constraints: BoxConstraints(
+                  minWidth: isMobile ? 34 : 40,
+                  minHeight: isMobile ? 34 : 40,
+                ),
               ),
             ],
           ),
@@ -7884,7 +7871,7 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
     const dayLabels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(color: AdminThemeColors.of(context).border),
@@ -8608,7 +8595,6 @@ class _AdminSettingsView extends ConsumerWidget {
         backgroundColor: AdminThemeColors.of(context).surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: AdminThemeColors.of(context).border),
         ),
         title: Text(
           'Alterar palavra-passe',
@@ -8684,7 +8670,6 @@ class _AdminSettingsView extends ConsumerWidget {
         backgroundColor: AdminThemeColors.of(context).surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: AdminThemeColors.of(context).border),
         ),
         title: Text(
           'Editar Perfil',

@@ -174,7 +174,7 @@ createStudentApp.options('/', (_req, res) => { res.status(204).send(''); });
 createStudentApp.post('/', async (req, res) => {
     // Aceita ambos os formatos: {data: {...}} (onCall antigo) ou fields diretos
     const d = (req.body && req.body.data) ? req.body.data : (req.body || {});
-    const { nome, email, personalId, genero, password, authToken } = d;
+    const { nome, email, personalId, password, authToken } = d;
     const isActive = d.isActive !== false;
     console.log('createStudent body keys:', Object.keys(req.body || {}), 'nome:', nome, 'email:', email);
     if (!nome || !email) {
@@ -205,7 +205,6 @@ createStudentApp.post('/', async (req, res) => {
             await db.collection('users').doc(existingUser.uid).set({
                 nome, email, role: 'aluno',
                 ...(personalId ? { personalId } : {}),
-                ...(genero ? { genero } : {}),
                 isActive,
                 ...(isActive ? {
                     deactivatedAt: admin.firestore.FieldValue.delete(),
@@ -230,7 +229,6 @@ createStudentApp.post('/', async (req, res) => {
         await db.collection('users').doc(userRecord.uid).set({
             nome, email, role: 'aluno',
             personalId: personalId || null,
-            genero: genero || 'feminino',
             pesoAtual: null, altura: null,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             isActive: true,

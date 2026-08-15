@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gym_app/core/config/app_colors.dart';
 import 'package:gym_app/core/config/app_strings.dart';
 import 'package:gym_app/features/auth/providers/auth_provider.dart';
 import 'package:gym_app/features/auth/screens/login_screen.dart';
@@ -47,6 +48,61 @@ void main() {
       await tester.pump();
 
       expect(find.text(AppStrings.forgotPassword), findsOneWidget);
+    });
+
+    testWidgets('sends password reset email after validating the dialog', (
+      tester,
+    ) async {
+      String? requestedEmail;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authProvider.overrideWith(
+              (ref) => MockAuthNotifier(
+                unauthenticatedState,
+                onPasswordReset: (email) async {
+                  requestedEmail = email;
+                  return null;
+                },
+              ),
+            ),
+          ],
+          child: const MaterialApp(home: LoginScreen()),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text(AppStrings.forgotPassword));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField).last, ' aluno@test.com ');
+      await tester.tap(find.text('Enviar'));
+      await tester.pump();
+
+      expect(requestedEmail, 'aluno@test.com');
+      expect(find.text(AppStrings.passwordResetSent), findsOneWidget);
+      await tester.pump(const Duration(seconds: 4));
+    });
+
+    testWidgets('keeps reset dialog open for an invalid email', (tester) async {
+      await tester.pumpWidget(_wrapLogin(unauthenticatedState));
+      await tester.pump();
+
+      await tester.tap(find.text(AppStrings.forgotPassword));
+      await tester.pumpAndSettle();
+      final dialogTheme = Theme.of(
+        tester.element(find.byType(AlertDialog)),
+      );
+      expect(dialogTheme.colorScheme.primary, isNot(AppColors.primary));
+      expect(
+        dialogTheme.textSelectionTheme.cursorColor,
+        isNot(AppColors.primary),
+      );
+      await tester.enterText(find.byType(TextFormField).last, 'email-invalido');
+      await tester.tap(find.text('Enviar'));
+      await tester.pump();
+
+      expect(find.text('E-mail inválido.'), findsOneWidget);
+      expect(find.text('Enviar'), findsOneWidget);
     });
 
     testWidgets('renders fitness icon/logo', (tester) async {

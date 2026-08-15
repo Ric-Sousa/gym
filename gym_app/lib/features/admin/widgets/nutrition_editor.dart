@@ -792,6 +792,7 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
               ),
               decoration: const InputDecoration(labelText: 'Nome do alimento'),
             ),
+            const SizedBox(height: 10),
             TextField(
               controller: qtd,
               style: GoogleFonts.inter(
@@ -799,6 +800,7 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
               ),
               decoration: const InputDecoration(labelText: 'Quantidade'),
             ),
+            const SizedBox(height: 10),
             TextField(
               controller: kcal,
               keyboardType: TextInputType.number,

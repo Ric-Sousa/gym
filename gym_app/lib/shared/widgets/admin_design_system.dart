@@ -152,11 +152,13 @@ ThemeData buildWorkspaceTheme(ThemeData baseTheme, AdminThemeColors colors) {
     ),
     dialogTheme: DialogThemeData(
       backgroundColor: colors.surface,
+      surfaceTintColor: Colors.transparent,
+      shadowColor: Colors.transparent,
       elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(22),
-        side: BorderSide(color: colors.border.withValues(alpha: 0.65)),
+        side: BorderSide.none,
       ),
       titleTextStyle: GoogleFonts.montserrat(
         fontSize: 20,
@@ -168,7 +170,7 @@ ThemeData buildWorkspaceTheme(ThemeData baseTheme, AdminThemeColors colors) {
         height: 1.45,
         color: colors.muted,
       ),
-      actionsPadding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
     ),
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: colors.surface,
@@ -252,6 +254,7 @@ class AdminPageHeader extends StatelessWidget {
     final colors = AdminThemeColors.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
+        final compact = constraints.maxWidth < 600;
         final stacked = action != null && constraints.maxWidth < 560;
         final titleRow = Row(
           children: [
@@ -262,13 +265,13 @@ class AdminPageHeader extends StatelessWidget {
             Flexible(
               child: Text(
                 title,
-                maxLines: 1,
+                maxLines: compact ? 2 : 1,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.inter(
                   color: colors.text,
-                  fontSize: 30,
+                  fontSize: compact ? 24 : 30,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: -0.8,
+                  letterSpacing: compact ? -0.4 : -0.8,
                 ),
               ),
             ),
@@ -281,11 +284,11 @@ class AdminPageHeader extends StatelessWidget {
             const SizedBox(height: 5),
             Text(
               subtitle,
-              maxLines: 2,
+              maxLines: compact ? 3 : 2,
               overflow: TextOverflow.ellipsis,
               style: GoogleFonts.inter(
                 color: colors.muted,
-                fontSize: 13,
+                fontSize: compact ? 12 : 13,
                 height: 1.45,
               ),
             ),
@@ -455,32 +458,42 @@ class AdminSectionHeading extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = AdminThemeColors.of(context);
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: GoogleFonts.inter(
-                  color: colors.text,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = action != null && constraints.maxWidth < 520;
+        final content = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: GoogleFonts.inter(
+                color: colors.text,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
               ),
-              if (subtitle != null) ...[
-                const SizedBox(height: 3),
-                Text(
-                  subtitle!,
-                  style: GoogleFonts.inter(                fontSize: 12, color: colors.muted),
-                ),
-              ],
+            ),
+            if (subtitle != null) ...[
+              const SizedBox(height: 3),
+              Text(
+                subtitle!,
+                style: GoogleFonts.inter(fontSize: 12, color: colors.muted),
+              ),
             ],
-          ),
-        ),
-        if (action != null) action!,
-      ],
+          ],
+        );
+        if (compact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [content, const SizedBox(height: 10), action!],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: content),
+            if (action != null) action!,
+          ],
+        );
+      },
     );
   }
 }

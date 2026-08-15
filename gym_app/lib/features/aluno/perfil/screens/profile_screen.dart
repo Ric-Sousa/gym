@@ -1409,44 +1409,50 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             )
           else
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
-              ),
-              itemCount: photos.length,
-              itemBuilder: (_, index) {
-                final photo = photos[index];
-                return GestureDetector(
-                  onTap: () => _openPhotoViewer(photos, index),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: Image.network(
-                      photo.foto,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (_, child, progress) {
-                        if (progress == null) return child;
-                        return Container(
-                          color: AppColors.surfaceHigh,
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              color: StudentThemeColors.of(context).primary,
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = constraints.maxWidth >= 700 ? 3 : 2;
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                    childAspectRatio: columns == 2 ? 1.05 : 1.0,
+                  ),
+                  itemCount: photos.length,
+                  itemBuilder: (_, index) {
+                    final photo = photos[index];
+                    return GestureDetector(
+                      onTap: () => _openPhotoViewer(photos, index),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: Image.network(
+                          photo.foto,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (_, child, progress) {
+                            if (progress == null) return child;
+                            return Container(
+                              color: AppColors.surfaceHigh,
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  color: StudentThemeColors.of(context).primary,
+                                ),
+                              ),
+                            );
+                          },
+                          errorBuilder: (_, __, ___) => Container(
+                            color: AppColors.surfaceHigh,
+                            child: const Icon(
+                              Icons.broken_image,
+                              color: AppColors.error,
                             ),
                           ),
-                        );
-                      },
-                      errorBuilder: (_, __, ___) => Container(
-                        color: AppColors.surfaceHigh,
-                        child: const Icon(
-                          Icons.broken_image,
-                          color: AppColors.error,
                         ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 );
               },
             ),
@@ -1707,7 +1713,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       context: context,
       builder: (ctx) => SimpleDialog(
         backgroundColor: AppColors.surfaceHigh,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        titlePadding: const EdgeInsets.fromLTRB(24, 22, 24, 8),
+        contentPadding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
         title: Text(
           'Alterar foto',
           style: GoogleFonts.montserrat(
@@ -1717,6 +1726,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ),
         children: [
           SimpleDialogOption(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             onPressed: () => Navigator.pop(ctx, ImageSource.camera),
             child: Row(
               children: [
@@ -1733,6 +1743,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
           ),
           SimpleDialogOption(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             onPressed: () => Navigator.pop(ctx, ImageSource.gallery),
             child: Row(
               children: [
@@ -2131,6 +2142,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceHigh,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           AppStrings.editProfile,

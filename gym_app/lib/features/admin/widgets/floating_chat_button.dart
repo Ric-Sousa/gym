@@ -80,9 +80,10 @@ class FloatingChatButton extends ConsumerWidget {
       (_, event) => event.whenData((_) => playIncomingSound()),
     );
 
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return Positioned(
-      bottom: 24,
-      right: 24,
+      bottom: compact ? 16 : 24,
+      right: compact ? 16 : 24,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -121,8 +122,8 @@ class FloatingChatButton extends ConsumerWidget {
               onTap: () => _openChatModal(context, ref),
               borderRadius: BorderRadius.circular(30),
               child: Container(
-                width: 60,
-                height: 60,
+                width: compact ? 54 : 60,
+                height: compact ? 54 : 60,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
@@ -193,7 +194,7 @@ class FloatingChatButton extends ConsumerWidget {
           alignment: Alignment.bottomRight,
           child: Padding(
             padding: EdgeInsets.only(
-              bottom: 100,
+              bottom: isMobile ? 72 : 100,
               right: isMobile ? 8 : 24,
               left: isMobile ? 8 : 0,
             ),
@@ -257,15 +258,18 @@ class _ChatPopoverState extends ConsumerState<_ChatPopover> {
 
   @override
   Widget build(BuildContext context) {
+    final modalHeight = (widget.screenHeight - (widget.isMobile ? 92 : 140))
+        .clamp(260.0, 560.0)
+        .toDouble();
     return Material(
       color: Colors.transparent,
       child: Container(
         width: widget.isMobile
             ? widget.screenWidth - 16
             : widget.screenWidth.clamp(340.0, 440.0).toDouble(),
-        height: 560,
+        height: modalHeight,
         constraints: BoxConstraints(
-          maxHeight: widget.screenHeight * 0.7,
+          maxHeight: modalHeight,
           maxWidth: widget.isMobile
               ? widget.screenWidth - 16
               : widget.screenWidth.clamp(340.0, 440.0).toDouble(),
@@ -596,6 +600,12 @@ class _ConversationListTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 child: Image.network(
                   aluno.fotoPerfil!,
+                  width: (MediaQuery.sizeOf(context).width - 48)
+                      .clamp(180.0, 720.0)
+                      .toDouble(),
+                  height: (MediaQuery.sizeOf(context).height - 160)
+                      .clamp(180.0, 620.0)
+                      .toDouble(),
                   fit: BoxFit.contain,
                   errorBuilder: (_, __, ___) => CircleAvatar(
                     radius: 80,
@@ -841,6 +851,12 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
                 borderRadius: BorderRadius.circular(20),
                 child: Image.network(
                   aluno.fotoPerfil!,
+                  width: (MediaQuery.sizeOf(context).width - 48)
+                      .clamp(180.0, 720.0)
+                      .toDouble(),
+                  height: (MediaQuery.sizeOf(context).height - 160)
+                      .clamp(180.0, 620.0)
+                      .toDouble(),
                   fit: BoxFit.contain,
                   errorBuilder: (_, __, ___) => CircleAvatar(
                     radius: 80,
@@ -1238,8 +1254,12 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
         child: Stack(
           children: [
             Positioned(
-              left: position.dx - 120,
-              top: position.dy + 4,
+              left: (position.dx - 120)
+                  .clamp(8.0, (MediaQuery.sizeOf(context).width - 168).clamp(8.0, double.infinity))
+                  .toDouble(),
+              top: (position.dy + 4)
+                  .clamp(8.0, (MediaQuery.sizeOf(context).height - 72).clamp(8.0, double.infinity))
+                  .toDouble(),
               child: Material(
                 elevation: 0,
                 borderRadius: BorderRadius.circular(14),
