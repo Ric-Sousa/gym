@@ -3,6 +3,7 @@ import '../../core/errors/failures.dart';
 import '../datasources/firestore_datasource.dart';
 import '../models/user_model.dart';
 import '../models/questionnaire_response_model.dart';
+import '../models/questionnaire_config_model.dart';
 
 /// Repository para operações de utilizador.
 class UserRepository {
@@ -86,6 +87,20 @@ class UserRepository {
   /// Stream de todos os alunos (admin).
   Stream<List<UserModel>> watchAllAlunos() {
     return _firestoreDataSource.watchAllAlunos();
+  }
+
+  /// Stream da configuração editável do questionário.
+  Stream<QuestionnaireConfig> questionnaireConfigStream() {
+    return _firestoreDataSource.questionnaireConfigStream();
+  }
+
+  /// Guarda a configuração editável do questionário.
+  Future<void> saveQuestionnaireConfig(QuestionnaireConfig config) async {
+    try {
+      await _firestoreDataSource.saveQuestionnaireConfig(config);
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
   }
 
   /// Stream da ficha de anamnese de um aluno.

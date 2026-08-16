@@ -12,6 +12,7 @@ import '../../data/models/payment_model.dart';
 import '../../data/models/booking_model.dart';
 import '../../data/models/group_model.dart';
 import '../../data/models/questionnaire_response_model.dart';
+import '../../data/models/questionnaire_config_model.dart';
 import '../../core/config/app_constants.dart';
 import '../../core/config/admin_theme.dart';
 import '../../data/repositories/workout_repository.dart';
@@ -44,6 +45,11 @@ final adminWorkoutPlansProvider =
     StreamProvider.family<List<WorkoutPlanModel>, String>((ref, userId) {
       return ref.read(workoutRepositoryProvider).watchAllPlans(userId);
     });
+
+/// Configuração editável da ficha inicial, partilhada pelo admin e aluno.
+final questionnaireConfigProvider = StreamProvider<QuestionnaireConfig>((ref) {
+  return ref.read(userRepositoryProvider).questionnaireConfigStream();
+});
 
 /// Respostas da ficha inicial do aluno (admin view).
 final adminQuestionnaireProvider =

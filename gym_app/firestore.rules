@@ -36,6 +36,16 @@ service cloud.firestore {
     }
 
     // ══════════════════════════════════════════════════════
+    // EDITABLE INITIAL QUESTIONNAIRE CONFIGURATION
+    // Questions contain no student answers; every authenticated user can read
+    // them, while only the admin can publish changes.
+    // ══════════════════════════════════════════════════════
+    match /questionnaireConfig/{docId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ══════════════════════════════════════════════════════
     // USERS collection
     // ══════════════════════════════════════════════════════
     match /users/{uid} {
@@ -81,14 +91,7 @@ service cloud.firestore {
           request.resource.data.keys().hasOnly([
             'version', 'completedAt', 'answers'
           ]) &&
-          request.resource.data.get('answers', {}).keys().hasOnly([
-            'birthDate', 'genero', 'profession', 'activity', 'sedentary', 'meals',
-            'water', 'sleep', 'pathologiesHas', 'pathologies',
-            'familyPathologiesHas', 'familyPathologies', 'surgeryHas', 'surgery',
-            'medicationHas', 'medication', 'supplementsHas', 'supplements',
-            'allergiesHas', 'allergies', 'dislikedFoods', 'preferredFoods',
-            'outsideMeals', 'objective'
-          ])
+          request.resource.data.get('answers', {}) is map
         );
         allow delete: if false;
       }

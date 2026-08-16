@@ -4,7 +4,9 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/config/app_colors.dart';
 import '../../../core/config/student_theme.dart';
 import '../../../data/models/questionnaire_response_model.dart';
+import '../../../data/models/questionnaire_config_model.dart';
 import '../../../data/models/user_model.dart';
+import '../../../shared/providers/admin_providers.dart';
 import '../../../shared/providers/global_providers.dart';
 import '../providers/auth_provider.dart';
 
@@ -69,7 +71,9 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
   };
 
   late final Map<String, TextEditingController> _controllers;
+  final Map<String, TextEditingController> _dynamicControllers = {};
   final Map<String, String> _choices = {};
+  QuestionnaireConfig? _activeConfig;
   int _step = 0;
   bool _saving = false;
 
@@ -85,6 +89,9 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
   @override
   void dispose() {
     for (final controller in _controllers.values) {
+      controller.dispose();
+    }
+    for (final controller in _dynamicControllers.values) {
       controller.dispose();
     }
     super.dispose();
@@ -114,7 +121,45 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
     setState(() {});
   }
 
+  TextEditingController _controllerFor(String id) {
+    final existing = _controllers[id] ?? _dynamicControllers[id];
+    if (existing != null) return existing;
+    return _dynamicControllers.putIfAbsent(id, TextEditingController.new);
+  }
+
+  void _syncConfiguredControllers(QuestionnaireConfig config) {
+    for (final topic in config.topics) {
+      for (final question in topic.questions) {
+        _controllerFor(question.id);
+        if (question.hasDetail) _controllerFor(question.resolvedDetailId);
+      }
+    }
+  }
+
+  bool _validateConfiguredStep(QuestionnaireConfig config) {
+    if (_step >= config.topics.length) return false;
+    final missing = <String>[];
+    for (final question in config.topics[_step].questions) {
+      final value = question.type == 'text' || question.type == 'date'
+          ? _controllerFor(question.id).text
+          : _choices[question.id] ?? '';
+      if (question.required && value.trim().isEmpty) missing.add(question.id);
+      if (question.isBinary && _choices[question.id] == 'sim' && question.hasDetail &&
+          _controllerFor(question.resolvedDetailId).text.trim().isEmpty) {
+        missing.add(question.resolvedDetailId);
+      }
+    }
+    if (missing.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Preenche todos os campos desta etapa.')),
+      );
+      return false;
+    }
+    return true;
+  }
+
   bool _validateStep() {
+    if (_activeConfig != null) return _validateConfiguredStep(_activeConfig!);
     final required = switch (_step) {
       0 => [
           'birthDate',
@@ -167,7 +212,8 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
 
   void _next() {
     if (!_validateStep()) return;
-    if (_step < 2) {
+    final lastStep = (_activeConfig?.topics.length ?? 3) - 1;
+    if (_step < lastStep) {
       setState(() => _step++);
     } else {
       _submit();
@@ -177,20 +223,27 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
   Future<void> _submit() async {
     if (!_validateStep()) return;
     setState(() => _saving = true);
-    final answers = <String, String>{
-      for (final id in _textIds) id: _controllers[id]!.text.trim(),
-      'birthDate': _controllers['birthDate']!.text.trim(),
-      ..._choices,
-    };
+    final answers = _activeConfig == null
+        ? <String, String>{
+            for (final id in _textIds) id: _controllers[id]!.text.trim(),
+            'birthDate': _controllers['birthDate']!.text.trim(),
+            ..._choices,
+          }
+        : <String, String>{
+            for (final entry in _dynamicControllers.entries)
+              entry.key: entry.value.text.trim(),
+            ..._choices,
+          };
+    final config = _activeConfig;
     try {
       await ref.read(userRepositoryProvider).saveQuestionnaire(
             widget.user.uid,
             QuestionnaireResponse(
-              version: QuestionnaireResponse.currentVersion,
+              version: config?.versionId ?? QuestionnaireResponse.currentVersion,
               completedAt: DateTime.now(),
               answers: answers,
             ),
-            genero: _choices['genero'],
+            genero: answers['genero'] ?? _choices['genero'],
           );
       await ref.read(authProvider.notifier).refreshUser();
     } catch (_) {
@@ -267,11 +320,18 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final configured = ref.watch(questionnaireConfigProvider).asData?.value;
+    if (configured != null) {
+      _activeConfig = configured.topics.isEmpty ? null : configured;
+      if (_activeConfig != null) _syncConfiguredControllers(_activeConfig!);
+    }
     final questionnaireTheme = _buildQuestionnaireTheme(
       Theme.of(context),
       _choices['genero'],
     );
     final colors = questionnaireTheme.colorScheme;
+    final topicCount = _activeConfig?.topics.length ?? 3;
+    final lastStep = topicCount - 1;
     final compact = MediaQuery.sizeOf(context).width < 480;
     return Theme(
       data: questionnaireTheme,
@@ -339,11 +399,11 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
                         ],
                       ),
                       SizedBox(height: compact ? 16 : 22),
-                      _buildProgress(colors),
+                      _buildProgress(colors, _activeConfig),
                       SizedBox(height: compact ? 18 : 24),
                       AnimatedSwitcher(
                         duration: const Duration(milliseconds: 180),
-                        child: _buildStepContent(),
+                        child: _buildStepContent(_activeConfig),
                       ),
                       SizedBox(height: compact ? 16 : 22),
                       Row(
@@ -371,7 +431,7 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
                                         color: Colors.white,
                                       ),
                                     )
-                                  : Text(_step == 2 ? 'Concluir ficha' : 'Continuar'),
+                                  : Text(_step == lastStep ? 'Concluir ficha' : 'Continuar'),
                             ),
                           ),
                         ],
@@ -397,8 +457,9 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
     );
   }
 
-  Widget _buildProgress(ColorScheme colors) {
-    final labels = ['Perfil', 'Saúde', 'Objetivos'];
+  Widget _buildProgress(ColorScheme colors, QuestionnaireConfig? config) {
+    final labels = config?.topics.map((topic) => topic.title).toList() ??
+        ['Perfil', 'Saúde', 'Objetivos'];
     return Row(
       children: [
         for (var index = 0; index < labels.length; index++) ...[
@@ -434,15 +495,77 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
     );
   }
 
-  Widget _buildStepContent() {
+  Widget _buildStepContent(QuestionnaireConfig? config) {
+    final safeConfig = config != null && config.topics.isNotEmpty && _step < config.topics.length
+        ? config
+        : null;
     return KeyedSubtree(
       key: ValueKey(_step),
-      child: switch (_step) {
-        0 => _buildProfileStep(),
-        1 => _buildHealthStep(),
-        _ => _buildGoalsStep(),
-      },
+      child: safeConfig == null
+          ? switch (_step) {
+              0 => _buildProfileStep(),
+              1 => _buildHealthStep(),
+              _ => _buildGoalsStep(),
+            }
+          : _buildConfiguredStep(safeConfig.topics[_step]),
     );
+  }
+
+  Widget _buildConfiguredStep(QuestionnaireTopic topic) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle(topic.title, topic.description),
+        const SizedBox(height: 16),
+        ...topic.questions.expand((question) sync* {
+          yield _buildConfiguredQuestion(question);
+          if (question.isBinary && _choices[question.id] == 'sim' && question.hasDetail) {
+            yield const SizedBox(height: 8);
+            yield _textField(
+              question.resolvedDetailId,
+              question.detailLabel!,
+              multiline: true,
+              detail: true,
+            );
+          }
+          yield const SizedBox(height: 12);
+        }),
+      ],
+    );
+  }
+
+  Widget _buildConfiguredQuestion(QuestionnaireQuestion question) {
+    return switch (question.type) {
+      'choice' => _choiceField(question.id, question.label, options: question.options),
+      'binary' => _choiceField(question.id, question.label, options: question.options.isEmpty ? const ['sim', 'não'] : question.options),
+      'date' => _textField(
+          question.id,
+          question.label,
+          readOnly: true,
+          onTap: () => _pickConfiguredDate(question.id),
+        ),
+      _ => _textField(question.id, question.label, hint: question.hint, multiline: question.multiline),
+    };
+  }
+
+  Future<void> _pickConfiguredDate(String id) async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      firstDate: DateTime(1920),
+      lastDate: now,
+      initialDate: DateTime(now.year - 25),
+      helpText: 'Seleciona a data',
+      cancelText: 'Cancelar',
+      confirmText: 'Confirmar',
+      builder: (dialogContext, child) => Theme(
+        data: _buildQuestionnaireTheme(Theme.of(dialogContext), _choices['genero']),
+        child: child!,
+      ),
+    );
+    if (!mounted || date == null) return;
+    _controllerFor(id).text = '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+    setState(() {});
   }
 
   Widget _buildProfileStep() {
@@ -600,7 +723,7 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
   }) {
     final compact = MediaQuery.sizeOf(context).width < 480;
     final field = TextField(
-      controller: _controllers[id],
+      controller: _controllerFor(id),
       cursorColor: Colors.white,
       style: GoogleFonts.inter(
         fontSize: compact ? 12 : 13,

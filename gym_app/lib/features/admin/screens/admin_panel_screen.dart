@@ -16,6 +16,7 @@ import '../../../data/models/food_model.dart';
 import '../../../data/models/progress_model.dart';
 import '../../../data/models/payment_model.dart';
 import '../../../data/models/questionnaire_response_model.dart';
+import '../../../data/models/questionnaire_config_model.dart';
 import '../../../data/models/booking_model.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../shared/providers/global_providers.dart';
@@ -26,6 +27,7 @@ import '../../../shared/utils/booking_notifications.dart';
 import '../../../shared/widgets/image_comparison_slider.dart';
 import '../../../shared/widgets/app_notification.dart';
 import 'global_workout_plans_screen.dart';
+import 'questionnaire_management_screen.dart';
 import '../../admin/widgets/nutrition_editor.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/services/sound_service.dart';
@@ -46,6 +48,7 @@ enum AdminView {
   messages,
   payments,
   agenda,
+  questionnaire,
   settings,
 }
 
@@ -313,6 +316,8 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
         return const _AdminPaymentsView();
       case AdminView.agenda:
         return const _AdminAgendaView();
+      case AdminView.questionnaire:
+        return const QuestionnaireManagementScreen();
       case AdminView.messages:
         return AdminMessagesView(
           onSelect: (aluno) => setState(() {
@@ -481,6 +486,13 @@ class _AdminSidebar extends StatelessWidget {
                   ),
                   _NavCategory(label: 'DEFINIÇÕES'),
                   _NavItem(
+                    icon: Icons.assignment_outlined,
+                    activeIcon: Icons.assignment,
+                    label: 'Questionário',
+                    active: currentView == AdminView.questionnaire,
+                    onTap: () => onNavigate(AdminView.questionnaire),
+                  ),
+                  _NavItem(
                     icon: Icons.settings_outlined,
                     activeIcon: Icons.settings,
                     label: 'Definições',
@@ -586,14 +598,18 @@ class _NavItem extends StatelessWidget {
                       : AdminThemeColors.of(context).muted,
                 ),
                 const SizedBox(width: 10),
-                Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                    color: active
-                        ? AdminThemeColors.of(context).text
-                        : AdminThemeColors.of(context).muted,
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                      color: active
+                          ? AdminThemeColors.of(context).text
+                          : AdminThemeColors.of(context).muted,
+                    ),
                   ),
                 ),
                 if (active)
@@ -4536,6 +4552,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
   Widget _buildQuestionnaireCard(UserModel client) {
     final colors = AdminThemeColors.of(context);
     final questionnaireAsync = ref.watch(adminQuestionnaireProvider(client.uid));
+    final config = ref.watch(questionnaireConfigProvider).asData?.value;
 
     return Container(
       width: double.infinity,
@@ -4562,7 +4579,8 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
           style: GoogleFonts.inter(color: colors.muted),
         ),
         data: (response) {
-          if (response == null || !response.isComplete) {
+          if (response == null ||
+              !(config?.isResponseComplete(response) ?? response.isComplete)) {
             return Row(
               children: [
                 Icon(Icons.assignment_late_outlined, color: colors.orange),
@@ -4577,7 +4595,16 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
             );
           }
 
-          final entries = QuestionnaireResponse.labels.entries
+          final labels = <String, String>{
+            ...QuestionnaireResponse.labels,
+            for (final topic in config?.topics ?? const <QuestionnaireTopic>[])
+              for (final question in topic.questions) question.id: question.label,
+            for (final topic in config?.topics ?? const <QuestionnaireTopic>[])
+              for (final question in topic.questions)
+                if (question.hasDetail) question.resolvedDetailId: question.detailLabel!,
+          };
+          final entries = labels.entries
+              .where((entry) => response.answers.containsKey(entry.key))
               .map((entry) => (entry.key, entry.value, response.answers[entry.key] ?? '—'))
               .toList();
           return Column(

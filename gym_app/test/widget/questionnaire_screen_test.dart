@@ -1,25 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gym_app/core/config/app_colors.dart';
+import 'package:gym_app/data/models/questionnaire_config_model.dart';
 import 'package:gym_app/data/models/user_model.dart';
 import 'package:gym_app/features/auth/screens/questionnaire_screen.dart';
+import 'package:gym_app/shared/providers/admin_providers.dart';
+
+Widget _questionnaireApp(UserModel user) {
+  return ProviderScope(
+    overrides: [
+      questionnaireConfigProvider.overrideWith(
+        (ref) => Stream.value(QuestionnaireConfig.defaultConfig()),
+      ),
+    ],
+    child: MaterialApp(
+      home: QuestionnaireScreen(user: user),
+    ),
+  );
+}
 
 void main() {
   testWidgets('apresenta a ficha inicial antes do início', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: QuestionnaireScreen(
-          user: UserModel(
-            uid: 'student-1',
-            nome: 'Aluno',
-            email: 'aluno@example.com',
-          ),
+      _questionnaireApp(
+        UserModel(
+          uid: 'student-1',
+          nome: 'Aluno',
+          email: 'aluno@example.com',
         ),
       ),
     );
 
     expect(find.text('Vamos conhecer-te melhor'), findsOneWidget);
-    expect(find.textContaining('Antes de começares, responde a esta ficha rápida.'), findsOneWidget);
+    expect(
+      find.textContaining('Antes de começares, responde a esta ficha rápida.'),
+      findsOneWidget,
+    );
     expect(find.text('Data de nascimento'), findsOneWidget);
     expect(find.text('Qual é o teu sexo?'), findsWidgets);
     expect(find.text('Continuar'), findsOneWidget);
@@ -46,13 +63,11 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: QuestionnaireScreen(
-          user: UserModel(
-            uid: 'student-mobile',
-            nome: 'Aluno Mobile',
-            email: 'mobile@example.com',
-          ),
+      _questionnaireApp(
+        UserModel(
+          uid: 'student-mobile',
+          nome: 'Aluno Mobile',
+          email: 'mobile@example.com',
         ),
       ),
     );

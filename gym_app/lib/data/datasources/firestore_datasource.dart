@@ -14,6 +14,7 @@ import '../models/app_notification_model.dart';
 import '../models/booking_model.dart';
 import '../models/group_model.dart';
 import '../models/questionnaire_response_model.dart';
+import '../models/questionnaire_config_model.dart';
 import '../../core/config/app_constants.dart';
 
 /// Data source para operações no Cloud Firestore.
@@ -130,6 +131,50 @@ class FirestoreDataSource {
     } on FirebaseException catch (e) {
       throw ServerException(
         message: e.message ?? 'Erro ao guardar questionário',
+      );
+    }
+  }
+
+  /// Obtém a configuração editável do questionário. Quando ainda não existe,
+  /// devolve a ficha padrão para não interromper o primeiro acesso do aluno.
+  Future<QuestionnaireConfig> getQuestionnaireConfig() async {
+    try {
+      final doc = await _firestore
+          .collection(AppConstants.questionnaireConfigCollection)
+          .doc(QuestionnaireConfig.documentId)
+          .get();
+      if (!doc.exists || doc.data() == null) {
+        return QuestionnaireConfig.defaultConfig();
+      }
+      return QuestionnaireConfig.fromMap(doc.data()!);
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao obter configuração do questionário',
+      );
+    }
+  }
+
+  /// Stream da configuração do questionário para admin e aluno.
+  Stream<QuestionnaireConfig> questionnaireConfigStream() {
+    return _firestore
+        .collection(AppConstants.questionnaireConfigCollection)
+        .doc(QuestionnaireConfig.documentId)
+        .snapshots()
+        .map((doc) => !doc.exists || doc.data() == null
+            ? QuestionnaireConfig.defaultConfig()
+            : QuestionnaireConfig.fromMap(doc.data()!));
+  }
+
+  /// Guarda a configuração criada pelo administrador.
+  Future<void> saveQuestionnaireConfig(QuestionnaireConfig config) async {
+    try {
+      await _firestore
+          .collection(AppConstants.questionnaireConfigCollection)
+          .doc(QuestionnaireConfig.documentId)
+          .set(config.toMap());
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao guardar configuração do questionário',
       );
     }
   }

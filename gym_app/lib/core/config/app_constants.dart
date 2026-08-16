@@ -48,6 +48,7 @@ class AppConstants {
   static const String agendaCollection = 'agenda';
   static const String groupsCollection = 'grupos';
   static const String groupMessagesSubcollection = 'mensagens';
+  static const String questionnaireConfigCollection = 'questionnaireConfig';
 
   // Storage paths
   static const String profilePhotoPath = 'users/{userId}/profile.jpg';
