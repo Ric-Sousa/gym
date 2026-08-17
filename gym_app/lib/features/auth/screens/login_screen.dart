@@ -447,7 +447,7 @@ class _PasswordResetDialogState extends State<_PasswordResetDialog> {
       child: AlertDialog(
         insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
-      actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
       title: Text(
         AppStrings.forgotPassword,
         style: GoogleFonts.montserrat(

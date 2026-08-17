@@ -169,13 +169,21 @@ class _QuestionnaireEditorState extends ConsumerState<_QuestionnaireEditor> {
                   padding: const EdgeInsets.only(bottom: 16),
                   child: _TopicCard(
                     topic: entry.value,
-                    onEdit: _saving ? null : () => _editTopic(entry.key),
-                    onDelete: _saving ? null : () => _deleteTopic(entry.key),
-                    onAddQuestion: _saving ? null : () => _addQuestion(entry.key),
-                    onEditQuestion: (questionIndex) =>
-                        _saving ? null : _editQuestion(entry.key, questionIndex),
-                    onDeleteQuestion: (questionIndex) =>
-                        _saving ? null : _deleteQuestion(entry.key, questionIndex),
+                    onEdit: entry.value.isProtected || _saving
+                        ? null
+                        : () => _editTopic(entry.key),
+                    onDelete: entry.value.isProtected || _saving
+                        ? null
+                        : () => _deleteTopic(entry.key),
+                    onAddQuestion: entry.value.isProtected || _saving
+                        ? null
+                        : () => _addQuestion(entry.key),
+                    onEditQuestion: entry.value.isProtected || _saving
+                        ? null
+                        : (questionIndex) => _editQuestion(entry.key, questionIndex),
+                    onDeleteQuestion: entry.value.isProtected || _saving
+                        ? null
+                        : (questionIndex) => _deleteQuestion(entry.key, questionIndex),
                   ),
                 ),
               ),
@@ -200,8 +208,8 @@ class _TopicCard extends StatelessWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final VoidCallback? onAddQuestion;
-  final ValueChanged<int> onEditQuestion;
-  final ValueChanged<int> onDeleteQuestion;
+  final ValueChanged<int>? onEditQuestion;
+  final ValueChanged<int>? onDeleteQuestion;
 
   const _TopicCard({
     required this.topic,
@@ -246,8 +254,15 @@ class _TopicCard extends StatelessWidget {
                   ],
                 ),
               ),
-              IconButton(onPressed: onEdit, tooltip: 'Editar tópico', icon: Icon(Icons.edit_outlined, color: colors.muted, size: 19)),
-              IconButton(onPressed: onDelete, tooltip: 'Eliminar tópico', icon: Icon(Icons.delete_outline, color: colors.danger, size: 19)),
+              if (topic.isProtected)
+                Tooltip(
+                  message: 'Tópico obrigatório e protegido',
+                  child: Icon(Icons.lock_outline, color: colors.lime, size: 19),
+                )
+              else ...[
+                IconButton(onPressed: onEdit, tooltip: 'Editar tópico', icon: Icon(Icons.edit_outlined, color: colors.muted, size: 19)),
+                IconButton(onPressed: onDelete, tooltip: 'Eliminar tópico', icon: Icon(Icons.delete_outline, color: colors.danger, size: 19)),
+              ],
             ],
           ),
           const SizedBox(height: 16),
@@ -260,18 +275,40 @@ class _TopicCard extends StatelessWidget {
             ...topic.questions.asMap().entries.map(
                   (entry) => _QuestionRow(
                     question: entry.value,
-                    onEdit: () => onEditQuestion(entry.key),
-                    onDelete: () => onDeleteQuestion(entry.key),
+                    protected: topic.isProtected,
+                    onEdit: onEditQuestion == null
+                        ? null
+                        : () => onEditQuestion!(entry.key),
+                    onDelete: onDeleteQuestion == null
+                        ? null
+                        : () => onDeleteQuestion!(entry.key),
                   ),
                 ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              onPressed: onAddQuestion,
-              icon: const Icon(Icons.add, size: 17),
-              label: const Text('Adicionar pergunta'),
+          if (topic.isProtected)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: colors.muted),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Este tópico é obrigatório e não pode ser alterado.',
+                      style: GoogleFonts.inter(fontSize: 11, color: colors.muted),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: onAddQuestion,
+                icon: const Icon(Icons.add, size: 17),
+                label: const Text('Adicionar pergunta'),
+              ),
             ),
-          ),
         ],
       ),
     );
@@ -280,13 +317,19 @@ class _TopicCard extends StatelessWidget {
 
 class _QuestionRow extends StatelessWidget {
   final QuestionnaireQuestion question;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final bool protected;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
-  const _QuestionRow({required this.question, required this.onEdit, required this.onDelete});
+  const _QuestionRow({
+    required this.question,
+    required this.protected,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   String get typeLabel => switch (question.type) {
-        'choice' => 'Dropdown',
+        'choice' => 'Menu com opções',
         'binary' => 'Sim / Não',
         'date' => 'Data',
         _ => 'Texto',
@@ -317,8 +360,15 @@ class _QuestionRow extends StatelessWidget {
                 ],
               ),
             ),
-            IconButton(onPressed: onEdit, tooltip: 'Editar pergunta', icon: Icon(Icons.edit_outlined, size: 18, color: colors.muted)),
-            IconButton(onPressed: onDelete, tooltip: 'Eliminar pergunta', icon: Icon(Icons.delete_outline, size: 18, color: colors.danger)),
+            if (protected)
+              Tooltip(
+                message: 'Campo obrigatório do aluno',
+                child: Icon(Icons.lock_outline, size: 18, color: colors.lime),
+              )
+            else ...[
+              IconButton(onPressed: onEdit, tooltip: 'Editar pergunta', icon: Icon(Icons.edit_outlined, size: 18, color: colors.muted)),
+              IconButton(onPressed: onDelete, tooltip: 'Eliminar pergunta', icon: Icon(Icons.delete_outline, size: 18, color: colors.danger)),
+            ],
           ],
         ),
       ),
@@ -326,140 +376,568 @@ class _QuestionRow extends StatelessWidget {
   }
 }
 
-Future<QuestionnaireTopic?> _showTopicDialog(BuildContext context, {QuestionnaireTopic? initial}) async {
-  final titleController = TextEditingController(text: initial?.title ?? '');
-  final descriptionController = TextEditingController(text: initial?.description ?? '');
-  final result = await showDialog<QuestionnaireTopic>(
+Future<QuestionnaireTopic?> _showTopicDialog(
+  BuildContext context, {
+  QuestionnaireTopic? initial,
+}) {
+  return showDialog<QuestionnaireTopic>(
     context: context,
-    builder: (dialogContext) => AdminResponsiveDialog(
-      title: initial == null ? 'Novo tópico' : 'Editar tópico',
+    builder: (_) => _TopicDialog(initial: initial),
+  );
+}
+
+class _TopicDialog extends StatefulWidget {
+  final QuestionnaireTopic? initial;
+
+  const _TopicDialog({this.initial});
+
+  @override
+  State<_TopicDialog> createState() => _TopicDialogState();
+}
+
+class _TopicDialogState extends State<_TopicDialog> {
+  late String _title;
+  late String _description;
+
+  @override
+  void initState() {
+    super.initState();
+    _title = widget.initial?.title ?? '';
+    _description = widget.initial?.description ?? '';
+  }
+
+  void _save() {
+    final title = _title.trim();
+    if (title.isEmpty) return;
+    final initial = widget.initial;
+    Navigator.of(context).pop(
+      QuestionnaireTopic(
+        id: initial?.id ?? 'topic-${DateTime.now().millisecondsSinceEpoch}',
+        title: title,
+        description: _description.trim(),
+        questions: initial?.questions ?? const [],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AdminResponsiveDialog(
+      title: widget.initial == null ? 'Novo tópico' : 'Editar tópico',
       subtitle: 'Agrupa perguntas relacionadas para o aluno.',
       icon: Icons.topic_outlined,
       actions: [
-        TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
-        FilledButton(
-          onPressed: () {
-            final title = titleController.text.trim();
-            if (title.isEmpty) return;
-            Navigator.pop(
-              dialogContext,
-              QuestionnaireTopic(
-                id: initial?.id ?? 'topic-${DateTime.now().millisecondsSinceEpoch}',
-                title: title,
-                description: descriptionController.text.trim(),
-                questions: initial?.questions ?? const [],
-              ),
-            );
-          },
-          child: const Text('Guardar'),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
         ),
+        FilledButton(onPressed: _save, child: const Text('Guardar')),
       ],
       child: Column(
         children: [
-          TextField(controller: titleController, autofocus: true, decoration: const InputDecoration(labelText: 'Nome do tópico', hintText: 'Ex.: Saúde e rotina')),
+          TextFormField(
+            initialValue: _title,
+            autofocus: true,
+            onChanged: (value) => _title = value,
+            decoration: const InputDecoration(
+              labelText: 'Nome do tópico',
+              hintText: 'Ex.: Saúde e rotina',
+            ),
+          ),
           const SizedBox(height: 14),
-          TextField(controller: descriptionController, maxLines: 2, decoration: const InputDecoration(labelText: 'Descrição (opcional)')),
-        ],
-      ),
-    ),
-  );
-  titleController.dispose();
-  descriptionController.dispose();
-  return result;
-}
-
-Future<QuestionnaireQuestion?> _showQuestionDialog(BuildContext context, {QuestionnaireQuestion? initial}) async {
-  final labelController = TextEditingController(text: initial?.label ?? '');
-  final hintController = TextEditingController(text: initial?.hint ?? '');
-  final optionsController = TextEditingController(text: initial?.options.join(', ') ?? '');
-  final detailController = TextEditingController(text: initial?.detailLabel ?? '');
-  var type = initial?.type ?? 'text';
-  var required = initial?.required ?? true;
-
-  final result = await showDialog<QuestionnaireQuestion>(
-    context: context,
-    builder: (dialogContext) => StatefulBuilder(
-      builder: (context, setState) => AdminResponsiveDialog(
-        title: initial == null ? 'Nova pergunta' : 'Editar pergunta',
-        subtitle: 'O mesmo campo será apresentado na ficha inicial do aluno.',
-        icon: Icons.help_outline,
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
-          FilledButton(
-            onPressed: () {
-              final label = labelController.text.trim();
-              if (label.isEmpty) return;
-              final id = initial?.id ?? 'question-${DateTime.now().millisecondsSinceEpoch}';
-              final options = type == 'binary'
-                  ? const ['sim', 'não']
-                  : optionsController.text.split(',').map((item) => item.trim()).where((item) => item.isNotEmpty).toList();
-              if ((type == 'choice' || type == 'binary') && options.isEmpty) return;
-              Navigator.pop(
-                dialogContext,
-                QuestionnaireQuestion(
-                  id: id,
-                  label: label,
-                  type: type,
-                  options: options,
-                  required: required,
-                  hint: hintController.text.trim().isEmpty ? null : hintController.text.trim(),
-                  detailId: type == 'binary' && detailController.text.trim().isNotEmpty
-                      ? (initial?.detailId ?? '${id}_details')
-                      : null,
-                  detailLabel: type == 'binary' && detailController.text.trim().isNotEmpty
-                      ? detailController.text.trim()
-                      : null,
-                ),
-              );
-            },
-            child: const Text('Guardar'),
+          TextFormField(
+            initialValue: _description,
+            maxLines: 2,
+            onChanged: (value) => _description = value,
+            decoration: const InputDecoration(labelText: 'Descrição (opcional)'),
           ),
         ],
-        child: Column(
+      ),
+    );
+  }
+}
+
+Future<QuestionnaireQuestion?> _showQuestionDialog(
+  BuildContext context, {
+  QuestionnaireQuestion? initial,
+}) {
+  return showDialog<QuestionnaireQuestion>(
+    context: context,
+    builder: (_) => _QuestionDialog(initial: initial),
+  );
+}
+
+class _OptionDraft {
+  final int id;
+  String text;
+
+  _OptionDraft({required this.id, this.text = ''});
+}
+
+class _QuestionDialog extends StatefulWidget {
+  final QuestionnaireQuestion? initial;
+
+  const _QuestionDialog({this.initial});
+
+  @override
+  State<_QuestionDialog> createState() => _QuestionDialogState();
+}
+
+class _QuestionDialogState extends State<_QuestionDialog> {
+  late String _label;
+  late String _hint;
+  late String _detail;
+  late String _type;
+  late bool _required;
+  late List<_OptionDraft> _optionDrafts;
+  String? _optionsError;
+  String? _previewChoice;
+  DateTime? _previewDate;
+  int _nextOptionId = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = widget.initial;
+    _label = initial?.label ?? '';
+    _hint = initial?.hint ?? '';
+    _detail = initial?.detailLabel ?? '';
+    _type = initial?.type ?? 'text';
+    _required = initial?.required ?? true;
+    _optionDrafts = [
+      for (final option in initial?.options ?? const <String>[])
+        _newOptionDraft(option),
+    ];
+    if (_type == 'choice' && _optionDrafts.isEmpty) {
+      _optionDrafts.add(_newOptionDraft());
+    }
+  }
+
+  _OptionDraft _newOptionDraft([String text = '']) {
+    return _OptionDraft(id: _nextOptionId++, text: text);
+  }
+
+  void _ensureChoiceOption() {
+    if (_optionDrafts.isEmpty) {
+      _optionDrafts.add(_newOptionDraft());
+    }
+  }
+
+  List<String> get _choiceOptions => _optionDrafts
+      .map((draft) => draft.text.trim())
+      .where((option) => option.isNotEmpty)
+      .toList();
+
+  void _selectType(String value) {
+    setState(() {
+      _type = value;
+      _optionsError = null;
+      if (_type == 'choice') _ensureChoiceOption();
+      if (_type != 'choice') _previewChoice = null;
+    });
+  }
+
+  void _save() {
+    final label = _label.trim();
+    if (label.isEmpty) return;
+    final initial = widget.initial;
+    final id = initial?.id ?? 'question-${DateTime.now().millisecondsSinceEpoch}';
+    final options = _type == 'binary' ? const ['sim', 'não'] : _choiceOptions;
+    if (_type == 'choice' && options.isEmpty) {
+      setState(() => _optionsError = 'Adiciona pelo menos uma opção.');
+      return;
+    }
+    final detail = _detail.trim();
+
+    Navigator.of(context).pop(
+      QuestionnaireQuestion(
+        id: id,
+        label: label,
+        type: _type,
+        options: options,
+        required: _required,
+        hint: _hint.trim().isEmpty ? null : _hint.trim(),
+        detailId: _type == 'binary' && detail.isNotEmpty
+            ? (initial?.detailId ?? '${id}_details')
+            : null,
+        detailLabel: _type == 'binary' && detail.isNotEmpty ? detail : null,
+      ),
+    );
+  }
+
+  Widget _buildOptionsEditor(AdminThemeColors colors) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            TextField(controller: labelController, autofocus: true, decoration: const InputDecoration(labelText: 'Pergunta')),
-            const SizedBox(height: 14),
-            DropdownButtonFormField<String>(
-              value: type,
-              decoration: const InputDecoration(labelText: 'Tipo de resposta'),
-              items: const [
-                DropdownMenuItem(value: 'text', child: Text('Texto livre')),
-                DropdownMenuItem(value: 'choice', child: Text('Dropdown com opções')),
-                DropdownMenuItem(value: 'binary', child: Text('Sim / Não')),
-                DropdownMenuItem(value: 'date', child: Text('Data')),
-              ],
-              onChanged: (value) => setState(() => type = value ?? 'text'),
+            Expanded(
+              child: Text(
+                'Opções do menu',
+                style: TextStyle(
+                  color: colors.text,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
-            if (type == 'choice') ...[
-              const SizedBox(height: 14),
-              TextField(controller: optionsController, decoration: const InputDecoration(labelText: 'Opções', hintText: 'Opção 1, Opção 2, Opção 3')),
-            ],
-            if (type == 'binary') ...[
-              const SizedBox(height: 14),
-              TextField(controller: detailController, decoration: const InputDecoration(labelText: 'Campo extra quando responder Sim (opcional)', hintText: 'Descreve aqui...')),
-            ],
-            if (type == 'text') ...[
-              const SizedBox(height: 14),
-              TextField(controller: hintController, decoration: const InputDecoration(labelText: 'Texto de ajuda (opcional)')),
-            ],
-            const SizedBox(height: 4),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              value: required,
-              onChanged: (value) => setState(() => required = value ?? true),
-              title: const Text('Resposta obrigatória'),
-              controlAffinity: ListTileControlAffinity.leading,
+            Text(
+              '${_choiceOptions.length} ${_choiceOptions.length == 1 ? 'opção' : 'opções'}',
+              style: TextStyle(color: colors.muted, fontSize: 11),
             ),
           ],
         ),
+        const SizedBox(height: 8),
+        ..._optionDrafts.asMap().entries.map((entry) {
+          final index = entry.key;
+          final draft = entry.value;
+          return Padding(
+            key: ValueKey('question-option-${draft.id}'),
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 13, right: 8),
+                  child: Text(
+                    '${index + 1}.',
+                    style: TextStyle(color: colors.muted, fontSize: 12),
+                  ),
+                ),
+                Expanded(
+                  child: TextFormField(
+                    key: ValueKey('question-option-field-${draft.id}'),
+                    initialValue: draft.text,
+                    onChanged: (value) {
+                      draft.text = value;
+                      if (_optionsError != null) {
+                        setState(() => _optionsError = null);
+                      } else {
+                        setState(() {});
+                      }
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'Opção ${index + 1}',
+                      hintText: 'Ex.: Às vezes',
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Remover opção',
+                  onPressed: _optionDrafts.length == 1
+                      ? null
+                      : () => setState(() {
+                            _optionDrafts.removeAt(index);
+                            if (_previewChoice != null &&
+                                !_choiceOptions.contains(_previewChoice)) {
+                              _previewChoice = null;
+                            }
+                          }),
+                  icon: const Icon(Icons.remove_circle_outline),
+                ),
+              ],
+            ),
+          );
+        }),
+        if (_optionsError != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              _optionsError!,
+              style: TextStyle(color: colors.danger, fontSize: 11),
+            ),
+          ),
+        OutlinedButton.icon(
+          onPressed: () => setState(() => _optionDrafts.add(_newOptionDraft())),
+          icon: const Icon(Icons.add, size: 17),
+          label: const Text('Adicionar opção'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _pickPreviewDate() async {
+    final date = await showDatePicker(
+      context: context,
+      firstDate: DateTime(1920),
+      lastDate: DateTime.now(),
+      initialDate: _previewDate ?? DateTime(2000),
+      helpText: 'Pré-visualização da data',
+      cancelText: 'Cancelar',
+      confirmText: 'Confirmar',
+    );
+    if (mounted && date != null) setState(() => _previewDate = date);
+  }
+
+  Widget _buildPreviewChoiceField(AdminThemeColors colors, List<String> options) {
+    final selected = options.contains(_previewChoice) ? _previewChoice : null;
+    final compact = MediaQuery.sizeOf(context).width < 600;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final fieldWidth = constraints.maxWidth;
+        return MenuAnchor(
+          key: const ValueKey('admin-question-preview-menu'),
+          crossAxisUnconstrained: false,
+          alignmentOffset: const Offset(0, 4),
+          style: MenuStyle(
+            backgroundColor: WidgetStatePropertyAll(colors.surface2),
+            elevation: const WidgetStatePropertyAll(8),
+            minimumSize: WidgetStatePropertyAll(Size(fieldWidth, 0)),
+            maximumSize: WidgetStatePropertyAll(Size(fieldWidth, 320)),
+            shape: WidgetStatePropertyAll(
+              RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            padding: const WidgetStatePropertyAll(
+              EdgeInsets.symmetric(vertical: 6),
+            ),
+          ),
+          menuChildren: options
+              .map(
+                (option) => MenuItemButton(
+                  onPressed: () => setState(() => _previewChoice = option),
+                  style: MenuItemButton.styleFrom(
+                    minimumSize: const Size.fromHeight(46),
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                  ),
+                  child: SizedBox(
+                    width: fieldWidth - 28,
+                    child: Text(
+                      option,
+                      textAlign: TextAlign.left,
+                      style: TextStyle(
+                        color: colors.text,
+                        fontSize: compact ? 12 : 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+          builder: (context, controller, child) => GestureDetector(
+            onTap: options.isEmpty
+                ? null
+                : () {
+                    if (controller.isOpen) {
+                      controller.close();
+                    } else {
+                      controller.open();
+                    }
+                  },
+            child: InputDecorator(
+              isFocused: controller.isOpen,
+              isEmpty: selected == null,
+              decoration: InputDecoration(
+                labelText: 'Seleciona uma opção',
+                filled: true,
+                fillColor: colors.surface,
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: compact ? 12 : 14,
+                  vertical: compact ? 10 : 12,
+                ),
+                suffixIcon: Icon(
+                  controller.isOpen
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  color: colors.lime,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: colors.lime, width: 1.2),
+                ),
+                labelStyle: TextStyle(
+                  color: colors.muted,
+                  fontSize: compact ? 12 : 13,
+                ),
+                floatingLabelStyle: TextStyle(
+                  color: colors.lime,
+                  fontSize: compact ? 11 : 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              child: Text(
+                selected ?? '',
+                textAlign: TextAlign.left,
+                style: TextStyle(
+                  color: colors.text,
+                  fontSize: compact ? 12 : 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPreview(AdminThemeColors colors) {
+    final title = _label.trim().isEmpty ? 'Exemplo de pergunta' : _label.trim();
+    final options = _choiceOptions;
+    Widget field;
+
+    switch (_type) {
+      case 'choice':
+        field = _buildPreviewChoiceField(colors, options);
+        break;
+      case 'binary':
+        final selected = _previewChoice;
+        field = Wrap(
+          spacing: 8,
+          children: ['sim', 'não'].map((option) {
+            final label = option == 'sim' ? 'Sim' : 'Não';
+            return ChoiceChip(
+              label: Text(label),
+              selected: selected == option,
+              onSelected: (_) => setState(() => _previewChoice = option),
+            );
+          }).toList(),
+        );
+        break;
+      case 'date':
+        final date = _previewDate;
+        field = TextFormField(
+          readOnly: true,
+          controller: null,
+          onTap: _pickPreviewDate,
+          decoration: InputDecoration(
+            labelText: 'Data',
+            hintText: date == null
+                ? 'Clica para escolher uma data'
+                : '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}',
+            suffixIcon: const Icon(Icons.calendar_today_outlined),
+          ),
+        );
+        break;
+      default:
+        field = TextFormField(
+          readOnly: true,
+          decoration: InputDecoration(
+            labelText: 'Resposta',
+            hintText: _hint.trim().isEmpty ? 'Escreve a tua resposta' : _hint.trim(),
+          ),
+        );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.surface2.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colors.border),
       ),
-    ),
-  );
-  labelController.dispose();
-  hintController.dispose();
-  optionsController.dispose();
-  detailController.dispose();
-  return result;
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.visibility_outlined, size: 17, color: colors.lime),
+              const SizedBox(width: 8),
+              Text(
+                'Pré-visualização para o aluno',
+                style: TextStyle(color: colors.text, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Interage abaixo para veres como este campo será apresentado.',
+            style: TextStyle(color: colors.muted, fontSize: 11),
+          ),
+          const SizedBox(height: 12),
+          Text(title, style: TextStyle(color: colors.text, fontSize: 13, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          field,
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AdminResponsiveDialog(
+      title: widget.initial == null ? 'Nova pergunta' : 'Editar pergunta',
+      subtitle: 'O mesmo campo será apresentado na ficha inicial do aluno.',
+      icon: Icons.help_outline,
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(onPressed: _save, child: const Text('Guardar')),
+      ],
+      child: Column(
+        children: [
+          TextFormField(
+            initialValue: _label,
+            autofocus: true,
+            onChanged: (value) => setState(() => _label = value),
+            decoration: const InputDecoration(labelText: 'Pergunta'),
+          ),
+          const SizedBox(height: 14),
+          DropdownButtonFormField<String>(
+            value: _type,
+            decoration: const InputDecoration(labelText: 'Tipo de resposta'),
+            items: const [
+              DropdownMenuItem(value: 'text', child: Text('Texto livre')),
+              DropdownMenuItem(value: 'choice', child: Text('Menu com opções')),
+              DropdownMenuItem(value: 'binary', child: Text('Sim / Não')),
+              DropdownMenuItem(value: 'date', child: Text('Data')),
+            ],
+            onChanged: (value) => _selectType(value ?? 'text'),
+          ),
+          if (_type == 'choice') ...[
+            const SizedBox(height: 14),
+            _buildOptionsEditor(AdminThemeColors.of(context)),
+          ],
+          if (_type == 'binary') ...[
+            const SizedBox(height: 14),
+            TextFormField(
+              initialValue: _detail,
+              onChanged: (value) => _detail = value,
+              decoration: const InputDecoration(
+                labelText: 'Campo extra quando responder Sim (opcional)',
+                hintText: 'Descreve aqui...',
+              ),
+            ),
+          ],
+          if (_type == 'text') ...[
+            const SizedBox(height: 14),
+            TextFormField(
+              initialValue: _hint,
+              onChanged: (value) => setState(() => _hint = value),
+              decoration: const InputDecoration(
+                labelText: 'Texto de ajuda (opcional)',
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          _buildPreview(AdminThemeColors.of(context)),
+          const SizedBox(height: 4),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _required,
+            onChanged: (value) => setState(() => _required = value ?? true),
+            title: const Text('Resposta obrigatória'),
+            controlAffinity: ListTileControlAffinity.leading,
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _EmptyState extends StatelessWidget {

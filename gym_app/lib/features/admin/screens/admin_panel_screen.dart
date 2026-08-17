@@ -17,11 +17,13 @@ import '../../../data/models/progress_model.dart';
 import '../../../data/models/payment_model.dart';
 import '../../../data/models/questionnaire_response_model.dart';
 import '../../../data/models/questionnaire_config_model.dart';
+import '../../../data/models/exercise_catalog_model.dart';
 import '../../../data/models/booking_model.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../shared/providers/global_providers.dart';
 import '../../../shared/widgets/admin_responsive_dialog.dart';
 import '../../../shared/widgets/admin_design_system.dart';
+import '../../../shared/widgets/app_design_system.dart';
 import '../../../shared/providers/admin_providers.dart';
 import '../../../shared/utils/booking_notifications.dart';
 import '../../../shared/widgets/image_comparison_slider.dart';
@@ -231,11 +233,17 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
                       });
                     },
                   )
-                : _buildView(),
+                : FadeSlideSwitcher(
+                    child: KeyedSubtree(
+                      key: ValueKey('admin_view_${_view.name}'),
+                      child: _buildView(),
+                    ),
+                  ),
             FloatingChatButton(
               onViewProfile: (aluno) {
                 setState(() {
                   _selectedClient = aluno;
+                  _openSelectedClientChat = false;
                   _view = AdminView.clients;
                 });
               },
@@ -273,11 +281,17 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
                                 });
                               },
                             )
-                          : _buildView(),
+                          : FadeSlideSwitcher(
+                    child: KeyedSubtree(
+                      key: ValueKey('admin_view_${_view.name}'),
+                      child: _buildView(),
+                    ),
+                  ),
                       FloatingChatButton(
                         onViewProfile: (aluno) {
                           setState(() {
                             _selectedClient = aluno;
+                            _openSelectedClientChat = false;
                             _view = AdminView.clients;
                           });
                         },
@@ -416,11 +430,6 @@ class _AdminSidebar extends StatelessWidget {
       margin: EdgeInsets.zero,
       decoration: BoxDecoration(
         color: colors.surface,
-        border: isMobile
-            ? null
-            : Border(
-                right: BorderSide(color: colors.border.withValues(alpha: 0.7)),
-              ),
       ),
       child: Column(
         children: [
@@ -788,8 +797,10 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
   }
 
   Widget _buildDashboardColumns(List<UserModel> alunos) {
-    return LayoutBuilder(
-      builder: (_, constraints) {
+    return SizedBox(
+      width: double.infinity,
+      child: LayoutBuilder(
+        builder: (_, constraints) {
         final isWide = constraints.maxWidth > 800;
         if (isWide) {
           return Row(
@@ -799,6 +810,7 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
               const SizedBox(width: 20),
               Expanded(
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _agendaCard(),
                     const SizedBox(height: 20),
@@ -809,25 +821,29 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
             ],
           );
         }
-        return Column(
-          children: [
-            _clientsCard(alunos),
-            const SizedBox(height: 20),
-            _agendaCard(),
-            const SizedBox(height: 20),
-            _goalsCard(alunos),
-          ],
-        );
-      },
+          return Column(
+            children: [
+              _clientsCard(alunos),
+              const SizedBox(height: 20),
+              _agendaCard(),
+              const SizedBox(height: 20),
+              _goalsCard(alunos),
+            ],
+          );
+        },
+      ),
     );
   }
 
   Widget _clientsCard(List<UserModel> alunos) {
+    final compact = MediaQuery.sizeOf(context).width < 900;
     return Container(
       decoration: BoxDecoration(
         color: AdminThemeColors.of(context).surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AdminThemeColors.of(context).border),
+        border: compact
+            ? null
+            : Border.all(color: AdminThemeColors.of(context).border),
         boxShadow: [
           BoxShadow(
             color: AdminThemeColors.of(context).shadow,
@@ -880,7 +896,8 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
               },
             ),
           ),
-          Divider(height: 1, color: AdminThemeColors.of(context).border),
+          if (!compact)
+            Divider(height: 1, color: AdminThemeColors.of(context).border),
           if (alunos.isEmpty)
             Padding(
               padding: const EdgeInsets.all(40),
@@ -918,15 +935,18 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
   }
 
   Widget _clientRow(UserModel aluno) {
+    final compact = MediaQuery.sizeOf(context).width < 900;
     final weight = aluno.pesoAtual;
     return InkWell(
       onTap: () => widget.onSelectClient(aluno),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(color: AdminThemeColors.of(context).border),
-          ),
+          border: compact
+              ? null
+              : Border(
+                  bottom: BorderSide(color: AdminThemeColors.of(context).border),
+                ),
         ),
         child: Row(
           children: [
@@ -987,6 +1007,7 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
   }
 
   Widget _agendaCard() {
+    final compact = MediaQuery.sizeOf(context).width < 900;
     final trainerId = ref.read(authProvider).user?.uid ?? '';
     final bookingsAsync = ref.watch(adminTrainerBookingsProvider(trainerId));
     final now = DateTime.now();
@@ -994,11 +1015,14 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
     final weekEnd = weekStart.add(const Duration(days: 7));
 
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AdminThemeColors.of(context).surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AdminThemeColors.of(context).border),
+        border: compact
+            ? null
+            : Border.all(color: AdminThemeColors.of(context).border),
         boxShadow: [
           BoxShadow(
             color: AdminThemeColors.of(context).shadow,
@@ -1008,10 +1032,13 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: compact
+            ? CrossAxisAlignment.center
+            : CrossAxisAlignment.start,
         children: [
           Text(
             'AGENDA DA SEMANA',
+            textAlign: compact ? TextAlign.center : TextAlign.start,
             style: GoogleFonts.montserrat(
               fontSize: 18,
               fontWeight: FontWeight.w700,
@@ -1169,6 +1196,7 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
   }
 
   Widget _goalsCard(List<UserModel> alunos) {
+    final compact = MediaQuery.sizeOf(context).width < 900;
     final ativosSemana = alunos
         .where(
           (a) =>
@@ -1186,7 +1214,9 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
       decoration: BoxDecoration(
         color: AdminThemeColors.of(context).surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AdminThemeColors.of(context).border),
+        border: compact
+            ? null
+            : Border.all(color: AdminThemeColors.of(context).border),
         boxShadow: [
           BoxShadow(
             color: AdminThemeColors.of(context).shadow,
@@ -2727,7 +2757,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
     DateTime? endsAt;
     if (choice == 'later') {
       final today = DateTime.now();
-      final date = await showDatePicker(
+      final date = await showAppDatePicker(
         context: context,
         firstDate: DateTime(today.year, today.month, today.day),
         lastDate: DateTime(today.year + 5),
@@ -5538,21 +5568,30 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
             (r) => Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    r.$1,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: AdminThemeColors.of(context).muted,
+                  Expanded(
+                    child: Text(
+                      r.$1,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: AdminThemeColors.of(context).muted,
+                      ),
                     ),
                   ),
-                  Text(
-                    r.$2,
-                    style: GoogleFonts.montserrat(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AdminThemeColors.of(context).text,
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: Text(
+                      r.$2,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                      style: GoogleFonts.montserrat(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AdminThemeColors.of(context).text,
+                      ),
                     ),
                   ),
                 ],
@@ -5579,6 +5618,19 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
   String _search = '';
   String _muscle = 'Todos';
   String _categoria = 'Todas';
+  bool _isImporting = false;
+  bool _isRecategorizing = false;
+  bool _isListView = true;
+  bool _filtersOpen = false;
+  static const int _exercisePageSize = 36;
+  int _currentExercisePage = 0;
+  final ScrollController _exerciseScrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _exerciseScrollController.dispose();
+    super.dispose();
+  }
 
   static const _muscles = [
     'Todos',
@@ -5590,13 +5642,37 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
     'Bíceps',
     'Tríceps',
     'Core',
+    'Abdominais',
     'Glúteos',
+    'Panturrilhas',
+    'Adutores',
+    'Abdutores',
+    'Lombar',
+    'Trapézio',
+    'Antebraços',
+    'Pescoço',
+    'Geral',
   ];
-  static const _categorias = ['Todas', 'musculação', 'funcional', 'cardio'];
+  static const _categorias = [
+    'Todas',
+    'forca',
+    'alongamento',
+    'funcional',
+    'cardio',
+    'pliometria',
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final exercisesAsync = ref.watch(adminExercisesProvider);
+    return _buildMinimalExerciseLibrary(context);
+  }
+
+  /*
+    Legacy exercise-library layout kept below only as a reference while the
+    new compact layout is maintained above.
+
+  Widget _legacyBuildExerciseLibrary(BuildContext context) {
+    final exercisesAsync = ref.watch(adminExerciseCatalogProvider);
     final isMobile = MediaQuery.sizeOf(context).width < 900;
 
     return AdminPageFrame(
@@ -5608,10 +5684,41 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
             subtitle:
                 '${exercisesAsync.asData?.value.length ?? 0} exercícios na biblioteca',
             icon: Icons.fitness_center_outlined,
-            action: ElevatedButton.icon(
-              onPressed: _showAddExerciseDialog,
-              icon: const Icon(Icons.add_rounded, size: 17),
-              label: const Text('Novo exercício'),
+            action: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildViewModeToggle(),
+                OutlinedButton.icon(
+                  onPressed: _isRecategorizing ? null : _recategorizeExerciseCatalog,
+                  icon: _isRecategorizing
+                      ? const SizedBox(
+                          width: 15,
+                          height: 15,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.category_outlined, size: 17),
+                  label: Text(
+                    _isRecategorizing ? 'A categorizar...' : 'Corrigir categorias',
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _isImporting ? null : _importExerciseCatalog,
+                  icon: _isImporting
+                      ? const SizedBox(
+                          width: 15,
+                          height: 15,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.download_rounded, size: 17),
+                  label: Text(_isImporting ? 'A importar...' : 'Importar catálogo'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _showAddExerciseDialog,
+                  icon: const Icon(Icons.add_rounded, size: 17),
+                  label: const Text('Novo exercício'),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 20),
@@ -5620,7 +5727,10 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
             width: isMobile ? double.infinity : 360,
             height: 40,
             child: TextField(
-              onChanged: (v) => setState(() => _search = v),
+              onChanged: (v) => setState(() {
+                _search = v;
+                _currentExercisePage = 0;
+              }),
               style: GoogleFonts.inter(
                 fontSize: 13,
                 color: AdminThemeColors.of(context).text,
@@ -5657,14 +5767,34 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
               ),
             ),
           ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: _muscles.map((m) {
+          const SizedBox(height: 16),
+          Text(
+            'FILTRAR POR MÚSCULO',
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+              color: AdminThemeColors.of(context).muted,
+            ),
+          ),
+          const SizedBox(height: 7),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+            decoration: BoxDecoration(
+              color: AdminThemeColors.of(context).surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AdminThemeColors.of(context).border),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: _muscles.map((m) {
               final active = _muscle == m;
               return GestureDetector(
-                onTap: () => setState(() => _muscle = m),
+                onTap: () => setState(() {
+                  _muscle = m;
+                  _currentExercisePage = 0;
+                }),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -5692,23 +5822,48 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
                   ),
                 ),
               );
-            }).toList(),
+                }).toList(),
+              ),
+            ),
           ),
           const SizedBox(height: 14),
+          Text(
+            'FILTRAR POR TIPO',
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.8,
+              color: AdminThemeColors.of(context).muted,
+            ),
+          ),
+          const SizedBox(height: 7),
           // ── Category Filter ──
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: _categorias.map((c) {
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+            decoration: BoxDecoration(
+              color: AdminThemeColors.of(context).surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AdminThemeColors.of(context).border),
+            ),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: _categorias.map((c) {
               final active = _categoria == c;
               final labels = {
                 'Todas': 'Todas',
+                'forca': 'Força',
+                'alongamento': 'Alongamento',
                 'musculação': 'Musculação',
                 'funcional': 'Funcional',
                 'cardio': 'Cardio',
+                'pliometria': 'Pliometria',
               };
               return GestureDetector(
-                onTap: () => setState(() => _categoria = c),
+                onTap: () => setState(() {
+                  _categoria = c;
+                  _currentExercisePage = 0;
+                }),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -5738,21 +5893,41 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
                   ),
                 ),
               );
-            }).toList(),
+                }).toList(),
+              ),
+            ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 22),
+          Row(
+            children: [
+              Text(
+                'BIBLIOTECA',
+                style: GoogleFonts.inter(
+                  color: AdminThemeColors.of(context).muted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Divider(color: AdminThemeColors.of(context).border),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           exercisesAsync.when(
             data: (exercises) {
               final filtered = exercises.where((e) {
-                final name = (e['nome'] as String? ?? '').toLowerCase();
-                final muscle = e['grupoMuscular'] as String? ?? '';
-                final cat = e['categoria'] as String? ?? 'musculação';
+                final name = e.nome.toLowerCase();
+                final muscle = e.grupoMuscular;
+                final cat = _displayCatalogValue(e.categoria);
                 final matchSearch = name.contains(_search.toLowerCase());
-                final matchMuscle = _muscle == 'Todos' || muscle == _muscle;
-                final matchCategoria =
-                    _categoria == 'Todas' ||
-                    cat.toLowerCase() == _categoria.toLowerCase();
-                return matchSearch && matchMuscle && matchCategoria;
+                final matchMuscle = _muscle == 'Todos' ||
+                    _sameCatalogLabel(muscle, _muscle);
+                final matchCategoria = _categoria == 'Todas' ||
+                    _sameCatalogLabel(cat, _displayCatalogValue(_categoria));
+                return e.ativo && matchSearch && matchMuscle && matchCategoria;
               }).toList();
 
               if (filtered.isEmpty) {
@@ -5784,24 +5959,29 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
                   final cols = constraints.maxWidth > 700
                       ? 3
                       : (constraints.maxWidth > 400 ? 2 : 1);
-                  return Wrap(
-                    spacing: 14,
-                    runSpacing: 14,
-                    children: filtered.asMap().entries.map((entry) {
+                  final visible = filtered.take(36).toList();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Wrap(
+                        spacing: 14,
+                        runSpacing: 14,
+                        children: visible.asMap().entries.map((entry) {
                       final i = entry.key;
                       final e = entry.value;
                       final w = (constraints.maxWidth - 14 * (cols - 1)) / cols;
-                      final nome = e['nome'] as String? ?? '';
-                      final grupo = e['grupoMuscular'] as String? ?? 'Geral';
-                      final equipamento =
-                          e['equipamento'] as String? ?? 'Corpo';
-                      return SizedBox(
+                      final nome = e.nome;
+                      final grupo = e.grupoMuscular;
+                      final equipamento = _displayCatalogValue(e.equipamento);
+                      return _isListView
+                          ? _buildExerciseListItem(e, i)
+                          : SizedBox(
                         width: w,
                         child: Container(
-                          padding: const EdgeInsets.all(18),
+                          padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
                             color: AdminThemeColors.of(context).surface,
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(16),
                             border: Border.all(
                               color: AdminThemeColors.of(context).border,
                             ),
@@ -5819,8 +5999,8 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
                               Text(
                                 (i + 1).toString().padLeft(2, '0'),
                                 style: GoogleFonts.montserrat(
-                                  fontSize: 48,
-                                  fontWeight: FontWeight.w900,
+                                  fontSize: 30,
+                                  fontWeight: FontWeight.w800,
                                   color: AdminThemeColors.of(
                                     context,
                                   ).text.withValues(alpha: 0.04),
@@ -5839,14 +6019,28 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
                               const SizedBox(height: 6),
                               Row(
                                 children: [
-                                  _exChip(
-                                    grupo,
-                                    AdminThemeColors.of(context).blue,
+                                  Expanded(
+                                    child: Wrap(
+                                      spacing: 6,
+                                      runSpacing: 6,
+                                      children: [
+                                        _exChip(
+                                          grupo,
+                                          AdminThemeColors.of(context).blue,
+                                        ),
+                                        _exChip(
+                                          equipamento,
+                                          AdminThemeColors.of(context).muted,
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                  const SizedBox(width: 6),
-                                  _exChip(
-                                    equipamento,
-                                    AdminThemeColors.of(context).muted,
+                                  IconButton(
+                                    tooltip: 'Ver detalhes',
+                                    onPressed: () => _showExerciseDetails(e),
+                                    icon: const Icon(Icons.info_outline_rounded, size: 18),
+                                    color: AdminThemeColors.of(context).lime,
+                                    visualDensity: VisualDensity.compact,
                                   ),
                                 ],
                               ),
@@ -5854,7 +6048,23 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
                           ),
                         ),
                       );
-                    }).toList(),
+                        }).toList(),
+                      ),
+                      if (visible.length < filtered.length) ...[
+                        const SizedBox(height: 20),
+                        Center(
+                          child: OutlinedButton.icon(
+                            onPressed: () => setState(() {
+                              _currentExercisePage = 0;
+                            }),
+                            icon: const Icon(Icons.expand_more_rounded, size: 18),
+                            label: Text(
+                              'Página 1',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   );
                 },
               );
@@ -5886,6 +6096,1351 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
         ],
       ),
     );
+  }
+
+  */
+
+  Widget _buildMinimalExerciseLibrary(BuildContext context) {
+    final exercisesAsync = ref.watch(adminExerciseCatalogProvider);
+    final colors = AdminThemeColors.of(context);
+    final compact = MediaQuery.sizeOf(context).width < 760;
+
+    return AdminPageFrame(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final title = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'EXERCÍCIOS',
+                    style: GoogleFonts.inter(
+                      color: colors.text,
+                      fontSize: compact ? 24 : 30,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.7,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    '${exercisesAsync.asData?.value.length ?? 0} exercícios na biblioteca',
+                    style: GoogleFonts.inter(
+                      color: colors.muted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              );
+              final actions = Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  _buildViewModeToggle(),
+                  ElevatedButton.icon(
+                    onPressed: _showAddExerciseDialog,
+                    icon: const Icon(Icons.add_rounded, size: 17),
+                    label: Text(compact ? 'Novo' : 'Novo exercício'),
+                  ),
+                  PopupMenuButton<String>(
+                    enabled: !_isImporting && !_isRecategorizing,
+                    tooltip: 'Mais ações',
+                    onSelected: (value) {
+                      if (value == 'categorize') {
+                        _recategorizeExerciseCatalog();
+                      } else if (value == 'import') {
+                        _importExerciseCatalog();
+                      }
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: 'categorize',
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.category_outlined),
+                          title: Text('Corrigir categorias'),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'import',
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.download_rounded),
+                          title: Text('Importar catálogo'),
+                        ),
+                      ),
+                    ],
+                    icon: const Icon(Icons.more_horiz_rounded),
+                  ),
+                ],
+              );
+              if (constraints.maxWidth < 620) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    title,
+                    const SizedBox(height: 14),
+                    actions,
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(child: title),
+                  actions,
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: colors.border),
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final search = SizedBox(
+                  height: 42,
+                  child: TextField(
+                    onChanged: (value) => setState(() {
+                      _search = value;
+                      _currentExercisePage = 0;
+                    }),
+                    style: GoogleFonts.inter(
+                      color: colors.text,
+                      fontSize: 13,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Pesquisar exercícios...',
+                      prefixIcon: Icon(Icons.search_rounded, color: colors.muted),
+                      filled: true,
+                      fillColor: colors.bg,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                    ),
+                  ),
+                );
+                final filterButton = OutlinedButton.icon(
+                  onPressed: () => setState(() => _filtersOpen = !_filtersOpen),
+                  icon: Icon(
+                    _filtersOpen ? Icons.tune_rounded : Icons.filter_list_rounded,
+                    size: 17,
+                  ),
+                  label: Text(_filtersOpen ? 'Fechar filtros' : 'Filtros'),
+                );
+                return constraints.maxWidth < 460
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [search, const SizedBox(height: 8), filterButton],
+                      )
+                    : Row(
+                        children: [
+                          Expanded(child: search),
+                          const SizedBox(width: 8),
+                          filterButton,
+                        ],
+                      );
+              },
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            child: _filtersOpen
+                ? _buildModernFilters(colors)
+                : const SizedBox.shrink(),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Text(
+                'BIBLIOTECA',
+                style: GoogleFonts.inter(
+                  color: colors.muted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Divider(color: colors.border)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          exercisesAsync.when(
+            loading: () => Center(child: CircularProgressIndicator(color: colors.lime)),
+            error: (error, _) => Text(
+              'Erro ao carregar exercícios: $error',
+              style: GoogleFonts.inter(color: colors.muted),
+            ),
+            data: (exercises) => _buildModernExerciseResults(exercises, colors),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModernFilters(AdminThemeColors colors) {
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: colors.border),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final muscleButton = _buildFilterModalButton(
+            label: 'Grupo muscular',
+            value: _muscle == 'Todos' ? 'Todos os grupos' : _muscle,
+            icon: Icons.accessibility_new_rounded,
+            color: colors.blue,
+            onTap: () => _showExerciseFilterModal(
+              title: 'Grupo muscular',
+              subtitle: 'Escolha o grupo muscular principal',
+              values: _muscles,
+              selectedValue: _muscle,
+              allValue: 'Todos',
+              icon: Icons.accessibility_new_rounded,
+              onSelected: (value) => setState(() {
+                _muscle = value;
+                _currentExercisePage = 0;
+              }),
+            ),
+          );
+          final categoryButton = _buildFilterModalButton(
+            label: 'Tipo de exercício',
+            value: _categoria == 'Todas'
+                ? 'Todos os tipos'
+                : _displayCatalogValue(_categoria),
+            icon: Icons.fitness_center_rounded,
+            color: colors.lime,
+            onTap: () => _showExerciseFilterModal(
+              title: 'Tipo de exercício',
+              subtitle: 'Escolha o tipo de exercício',
+              values: _categorias,
+              selectedValue: _categoria,
+              allValue: 'Todas',
+              icon: Icons.fitness_center_rounded,
+              onSelected: (value) => setState(() {
+                _categoria = value;
+                _currentExercisePage = 0;
+              }),
+            ),
+          );
+          final clearButton = TextButton.icon(
+            onPressed: () => setState(() {
+              _search = '';
+              _muscle = 'Todos';
+              _categoria = 'Todas';
+              _currentExercisePage = 0;
+            }),
+            icon: const Icon(Icons.restart_alt_rounded, size: 15),
+            label: const Text('Limpar'),
+          );
+
+          if (constraints.maxWidth < 560) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                muscleButton,
+                const SizedBox(height: 7),
+                categoryButton,
+                Align(alignment: Alignment.centerRight, child: clearButton),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: muscleButton),
+              const SizedBox(width: 7),
+              Expanded(child: categoryButton),
+              const SizedBox(width: 4),
+              clearButton,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildFilterModalButton({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    final colors = AdminThemeColors.of(context);
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(11),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(11),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 48),
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+          decoration: BoxDecoration(
+            color: colors.bg,
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(color: colors.border),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: color, size: 15),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      label,
+                      style: GoogleFonts.inter(
+                        color: colors.muted,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        color: colors.text,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.keyboard_arrow_down_rounded, color: colors.muted, size: 17),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showExerciseFilterModal({
+    required String title,
+    required String subtitle,
+    required List<String> values,
+    required String selectedValue,
+    required String allValue,
+    required IconData icon,
+    required ValueChanged<String> onSelected,
+  }) async {
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        final colors = AdminThemeColors.of(dialogContext);
+        return AdminResponsiveDialog(
+          title: title,
+          subtitle: subtitle,
+          icon: icon,
+          maxWidth: 520,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth > 380 ? 2 : 1;
+              final itemWidth = columns == 2
+                  ? (constraints.maxWidth - 8) / 2
+                  : constraints.maxWidth;
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: values.map((value) {
+                  final isSelected = selectedValue == value;
+                  final displayValue = value == allValue
+                      ? (allValue == 'Todos' ? 'Todos os grupos' : 'Todos os tipos')
+                      : _displayCatalogValue(value);
+                  return SizedBox(
+                    width: itemWidth,
+                    child: Material(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(11),
+                      child: InkWell(
+                        onTap: () => Navigator.pop(dialogContext, value),
+                        borderRadius: BorderRadius.circular(11),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: isSelected ? colors.limeDim : colors.bg,
+                            borderRadius: BorderRadius.circular(11),
+                            border: Border.all(
+                              color: isSelected ? colors.lime : colors.border,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  displayValue,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.inter(
+                                    color: isSelected ? colors.lime : colors.text,
+                                    fontSize: 11,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w800
+                                        : FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              if (isSelected)
+                                Icon(Icons.check_rounded, color: colors.lime, size: 16),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+          ],
+        );
+      },
+    );
+    if (selected != null && mounted) onSelected(selected);
+  }
+
+  List<ExerciseCatalogModel> _filteredModernExercises(
+    List<ExerciseCatalogModel> exercises,
+  ) {
+    final query = _search.trim().toLowerCase();
+    return exercises.where((exercise) {
+      final searchable = [
+        exercise.nome,
+        exercise.grupoMuscular,
+        ...exercise.musculosPrimarios,
+        exercise.equipamento,
+      ].join(' ').toLowerCase();
+      final matchesSearch = query.isEmpty || searchable.contains(query);
+      final matchesMuscle = _muscle == 'Todos' ||
+          _sameCatalogLabel(exercise.grupoMuscular, _muscle);
+      final matchesCategory = _categoria == 'Todas' ||
+          _sameCatalogLabel(
+            _displayCatalogValue(exercise.categoria),
+            _displayCatalogValue(_categoria),
+          );
+      return exercise.ativo && matchesSearch && matchesMuscle && matchesCategory;
+    }).toList();
+  }
+
+  Widget _buildModernExerciseResults(
+    List<ExerciseCatalogModel> exercises,
+    AdminThemeColors colors,
+  ) {
+    final filtered = _filteredModernExercises(exercises);
+    final totalPages = filtered.isEmpty
+        ? 0
+        : (filtered.length + _exercisePageSize - 1) ~/ _exercisePageSize;
+    final page = totalPages == 0
+        ? 0
+        : (_currentExercisePage >= totalPages
+            ? totalPages - 1
+            : _currentExercisePage);
+    final rangeStart = page * _exercisePageSize;
+    final visible = filtered
+        .skip(rangeStart)
+        .take(_exercisePageSize)
+        .toList();
+    final compact = MediaQuery.sizeOf(context).width < 760;
+
+    if (filtered.isEmpty) {
+      return Container(
+        width: double.infinity,
+        height: compact ? 360 : 420,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: colors.border),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search_off_rounded, size: 42, color: colors.muted),
+            const SizedBox(height: 10),
+            Text(
+              'Nenhum exercício encontrado',
+              style: GoogleFonts.inter(color: colors.muted),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final panelHeight = compact ? 500.0 : 590.0;
+    return Container(
+      width: double.infinity,
+      height: panelHeight,
+      padding: const EdgeInsets.fromLTRB(10, 10, 6, 8),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            child: Row(
+              children: [
+                Text(
+                  '${filtered.length} encontrados',
+                  style: GoogleFonts.inter(
+                    color: colors.muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  'a mostrar ${rangeStart + 1}–${rangeStart + visible.length} de ${filtered.length}',
+                  style: GoogleFonts.inter(color: colors.muted, fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: Scrollbar(
+              controller: _exerciseScrollController,
+              // A barra aparece durante o scroll; não tentamos pintá-la antes
+              // de a lista ter uma ScrollPosition (hot restart/troca de visão).
+              thumbVisibility: false,
+              interactive: true,
+              child: _isListView
+                  ? ListView.builder(
+                      controller: _exerciseScrollController,
+                      primary: false,
+                      padding: const EdgeInsets.only(right: 5, bottom: 4),
+                      itemCount: visible.length,
+                      itemBuilder: (context, index) => _buildExerciseReveal(
+                        exercise: visible[index],
+                        index: index,
+                        child: _buildModernListItem(
+                          visible[index],
+                          rangeStart + index,
+                          colors,
+                        ),
+                      ),
+                    )
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        final columns = constraints.maxWidth > 760
+                            ? 3
+                            : (constraints.maxWidth > 430 ? 2 : 1);
+                        final width = (constraints.maxWidth - ((columns - 1) * 12)) / columns;
+                        return ListView(
+                          controller: _exerciseScrollController,
+                          primary: false,
+                          padding: const EdgeInsets.only(right: 5, bottom: 4),
+                          children: [
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              children: visible
+                                  .asMap()
+                                  .entries
+                                  .map(
+                                    (entry) => _buildExerciseReveal(
+                                      exercise: entry.value,
+                                      index: entry.key,
+                                      child: _buildModernGridItem(
+                                        entry.value,
+                                        rangeStart + entry.key,
+                                        width,
+                                        colors,
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+            ),
+          ),
+          _buildExercisePagination(
+            page: page,
+            totalPages: totalPages,
+            colors: colors,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _goToExercisePage(int page) {
+    setState(() => _currentExercisePage = page);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _exerciseScrollController.hasClients) {
+        _exerciseScrollController.jumpTo(0);
+      }
+    });
+  }
+
+  Widget _buildExercisePagination({
+    required int page,
+    required int totalPages,
+    required AdminThemeColors colors,
+  }) {
+    final canGoBack = page > 0;
+    final canGoForward = page < totalPages - 1;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+      child: Center(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              onPressed: canGoBack ? () => _goToExercisePage(page - 1) : null,
+              tooltip: 'Página anterior',
+              icon: const Icon(Icons.chevron_left_rounded),
+              color: colors.text,
+              disabledColor: colors.border,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              visualDensity: VisualDensity.compact,
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Text(
+                'Página ${page + 1} de $totalPages',
+                style: GoogleFonts.inter(
+                  color: colors.muted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: canGoForward ? () => _goToExercisePage(page + 1) : null,
+              tooltip: 'Página seguinte',
+              icon: const Icon(Icons.chevron_right_rounded),
+              color: colors.text,
+              disabledColor: colors.border,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExerciseReveal({
+    required ExerciseCatalogModel exercise,
+    required int index,
+    required Widget child,
+  }) {
+    final staggerIndex = index > 5 ? 5 : index;
+    return ScrollReveal(
+      key: ValueKey('exercise_reveal_${exercise.id}'),
+      delay: Duration(milliseconds: staggerIndex * 18),
+      child: child,
+    );
+  }
+
+  Widget _buildModernListItem(
+    ExerciseCatalogModel exercise,
+    int index,
+    AdminThemeColors colors,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colors.border),
+      ),
+      child: Material(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          onTap: () => _showExerciseDetails(exercise),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
+        leading: Container(
+          width: 38,
+          height: 38,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: colors.limeDim,
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: Text(
+            '${index + 1}'.padLeft(2, '0'),
+            style: GoogleFonts.montserrat(
+              color: colors.lime,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        title: Text(
+          exercise.nome,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.inter(color: colors.text, fontSize: 13, fontWeight: FontWeight.w700),
+        ),
+        subtitle: Text(
+          '${exercise.grupoMuscular}  ·  ${_displayCatalogValue(exercise.equipamento)}  ·  ${_displayCatalogValue(exercise.categoria)}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.inter(color: colors.muted, fontSize: 11),
+        ),
+          trailing: Icon(Icons.chevron_right_rounded, color: colors.muted),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernGridItem(
+    ExerciseCatalogModel exercise,
+    int index,
+    double width,
+    AdminThemeColors colors,
+  ) {
+    return SizedBox(
+      width: width,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colors.border),
+        ),
+        child: InkWell(
+          onTap: () => _showExerciseDetails(exercise),
+          borderRadius: BorderRadius.circular(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.fitness_center_rounded, color: colors.lime, size: 18),
+                  const Spacer(),
+                  Text('${index + 1}'.padLeft(2, '0'), style: GoogleFonts.montserrat(color: colors.muted, fontSize: 11)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                exercise.nome,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(color: colors.text, fontSize: 14, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                exercise.grupoMuscular,
+                style: GoogleFonts.inter(color: colors.blue, fontSize: 11, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                '${_displayCatalogValue(exercise.equipamento)} · ${_displayCatalogValue(exercise.categoria)}',
+                style: GoogleFonts.inter(color: colors.muted, fontSize: 11),
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Icon(Icons.info_outline_rounded, color: colors.lime, size: 18),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildViewModeToggle() {
+    final colors = AdminThemeColors.of(context);
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _viewModeButton(
+            icon: Icons.view_list_rounded,
+            label: 'Lista',
+            selected: _isListView,
+            onTap: () => setState(() => _isListView = true),
+          ),
+          _viewModeButton(
+            icon: Icons.grid_view_rounded,
+            label: 'Quadrados',
+            selected: !_isListView,
+            onTap: () => setState(() => _isListView = false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _viewModeButton({
+    required IconData icon,
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final colors = AdminThemeColors.of(context);
+    return Tooltip(
+      message: 'Ver em $label',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(9),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+          decoration: BoxDecoration(
+            color: selected ? colors.limeDim : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Icon(
+            icon,
+            size: 18,
+            color: selected ? colors.lime : colors.muted,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExerciseListItem(ExerciseCatalogModel exercise, int index) {
+    final colors = AdminThemeColors.of(context);
+    final muscles = exercise.musculosPrimarios.isEmpty
+        ? exercise.grupoMuscular
+        : exercise.musculosPrimarios.join(' · ');
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colors.border),
+        boxShadow: [
+          BoxShadow(
+            color: colors.shadow,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _showExerciseDetails(exercise),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: colors.limeDim,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Text(
+                    '${index + 1}'.padLeft(2, '0'),
+                    style: GoogleFonts.montserrat(
+                      color: colors.lime,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        exercise.nome,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                          color: colors.text,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 5,
+                        children: [
+                          _exChip(exercise.grupoMuscular, colors.blue),
+                          _exChip(_displayCatalogValue(exercise.equipamento), colors.muted),
+                          if (exercise.nivel.isNotEmpty)
+                            _exChip(_displayCatalogValue(exercise.nivel), colors.orange),
+                        ],
+                      ),
+                      if (muscles.isNotEmpty && muscles != exercise.grupoMuscular)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            muscles,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(
+                              color: colors.muted,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'Ver detalhes',
+                  onPressed: () => _showExerciseDetails(exercise),
+                  icon: Icon(Icons.info_outline_rounded, color: colors.lime),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showExerciseDetails(ExerciseCatalogModel exercise) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final colors = AdminThemeColors.of(dialogContext);
+        return AdminResponsiveDialog(
+          title: exercise.nome,
+          subtitle: '${exercise.grupoMuscular} · ${_displayCatalogValue(exercise.equipamento)}',
+          icon: Icons.fitness_center_rounded,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 7,
+                runSpacing: 7,
+                children: [
+                  _exChip(exercise.grupoMuscular, colors.blue),
+                  _exChip(_displayCatalogValue(exercise.categoria), colors.lime),
+                  _exChip(_displayCatalogValue(exercise.equipamento), colors.muted),
+                  if (exercise.nivel.isNotEmpty)
+                    _exChip(_displayCatalogValue(exercise.nivel), colors.orange),
+                ],
+              ),
+              if (exercise.musculosPrimarios.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                Text(
+                  'MÚSCULOS TRABALHADOS',
+                  style: GoogleFonts.inter(
+                    color: colors.muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  exercise.musculosPrimarios.join(' · '),
+                  style: GoogleFonts.inter(color: colors.text, fontSize: 13),
+                ),
+              ],
+              if (exercise.instrucoes.isNotEmpty) ...[
+                const SizedBox(height: 18),
+                Text(
+                  'INSTRUÇÕES',
+                  style: GoogleFonts.inter(
+                    color: colors.muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...exercise.instrucoes.asMap().entries.map(
+                  (entry) => Padding(
+                    padding: const EdgeInsets.only(bottom: 7),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${entry.key + 1}.',
+                          style: GoogleFonts.inter(
+                            color: colors.lime,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            entry.value,
+                            style: GoogleFonts.inter(
+                              color: colors.text,
+                              fontSize: 13,
+                              height: 1.35,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Fechar'),
+            ),
+            OutlinedButton.icon(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                await _showEditExerciseDialog(exercise);
+              },
+              icon: const Icon(Icons.edit_outlined, size: 17),
+              label: const Text('Editar'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                await _deactivateExercise(exercise);
+              },
+              icon: const Icon(Icons.archive_outlined, size: 17),
+              label: const Text('Desativar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _displayCatalogValue(String value) {
+    final normalized = value.trim().toLowerCase();
+    const labels = {
+      'forca': 'Força',
+      'strength': 'Força',
+      'alongamento': 'Alongamento',
+      'stretching': 'Alongamento',
+      'pliometria': 'Pliometria',
+      'cardio': 'Cardio',
+      'peso_corporal': 'Peso corporal',
+      'barra': 'Barra',
+      'haltere': 'Haltere',
+      'kettlebell': 'Kettlebell',
+      'maquina': 'Máquina',
+      'polia': 'Polia',
+      'banda': 'Banda',
+      'corda': 'Corda',
+      'outro': 'Outro',
+    };
+    if (labels.containsKey(normalized)) return labels[normalized]!;
+    if (normalized.isEmpty) return 'Geral';
+    return normalized[0].toUpperCase() + normalized.substring(1);
+  }
+
+  bool _sameCatalogLabel(String first, String second) {
+    return first.trim().toLowerCase() == second.trim().toLowerCase();
+  }
+
+  Future<void> _showEditExerciseDialog(ExerciseCatalogModel exercise) async {
+    final name = TextEditingController(text: exercise.nome);
+    final instructions = TextEditingController(text: exercise.instrucoes.join('\\n'));
+    final muscles = TextEditingController(
+      text: exercise.musculosPrimarios.join(', '),
+    );
+    final equipment = TextEditingController(text: exercise.equipamento);
+    var category = exercise.categoria;
+    const categories = ['forca', 'alongamento', 'cardio', 'pliometria', 'funcional'];
+    if (!categories.contains(category)) category = 'forca';
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AdminResponsiveAlertDialog(
+          title: Text('Editar exercício\n${exercise.nome}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: name,
+                decoration: const InputDecoration(labelText: 'Nome'),
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                initialValue: category,
+                decoration: const InputDecoration(labelText: 'Categoria'),
+                items: categories
+                    .map((item) => DropdownMenuItem(
+                          value: item,
+                          child: Text(_displayCatalogValue(item)),
+                        ))
+                    .toList(),
+                onChanged: (value) => setDialogState(() => category = value ?? category),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: equipment,
+                decoration: const InputDecoration(labelText: 'Equipamento'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: muscles,
+                decoration: const InputDecoration(
+                  labelText: 'Músculos primários',
+                  hintText: 'Separar por vírgulas',
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: instructions,
+                minLines: 3,
+                maxLines: 7,
+                decoration: const InputDecoration(
+                  labelText: 'Instruções',
+                  hintText: 'Uma instrução por linha',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (name.text.trim().isEmpty) return;
+                final updated = exercise.copyWith(
+                  nome: name.text.trim(),
+                  categoria: category,
+                  equipamento: equipment.text.trim().isEmpty
+                      ? 'outro'
+                      : equipment.text.trim(),
+                  musculosPrimarios: muscles.text
+                      .split(',')
+                      .map((value) => value.trim())
+                      .where((value) => value.isNotEmpty)
+                      .map(ExerciseCatalogModel.canonicalMuscleGroup)
+                      .toList(),
+                  grupoMuscular: ExerciseCatalogModel.canonicalMuscleGroup(
+                    muscles.text.split(',').first,
+                  ),
+                  instrucoes: instructions.text
+                      .split('\\n')
+                      .map((value) => value.trim())
+                      .where((value) => value.isNotEmpty)
+                      .toList(),
+                );
+                await ref.read(workoutRepositoryProvider).updateExerciseCatalog(updated);
+                ref.invalidate(adminExerciseCatalogProvider);
+                if (mounted) Navigator.pop(dialogContext);
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deactivateExercise(ExerciseCatalogModel exercise) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AdminResponsiveAlertDialog(
+        title: const Text('Desativar exercício?'),
+        content: Text(
+          '"${exercise.nome}" deixará de aparecer no catálogo, mas continuará preservado nos planos existentes.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Desativar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await ref.read(workoutRepositoryProvider).deactivateExerciseCatalog(exercise.id);
+    ref.invalidate(adminExerciseCatalogProvider);
+  }
+
+  Future<void> _recategorizeExerciseCatalog() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AdminResponsiveAlertDialog(
+        title: const Text('Corrigir categorias dos exercícios?'),
+        content: const Text(
+          'A categoria principal será recalculada para todos os exercícios com base nos músculos registados. Os planos existentes não serão alterados.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Corrigir'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isRecategorizing = true);
+    try {
+      final exercises = await ref.read(adminExerciseCatalogProvider.future);
+      final normalized = exercises
+          .map(
+            (exercise) => exercise.copyWith(
+              musculosPrimarios: exercise.musculosPrimarios
+                  .map(ExerciseCatalogModel.canonicalMuscleGroup)
+                  .toSet()
+                  .toList(),
+              musculosSecundarios: exercise.musculosSecundarios
+                  .map(ExerciseCatalogModel.canonicalMuscleGroup)
+                  .toSet()
+                  .toList(),
+              grupoMuscular: ExerciseCatalogModel.canonicalMuscleGroup(
+                exercise.grupoMuscular.isEmpty
+                    ? (exercise.musculosPrimarios.isEmpty
+                        ? ''
+                        : exercise.musculosPrimarios.first)
+                    : exercise.grupoMuscular,
+              ),
+            ),
+          )
+          .toList();
+      await ref.read(workoutRepositoryProvider).importExerciseCatalog(normalized);
+      ref.invalidate(adminExerciseCatalogProvider);
+      if (mounted) {
+        showAppNotification(
+          context,
+          '${normalized.length} exercícios recategorizados com sucesso.',
+          type: NotificationType.success,
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Não foi possível corrigir as categorias: $error',
+          type: NotificationType.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isRecategorizing = false);
+    }
+  }
+
+  Future<void> _importExerciseCatalog() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AdminResponsiveAlertDialog(
+        title: const Text('Importar catálogo de exercícios?'),
+        content: const Text(
+          'Serão importados mais de 800 exercícios em português. Exercícios com o mesmo ID serão atualizados e não serão duplicados.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Importar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isImporting = true);
+    try {
+      const sourceUrl =
+          'https://raw.githubusercontent.com/joao-gugel/exercicios-bd-ptbr/main/exercises/exercises-ptbr-full-translation.json';
+      final response = await http.get(Uri.parse(sourceUrl));
+      if (response.statusCode != 200) {
+        throw Exception('Não foi possível obter o catálogo (${response.statusCode}).');
+      }
+      final decoded = jsonDecode(response.body);
+      if (decoded is! List) throw const FormatException('Formato inválido.');
+      final catalog = decoded
+          .whereType<Map>()
+          .map((item) => ExerciseCatalogModel.fromSourceMap(
+                Map<String, dynamic>.from(item),
+              ))
+          .where((exercise) =>
+              exercise.id.trim().isNotEmpty && exercise.nome.trim().isNotEmpty)
+          .toList();
+      if (catalog.isEmpty) throw const FormatException('Catálogo vazio.');
+
+      await ref.read(workoutRepositoryProvider).importExerciseCatalog(catalog);
+      ref.invalidate(adminExerciseCatalogProvider);
+      if (mounted) {
+        showAppNotification(
+          context,
+          '${catalog.length} exercícios importados com sucesso.',
+          type: NotificationType.success,
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Não foi possível importar o catálogo: $error',
+          type: NotificationType.error,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isImporting = false);
+    }
   }
 
   Widget _exChip(String label, Color color) {
@@ -6053,16 +7608,20 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
               onPressed: () async {
                 if (nomeCtrl.text.trim().isEmpty) return;
                 try {
-                  final firestore = FirebaseFirestore.instance;
-                  await firestore.collection('exercicios').add({
-                    'nome': nomeCtrl.text.trim(),
-                    'grupoMuscular': selectedGrupo,
-                    'equipamento': equipCtrl.text.trim().isNotEmpty
-                        ? equipCtrl.text.trim()
-                        : 'Corpo',
-                    'categoria': selectedCategoria,
-                  });
-                  ref.invalidate(adminExercisesProvider);
+                  await ref
+                      .read(workoutRepositoryProvider)
+                      .createExerciseCatalog(
+                        ExerciseCatalogModel(
+                          id: '',
+                          nome: nomeCtrl.text.trim(),
+                          musculosPrimarios: [selectedGrupo],
+                          equipamento: equipCtrl.text.trim().isNotEmpty
+                              ? equipCtrl.text.trim()
+                              : 'peso_corporal',
+                          categoria: selectedCategoria,
+                        ),
+                      );
+                  ref.invalidate(adminExerciseCatalogProvider);
                   if (mounted) Navigator.pop(ctx);
                 } catch (_) {}
               },
@@ -8219,7 +9778,7 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
   }
 
   Future<void> _pickMonth() async {
-    final picked = await showDatePicker(
+    final picked = await showAppDatePicker(
       context: context,
       initialDate: _selectedDate,
       firstDate: DateTime(2020),

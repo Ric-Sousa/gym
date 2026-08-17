@@ -5,11 +5,13 @@ import '../../../../core/config/admin_theme.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../data/models/user_model.dart';
 import '../../../../data/models/workout_plan_model.dart';
+import '../../../../data/models/exercise_catalog_model.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/providers/admin_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/admin_responsive_dialog.dart';
 import '../../../../shared/widgets/admin_design_system.dart';
+import '../../../../shared/widgets/exercise_catalog_picker.dart';
 
 /// Editor do plano de treino (admin) — GYMBT Lime+Dark.
 class WorkoutEditor extends ConsumerStatefulWidget {
@@ -338,6 +340,30 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
     }
   }
 
+  String _planCategory(String value) {
+    switch (value) {
+      case 'forca':
+        return 'musculação';
+      case 'cardio':
+        return 'cardio';
+      default:
+        return 'funcional';
+    }
+  }
+
+  String _planEquipment(String value) {
+    const supported = {
+      'outro',
+      'barra',
+      'haltere',
+      'kettlebell',
+      'corda',
+      'peso_corporal',
+      'banda',
+    };
+    return supported.contains(value) ? value : 'outro';
+  }
+
   Future<void> _createEmptyPlan() async {
     final nameCtrl = TextEditingController(text: 'Semana 1');
     final result = await showDialog<String>(
@@ -392,6 +418,7 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
 
   Future<void> _addExercise(WorkoutPlanModel plan) async {
     final nome = TextEditingController();
+    ExerciseCatalogModel? selectedCatalogExercise;
     final dayOptions = <String>{
       ...AppStrings.daysOfWeek,
       ...plan.dias.map((day) => day.diaSemana),
@@ -422,6 +449,25 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final selected = await showExerciseCatalogPicker(ctx);
+                  if (selected == null) return;
+                  setDialogState(() {
+                    selectedCatalogExercise = selected;
+                    nome.text = selected.nome;
+                    selectedCategoria = _planCategory(selected.categoria);
+                    selectedEquipamento = _planEquipment(selected.equipamento);
+                  });
+                },
+                icon: const Icon(Icons.library_add_outlined, size: 17),
+                label: Text(
+                  selectedCatalogExercise == null
+                      ? 'Escolher da biblioteca'
+                      : 'Trocar exercício da biblioteca',
+                ),
+              ),
+              const SizedBox(height: 10),
               DropdownButtonFormField<String>(
                 isDense: true,
                 menuMaxHeight: 320,
@@ -652,6 +698,13 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                     observacoes: obs.text.isNotEmpty ? obs.text.trim() : null,
                     categoria: selectedCategoria,
                     equipamento: selectedEquipamento,
+                    catalogExerciseId: selectedCatalogExercise?.id,
+                    instrucoes: selectedCatalogExercise?.instrucoes ?? const [],
+                    nivel: selectedCatalogExercise?.nivel,
+                    musculosPrimarios:
+                        selectedCatalogExercise?.musculosPrimarios ?? const [],
+                    musculosSecundarios:
+                        selectedCatalogExercise?.musculosSecundarios ?? const [],
                     duracao: int.tryParse(duracao.text),
                     rounds: int.tryParse(rounds.text),
                   ),

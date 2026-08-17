@@ -149,5 +149,34 @@ void main() {
 
       expect(message.id, '');
     });
+
+    test('conta apenas mensagens recebidas e ainda não lidas', () {
+      final readAt = DateTime(2026, 7, 23, 15);
+      final messages = [
+        MessageModel(
+          remetenteId: 'other',
+          texto: 'nova',
+          timestamp: DateTime(2026, 7, 23, 16),
+        ),
+        MessageModel(
+          remetenteId: 'other',
+          texto: 'antiga',
+          timestamp: DateTime(2026, 7, 23, 14),
+        ),
+        MessageModel(
+          remetenteId: 'me',
+          texto: 'enviada por mim',
+          timestamp: DateTime(2026, 7, 23, 17),
+        ),
+        MessageModel(
+          remetenteId: 'other',
+          texto: 'já lida',
+          timestamp: DateTime(2026, 7, 23, 18),
+          lida: true,
+        ),
+      ];
+
+      expect(countUnreadMessages(messages, 'me', readAt: readAt), 1);
+    });
   });
 }

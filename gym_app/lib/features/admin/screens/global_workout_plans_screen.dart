@@ -6,9 +6,11 @@ import '../../../core/config/admin_theme.dart';
 import '../../../core/config/app_strings.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/models/workout_plan_model.dart';
+import '../../../data/models/exercise_catalog_model.dart';
 import '../../../shared/providers/global_providers.dart';
 import '../../../shared/widgets/admin_responsive_dialog.dart';
 import '../../../shared/widgets/admin_design_system.dart';
+import '../../../shared/widgets/exercise_catalog_picker.dart';
 
 final globalWorkoutPlansProvider =
     StreamProvider<List<WorkoutPlanModel>>((ref) {
@@ -1497,6 +1499,32 @@ class _GlobalWorkoutPlansScreenState
     return result;
   }
 
+  String _planCategory(String value) {
+    switch (value) {
+      case 'forca':
+        return 'musculação';
+      case 'alongamento':
+        return 'funcional';
+      case 'cardio':
+        return 'cardio';
+      default:
+        return 'funcional';
+    }
+  }
+
+  String _planEquipment(String value) {
+    const supported = {
+      'outro',
+      'barra',
+      'haltere',
+      'kettlebell',
+      'corda',
+      'peso_corporal',
+      'banda',
+    };
+    return supported.contains(value) ? value : 'outro';
+  }
+
   Future<void> _addExercise(
     WorkoutPlanModel plan, {
     WorkoutDay? subPlan,
@@ -1513,6 +1541,7 @@ class _GlobalWorkoutPlansScreenState
     if (!mounted) return;
     final selectedTarget = target;
     final name = TextEditingController();
+    ExerciseCatalogModel? selectedCatalogExercise;
     final sets = TextEditingController(text: '3');
     final reps = TextEditingController(text: '10');
     final load = TextEditingController();
@@ -1532,6 +1561,25 @@ class _GlobalWorkoutPlansScreenState
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final selected = await showExerciseCatalogPicker(dialogContext);
+                    if (selected == null) return;
+                    setDialogState(() {
+                      selectedCatalogExercise = selected;
+                      name.text = selected.nome;
+                      category = _planCategory(selected.categoria);
+                      equipment = _planEquipment(selected.equipamento);
+                    });
+                  },
+                  icon: const Icon(Icons.library_add_outlined, size: 17),
+                  label: Text(
+                    selectedCatalogExercise == null
+                        ? 'Escolher da biblioteca'
+                        : 'Trocar exercício da biblioteca',
+                  ),
+                ),
+                const SizedBox(height: 8),
                 TextField(
                   controller: name,
                   decoration: const InputDecoration(labelText: 'Exercício'),
@@ -1683,8 +1731,15 @@ class _GlobalWorkoutPlansScreenState
                         ? null
                         : observations.text.trim(),
                     videoURL: video.text.trim().isEmpty
-                        ? null
+                        ? selectedCatalogExercise?.videoUrl
                         : video.text.trim(),
+                    catalogExerciseId: selectedCatalogExercise?.id,
+                    instrucoes: selectedCatalogExercise?.instrucoes ?? const [],
+                    nivel: selectedCatalogExercise?.nivel,
+                    musculosPrimarios:
+                        selectedCatalogExercise?.musculosPrimarios ?? const [],
+                    musculosSecundarios:
+                        selectedCatalogExercise?.musculosSecundarios ?? const [],
                   ),
                 );
               },

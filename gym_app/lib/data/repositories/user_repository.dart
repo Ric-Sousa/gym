@@ -53,13 +53,21 @@ class UserRepository {
   Future<void> saveQuestionnaire(
     String uid,
     QuestionnaireResponse response, {
+    String? nome,
     String? genero,
+    double? peso,
+    double? altura,
+    DateTime? dataNascimento,
   }) async {
     try {
       await _firestoreDataSource.saveQuestionnaire(
         uid,
         response,
+        nome: nome,
         genero: genero,
+        peso: peso,
+        altura: altura,
+        dataNascimento: dataNascimento,
       );
     } on ServerException catch (e) {
       throw ServerFailure(message: e.message);

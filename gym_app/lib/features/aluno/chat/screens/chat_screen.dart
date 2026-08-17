@@ -18,11 +18,14 @@ import '../../../../shared/widgets/app_notification.dart';
 import '../../../../shared/widgets/audio_message_player.dart';
 import '../../../../shared/widgets/audio_record_button.dart';
 import '../../../../shared/widgets/group_members_preview.dart';
+import '../../../../shared/widgets/profile_photo_viewer.dart';
+import '../../../../shared/widgets/app_design_system.dart';
 import '../../../../core/services/audio_recording_model.dart';
 import '../../../../shared/utils/audio_chat_message.dart';
 import '../../../../shared/utils/chat_attachment.dart';
 import '../../../../shared/utils/new_message_detector.dart';
 import 'group_chat_screen.dart';
+
 
 final chatMessagesProvider = StreamProvider.family<List<MessageModel>, String>((
   ref,
@@ -38,6 +41,12 @@ final alunoGroupsProvider =
     StreamProvider.family<List<GroupModel>, String>((ref, userId) {
   return ref.read(groupRepositoryProvider).watchMyGroups(userId);
 });
+
+String _newMessagesLabel(int count) {
+  if (count <= 0) return 'Sem mensagens novas';
+  if (count == 1) return '1 mensagem nova';
+  return '$count mensagens novas';
+}
 
 /// Ecrã de chat — Kinetic Dark.
 class ChatScreen extends ConsumerStatefulWidget {
@@ -72,6 +81,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   bool _scrollCallbackScheduled = false;
   Timer? _typingDebounce;
   bool _typingSent = false;
+  DateTime? _lastRequestedDirectReadAt;
+  DateTime? _pendingDirectReadAt;
+  bool _markingDirectAsRead = false;
   String? _fetchedPartnerPhoto;
   // Guardado localmente porque ref fica invalido no dispose
   StateController<bool>? _chatNotifier;
@@ -124,6 +136,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       _currentSalaId = null;
       _currentUserId = null;
       _typingSent = false;
+      _lastRequestedDirectReadAt = null;
+      _pendingDirectReadAt = null;
       _fetchedPartnerPhoto = null;
       resetDetector();
       _fetchPartnerPhotoIfNeeded();
@@ -186,6 +200,60 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             .read(chatRepositoryProvider)
             .setTypingStatus(_currentSalaId!, _currentUserId!, false);
       } catch (_) {}
+    }
+  }
+
+  void _scheduleMarkDirectAsRead(
+    List<MessageModel> messages,
+    String salaId,
+    String userId,
+  ) {
+    if (messages.isEmpty || userId.isEmpty) return;
+    final latest = messages
+        .map((message) => message.timestamp)
+        .reduce((a, b) => a.isAfter(b) ? a : b);
+    final previous = _lastRequestedDirectReadAt;
+    if (previous != null && !latest.isAfter(previous)) return;
+
+    _lastRequestedDirectReadAt = latest;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _markDirectAsRead(salaId, userId, latest);
+    });
+  }
+
+  Future<void> _markDirectAsRead(
+    String salaId,
+    String userId,
+    DateTime readAt,
+  ) async {
+    if (!mounted) return;
+    if (_markingDirectAsRead) {
+      if (_pendingDirectReadAt == null ||
+          readAt.isAfter(_pendingDirectReadAt!)) {
+        _pendingDirectReadAt = readAt;
+      }
+      return;
+    }
+    _markingDirectAsRead = true;
+    try {
+      await ref.read(chatRepositoryProvider).markMessagesAsRead(
+        salaId,
+        userId,
+        readAt,
+      );
+    } catch (_) {
+      if (_lastRequestedDirectReadAt == readAt) {
+        _lastRequestedDirectReadAt = null;
+      }
+    } finally {
+      _markingDirectAsRead = false;
+      final pending = _pendingDirectReadAt;
+      _pendingDirectReadAt = null;
+      if (mounted && pending != null && !pending.isBefore(readAt)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _markDirectAsRead(salaId, userId, pending);
+        });
+      }
     }
   }
 
@@ -262,24 +330,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ),
         title: Row(
           children: [
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: StudentThemeColors.of(
-                context,
-              ).primary.withValues(alpha: 0.15),
-              backgroundImage: partnerPhoto != null
-                  ? NetworkImage(partnerPhoto)
-                  : null,
-              child: partnerPhoto == null
-                  ? Text(
-                      otherInitials,
-                      style: GoogleFonts.montserrat(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: StudentThemeColors.of(context).primary,
+            GestureDetector(
+              onTap: partnerPhoto == null || partnerPhoto.trim().isEmpty
+                  ? null
+                  : () => showProfilePhotoViewer(
+                        context: context,
+                        photoUrl: partnerPhoto,
+                        name: otherName,
+                        accentColor: StudentThemeColors.of(context).primary,
                       ),
-                    )
-                  : null,
+              child: CircleAvatar(
+                radius: 16,
+                backgroundColor: StudentThemeColors.of(
+                  context,
+                ).primary.withValues(alpha: 0.15),
+                backgroundImage: partnerPhoto != null && partnerPhoto.trim().isNotEmpty
+                    ? NetworkImage(partnerPhoto)
+                    : null,
+                child: partnerPhoto == null || partnerPhoto.trim().isEmpty
+                    ? Text(
+                        otherInitials,
+                        style: GoogleFonts.montserrat(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: StudentThemeColors.of(context).primary,
+                        ),
+                      )
+                    : null,
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -316,6 +394,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             child: messagesAsync.when(
               data: (messages) {
                 detectNewMessages(messages, userId, playSound: false);
+                _scheduleMarkDirectAsRead(messages, salaId, userId);
                 _scheduleScrollToBottom();
                 if (messages.isEmpty) {
                   return Center(
@@ -361,7 +440,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   controller: _scrollController,
                   padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
                   itemCount: items.length,
-                  itemBuilder: (_, index) => items[index],
+                  itemBuilder: (_, index) => ScrollReveal(
+                    key: ValueKey('direct-message-$index'),
+                    beginOffset: const Offset(0, 0.03),
+                    child: items[index],
+                  ),
                 );
               },
               loading: () => Center(
@@ -630,7 +713,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ),
               ),
               const SizedBox(height: 8),
-              _buildPTChatTile(personalId),
+              ScrollReveal(
+                child: _buildPTChatTile(personalId),
+              ),
               const SizedBox(height: 24),
             ],
             // ── Grupos ──
@@ -710,7 +795,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   );
                 }
                 return Column(
-                  children: groups.map((g) => _groupTile(g)).toList(),
+                  children: groups
+                      .map(
+                        (g) => ScrollReveal(
+                          key: ValueKey('student-group-${g.id}'),
+                          child: _groupTile(g),
+                        ),
+                      )
+                      .toList(),
                 );
               },
               loading: () => Padding(
@@ -804,6 +896,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   Widget _buildPTChatTile(String personalId) {
+    final userId = ref.watch(authProvider).user?.uid ?? '';
+    final roomId = ref.read(chatRepositoryProvider).getChatRoomId(
+      userId,
+      personalId,
+    );
+    final messagesAsync = ref.watch(chatMessagesProvider(roomId));
+    final unreadCount = countUnreadMessages(
+      messagesAsync.asData?.value ?? const <MessageModel>[],
+      userId,
+    );
+    final hasUnread = unreadCount > 0;
+
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(12),
@@ -837,30 +941,51 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           ),
           child: Row(
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      StudentThemeColors.of(context).primary,
-                      StudentThemeColors.of(context).primaryDim,
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Center(
-                  child: Text(
-                    'SG',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
+              Stack(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          StudentThemeColors.of(context).primary,
+                          StudentThemeColors.of(context).primaryDim,
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        'SG',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  if (hasUnread)
+                    Positioned(
+                      top: -1,
+                      right: -1,
+                      child: Container(
+                        width: 14,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: StudentThemeColors.of(context).primary,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.surface,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -870,16 +995,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     Text(
                       'Sara Gameiro',
                       style: GoogleFonts.inter(
-                        fontWeight: FontWeight.w600,
+                        fontWeight: hasUnread
+                            ? FontWeight.w800
+                            : FontWeight.w600,
                         fontSize: 14,
                         color: AppColors.onSurface,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Personal Trainer',
+                      hasUnread
+                          ? _newMessagesLabel(unreadCount)
+                          : 'Sem mensagens novas',
                       style: GoogleFonts.inter(
                         fontSize: 12,
+                        fontWeight: hasUnread
+                            ? FontWeight.w700
+                            : FontWeight.w400,
                         color: StudentThemeColors.of(
                           context,
                         ).primary.withValues(alpha: 0.7),
@@ -901,8 +1033,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   Widget _groupTile(GroupModel group) {
-    final hasPreview =
-        group.lastMessage != null && group.lastMessage!.isNotEmpty;
+    final userId = ref.watch(authProvider).user?.uid ?? '';
+    final messagesAsync = ref.watch(groupMessagesStreamProvider(group.id));
+    final unreadCount = countUnreadMessages(
+      messagesAsync.asData?.value ?? const <MessageModel>[],
+      userId,
+      readAt: group.lastReadAtByUser[userId],
+    );
+    final hasUnread = unreadCount > 0;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
@@ -921,24 +1059,49 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.outline),
+              border: Border.all(
+                color: hasUnread
+                    ? StudentThemeColors.of(context).primary.withValues(alpha: 0.45)
+                    : AppColors.outline,
+              ),
             ),
             child: Row(
               children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: StudentThemeColors.of(
-                      context,
-                    ).primary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.group,
-                    color: StudentThemeColors.of(context).primary,
-                    size: 22,
-                  ),
+                Stack(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: StudentThemeColors.of(
+                          context,
+                        ).primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.group,
+                        color: StudentThemeColors.of(context).primary,
+                        size: 22,
+                      ),
+                    ),
+                    if (hasUnread)
+                      Positioned(
+                        top: -1,
+                        right: -1,
+                        child: Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: StudentThemeColors.of(context).primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.surface,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -948,7 +1111,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       Text(
                         group.nome,
                         style: GoogleFonts.inter(
-                          fontWeight: FontWeight.w600,
+                          fontWeight: hasUnread
+                              ? FontWeight.w800
+                              : FontWeight.w600,
                           fontSize: 14,
                           color: AppColors.onSurface,
                         ),
@@ -963,17 +1128,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        hasPreview
-                            ? (group.lastMessage!.length > 40
-                                  ? '${group.lastMessage!.substring(0, 40)}...'
-                                  : group.lastMessage!)
-                            : '${group.membros.length} membros \u2022 Troca de hor\u00e1rios',
+                        _newMessagesLabel(unreadCount),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.inter(
                           fontSize: 12,
-                          color: hasPreview
-                              ? AppColors.onSurface.withValues(alpha: 0.7)
+                          fontWeight: hasUnread
+                              ? FontWeight.w700
+                              : FontWeight.w400,
+                          color: hasUnread
+                              ? StudentThemeColors.of(context).primary
                               : AppColors.textSecondary,
                         ),
                       ),

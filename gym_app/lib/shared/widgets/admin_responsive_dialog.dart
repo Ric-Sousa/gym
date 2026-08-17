@@ -76,10 +76,10 @@ class AdminResponsiveDialog extends StatelessWidget {
                   Divider(height: 1, color: colors.border),
                   Padding(
                     padding: EdgeInsets.fromLTRB(
-                      isCompact ? 16 : 22,
-                      14,
-                      isCompact ? 16 : 22,
-                      isCompact ? 16 : 20,
+                      isCompact ? 20 : 24,
+                      16,
+                      isCompact ? 20 : 24,
+                      isCompact ? 20 : 22,
                     ),
                     child: Align(
                       alignment: Alignment.centerRight,
@@ -289,10 +289,10 @@ class AdminResponsiveAlertDialog extends StatelessWidget {
                   Divider(height: 1, color: colors.border),
                   Padding(
                     padding: EdgeInsets.fromLTRB(
-                      compact ? 16 : 22,
-                      14,
-                      compact ? 16 : 22,
-                      compact ? 16 : 20,
+                      compact ? 20 : 24,
+                      16,
+                      compact ? 20 : 24,
+                      compact ? 20 : 22,
                     ),
                     child: Align(
                       alignment: Alignment.centerRight,

@@ -214,6 +214,7 @@ class PersonalFitApp extends ConsumerWidget {
           height: 1.45,
           color: AppColors.adminLightMuted,
         ),
+        actionsPadding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: AppColors.adminLightText,
@@ -675,7 +676,7 @@ class PersonalFitApp extends ConsumerWidget {
           height: 1.45,
           color: AppColors.onSurfaceVariant,
         ),
-        actionsPadding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+        actionsPadding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
       ),
 
       // ── Bottom sheets ────────────────────────────────────────
@@ -841,7 +842,12 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
     final content = AppPageFrame(
       maxWidth: isWide ? 1440 : double.infinity,
       padding: EdgeInsets.zero,
-      child: _screens[_currentIndex],
+      child: FadeSlideSwitcher(
+        child: KeyedSubtree(
+          key: ValueKey('aluno_tab_$_currentIndex'),
+          child: _screens[_currentIndex],
+        ),
+      ),
     );
 
     return Scaffold(

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:gym_app/data/models/user_model.dart';
 import 'package:gym_app/data/models/booking_model.dart';
+import 'package:gym_app/data/models/questionnaire_config_model.dart';
 import 'package:gym_app/features/auth/providers/auth_provider.dart';
 import 'package:gym_app/features/admin/screens/admin_panel_screen.dart';
 import 'package:gym_app/shared/providers/global_providers.dart';
@@ -54,6 +56,9 @@ void main() {
           adminStudentNamesProvider(
             trainerId,
           ).overrideWith((ref) => Stream.value(<String, String>{})),
+          questionnaireConfigProvider.overrideWith(
+            (ref) => Stream.value(QuestionnaireConfig.defaultConfig()),
+          ),
         ],
         child: const AdminPanelScreen(),
       ),
@@ -90,6 +95,9 @@ void main() {
           adminStudentNamesProvider(
             trainerId,
           ).overrideWith((ref) => Stream.value(<String, String>{})),
+          questionnaireConfigProvider.overrideWith(
+            (ref) => Stream.value(QuestionnaireConfig.defaultConfig()),
+          ),
         ],
         child: const AdminPanelScreen(),
       ),
@@ -173,6 +181,61 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Agenda'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('fecha o modal de tópico com ESC sem usar estado destruído', (
+      tester,
+    ) async {
+      await _pumpLargeAdmin(tester);
+
+      await tester.tap(find.text('Questionário'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Novo tópico'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Novo tópico'), findsWidgets);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(Dialog), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('editor de menu adiciona opções e permite pré-visualizar uma escolha', (
+      tester,
+    ) async {
+      await _pumpLargeAdmin(tester);
+
+      await tester.tap(find.text('Questionário'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Adicionar pergunta').first);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Texto livre'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Menu com opções').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Opção 1'), findsOneWidget);
+      expect(find.text('Pré-visualização para o aluno'), findsOneWidget);
+
+      await tester.tap(find.text('Adicionar opção'));
+      await tester.pumpAndSettle();
+      expect(find.text('Opção 2'), findsOneWidget);
+
+      final optionFields = find.byType(TextFormField);
+      await tester.enterText(optionFields.at(1), 'Sim');
+      await tester.enterText(optionFields.at(2), 'Não');
+      await tester.pumpAndSettle();
+
+      final menus = find.byKey(const ValueKey('admin-question-preview-menu'));
+      await tester.tap(menus);
+      await tester.pumpAndSettle();
+      expect(find.text('Sim'), findsWidgets);
+      await tester.tap(find.text('Sim').last);
+      await tester.pumpAndSettle();
+
       expect(tester.takeException(), isNull);
     });
   });

@@ -20,22 +20,31 @@ import '../../../features/auth/providers/auth_provider.dart';
 import '../../../shared/providers/global_providers.dart';
 import '../../../shared/providers/admin_providers.dart';
 import '../../../shared/providers/chat_notification_providers.dart';
+import '../../../shared/providers/admin_chat_unread_providers.dart';
 import '../../aluno/chat/screens/chat_screen.dart'; // for chatMessagesProvider
 import '../../aluno/chat/screens/group_chat_screen.dart';
 import '../../../shared/widgets/audio_message_player.dart';
-import '../../../shared/widgets/group_members_preview.dart';
 import '../../../shared/widgets/audio_record_button.dart';
 import '../../../shared/utils/audio_chat_message.dart';
 import '../../../shared/utils/chat_attachment.dart';
+import '../../../shared/widgets/group_members_preview.dart';
+import '../../../shared/widgets/profile_photo_viewer.dart';
+import '../../../shared/widgets/app_design_system.dart';
 import 'admin_messages_view.dart';
+
 
 // ─── Color constants ──────────────────────────────────────────────
 
 const _unreadPink = Color(0xFFFF6B6B);
 const _badgeBlack = Color(0xFF1A1A1A);
 
+String _adminNewMessagesLabel(int count) {
+  if (count == 1) return '1 mensagem nova';
+  return '$count mensagens novas';
+}
+
 /// Provider that computes unread conversation count.
-final adminUnreadCountProvider = Provider<int>((ref) {
+final adminLegacyUnreadCountProvider = Provider<int>((ref) {
   final conversationsAsync = ref.watch(adminConversationsProvider);
   return conversationsAsync.whenOrNull(
         data: (conversations) {
@@ -57,7 +66,7 @@ final adminUnreadCountProvider = Provider<int>((ref) {
 /// A leitura inicial também é considerada: o contador representa o estado
 /// persistido em `lida`, e não apenas mensagens recebidas enquanto a tela está
 /// aberta.
-final adminGroupUnreadCountProvider = StreamProvider<int>((ref) {
+final adminLegacyGroupUnreadCountProvider = StreamProvider<int>((ref) {
   final adminId = ref.watch(authProvider.select((state) => state.user?.uid ?? ''));
   if (adminId.isEmpty) return Stream.value(0);
 
@@ -158,8 +167,8 @@ class FloatingChatButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final directUnreadCount = ref.watch(adminUnreadCountProvider);
-    final groupUnreadCount = ref.watch(adminGroupUnreadCountProvider).value ?? 0;
+    final directUnreadCount = ref.watch(adminUnreadCountProvider).value ?? 0;
+    final groupUnreadCount = ref.watch(adminGroupUnreadCountProvider);
     final unreadCount = directUnreadCount + groupUnreadCount;
     final adminId = ref.watch(authProvider).user?.uid ?? '';
     final chatPreview = ref.watch(latestChatPreviewProvider(adminId));
@@ -390,10 +399,8 @@ class _ChatPopoverState extends ConsumerState<_ChatPopover> {
           border: Border.all(color: AdminThemeColors.of(context).border),
           boxShadow: const [],
         ),
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 250),
-          switchInCurve: Curves.easeOut,
-          switchOutCurve: Curves.easeIn,
+        child: FadeSlideSwitcher(
+          duration: const Duration(milliseconds: 220),
           child: _selectedConversation == null && _selectedGroup == null
               ? _ConversationListView(
                   key: const ValueKey('conversation_list'),
@@ -420,7 +427,14 @@ class _ChatPopoverState extends ConsumerState<_ChatPopover> {
               : _ChatDetailView(
                   key: ValueKey('chat_detail_${_selectedConversation!.roomId}'),
                   conversation: _selectedConversation!,
-                  onViewProfile: widget.onViewProfile,
+                  onViewProfile: widget.onViewProfile == null
+                      ? null
+                      : (aluno) {
+                          // Fecha o showDialog do pop-up antes de mudar para o
+                          // perfil principal do admin.
+                          widget.onClose();
+                          widget.onViewProfile!(aluno);
+                        },
                   onBack: () => setState(() => _selectedConversation = null),
                 ),
         ),
@@ -446,6 +460,9 @@ class _ConversationListView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final conversationsAsync = ref.watch(adminConversationsProvider);
+    final directUnreadCount = ref.watch(adminUnreadCountProvider).value ?? 0;
+    final groupUnreadCount =
+        ref.watch(adminGroupUnreadCountProvider);
 
     return Column(
       children: [
@@ -525,9 +542,15 @@ class _ConversationListView extends ConsumerWidget {
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
-                  tabs: const [
-                    Tab(text: 'Alunos'),
-                    Tab(text: 'Grupos'),
+                  tabs: [
+                    _AdminChatTab(
+                      label: 'Alunos',
+                      hasUnread: directUnreadCount > 0,
+                    ),
+                    _AdminChatTab(
+                      label: 'Grupos',
+                      hasUnread: groupUnreadCount > 0,
+                    ),
                   ],
                 ),
                 Expanded(
@@ -548,9 +571,12 @@ class _ConversationListView extends ConsumerWidget {
                                 const SizedBox(height: 6),
                             itemBuilder: (context, index) {
                               final conv = conversations[index];
-                              return _ConversationListTile(
-                                preview: conv,
-                                onTap: () => onSelectConversation(conv),
+                              return ScrollReveal(
+                                key: ValueKey('admin-conversation-${conv.roomId}'),
+                                child: _ConversationListTile(
+                                  preview: conv,
+                                  onTap: () => onSelectConversation(conv),
+                                ),
                               );
                             },
                           );
@@ -571,9 +597,12 @@ class _ConversationListView extends ConsumerWidget {
                             itemCount: groups.length,
                             separatorBuilder: (_, __) =>
                                 const SizedBox(height: 6),
-                            itemBuilder: (context, index) => _AdminGroupTile(
-                              group: groups[index],
-                              onTap: () => onSelectGroup(groups[index]),
+                            itemBuilder: (context, index) => ScrollReveal(
+                              key: ValueKey('admin-group-${groups[index].id}'),
+                              child: _AdminGroupTile(
+                                group: groups[index],
+                                onTap: () => onSelectGroup(groups[index]),
+                              ),
                             ),
                           );
                         },
@@ -677,22 +706,61 @@ class _ConversationListView extends ConsumerWidget {
   }
 }
 
+class _AdminChatTab extends StatelessWidget {
+  final String label;
+  final bool hasUnread;
+
+  const _AdminChatTab({required this.label, required this.hasUnread});
+
+  @override
+  Widget build(BuildContext context) {
+    final dotColor = AdminThemeColors.of(context).lime;
+    return Tab(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label),
+          if (hasUnread) ...[
+            const SizedBox(width: 6),
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: dotColor,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Group List Tile ───────────────────────────────────────────────
 
-class _AdminGroupTile extends StatelessWidget {
+class _AdminGroupTile extends ConsumerWidget {
   final GroupModel group;
   final VoidCallback onTap;
 
   const _AdminGroupTile({required this.group, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = AdminThemeColors.of(context);
+    final unreadCount = ref
+            .watch(adminGroupUnreadCountsProvider)
+            .value?[group.id] ??
+        0;
+    final hasUnread = unreadCount > 0;
+
     return Container(
       decoration: BoxDecoration(
         color: theme.bg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.border),
+        border: Border.all(
+          color: hasUnread ? theme.lime.withValues(alpha: 0.65) : theme.border,
+        ),
       ),
       child: InkWell(
         onTap: onTap,
@@ -701,29 +769,47 @@ class _AdminGroupTile extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: theme.limeDim,
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: group.imagemUrl != null && group.imagemUrl!.isNotEmpty
-                    ? Image.network(
-                        group.imagemUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Icon(
-                          Icons.groups_outlined,
+              Stack(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: theme.limeDim,
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: group.imagemUrl != null && group.imagemUrl!.isNotEmpty
+                        ? Image.network(
+                            group.imagemUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Icon(
+                              Icons.groups_outlined,
+                              color: theme.lime,
+                              size: 21,
+                            ),
+                          )
+                        : Icon(
+                            Icons.groups_outlined,
+                            color: theme.lime,
+                            size: 21,
+                          ),
+                  ),
+                  if (hasUnread)
+                    Positioned(
+                      top: -1,
+                      right: -1,
+                      child: Container(
+                        width: 13,
+                        height: 13,
+                        decoration: BoxDecoration(
                           color: theme.lime,
-                          size: 21,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: theme.bg, width: 2),
                         ),
-                      )
-                    : Icon(
-                        Icons.groups_outlined,
-                        color: theme.lime,
-                        size: 21,
                       ),
+                    ),
+                ],
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -736,7 +822,9 @@ class _AdminGroupTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(
                         fontSize: 14,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: hasUnread
+                            ? FontWeight.w800
+                            : FontWeight.w700,
                         color: theme.text,
                       ),
                     ),
@@ -750,14 +838,17 @@ class _AdminGroupTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      group.lastMessage?.isNotEmpty == true
-                          ? group.lastMessage!
-                          : '${group.membros.length} membros',
+                      hasUnread
+                          ? _adminNewMessagesLabel(unreadCount)
+                          : 'Sem mensagens novas',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(
                         fontSize: 12,
-                        color: theme.muted,
+                        fontWeight: hasUnread
+                            ? FontWeight.w700
+                            : FontWeight.w400,
+                        color: hasUnread ? theme.lime : theme.muted,
                       ),
                     ),
                   ],
@@ -907,55 +998,12 @@ class _ConversationListTile extends StatelessWidget {
   }
 
   void _showPhotoZoom(BuildContext context, UserModel aluno) {
-    if (aluno.fotoPerfil == null) return;
-    showDialog(
+    if (aluno.fotoPerfil == null || aluno.fotoPerfil!.trim().isEmpty) return;
+    showProfilePhotoViewer(
       context: context,
-      builder: (ctx) => GestureDetector(
-        onTap: () => Navigator.of(ctx).pop(),
-        child: Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Image.network(
-                  aluno.fotoPerfil!,
-                  width: (MediaQuery.sizeOf(context).width - 48)
-                      .clamp(180.0, 720.0)
-                      .toDouble(),
-                  height: (MediaQuery.sizeOf(context).height - 160)
-                      .clamp(180.0, 620.0)
-                      .toDouble(),
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => CircleAvatar(
-                    radius: 80,
-                    backgroundColor: AdminThemeColors.of(context).surface2,
-                    child: Text(
-                      aluno.nome.isNotEmpty ? aluno.nome[0].toUpperCase() : '?',
-                      style: GoogleFonts.montserrat(
-                        color: AdminThemeColors.of(context).lime,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 50,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                aluno.nome,
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      photoUrl: aluno.fotoPerfil,
+      name: aluno.nome,
+      accentColor: AdminThemeColors.of(context).lime,
     );
   }
 
@@ -1190,55 +1238,12 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
   }
 
   void _showPhotoZoom(BuildContext context, UserModel aluno) {
-    if (aluno.fotoPerfil == null) return;
-    showDialog(
+    if (aluno.fotoPerfil == null || aluno.fotoPerfil!.trim().isEmpty) return;
+    showProfilePhotoViewer(
       context: context,
-      builder: (ctx) => GestureDetector(
-        onTap: () => Navigator.of(ctx).pop(),
-        child: Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Image.network(
-                  aluno.fotoPerfil!,
-                  width: (MediaQuery.sizeOf(context).width - 48)
-                      .clamp(180.0, 720.0)
-                      .toDouble(),
-                  height: (MediaQuery.sizeOf(context).height - 160)
-                      .clamp(180.0, 620.0)
-                      .toDouble(),
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => CircleAvatar(
-                    radius: 80,
-                    backgroundColor: AdminThemeColors.of(context).surface2,
-                    child: Text(
-                      aluno.nome.isNotEmpty ? aluno.nome[0].toUpperCase() : '?',
-                      style: GoogleFonts.montserrat(
-                        color: AdminThemeColors.of(context).lime,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 50,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                aluno.nome,
-                style: GoogleFonts.inter(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      photoUrl: aluno.fotoPerfil,
+      name: aluno.nome,
+      accentColor: AdminThemeColors.of(context).lime,
     );
   }
 
@@ -1303,10 +1308,14 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    GestureDetector(
-                      onTapDown: (details) =>
-                          _showStudentDropdown(context, details.globalPosition),
-                      child: Row(
+                    MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        onTapDown: (details) => _showStudentDropdown(
+                          context,
+                          details.globalPosition,
+                        ),
+                        child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Flexible(
@@ -1318,8 +1327,6 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
                                 color: AdminThemeColors.of(context).text,
-                                decoration: TextDecoration.underline,
-                                decorationStyle: TextDecorationStyle.dotted,
                               ),
                             ),
                           ),
@@ -1330,6 +1337,7 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
                             color: AdminThemeColors.of(context).muted,
                           ),
                         ],
+                        ),
                       ),
                     ),
                     Text(

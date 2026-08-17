@@ -108,3 +108,23 @@ class MessageModel {
     );
   }
 }
+
+/// Conta as mensagens recebidas que ainda não foram lidas por [userId].
+///
+/// [readAt] é usado pelos grupos, que guardam um cursor de leitura por
+/// utilizador no documento do grupo. O campo `lida` continua a ser respeitado
+/// para manter compatibilidade com mensagens antigas.
+int countUnreadMessages(
+  Iterable<MessageModel> messages,
+  String userId, {
+  DateTime? readAt,
+}) {
+  return messages
+      .where(
+        (message) =>
+            message.remetenteId != userId &&
+            !message.lida &&
+            (readAt == null || message.timestamp.isAfter(readAt)),
+      )
+      .length;
+}

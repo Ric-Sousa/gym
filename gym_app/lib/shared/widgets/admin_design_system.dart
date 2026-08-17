@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/config/admin_theme.dart';
+import 'app_design_system.dart';
 
 /// Shared visual primitives for the Admin workspace.
 ///
@@ -170,7 +171,19 @@ ThemeData buildWorkspaceTheme(ThemeData baseTheme, AdminThemeColors colors) {
         height: 1.45,
         color: colors.muted,
       ),
-      actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
+      actionsPadding: const EdgeInsets.fromLTRB(24, 10, 24, 22),
+    ),
+    datePickerTheme: DatePickerThemeData(
+      backgroundColor: colors.surface,
+      surfaceTintColor: Colors.transparent,
+      cancelButtonStyle: TextButton.styleFrom(
+        minimumSize: const Size(88, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      ),
+      confirmButtonStyle: TextButton.styleFrom(
+        minimumSize: const Size(104, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      ),
     ),
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: colors.surface,
@@ -336,6 +349,7 @@ class AdminSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = AdminThemeColors.of(context);
+    final compact = MediaQuery.sizeOf(context).width < 900;
     final surfaceColor =
         color ?? (emphasized ? colors.surface2 : colors.surface);
     final content = Container(
@@ -343,19 +357,26 @@ class AdminSurface extends StatelessWidget {
       decoration: BoxDecoration(
         color: surfaceColor,
         borderRadius: borderRadius,
-        border: Border.all(
-          color: colors.border.withValues(alpha: emphasized ? 0.72 : 0.48),
-        ),
+        border: compact
+            ? null
+            : Border.all(
+                color: colors.border.withValues(alpha: emphasized ? 0.72 : 0.48),
+              ),
       ),
       child: child,
     );
+    final animatedContent = ScrollReveal(child: content);
 
-    if (onTap == null) return content;
+    if (onTap == null) return animatedContent;
     return Material(
       color: Colors.transparent,
       borderRadius: borderRadius,
       clipBehavior: Clip.antiAlias,
-      child: InkWell(onTap: onTap, borderRadius: borderRadius, child: content),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: borderRadius,
+        child: animatedContent,
+      ),
     );
   }
 }

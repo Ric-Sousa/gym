@@ -11,6 +11,7 @@ import '../../../../core/config/student_theme.dart';
 import '../../../../data/models/group_model.dart';
 import '../../../../data/models/message_model.dart';
 import '../../../../data/models/user_model.dart';
+import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../core/services/audio_recording_model.dart';
 import '../../../../shared/widgets/app_notification.dart';
@@ -20,6 +21,8 @@ import '../../../../shared/utils/audio_chat_message.dart';
 import '../../../../shared/utils/chat_attachment.dart';
 import '../../../../shared/utils/new_message_detector.dart';
 import '../../../../shared/widgets/app_design_system.dart';
+import '../../../../shared/widgets/profile_photo_viewer.dart';
+
 
 /// Ecrã de chat de grupo — alunos trocam horários/blocos.
 class GroupChatScreen extends ConsumerStatefulWidget {
@@ -103,8 +106,15 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
         ),
         leadingWidth: 56,
         titleSpacing: 0,
-        title: Row(
-          children: [
+        title: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+          onTap: () => _showGroupInfo(
+            messagesAsync.asData?.value ?? const <MessageModel>[],
+          ),
+          child: Row(
+            children: [
             Container(
               width: 34,
               height: 34,
@@ -163,23 +173,10 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                 ],
               ),
             ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Informações do grupo',
-            icon: const Icon(Icons.info_outline_rounded),
-            onPressed: () => _showGroupInfo(
-              messagesAsync.asData?.value ?? const <MessageModel>[],
-            ),
+            ],
           ),
-          if (widget.isAdminChat)
-            IconButton(
-              tooltip: 'Gerir grupo',
-              icon: const Icon(Icons.more_vert_rounded),
-              onPressed: _showAdminGroupActions,
-            ),
-        ],
+          ),
+        ),
       ),
       body: Column(
         children: [
@@ -317,8 +314,11 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
       controller: _scrollCtrl,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
       itemCount: messages.length,
-      itemBuilder: (_, i) =>
-          _messageBubble(messages[i], i > 0 ? messages[i - 1] : null),
+      itemBuilder: (_, i) => ScrollReveal(
+        key: ValueKey('group-message-${messages[i].id}-${messages[i].timestamp}'),
+        beginOffset: const Offset(0, 0.03),
+        child: _messageBubble(messages[i], i > 0 ? messages[i - 1] : null),
+      ),
     );
   }
 
@@ -515,7 +515,11 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
   }
 
   String _getSenderName(String uid) {
-    if (uid == _userId) return 'Tu';
+    if (uid == _userId) {
+      final profileName = ref.read(authProvider).user?.nome.trim();
+      if (profileName != null && profileName.isNotEmpty) return profileName;
+      return _group.membrosNomes[uid] ?? 'Tu';
+    }
     if (uid == _group.criadoPor) {
       return _group.criadoPorNome ?? 'Administrador';
     }
@@ -530,24 +534,36 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
   Widget _senderAvatar(String uid) {
     final photoUrl = _getSenderPhoto(uid);
     final name = _getSenderName(uid);
-    return CircleAvatar(
-      radius: 15,
-      backgroundColor: StudentThemeColors.of(context).primary.withValues(
-        alpha: 0.14,
+    final backgroundImage = photoUrl != null && photoUrl.trim().isNotEmpty
+        ? NetworkImage(photoUrl)
+        : null;
+    final hasPhoto = backgroundImage != null;
+    return GestureDetector(
+      onTap: hasPhoto
+          ? () => showProfilePhotoViewer(
+                context: context,
+                photoUrl: photoUrl,
+                name: name,
+                accentColor: StudentThemeColors.of(context).primary,
+              )
+          : null,
+      child: CircleAvatar(
+        radius: 15,
+        backgroundColor: StudentThemeColors.of(context).primary.withValues(
+          alpha: 0.14,
+        ),
+        backgroundImage: backgroundImage,
+        child: !hasPhoto
+            ? Text(
+                name.isNotEmpty ? name[0].toUpperCase() : '?',
+                style: GoogleFonts.inter(
+                  color: StudentThemeColors.of(context).primary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              )
+            : null,
       ),
-      backgroundImage: photoUrl != null && photoUrl.isNotEmpty
-          ? NetworkImage(photoUrl)
-          : null,
-      child: photoUrl == null || photoUrl.isEmpty
-          ? Text(
-              name.isNotEmpty ? name[0].toUpperCase() : '?',
-              style: GoogleFonts.inter(
-                color: StudentThemeColors.of(context).primary,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-              ),
-            )
-          : null,
     );
   }
 
@@ -823,6 +839,48 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                     ),
                   ],
                 ),
+                if (widget.isAdminChat) ...[
+                  const SizedBox(height: 18),
+                  _groupInfoHeading('GERIR GRUPO', Icons.settings_outlined),
+                  const SizedBox(height: 6),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _groupAdminActionTile(
+                          icon: Icons.edit_outlined,
+                          title: 'Renomear',
+                          onTap: () {
+                            Navigator.pop(dialogContext);
+                            _renameGroup();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _groupAdminActionTile(
+                          icon: Icons.image_outlined,
+                          title: 'Imagem',
+                          onTap: () {
+                            Navigator.pop(dialogContext);
+                            _pickGroupImage();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _groupAdminActionTile(
+                          icon: Icons.people_outline,
+                          title: 'Gerir alunos',
+                          onTap: () {
+                            Navigator.pop(dialogContext);
+                            _manageGroupMembers();
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 22),
                 _groupInfoHeading('ADMINISTRADOR', Icons.admin_panel_settings_outlined),
                 _groupPersonTile(
@@ -923,6 +981,57 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
     );
   }
 
+  Widget _groupAdminActionTile({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    final accent = StudentThemeColors.of(context).primary;
+    return Center(
+      child: SizedBox(
+        width: 96,
+        height: 96,
+        child: Material(
+          color: AppColors.surfaceHigh,
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(7),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.14),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, color: accent, size: 18),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _groupInfoHeading(String text, IconData icon) {
     return Row(
       children: [
@@ -952,59 +1061,71 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
     required IconData icon,
     bool highlighted = false,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    return MouseRegion(
+      cursor: SystemMouseCursors.basic,
+      child: Container(
+        margin: const EdgeInsets.only(top: 8),
       decoration: BoxDecoration(
         color: highlighted
             ? StudentThemeColors.of(context).primary.withValues(alpha: 0.10)
             : AppColors.surfaceHigh,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: highlighted
-                ? StudentThemeColors.of(context).primary.withValues(alpha: 0.16)
-                : AppColors.surface,
-            backgroundImage: photoUrl != null && photoUrl.isNotEmpty
-                ? NetworkImage(photoUrl)
-                : null,
-            child: photoUrl == null || photoUrl.isEmpty
-                ? Icon(
-                    icon,
-                    size: 19,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: highlighted
+                      ? StudentThemeColors.of(context).primary.withValues(alpha: 0.16)
+                      : AppColors.surface,
+                  backgroundImage: photoUrl != null && photoUrl.isNotEmpty
+                      ? NetworkImage(photoUrl)
+                      : null,
+                  child: photoUrl == null || photoUrl.isEmpty
+                      ? Icon(
+                          icon,
+                          size: 19,
+                          color: highlighted
+                              ? StudentThemeColors.of(context).primary
+                              : AppColors.textSecondary,
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
+                ),
+                Text(
+                  role,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
                     color: highlighted
                         ? StudentThemeColors.of(context).primary
                         : AppColors.textSecondary,
-                  )
-                : null,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.onSurface,
-              ),
+                  ),
+                ),
+              ],
             ),
           ),
-          Text(
-            role,
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: highlighted
-                  ? StudentThemeColors.of(context).primary
-                  : AppColors.textSecondary,
-            ),
-          ),
-        ],
+        ),
+      ),
       ),
     );
   }
@@ -1032,49 +1153,68 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
     );
   }
 
-  Future<void> _showAdminGroupActions() async {
-    if (!mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: Icon(
-                  Icons.image_outlined,
-                  color: StudentThemeColors.of(context).primary,
-                ),
-                title: const Text('Imagem do grupo'),
-                subtitle: const Text('Escolher ou substituir a imagem'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _pickGroupImage();
-                },
-              ),
-              ListTile(
-                leading: Icon(
-                  Icons.people_outline,
-                  color: StudentThemeColors.of(context).primary,
-                ),
-                title: const Text('Gerir membros'),
-                subtitle: Text('${_group.membros.length} membros selecionados'),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _manageGroupMembers();
-                },
-              ),
-            ],
+  Future<void> _renameGroup() async {
+    final controller = TextEditingController(text: _group.nome);
+    try {
+      final newName = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: const Text('Renomear grupo'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLength: 60,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'Nome do grupo',
+              hintText: 'Ex.: Turma da manhã',
+            ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(
+                dialogContext,
+                controller.text.trim(),
+              ),
+              child: const Text('Guardar'),
+            ),
+          ],
         ),
-      ),
-    );
+      );
+
+      if (!mounted || newName == null) return;
+      final trimmedName = newName.trim();
+      if (trimmedName.isEmpty || trimmedName == _group.nome) return;
+
+      setState(() => _sending = true);
+      await ref.read(groupRepositoryProvider).updateGroup(_group.id, {
+        'nome': trimmedName,
+      });
+      if (mounted) {
+        setState(() => _group = _group.copyWith(nome: trimmedName));
+        showAppNotification(
+          context,
+          'Nome do grupo atualizado.',
+          type: NotificationType.success,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Não foi possível renomear o grupo.',
+          type: NotificationType.error,
+        );
+      }
+    } finally {
+      controller.dispose();
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   Future<void> _pickGroupImage() async {
@@ -1137,91 +1277,689 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
     }
 
     final selectedIds = _group.membros.toSet();
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.surface,
-          title: const Text('Membros do grupo'),
-          content: SizedBox(
-            width: 420,
-            height: MediaQuery.sizeOf(dialogContext).height * 0.5,
-            child: students.isEmpty
-                ? const Center(child: Text('Nenhum aluno disponível.'))
-                : ListView.builder(
-                    itemCount: students.length,
-                    itemBuilder: (_, index) {
-                      final student = students[index];
-                      return CheckboxListTile(
-                        value: selectedIds.contains(student.uid),
-                        activeColor: StudentThemeColors.of(context).primary,
-                        title: Text(student.nome),
-                        subtitle: Text(student.email),
-                        onChanged: (selected) => setDialogState(() {
-                          if (selected == true) {
-                            selectedIds.add(student.uid);
-                          } else {
-                            selectedIds.remove(student.uid);
-                          }
-                        }),
-                      );
-                    },
-                  ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                try {
-                  final memberNames = {
-                    for (final student in students)
-                      if (selectedIds.contains(student.uid))
-                        student.uid: student.nome,
-                  };
-                  final memberPhotos = {
-                    for (final student in students)
-                      if (selectedIds.contains(student.uid) &&
-                          student.fotoPerfil != null &&
-                          student.fotoPerfil!.isNotEmpty)
-                        student.uid: student.fotoPerfil!,
-                  };
-                  await ref.read(groupRepositoryProvider).updateGroup(
-                    _group.id,
-                    {
-                      'membros': selectedIds.toList(),
-                      'membrosNomes': memberNames,
-                      'membrosFotos': memberPhotos,
-                    },
-                  );
-                  if (!mounted) return;
-                  setState(                      () => _group = _group.copyWith(
-                        membros: selectedIds.toList(),
-                        membrosNomes: memberNames,
-                        membrosFotos: memberPhotos,
-                      ),
+    final searchController = TextEditingController();
+    var saving = false;
+    if (!mounted) {
+      searchController.dispose();
+      return;
+    }
 
-                  );
-                  Navigator.pop(dialogContext);
-                } catch (_) {
-                  if (mounted) {
-                    showAppNotification(
-                      context,
-                      'Não foi possível atualizar os membros.',
-                      type: NotificationType.error,
-                    );
-                  }
-                }
-              },
-              child: const Text('Guardar'),
-            ),
-          ],
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            final query = searchController.text.trim().toLowerCase();
+            final filteredStudents = students
+                .where(
+                  (student) =>
+                      selectedIds.contains(student.uid) &&
+                      (query.isEmpty ||
+                          student.nome.toLowerCase().contains(query) ||
+                          student.email.toLowerCase().contains(query)),
+                )
+                .toList();
+            final accent = StudentThemeColors.of(context).primary;
+
+            Future<void> removeStudent(UserModel student) async {
+              final confirmed = await showDialog<bool>(
+                  context: dialogContext,
+                  builder: (confirmContext) => AlertDialog(
+                    backgroundColor: AppColors.surface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    title: const Text('Remover aluno do grupo?'),
+                    content: Text(
+                      'Queres remover ${student.nome} deste grupo? Esta alteração só será aplicada ao guardar.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(confirmContext, false),
+                        child: const Text('Cancelar'),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(confirmContext, true),
+                        child: const Text('Remover'),
+                      ),
+                    ],
+                  ),
+                );
+              if (confirmed != true || !dialogContext.mounted) return;
+              setDialogState(() => selectedIds.remove(student.uid));
+            }
+
+            Future<void> addStudents() async {
+              final addedIds = await _showAddStudentsDialog(
+                students,
+                selectedIds,
+              );
+              if (addedIds == null || !dialogContext.mounted) return;
+              setDialogState(() => selectedIds.addAll(addedIds));
+            }
+
+            return Dialog(
+              backgroundColor: AppColors.surface,
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 18,
+                vertical: 24,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 520,
+                  maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.78,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 46,
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: accent.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(
+                              Icons.people_alt_outlined,
+                              color: accent,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Gerir alunos',
+                                  style: GoogleFonts.montserrat(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.onSurface,
+                                  ),
+                                ),
+                                Text(
+                                  'Escolhe quem participa neste grupo',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Fechar',
+                            onPressed: saving
+                                ? null
+                                : () => Navigator.pop(dialogContext),
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: saving ? null : addStudents,
+                        icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                        label: const Text('Adicionar alunos'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: searchController,
+                        onChanged: (_) => setDialogState(() {}),
+                        textInputAction: TextInputAction.search,
+                        decoration: InputDecoration(
+                          hintText: 'Pesquisar aluno...',
+                          prefixIcon: const Icon(Icons.search_rounded),
+                          suffixIcon: searchController.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  tooltip: 'Limpar pesquisa',
+                                  onPressed: () {
+                                    searchController.clear();
+                                    setDialogState(() {});
+                                  },
+                                  icon: const Icon(Icons.clear_rounded),
+                                ),
+                          filled: true,
+                          fillColor: AppColors.surfaceHigh,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: filteredStudents.isEmpty
+                            ? Center(
+                                child: Text(
+                                  selectedIds.isEmpty
+                                      ? 'Nenhum aluno neste grupo.'
+                                      : 'Nenhum aluno encontrado.',
+                                  style: GoogleFonts.inter(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              )
+                            : ListView.separated(
+                                itemCount: filteredStudents.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 8),
+                                itemBuilder: (_, index) {
+                                  final student = filteredStudents[index];
+                                  final selected = selectedIds.contains(student.uid);
+                                  return Material(
+                                    color: selected
+                                        ? accent.withValues(alpha: 0.10)
+                                        : AppColors.surfaceHigh,
+                                    borderRadius: BorderRadius.circular(15),
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(15),
+                                      onTap: null,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 9,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            CircleAvatar(
+                                              radius: 22,
+                                              backgroundColor: accent.withValues(
+                                                alpha: 0.14,
+                                              ),
+                                              backgroundImage:
+                                                  student.fotoPerfil != null &&
+                                                      student.fotoPerfil!.isNotEmpty
+                                                  ? NetworkImage(student.fotoPerfil!)
+                                                  : null,
+                                              child: student.fotoPerfil == null ||
+                                                      student.fotoPerfil!.isEmpty
+                                                  ? Text(
+                                                      student.nome.isNotEmpty
+                                                          ? student.nome[0].toUpperCase()
+                                                          : '?',
+                                                      style: GoogleFonts.inter(
+                                                        color: accent,
+                                                        fontWeight: FontWeight.w800,
+                                                      ),
+                                                    )
+                                                  : null,
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    student.nome,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: AppColors.onSurface,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    student.email,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 11,
+                                                      color: AppColors.textSecondary,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            TextButton.icon(
+                                              onPressed: saving
+                                                  ? null
+                                                  : () => removeStudent(student),
+                                              icon: const Icon(
+                                                Icons.person_remove_outlined,
+                                                size: 17,
+                                              ),
+                                              label: const Text('Remover'),
+                                              style: TextButton.styleFrom(
+                                                foregroundColor: AppColors.error,
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 8,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: saving
+                                  ? null
+                                  : () => Navigator.pop(dialogContext),
+                              child: const Text('Cancelar'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: saving
+                                  ? null
+                                  : () async {
+                                      setDialogState(() => saving = true);
+                                      try {
+                                        final memberNames = {
+                                          for (final student in students)
+                                            if (selectedIds.contains(student.uid))
+                                              student.uid: student.nome,
+                                        };
+                                        final memberPhotos = {
+                                          for (final student in students)
+                                            if (selectedIds.contains(student.uid) &&
+                                                student.fotoPerfil != null &&
+                                                student.fotoPerfil!.isNotEmpty)
+                                              student.uid: student.fotoPerfil!,
+                                        };
+                                        await ref
+                                            .read(groupRepositoryProvider)
+                                            .updateGroup(_group.id, {
+                                              'membros': selectedIds.toList(),
+                                              'membrosNomes': memberNames,
+                                              'membrosFotos': memberPhotos,
+                                            });
+                                        if (!mounted) return;
+                                        setState(
+                                          () => _group = _group.copyWith(
+                                            membros: selectedIds.toList(),
+                                            membrosNomes: memberNames,
+                                            membrosFotos: memberPhotos,
+                                          ),
+                                        );
+                                        if (dialogContext.mounted) {
+                                          Navigator.pop(dialogContext);
+                                        }
+                                      } catch (_) {
+                                        if (mounted) {
+                                          showAppNotification(
+                                            context,
+                                            'Não foi possível atualizar os membros.',
+                                            type: NotificationType.error,
+                                          );
+                                        }
+                                        if (dialogContext.mounted) {
+                                          setDialogState(() => saving = false);
+                                        }
+                                      }
+                                    },
+                              icon: saving
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(Icons.save_outlined, size: 18),
+                              label: Text(saving ? 'A guardar...' : 'Guardar'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         ),
-      ),
-    );
+      );
+    } finally {
+      searchController.dispose();
+    }
+  }
+
+  Future<Set<String>?> _showAddStudentsDialog(
+    List<UserModel> students,
+    Set<String> currentIds,
+  ) async {
+    final availableStudents = students
+        .where((student) => !currentIds.contains(student.uid))
+        .toList();
+    final selectedToAdd = <String>{};
+    final searchController = TextEditingController();
+
+    try {
+      return await showDialog<Set<String>>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            final query = searchController.text.trim().toLowerCase();
+            final filteredStudents = availableStudents
+                .where(
+                  (student) =>
+                      query.isEmpty ||
+                      student.nome.toLowerCase().contains(query) ||
+                      student.email.toLowerCase().contains(query),
+                )
+                .toList();
+            final accent = StudentThemeColors.of(context).primary;
+
+            return Dialog(
+              backgroundColor: AppColors.surface,
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 18,
+                vertical: 24,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 520,
+                  maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.78,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 46,
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: accent.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(
+                              Icons.person_add_alt_1_rounded,
+                              color: accent,
+                              size: 24,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Adicionar alunos',
+                                  style: GoogleFonts.montserrat(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.onSurface,
+                                  ),
+                                ),
+                                Text(
+                                  'Escolhe novos participantes para o grupo',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Fechar',
+                            onPressed: () => Navigator.pop(dialogContext),
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: searchController,
+                        onChanged: (_) => setDialogState(() {}),
+                        textInputAction: TextInputAction.search,
+                        decoration: InputDecoration(
+                          hintText: 'Pesquisar aluno...',
+                          prefixIcon: const Icon(Icons.search_rounded),
+                          suffixIcon: searchController.text.isEmpty
+                              ? null
+                              : IconButton(
+                                  tooltip: 'Limpar pesquisa',
+                                  onPressed: () {
+                                    searchController.clear();
+                                    setDialogState(() {});
+                                  },
+                                  icon: const Icon(Icons.clear_rounded),
+                                ),
+                          filled: true,
+                          fillColor: AppColors.surfaceHigh,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 13,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: selectedToAdd.isEmpty
+                              ? AppColors.surfaceHigh
+                              : accent.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: selectedToAdd.isEmpty
+                                ? AppColors.outline.withValues(alpha: 0.35)
+                                : accent.withValues(alpha: 0.32),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              selectedToAdd.isEmpty
+                                  ? Icons.touch_app_outlined
+                                  : Icons.check_circle_outline_rounded,
+                              size: 18,
+                              color: selectedToAdd.isEmpty
+                                  ? AppColors.textSecondary
+                                  : accent,
+                            ),
+                            const SizedBox(width: 9),
+                            Expanded(
+                              child: Text(
+                                selectedToAdd.isEmpty
+                                    ? 'Seleciona os alunos que queres adicionar.'
+                                    : '${selectedToAdd.length} ${selectedToAdd.length == 1 ? 'aluno selecionado' : 'alunos selecionados'}',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: selectedToAdd.isEmpty
+                                      ? AppColors.textSecondary
+                                      : AppColors.onSurface,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: filteredStudents.isEmpty
+                            ? Center(
+                                child: Text(
+                                  availableStudents.isEmpty
+                                      ? 'Todos os alunos já pertencem ao grupo.'
+                                      : 'Nenhum aluno encontrado.',
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.inter(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              )
+                            : ListView.separated(
+                                itemCount: filteredStudents.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 8),
+                                itemBuilder: (_, index) {
+                                  final student = filteredStudents[index];
+                                  final selected =
+                                      selectedToAdd.contains(student.uid);
+                                  return Material(
+                                    color: selected
+                                        ? accent.withValues(alpha: 0.10)
+                                        : AppColors.surfaceHigh,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(15),
+                                      side: BorderSide(
+                                        color: selected
+                                            ? accent.withValues(alpha: 0.42)
+                                            : AppColors.outline.withValues(alpha: 0.22),
+                                      ),
+                                    ),
+                                    clipBehavior: Clip.antiAlias,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(15),
+                                      onTap: () => setDialogState(() {
+                                        if (selected) {
+                                          selectedToAdd.remove(student.uid);
+                                        } else {
+                                          selectedToAdd.add(student.uid);
+                                        }
+                                      }),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 9,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            CircleAvatar(
+                                              radius: 22,
+                                              backgroundColor: accent.withValues(
+                                                alpha: 0.14,
+                                              ),
+                                              backgroundImage:
+                                                  student.fotoPerfil != null &&
+                                                      student.fotoPerfil!.isNotEmpty
+                                                  ? NetworkImage(student.fotoPerfil!)
+                                                  : null,
+                                              child: student.fotoPerfil == null ||
+                                                      student.fotoPerfil!.isEmpty
+                                                  ? Text(
+                                                      student.nome.isNotEmpty
+                                                          ? student.nome[0].toUpperCase()
+                                                          : '?',
+                                                      style: GoogleFonts.inter(
+                                                        color: accent,
+                                                        fontWeight: FontWeight.w800,
+                                                      ),
+                                                    )
+                                                  : null,
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    student.nome,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 13,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: AppColors.onSurface,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    student.email,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: GoogleFonts.inter(
+                                                      fontSize: 11,
+                                                      color: AppColors.textSecondary,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            Checkbox(
+                                              value: selected,
+                                              activeColor: accent,
+                                              onChanged: (value) {
+                                                if (value == null) return;
+                                                setDialogState(() {
+                                                  if (value) {
+                                                    selectedToAdd.add(student.uid);
+                                                  } else {
+                                                    selectedToAdd.remove(student.uid);
+                                                  }
+                                                });
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(dialogContext),
+                              child: const Text('Cancelar'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: selectedToAdd.isEmpty
+                                  ? null
+                                  : () => Navigator.pop(
+                                      dialogContext,
+                                      Set<String>.from(selectedToAdd),
+                                    ),
+                              icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                              label: const Text('Adicionar'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    } finally {
+      searchController.dispose();
+    }
   }
 
   Future<void> _sendAttachment() async {

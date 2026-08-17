@@ -51,7 +51,6 @@ class GroupMembersPreview extends StatelessWidget {
         .whereType<String>()
         .where((name) => name.trim().isNotEmpty)
         .toList();
-    final adminName = _nameFor(group.criadoPor);
     final studentNames = group.membros
         .where((uid) => uid != group.criadoPor)
         .map(_nameFor)
@@ -74,17 +73,6 @@ class GroupMembersPreview extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (adminName != null && adminName.trim().isNotEmpty)
-                Text(
-                  'Admin: $adminName',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
-                    fontSize: compact ? 10 : 11,
-                    fontWeight: FontWeight.w700,
-                    color: textColor,
-                  ),
-                ),
               Text(
                 studentNames.isNotEmpty
                     ? studentNames.join(', ')

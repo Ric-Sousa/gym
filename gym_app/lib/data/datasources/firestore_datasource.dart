@@ -4,6 +4,7 @@ import '../models/user_model.dart';
 import '../models/diary_model.dart';
 import '../models/nutrition_plan_model.dart';
 import '../models/workout_plan_model.dart';
+import '../models/exercise_catalog_model.dart';
 import '../models/message_model.dart';
 import '../models/progress_model.dart';
 import '../models/progress_video_model.dart';
@@ -111,7 +112,11 @@ class FirestoreDataSource {
   Future<void> saveQuestionnaire(
     String uid,
     QuestionnaireResponse response, {
+    String? nome,
     String? genero,
+    double? peso,
+    double? altura,
+    DateTime? dataNascimento,
   }) async {
     try {
       final userRef = _firestore
@@ -125,7 +130,11 @@ class FirestoreDataSource {
       batch.update(userRef, {
         'questionnaireCompletedAt': FieldValue.serverTimestamp(),
         'questionnaireVersion': response.version,
-        if (genero != null) 'genero': genero,
+        if (nome != null && nome.trim().isNotEmpty) 'nome': nome.trim(),
+        if (genero != null && genero.trim().isNotEmpty) 'genero': genero,
+        if (peso != null) 'pesoAtual': peso,
+        if (altura != null) 'altura': altura,
+        if (dataNascimento != null) 'dataNascimento': dataNascimento,
       });
       await batch.commit();
     } on FirebaseException catch (e) {
@@ -652,6 +661,42 @@ class FirestoreDataSource {
               .map((doc) => MessageModel.fromMap(doc.id, doc.data()))
               .toList(),
         );
+  }
+
+  /// Marca como lidas as mensagens recebidas numa conversa direta.
+  Future<void> markMessagesAsRead(
+    String salaId,
+    String userId,
+    DateTime readAt,
+  ) async {
+    try {
+      final roomRef = _firestore
+          .collection(AppConstants.chatCollection)
+          .doc(salaId);
+      final snapshot = await roomRef
+          .collection(AppConstants.messagesSubcollection)
+          .get();
+      final unread = snapshot.docs.where((doc) {
+        final data = doc.data();
+        final timestamp = MessageModel.fromMap(doc.id, data).timestamp;
+        return data['lida'] != true &&
+            data['remetenteId'] != userId &&
+            !timestamp.isAfter(readAt);
+      }).toList();
+
+      for (var offset = 0; offset < unread.length; offset += 499) {
+        final end = offset + 499 < unread.length ? offset + 499 : unread.length;
+        final batch = _firestore.batch();
+        for (final doc in unread.sublist(offset, end)) {
+          batch.update(doc.reference, {'lida': true});
+        }
+        await batch.commit();
+      }
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao marcar mensagens como lidas',
+      );
+    }
   }
 
   /// Envia a mensagem e atualiza a sala numa única operação atómica.
@@ -1467,5 +1512,92 @@ class FirestoreDataSource {
     } on FirebaseException catch (e) {
       throw ServerException(message: e.message ?? 'Erro ao listar exercícios');
     }
+  }
+
+  /// Stream do catálogo completo de exercícios.
+  Stream<List<ExerciseCatalogModel>> watchExerciseCatalog({
+    bool includeInactive = true,
+  }) {
+    Query<Map<String, dynamic>> query =
+        _firestore.collection(AppConstants.exercisesCollection);
+    if (!includeInactive) {
+      query = query.where('ativo', isEqualTo: true);
+    }
+    return query.orderBy('nome').snapshots().map(
+          (snapshot) => snapshot.docs
+              .map((doc) => ExerciseCatalogModel.fromMap(doc.id, doc.data()))
+              .toList(),
+        );
+  }
+
+  /// Cria um exercício manual no catálogo.
+  Future<void> createExerciseCatalog(ExerciseCatalogModel exercise) async {
+    try {
+      await _firestore
+          .collection(AppConstants.exercisesCollection)
+          .doc(exercise.id.isEmpty ? null : exercise.id)
+          .set(exercise.toMap(now: DateTime.now()));
+    } on FirebaseException catch (e) {
+      throw ServerException(message: e.message ?? 'Erro ao criar exercício');
+    }
+  }
+
+  /// Atualiza os dados editáveis de um exercício.
+  Future<void> updateExerciseCatalog(ExerciseCatalogModel exercise) async {
+    try {
+      await _firestore
+          .collection(AppConstants.exercisesCollection)
+          .doc(exercise.id)
+          .set(exercise.toMap(now: DateTime.now()), SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      throw ServerException(message: e.message ?? 'Erro ao atualizar exercício');
+    }
+  }
+
+  /// Desativa o exercício sem quebrar planos que já o utilizam.
+  Future<void> deactivateExerciseCatalog(String exerciseId) async {
+    try {
+      await _firestore
+          .collection(AppConstants.exercisesCollection)
+          .doc(exerciseId)
+          .set({'ativo': false, 'atualizadoEm': DateTime.now()}, SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      throw ServerException(message: e.message ?? 'Erro ao desativar exercício');
+    }
+  }
+
+  /// Importa o catálogo em lotes e usa IDs determinísticos para não duplicar.
+  Future<void> importExerciseCatalog(
+    List<ExerciseCatalogModel> exercises,
+  ) async {
+    try {
+      for (var offset = 0; offset < exercises.length; offset += 450) {
+        final end = (offset + 450).clamp(0, exercises.length);
+        final batch = _firestore.batch();
+        for (final exercise in exercises.sublist(offset, end)) {
+          final documentId = _exerciseDocumentId(exercise);
+          final reference = _firestore
+              .collection(AppConstants.exercisesCollection)
+              .doc(documentId);
+          batch.set(
+            reference,
+            exercise.toMap(now: DateTime.now()),
+            SetOptions(merge: true),
+          );
+        }
+        await batch.commit();
+      }
+    } on FirebaseException catch (e) {
+      throw ServerException(message: e.message ?? 'Erro ao importar exercícios');
+    }
+  }
+
+  String _exerciseDocumentId(ExerciseCatalogModel exercise) {
+    final sourceId = exercise.origemId?.trim();
+    if (sourceId != null && sourceId.isNotEmpty) {
+      return sourceId.replaceAll('/', '_');
+    }
+    if (exercise.id.trim().isNotEmpty) return exercise.id.trim();
+    return _firestore.collection(AppConstants.exercisesCollection).doc().id;
   }
 }

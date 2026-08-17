@@ -2,6 +2,7 @@ import '../../core/errors/exceptions.dart';
 import '../../core/errors/failures.dart';
 import '../datasources/firestore_datasource.dart';
 import '../models/workout_plan_model.dart';
+import '../models/exercise_catalog_model.dart';
 import '../models/workout_log_model.dart';
 
 /// Dados de progressão entre dois treinos consecutivos.
@@ -117,6 +118,49 @@ class WorkoutRepository {
   /// Stream dos exercícios disponíveis.
   Stream<List<Map<String, dynamic>>> watchExercises({String? grupoMuscular}) {
     return _firestoreDataSource.watchExercises(grupoMuscular: grupoMuscular);
+  }
+
+  /// Stream do catálogo completo de exercícios.
+  Stream<List<ExerciseCatalogModel>> watchExerciseCatalog({
+    bool includeInactive = true,
+  }) {
+    return _firestoreDataSource.watchExerciseCatalog(
+      includeInactive: includeInactive,
+    );
+  }
+
+  Future<void> createExerciseCatalog(ExerciseCatalogModel exercise) async {
+    try {
+      await _firestoreDataSource.createExerciseCatalog(exercise);
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
+  }
+
+  Future<void> updateExerciseCatalog(ExerciseCatalogModel exercise) async {
+    try {
+      await _firestoreDataSource.updateExerciseCatalog(exercise);
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
+  }
+
+  Future<void> deactivateExerciseCatalog(String exerciseId) async {
+    try {
+      await _firestoreDataSource.deactivateExerciseCatalog(exerciseId);
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
+  }
+
+  Future<void> importExerciseCatalog(
+    List<ExerciseCatalogModel> exercises,
+  ) async {
+    try {
+      await _firestoreDataSource.importExerciseCatalog(exercises);
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
   }
 
   /// Elimina um plano atribuído a um aluno.

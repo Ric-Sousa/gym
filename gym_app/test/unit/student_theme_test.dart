@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gym_app/core/config/admin_theme.dart';
 import 'package:gym_app/core/config/app_colors.dart';
 import 'package:gym_app/core/config/student_theme.dart';
+import 'package:gym_app/shared/widgets/admin_design_system.dart';
 
 void main() {
   group('StudentThemeColors', () {
@@ -36,6 +38,18 @@ void main() {
         AppColors.femalePrimary,
       );
     });
+  });
+
+  test('tema de workspace mantém ações de modal afastadas da borda', () {
+    final theme = buildWorkspaceTheme(
+      ThemeData.dark(useMaterial3: true),
+      AdminThemeColors.dark,
+    );
+
+    expect(
+      theme.dialogTheme.actionsPadding,
+      const EdgeInsets.fromLTRB(24, 10, 24, 22),
+    );
   });
 
   testWidgets('of(context) lê a extensão do tema atual', (tester) async {

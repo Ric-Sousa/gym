@@ -15,6 +15,7 @@ import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/app_notification.dart';
+import '../../../../shared/widgets/app_design_system.dart';
 
 final nutritionPlanProvider =
     StreamProvider.family<NutritionPlanModel?, (String, String)>((ref, params) {
@@ -161,7 +162,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
     );
 
     Future<void> _openMonthPicker() async {
-      final picked = await showDatePicker(
+      final picked = await showAppDatePicker(
         context: context,
         initialDate: _weekStart,
         firstDate: DateTime(2020),

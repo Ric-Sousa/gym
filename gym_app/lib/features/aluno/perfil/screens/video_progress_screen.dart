@@ -84,7 +84,7 @@ class _VideoProgressScreenState extends ConsumerState<VideoProgressScreen> {
       builder: (ctx) => AlertDialog(
         insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+        actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
         title: Text(status == 'approved' ? 'Aprovar vídeo' : 'Rejeitar vídeo'),
         content: TextField(
           controller: feedbackController,
@@ -371,7 +371,7 @@ class _ProgressVideoPlayerState extends State<_ProgressVideoPlayer> {
     return AlertDialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       contentPadding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-      actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
       title: const Text('Vídeo de progressão'),
       content: FutureBuilder<void>(
         future: _initialization,

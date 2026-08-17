@@ -6,6 +6,7 @@ class UserModel {
   final String role; // 'aluno' ou 'admin'
   final double? pesoAtual;
   final double? altura;
+  final DateTime? dataNascimento;
   final String? fotoPerfil;
   final String? personalId; // UID do personal trainer associado
   final DateTime? ultimaAtividade;
@@ -51,6 +52,7 @@ class UserModel {
     this.role = 'aluno',
     this.pesoAtual,
     this.altura,
+    this.dataNascimento,
     this.fotoPerfil,
     this.personalId,
     this.ultimaAtividade,
@@ -79,6 +81,7 @@ class UserModel {
       role: map['role'] as String? ?? 'aluno',
       pesoAtual: (map['pesoAtual'] as num?)?.toDouble(),
       altura: (map['altura'] as num?)?.toDouble(),
+      dataNascimento: _dateFromMap(map['dataNascimento']),
       fotoPerfil: map['fotoPerfil'] as String?,
       personalId: map['personalId'] as String?,
       ultimaAtividade: map['ultimaAtividade'] != null
@@ -123,6 +126,7 @@ class UserModel {
       'role': role,
       if (pesoAtual != null) 'pesoAtual': pesoAtual,
       if (altura != null) 'altura': altura,
+      if (dataNascimento != null) 'dataNascimento': dataNascimento,
       if (fotoPerfil != null) 'fotoPerfil': fotoPerfil,
       if (personalId != null) 'personalId': personalId,
       if (ultimaAtividade != null) 'ultimaAtividade': ultimaAtividade,
@@ -156,6 +160,7 @@ class UserModel {
     String? role,
     double? pesoAtual,
     double? altura,
+    DateTime? dataNascimento,
     String? fotoPerfil,
     String? personalId,
     DateTime? ultimaAtividade,
@@ -186,6 +191,7 @@ class UserModel {
       role: role ?? this.role,
       pesoAtual: clearPeso ? null : (pesoAtual ?? this.pesoAtual),
       altura: clearAltura ? null : (altura ?? this.altura),
+      dataNascimento: dataNascimento ?? this.dataNascimento,
       fotoPerfil: clearFoto ? null : (fotoPerfil ?? this.fotoPerfil),
       personalId: clearPersonalId ? null : (personalId ?? this.personalId),
       ultimaAtividade: clearUltimaAtividade

@@ -1630,7 +1630,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       builder: (dialogContext) => AlertDialog(
         insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+        actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
         title: const Text('Eliminar série?'),
         content: Text(
           'A série S${serie.numero} adicionada manualmente será eliminada.',
@@ -1909,6 +1909,67 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                         borderRadius: BorderRadius.circular(11),
                       ),
                     ),
+                  ),
+                ),
+              ),
+            if (plannedExercise.instrucoes.isNotEmpty ||
+                plannedExercise.musculosPrimarios.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.info.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (plannedExercise.musculosPrimarios.isNotEmpty)
+                        Text(
+                          'Músculos: ${plannedExercise.musculosPrimarios.join(', ')}',
+                          style: GoogleFonts.inter(
+                            color: AppColors.info,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      if (plannedExercise.nivel != null &&
+                          plannedExercise.nivel!.isNotEmpty)
+                        Text(
+                          'Nível: ${plannedExercise.nivel}',
+                          style: GoogleFonts.inter(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      if (plannedExercise.instrucoes.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Como executar',
+                          style: GoogleFonts.inter(
+                            color: AppColors.onSurface,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        ...plannedExercise.instrucoes.asMap().entries.map(
+                          (instruction) => Padding(
+                            padding: const EdgeInsets.only(bottom: 3),
+                            child: Text(
+                              '${instruction.key + 1}. ${instruction.value}',
+                              style: GoogleFonts.inter(
+                                color: AppColors.textSecondary,
+                                fontSize: 11,
+                                height: 1.3,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ),

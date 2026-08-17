@@ -7,16 +7,54 @@ void main() {
     final config = QuestionnaireConfig.defaultConfig();
 
     expect(config.topics.map((topic) => topic.title), [
+      'Dados do aluno',
       'Sobre ti',
       'Saúde e rotina',
       'Alimentação e objetivo',
     ]);
+    expect(config.topics.first.isProtected, isTrue);
+    expect(config.topics.first.questions.map((question) => question.id), [
+      'birthDate',
+      'nome',
+      'genero',
+      'peso',
+      'altura',
+    ]);
     expect(
-      config.topics[1].questions
+      config.topics
+          .firstWhere((topic) => topic.id == 'health')
+          .questions
           .firstWhere((question) => question.id == 'medicationHas')
           .detailId,
       'medication',
     );
+  });
+
+  test('configuração reinsere e protege os dados do aluno ao ler uma configuração antiga', () {
+    final decoded = QuestionnaireConfig.fromMap(const {
+      'version': QuestionnaireConfig.version,
+      'topics': [
+        {
+          'id': 'profile',
+          'title': 'Perfil',
+          'questions': [
+            {'id': 'nome', 'label': 'Nome antigo', 'type': 'text'},
+          ],
+        },
+      ],
+    });
+
+    expect(decoded.topics.first.isProtected, isTrue);
+    expect(decoded.topics.first.title, 'Dados do aluno');
+    expect(
+      decoded.topics.first.questions
+          .firstWhere((question) => question.id == 'nome')
+          .label,
+      'Nome',
+    );
+    expect(decoded.topics.skip(1).expand((topic) => topic.questions),
+        isNot(contains(predicate<QuestionnaireQuestion>((question) =>
+            QuestionnaireConfig.protectedQuestionIds.contains(question.id)))));
   });
 
   test('configuração preserva perguntas e campos de detalhe', () {
@@ -41,9 +79,10 @@ void main() {
 
     final decoded = QuestionnaireConfig.fromMap(config.toMap());
 
-    expect(decoded.topics.single.questions.single.hasDetail, isTrue);
-    expect(decoded.topics.single.questions.single.resolvedDetailId, 'goalDetails');
-    expect(decoded.topics.single.questions.single.options, ['sim', 'não']);
+    final goals = decoded.topics.firstWhere((topic) => topic.id == 'goals');
+    expect(goals.questions.single.hasDetail, isTrue);
+    expect(goals.questions.single.resolvedDetailId, 'goalDetails');
+    expect(goals.questions.single.options, ['sim', 'não']);
   });
 
   test('resposta dinâmica exige o detalhe quando escolhe sim', () {

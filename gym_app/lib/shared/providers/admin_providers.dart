@@ -10,6 +10,7 @@ import '../../data/models/food_model.dart';
 import '../../data/models/progress_model.dart';
 import '../../data/models/payment_model.dart';
 import '../../data/models/booking_model.dart';
+import '../../data/models/exercise_catalog_model.dart';
 import '../../data/models/group_model.dart';
 import '../../data/models/questionnaire_response_model.dart';
 import '../../data/models/questionnaire_config_model.dart';
@@ -194,6 +195,12 @@ final adminDashboardStatsProvider = StreamProvider<AdminDashboardStats>((ref) {
 final adminExercisesProvider =
     StreamProvider<List<Map<String, dynamic>>>((ref) {
   return ref.read(workoutRepositoryProvider).watchExercises();
+});
+
+/// Biblioteca completa de exercícios, incluindo instruções e classificação.
+final adminExerciseCatalogProvider =
+    StreamProvider<List<ExerciseCatalogModel>>((ref) {
+  return ref.read(workoutRepositoryProvider).watchExerciseCatalog();
 });
 
 // ─── Foods ────────────────────────────────────────────────────────

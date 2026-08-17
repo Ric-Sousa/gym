@@ -3,6 +3,218 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/config/admin_theme.dart';
 
+/// Mostra um seletor de data com espaçamento explícito entre os botões e a
+/// borda do modal. O DatePicker nativo do Flutter fixa essa margem em 8 px.
+Future<DateTime?> showAppDatePicker({
+  required BuildContext context,
+  required DateTime firstDate,
+  required DateTime lastDate,
+  DateTime? initialDate,
+  DatePickerMode initialDatePickerMode = DatePickerMode.day,
+  String? helpText,
+  String? cancelText,
+  String? confirmText,
+  TransitionBuilder? builder,
+}) {
+  final dialog = _AppDatePickerDialog(
+    firstDate: DateUtils.dateOnly(firstDate),
+    lastDate: DateUtils.dateOnly(lastDate),
+    initialDate: initialDate == null ? null : DateUtils.dateOnly(initialDate),
+    initialDatePickerMode: initialDatePickerMode,
+    helpText: helpText,
+    cancelText: cancelText,
+    confirmText: confirmText,
+  );
+
+  return showDialog<DateTime>(
+    context: context,
+    builder: (dialogContext) {
+      final child = dialog;
+      return builder?.call(dialogContext, child) ?? child;
+    },
+  );
+}
+
+class _AppDatePickerDialog extends StatefulWidget {
+  final DateTime firstDate;
+  final DateTime lastDate;
+  final DateTime? initialDate;
+  final DatePickerMode initialDatePickerMode;
+  final String? helpText;
+  final String? cancelText;
+  final String? confirmText;
+
+  const _AppDatePickerDialog({
+    required this.firstDate,
+    required this.lastDate,
+    required this.initialDate,
+    required this.initialDatePickerMode,
+    this.helpText,
+    this.cancelText,
+    this.confirmText,
+  });
+
+  @override
+  State<_AppDatePickerDialog> createState() => _AppDatePickerDialogState();
+}
+
+class _AppDatePickerDialogState extends State<_AppDatePickerDialog> {
+  late DateTime? _selectedDate;
+  late final TextEditingController _inputController;
+  bool _inputMode = false;
+  String? _inputError;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDate = widget.initialDate;
+    _inputController = TextEditingController(text: _formatInput(widget.initialDate));
+  }
+
+  @override
+  void dispose() {
+    _inputController.dispose();
+    super.dispose();
+  }
+
+  String _formatInput(DateTime? date) {
+    if (date == null) return '';
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year}';
+  }
+
+  DateTime? _parseInput() {
+    final parts = _inputController.text.trim().split('/');
+    if (parts.length != 3) return null;
+    final day = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+    final year = int.tryParse(parts[2]);
+    if (day == null || month == null || year == null) return null;
+    final parsed = DateTime(year, month, day);
+    if (parsed.year != year || parsed.month != month || parsed.day != day) {
+      return null;
+    }
+    return DateUtils.dateOnly(parsed);
+  }
+
+  void _confirm() {
+    final date = _inputMode ? _parseInput() : _selectedDate;
+    if (date == null || date.isBefore(widget.firstDate) || date.isAfter(widget.lastDate)) {
+      setState(() => _inputError = 'Seleciona uma data válida.');
+      return;
+    }
+    Navigator.of(context).pop(date);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final datePickerTheme = theme.datePickerTheme;
+    final colors = theme.colorScheme;
+    final selectedLabel = _selectedDate == null
+        ? ''
+        : MaterialLocalizations.of(context).formatMediumDate(_selectedDate!);
+    final shape = datePickerTheme.shape ??
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(28));
+
+    return Dialog(
+      backgroundColor: datePickerTheme.backgroundColor ?? colors.surface,
+      surfaceTintColor: datePickerTheme.surfaceTintColor ?? Colors.transparent,
+      shape: shape,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 22, 16, 16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.helpText ?? 'Seleciona a data',
+                          style: theme.textTheme.labelLarge,
+                        ),
+                        const SizedBox(height: 18),
+                        Text(
+                          selectedLabel,
+                          style: theme.textTheme.headlineMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: _inputMode ? 'Calendário' : 'Introduzir data',
+                    onPressed: () => setState(() {
+                      _inputMode = !_inputMode;
+                      _inputError = null;
+                      _inputController.text = _formatInput(_selectedDate);
+                    }),
+                    icon: Icon(
+                      _inputMode ? Icons.calendar_today : Icons.edit_outlined,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: colors.outlineVariant.withValues(alpha: 0.35)),
+            if (_inputMode)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
+                child: TextField(
+                  controller: _inputController,
+                  autofocus: true,
+                  keyboardType: TextInputType.datetime,
+                  decoration: InputDecoration(
+                    labelText: 'Data (DD/MM/AAAA)',
+                    errorText: _inputError,
+                  ),
+                  onChanged: (_) {
+                    if (_inputError != null) setState(() => _inputError = null);
+                  },
+                ),
+              )
+            else
+              CalendarDatePicker(
+                initialDate: _selectedDate,
+                firstDate: widget.firstDate,
+                lastDate: widget.lastDate,
+                initialCalendarMode: widget.initialDatePickerMode,
+                onDateChanged: (date) => setState(() {
+                  _selectedDate = date;
+                  _inputController.text = _formatInput(date);
+                }),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 22),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(widget.cancelText ?? 'Cancelar'),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: _confirm,
+                    child: Text(widget.confirmText ?? 'Confirmar'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Tokens visuais usados pelas superfícies novas sem criar uma paleta paralela.
 class AppDesignTokens {
   AppDesignTokens._();
@@ -88,9 +300,9 @@ class ScrollReveal extends StatefulWidget {
   const ScrollReveal({
     super.key,
     required this.child,
-    this.duration = const Duration(milliseconds: 420),
+    this.duration = const Duration(milliseconds: 220),
     this.delay = Duration.zero,
-    this.beginOffset = const Offset(0, 0.08),
+    this.beginOffset = const Offset(0, 0.06),
   });
 
   @override
@@ -100,11 +312,32 @@ class ScrollReveal extends StatefulWidget {
 class _ScrollRevealState extends State<ScrollReveal> {
   bool _visible = false;
   bool _visibilityScheduled = false;
+  ScrollPosition? _scrollPosition;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkVisibility());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final nextPosition = Scrollable.maybeOf(context)?.position;
+    if (identical(_scrollPosition, nextPosition)) return;
+    _scrollPosition?.removeListener(_handleScroll);
+    _scrollPosition = nextPosition;
+    _scrollPosition?.addListener(_handleScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollPosition?.removeListener(_handleScroll);
+    super.dispose();
+  }
+
+  void _handleScroll() {
+    _checkVisibility();
   }
 
   bool _checkVisibility() {
@@ -132,19 +365,63 @@ class _ScrollRevealState extends State<ScrollReveal> {
 
   @override
   Widget build(BuildContext context) {
+    final duration = MediaQuery.of(context).disableAnimations
+        ? Duration.zero
+        : widget.duration;
     return NotificationListener<ScrollNotification>(
       onNotification: _onScroll,
       child: AnimatedOpacity(
         opacity: _visible ? 1 : 0,
-        duration: widget.duration,
+        duration: duration,
         curve: Curves.easeOutCubic,
         child: AnimatedSlide(
           offset: _visible ? Offset.zero : widget.beginOffset,
-          duration: widget.duration,
+          duration: duration,
           curve: Curves.easeOutCubic,
           child: widget.child,
         ),
       ),
+    );
+  }
+}
+
+/// Fade e pequeno slide usados quando se troca de página ou conversa.
+class FadeSlideSwitcher extends StatelessWidget {
+  final Widget child;
+  final Duration duration;
+
+  const FadeSlideSwitcher({
+    super.key,
+    required this.child,
+    this.duration = const Duration(milliseconds: 220),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    return AnimatedSwitcher(
+      duration: reduceMotion ? Duration.zero : duration,
+      reverseDuration: reduceMotion ? Duration.zero : duration,
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0.025, 0),
+              end: Offset.zero,
+            ).animate(curved),
+            child: child,
+          ),
+        );
+      },
+      child: child,
     );
   }
 }

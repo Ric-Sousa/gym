@@ -29,6 +29,19 @@ class ChatRepository {
     });
   }
 
+  /// Marca como lidas as mensagens recebidas até [readAt].
+  Future<void> markMessagesAsRead(
+    String salaId,
+    String userId,
+    DateTime readAt,
+  ) async {
+    try {
+      await _firestoreDataSource.markMessagesAsRead(salaId, userId, readAt);
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
+  }
+
   /// Envia uma mensagem.
   Future<void> sendMessage(String salaId, MessageModel message) async {
     if (!await _connectivityService.isConnected) throw NetworkFailure();

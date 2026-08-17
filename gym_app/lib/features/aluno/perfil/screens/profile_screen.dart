@@ -2144,7 +2144,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         backgroundColor: AppColors.surfaceHigh,
         insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+        actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           AppStrings.editProfile,

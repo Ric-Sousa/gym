@@ -8,6 +8,7 @@ import '../../../data/models/questionnaire_config_model.dart';
 import '../../../data/models/user_model.dart';
 import '../../../shared/providers/admin_providers.dart';
 import '../../../shared/providers/global_providers.dart';
+import '../../../shared/widgets/app_design_system.dart';
 import '../providers/auth_provider.dart';
 
 class QuestionnaireScreen extends ConsumerStatefulWidget {
@@ -99,7 +100,7 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
 
   Future<void> _pickBirthDate() async {
     final now = DateTime.now();
-    final date = await showDatePicker(
+    final date = await showAppDatePicker(
       context: context,
       firstDate: DateTime(1920),
       lastDate: now,
@@ -130,9 +131,53 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
   void _syncConfiguredControllers(QuestionnaireConfig config) {
     for (final topic in config.topics) {
       for (final question in topic.questions) {
-        _controllerFor(question.id);
+        final controller = _controllerFor(question.id);
+        if (question.id == 'nome' &&
+            controller.text.isEmpty &&
+            widget.user.nome.trim().isNotEmpty) {
+          controller.text = widget.user.nome.trim();
+        }
+        if (question.id == 'peso' &&
+            controller.text.isEmpty &&
+            widget.user.pesoAtual != null) {
+          controller.text = widget.user.pesoAtual!.toString();
+        }
+        if (question.id == 'altura' &&
+            controller.text.isEmpty &&
+            widget.user.altura != null) {
+          controller.text = widget.user.altura!.toString();
+        }
+        if (question.id == 'genero' &&
+            _choices[question.id] == null &&
+            widget.user.genero != null) {
+          _choices[question.id] = widget.user.genero!;
+        }
+        if (question.id == 'birthDate' &&
+            controller.text.isEmpty &&
+            widget.user.dataNascimento != null) {
+          final date = widget.user.dataNascimento!;
+          controller.text =
+              '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+        }
         if (question.hasDetail) _controllerFor(question.resolvedDetailId);
       }
+    }
+  }
+
+  DateTime? _parseDate(String value) {
+    final parts = value.trim().split('/');
+    if (parts.length != 3) return null;
+    final day = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+    final year = int.tryParse(parts[2]);
+    if (day == null || month == null || year == null) return null;
+    try {
+      final date = DateTime(year, month, day);
+      return date.day == day && date.month == month && date.year == year
+          ? date
+          : null;
+    } catch (_) {
+      return null;
     }
   }
 
@@ -230,6 +275,8 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
             ..._choices,
           }
         : <String, String>{
+            for (final entry in _controllers.entries)
+              entry.key: entry.value.text.trim(),
             for (final entry in _dynamicControllers.entries)
               entry.key: entry.value.text.trim(),
             ..._choices,
@@ -243,7 +290,11 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
               completedAt: DateTime.now(),
               answers: answers,
             ),
+            nome: answers['nome'],
             genero: answers['genero'] ?? _choices['genero'],
+            peso: double.tryParse(answers['peso']?.replaceAll(',', '.') ?? ''),
+            altura: double.tryParse(answers['altura']?.replaceAll(',', '.') ?? ''),
+            dataNascimento: _parseDate(answers['birthDate'] ?? ''),
           );
       await ref.read(authProvider.notifier).refreshUser();
     } catch (_) {
@@ -528,7 +579,9 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
               detail: true,
             );
           }
-          yield const SizedBox(height: 12);
+          // Os menus já têm espaçamento inferior próprio. Evita somar
+          // outro intervalo aqui, especialmente entre Sexo e Peso.
+          yield SizedBox(height: question.type == 'choice' ? 0 : 12);
         }),
       ],
     );
@@ -550,7 +603,7 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
 
   Future<void> _pickConfiguredDate(String id) async {
     final now = DateTime.now();
-    final date = await showDatePicker(
+    final date = await showAppDatePicker(
       context: context,
       firstDate: DateTime(1920),
       lastDate: now,

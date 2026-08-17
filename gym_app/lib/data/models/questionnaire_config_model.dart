@@ -90,12 +90,14 @@ class QuestionnaireTopic {
   final String title;
   final String description;
   final List<QuestionnaireQuestion> questions;
+  final bool isProtected;
 
   const QuestionnaireTopic({
     required this.id,
     required this.title,
     this.description = '',
     this.questions = const [],
+    this.isProtected = false,
   });
 
   factory QuestionnaireTopic.fromMap(Map<String, dynamic> map) {
@@ -110,6 +112,7 @@ class QuestionnaireTopic {
               ))
           .where((question) => question.id.isNotEmpty)
           .toList(),
+      isProtected: map['protected'] as bool? ?? map['locked'] as bool? ?? false,
     );
   }
 
@@ -118,6 +121,7 @@ class QuestionnaireTopic {
         'title': title,
         'description': description,
         'questions': questions.map((question) => question.toMap()).toList(),
+        if (isProtected) 'protected': true,
       };
 
   QuestionnaireTopic copyWith({
@@ -125,12 +129,14 @@ class QuestionnaireTopic {
     String? title,
     String? description,
     List<QuestionnaireQuestion>? questions,
+    bool? isProtected,
   }) {
     return QuestionnaireTopic(
       id: id ?? this.id,
       title: title ?? this.title,
       description: description ?? this.description,
       questions: questions ?? this.questions,
+      isProtected: isProtected ?? this.isProtected,
     );
   }
 }
@@ -138,6 +144,14 @@ class QuestionnaireTopic {
 class QuestionnaireConfig {
   static const documentId = 'active';
   static const version = QuestionnaireResponse.currentVersion;
+  static const protectedTopicId = 'student-data';
+  static const protectedQuestionIds = <String>{
+    'birthDate',
+    'nome',
+    'genero',
+    'peso',
+    'altura',
+  };
 
   final String versionId;
   final List<QuestionnaireTopic> topics;
@@ -147,22 +161,79 @@ class QuestionnaireConfig {
     this.topics = const [],
   });
 
+  static const protectedStudentDataTopic = QuestionnaireTopic(
+        id: protectedTopicId,
+        title: 'Dados do aluno',
+        description: 'Dados obrigatórios usados para preencher a ficha do aluno.',
+        isProtected: true,
+        questions: [
+          QuestionnaireQuestion(
+            id: 'birthDate',
+            label: 'Data de aniversário',
+            type: 'date',
+          ),
+          QuestionnaireQuestion(
+            id: 'nome',
+            label: 'Nome',
+            type: 'text',
+          ),
+          QuestionnaireQuestion(
+            id: 'genero',
+            label: 'Sexo',
+            type: 'choice',
+            options: ['masculino', 'feminino'],
+          ),
+          QuestionnaireQuestion(
+            id: 'peso',
+            label: 'Peso (kg)',
+            type: 'text',
+            hint: 'Ex.: 75',
+          ),
+          QuestionnaireQuestion(
+            id: 'altura',
+            label: 'Altura (cm)',
+            type: 'text',
+            hint: 'Ex.: 175',
+          ),
+        ],
+      );
+
+  static List<QuestionnaireTopic> _withProtectedTopic(
+    List<QuestionnaireTopic> topics,
+  ) {
+    final sanitized = topics
+        .where((topic) => topic.id != protectedTopicId)
+        .map(
+          (topic) => topic.copyWith(
+            questions: topic.questions
+                .where((question) => !protectedQuestionIds.contains(question.id))
+                .toList(),
+          ),
+        )
+        .toList();
+    return [protectedStudentDataTopic, ...sanitized];
+  }
+
   factory QuestionnaireConfig.fromMap(Map<String, dynamic> map) {
     return QuestionnaireConfig(
       versionId: map['version']?.toString() ?? version,
-      topics: (map['topics'] as List? ?? const [])
-          .whereType<Map>()
-          .map((item) => QuestionnaireTopic.fromMap(
-                Map<String, dynamic>.from(item),
-              ))
-          .where((topic) => topic.id.isNotEmpty && topic.title.isNotEmpty)
-          .toList(),
+      topics: _withProtectedTopic(
+        (map['topics'] as List? ?? const [])
+            .whereType<Map>()
+            .map((item) => QuestionnaireTopic.fromMap(
+                  Map<String, dynamic>.from(item),
+                ))
+            .where((topic) => topic.id.isNotEmpty && topic.title.isNotEmpty)
+            .toList(),
+      ),
     );
   }
 
   Map<String, dynamic> toMap() => {
         'version': versionId,
-        'topics': topics.map((topic) => topic.toMap()).toList(),
+        'topics': _withProtectedTopic(topics)
+            .map((topic) => topic.toMap())
+            .toList(),
       };
 
   bool isResponseComplete(QuestionnaireResponse response) {
@@ -185,7 +256,7 @@ class QuestionnaireConfig {
   }) {
     return QuestionnaireConfig(
       versionId: versionId ?? this.versionId,
-      topics: topics ?? this.topics,
+      topics: _withProtectedTopic(topics ?? this.topics),
     );
   }
 
@@ -193,13 +264,12 @@ class QuestionnaireConfig {
   static QuestionnaireConfig defaultConfig() {
     return const QuestionnaireConfig(
       topics: [
+        protectedStudentDataTopic,
         QuestionnaireTopic(
           id: 'profile',
           title: 'Sobre ti',
           description: 'Informação básica para personalizar o acompanhamento.',
           questions: [
-            QuestionnaireQuestion(id: 'birthDate', label: 'Data de nascimento', type: 'date'),
-            QuestionnaireQuestion(id: 'genero', label: 'Qual é o teu sexo?', type: 'choice', options: ['masculino', 'feminino']),
             QuestionnaireQuestion(id: 'profession', label: 'Profissão', type: 'text', hint: 'Ex.: estudante, professora, motorista'),
             QuestionnaireQuestion(id: 'activity', label: 'Já praticas ginásio ou algum desporto?', type: 'choice', options: ['Sim, regularmente', 'Às vezes', 'Ainda não']),
             QuestionnaireQuestion(id: 'sedentary', label: 'Consideras-te uma pessoa sedentária?', type: 'binary', options: ['sim', 'não']),

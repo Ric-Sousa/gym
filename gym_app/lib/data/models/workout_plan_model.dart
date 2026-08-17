@@ -8,6 +8,11 @@ class Exercise {
   final String? videoURL;
   final String? observacoes;
   final String? grupoMuscular;
+  final String? catalogExerciseId;
+  final List<String> instrucoes;
+  final String? nivel;
+  final List<String> musculosPrimarios;
+  final List<String> musculosSecundarios;
   final String categoria; // 'musculação', 'funcional', 'cardio', 'pesos_livres'
   final String
   equipamento; // 'barra', 'haltere', 'kettlebell', 'corda', 'peso_corporal', 'banda', 'outro'
@@ -23,6 +28,11 @@ class Exercise {
     this.videoURL,
     this.observacoes,
     this.grupoMuscular,
+    this.catalogExerciseId,
+    this.instrucoes = const [],
+    this.nivel,
+    this.musculosPrimarios = const [],
+    this.musculosSecundarios = const [],
     this.categoria = 'musculação',
     this.equipamento = 'outro',
     this.duracao,
@@ -39,6 +49,11 @@ class Exercise {
       videoURL: map['videoURL'] as String?,
       observacoes: map['observacoes'] as String?,
       grupoMuscular: map['grupoMuscular'] as String?,
+      catalogExerciseId: map['catalogExerciseId'] as String?,
+      instrucoes: _stringList(map['instrucoes']),
+      nivel: map['nivel'] as String?,
+      musculosPrimarios: _stringList(map['musculosPrimarios']),
+      musculosSecundarios: _stringList(map['musculosSecundarios']),
       categoria: map['categoria'] as String? ?? 'musculação',
       equipamento: map['equipamento'] as String? ?? 'outro',
       duracao: (map['duracao'] as num?)?.toInt(),
@@ -56,11 +71,21 @@ class Exercise {
       if (videoURL != null) 'videoURL': videoURL,
       if (observacoes != null) 'observacoes': observacoes,
       if (grupoMuscular != null) 'grupoMuscular': grupoMuscular,
+      if (catalogExerciseId != null) 'catalogExerciseId': catalogExerciseId,
+      if (instrucoes.isNotEmpty) 'instrucoes': instrucoes,
+      if (nivel != null) 'nivel': nivel,
+      if (musculosPrimarios.isNotEmpty) 'musculosPrimarios': musculosPrimarios,
+      if (musculosSecundarios.isNotEmpty) 'musculosSecundarios': musculosSecundarios,
       'categoria': categoria,
       'equipamento': equipamento,
       if (duracao != null) 'duracao': duracao,
       if (rounds != null) 'rounds': rounds,
     };
+  }
+
+  static List<String> _stringList(dynamic value) {
+    if (value is! List) return const [];
+    return value.whereType<String>().toList();
   }
 }
 

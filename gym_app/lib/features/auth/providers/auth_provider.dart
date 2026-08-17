@@ -4,7 +4,6 @@ import 'package:riverpod/legacy.dart';
 import '../../../core/errors/exceptions.dart';
 import '../../../core/errors/failures.dart';
 import '../../../data/models/user_model.dart';
-import '../../../data/models/questionnaire_response_model.dart';
 import '../../../data/repositories/auth_repository.dart';
 import '../screens/privacy_policy_screen.dart';
 import '../../../shared/providers/global_providers.dart';
@@ -44,11 +43,16 @@ class AuthState {
 
   bool get isAdmin => user?.isAdmin ?? false;
   bool get isAluno => user?.isAluno ?? false;
+  /// A conclusão é permanente para esta ficha inicial.
+  ///
+  /// A configuração das perguntas pode ser editada pelo personal trainer sem
+  /// invalidar a resposta já submetida. `questionnaireVersion` é guardado como
+  /// marcador histórico da versão usada no preenchimento, não como uma versão
+  /// que tenha de coincidir com a configuração atual.
   bool get needsQuestionnaire =>
       user != null &&
       user!.isAluno &&
-      (!user!.hasCompletedQuestionnaire ||
-          user!.questionnaireVersion != QuestionnaireResponse.currentVersion);
+      !user!.hasCompletedQuestionnaire;
   bool get needsPrivacyPolicy =>
       user != null &&
       user!.isAluno &&

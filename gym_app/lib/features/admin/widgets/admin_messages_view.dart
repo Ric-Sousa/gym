@@ -9,12 +9,15 @@ import '../../../core/config/admin_theme.dart';
 import '../../../core/config/app_constants.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/models/message_model.dart';
+import '../../../data/models/group_model.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../shared/providers/global_providers.dart';
 import '../../../shared/widgets/admin_responsive_dialog.dart';
 import '../../../shared/widgets/admin_design_system.dart';
 import '../../../shared/widgets/group_members_preview.dart';
+import '../../../shared/widgets/app_design_system.dart';
 import '../../../shared/providers/admin_providers.dart';
+import '../../../shared/providers/admin_chat_unread_providers.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/aluno/chat/screens/group_chat_screen.dart';
 
@@ -354,60 +357,9 @@ class AdminMessagesView extends ConsumerWidget {
                             ),
                           ),
                         ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: AdminThemeColors.of(context).limeDim,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: g.imagemUrl != null && g.imagemUrl!.isNotEmpty
-                                  ? ClipRRect(
-                                      borderRadius: BorderRadius.circular(10),
-                                      child: Image.network(
-                                        g.imagemUrl!,
-                                        width: 36,
-                                        height: 36,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => Icon(
-                                          Icons.group,
-                                          color: AdminThemeColors.of(context).lime,
-                                          size: 18,
-                                        ),
-                                      ),
-                                    )
-                                  : Icon(
-                                      Icons.group,
-                                      color: AdminThemeColors.of(context).lime,
-                                      size: 18,
-                                    ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    g.nome,
-                                    style: GoogleFonts.inter(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
-                                      color: AdminThemeColors.of(context).text,
-                                    ),
-                                  ),
-                                  GroupMembersPreview(
-                                    group: g,
-                                    textColor: AdminThemeColors.of(context).text,
-                                    mutedColor: AdminThemeColors.of(context).muted,
-                                    accentColor: AdminThemeColors.of(context).lime,
-                                    compact: true,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: _AdminMessagesGroupSummaryContent(group: g),
                         ),
                       ),
                     ),
@@ -469,9 +421,12 @@ class AdminMessagesView extends ConsumerWidget {
               return Column(
                 children: conversations
                     .map(
-                      (c) => _ConversationTile(
-                        preview: c,
-                        onTap: () => onSelect(c.aluno),
+                      (c) => ScrollReveal(
+                        key: ValueKey('admin-page-conversation-${c.roomId}'),
+                        child: _ConversationTile(
+                          preview: c,
+                          onTap: () => onSelect(c.aluno),
+                        ),
                       ),
                     )
                     .toList(),
@@ -493,6 +448,107 @@ class AdminMessagesView extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _AdminMessagesGroupSummaryContent extends ConsumerWidget {
+  final GroupModel group;
+
+  const _AdminMessagesGroupSummaryContent({required this.group});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = AdminThemeColors.of(context);
+    final unreadCount = ref
+            .watch(adminGroupUnreadCountsProvider)
+            .value?[group.id] ??
+        0;
+    final hasUnread = unreadCount > 0;
+
+    return Row(
+      children: [
+        Stack(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: theme.limeDim,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: group.imagemUrl != null && group.imagemUrl!.isNotEmpty
+                  ? Image.network(
+                      group.imagemUrl!,
+                      width: 36,
+                      height: 36,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Icon(
+                        Icons.group,
+                        color: theme.lime,
+                        size: 18,
+                      ),
+                    )
+                  : Icon(Icons.group, color: theme.lime, size: 18),
+            ),
+            if (hasUnread)
+              Positioned(
+                top: -1,
+                right: -1,
+                child: Container(
+                  width: 13,
+                  height: 13,
+                  decoration: BoxDecoration(
+                    color: theme.lime,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: theme.surface, width: 2),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                group.nome,
+                style: GoogleFonts.inter(
+                  fontWeight: hasUnread ? FontWeight.w800 : FontWeight.w600,
+                  fontSize: 13,
+                  color: theme.text,
+                ),
+              ),
+              const SizedBox(height: 3),
+              GroupMembersPreview(
+                group: group,
+                textColor: theme.text,
+                mutedColor: theme.muted,
+                accentColor: theme.lime,
+                compact: true,
+              ),
+              const SizedBox(height: 3),
+              Text(
+                hasUnread
+                    ? _adminMessagesLabel(unreadCount)
+                    : 'Sem mensagens novas',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: hasUnread ? FontWeight.w700 : FontWeight.w400,
+                  color: hasUnread ? theme.lime : theme.muted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+String _adminMessagesLabel(int count) {
+  if (count == 1) return '1 mensagem nova';
+  return '$count mensagens novas';
 }
 
 /// Diálogo para criar um novo grupo.

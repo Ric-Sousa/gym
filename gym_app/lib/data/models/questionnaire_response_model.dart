@@ -5,7 +5,10 @@ class QuestionnaireResponse {
   /// IDs e rótulos usados tanto pelo formulário como pelo painel admin.
   static const labels = <String, String>{
     'birthDate': 'Data de nascimento',
+    'nome': 'Nome',
     'genero': 'Sexo',
+    'peso': 'Peso (kg)',
+    'altura': 'Altura (cm)',
     'profession': 'Profissão',
     'activity': 'Prática de exercício físico',
     'sedentary': 'Rotina sedentária',
