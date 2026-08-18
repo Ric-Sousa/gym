@@ -10,10 +10,12 @@ import '../../../data/models/exercise_catalog_model.dart';
 import '../../../shared/providers/global_providers.dart';
 import '../../../shared/widgets/admin_responsive_dialog.dart';
 import '../../../shared/widgets/admin_design_system.dart';
+import '../../../shared/widgets/app_design_system.dart';
 import '../../../shared/widgets/exercise_catalog_picker.dart';
 
-final globalWorkoutPlansProvider =
-    StreamProvider<List<WorkoutPlanModel>>((ref) {
+final globalWorkoutPlansProvider = StreamProvider<List<WorkoutPlanModel>>((
+  ref,
+) {
   return ref.read(workoutRepositoryProvider).watchGlobalPlans();
 });
 
@@ -278,40 +280,18 @@ class _GlobalWorkoutPlansScreenState
             Icon(Icons.folder_copy_outlined, size: 18, color: colors.lime),
             const SizedBox(width: 10),
             Expanded(
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<int>(
-                  isDense: true,
-                  menuMaxHeight: 320,
-                  elevation: 2,
-                  borderRadius: BorderRadius.circular(14),
-                  value: selectedIndex,
-                  isExpanded: true,
-                  dropdownColor: colors.surface,
-                  icon: Icon(Icons.expand_more_rounded, color: colors.muted),
-                  style: GoogleFonts.inter(
-                    color: colors.text,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                  ),
-                  items: plans
-                      .asMap()
-                      .entries
-                      .map(
-                        (entry) => DropdownMenuItem<int>(
-                          value: entry.key,
-                          child: Text(
-                            entry.value.nome,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() => _selectedPlanIndex = value);
-                    }
-                  },
-                ),
+              child: AppMenuDropdown<int>(
+                value: selectedIndex,
+                options: List.generate(plans.length, (i) => i),
+                labelBuilder: (index) => plans[index].nome,
+                onChanged: (value) {
+                  setState(() => _selectedPlanIndex = value);
+                },
+                accentColor: colors.lime,
+                fieldColor: colors.surface2,
+                menuColor: colors.surface2,
+                textColor: colors.text,
+                labelColor: colors.muted,
               ),
             ),
             Text(
@@ -1447,21 +1427,17 @@ class _GlobalWorkoutPlansScreenState
                 ),
               ),
               const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                isDense: true,
-                menuMaxHeight: 320,
-                elevation: 2,
-                borderRadius: BorderRadius.circular(14),
-                initialValue: weekday,
-                decoration: const InputDecoration(labelText: 'Dia da semana'),
-                items: AppStrings.daysOfWeek
-                    .map(
-                      (day) => DropdownMenuItem(value: day, child: Text(day)),
-                    )
-                    .toList(),
-                onChanged: (value) => setDialogState(
-                  () => weekday = value ?? AppStrings.daysOfWeek.first,
-                ),
+              AppMenuDropdown<String>(
+                value: weekday,
+                options: AppStrings.daysOfWeek,
+                labelBuilder: (day) => day,
+                onChanged: (value) => setDialogState(() => weekday = value),
+                label: 'Dia da semana',
+                accentColor: AdminThemeColors.of(context).lime,
+                fieldColor: AdminThemeColors.of(context).surface,
+                menuColor: AdminThemeColors.of(context).surface2,
+                textColor: AdminThemeColors.of(context).text,
+                labelColor: AdminThemeColors.of(context).muted,
               ),
               const SizedBox(height: 10),
               TextField(
@@ -1563,7 +1539,9 @@ class _GlobalWorkoutPlansScreenState
               children: [
                 OutlinedButton.icon(
                   onPressed: () async {
-                    final selected = await showExerciseCatalogPicker(dialogContext);
+                    final selected = await showExerciseCatalogPicker(
+                      dialogContext,
+                    );
                     if (selected == null) return;
                     setDialogState(() {
                       selectedCatalogExercise = selected;
@@ -1585,59 +1563,56 @@ class _GlobalWorkoutPlansScreenState
                   decoration: const InputDecoration(labelText: 'Exercício'),
                 ),
                 const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                isDense: true,
-                menuMaxHeight: 320,
-                elevation: 2,
-                borderRadius: BorderRadius.circular(14),
-                  initialValue: category,
-                  decoration: const InputDecoration(labelText: 'Categoria'),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'musculação',
-                      child: Text('Musculação'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'funcional',
-                      child: Text('Funcional'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'pesos_livres',
-                      child: Text('Pesos livres'),
-                    ),
-                    DropdownMenuItem(value: 'cardio', child: Text('Cardio')),
+                AppMenuDropdown<String>(
+                  value: category,
+                  options: const [
+                    'musculação',
+                    'funcional',
+                    'pesos_livres',
+                    'cardio',
                   ],
-                  onChanged: (value) =>
-                      setDialogState(() => category = value ?? 'musculação'),
+                  labelBuilder: (v) => switch (v) {
+                    'musculação' => 'Musculação',
+                    'funcional' => 'Funcional',
+                    'pesos_livres' => 'Pesos livres',
+                    _ => 'Cardio',
+                  },
+                  onChanged: (value) => setDialogState(() => category = value),
+                  label: 'Categoria',
+                  accentColor: AdminThemeColors.of(context).lime,
+                  fieldColor: AdminThemeColors.of(context).surface,
+                  menuColor: AdminThemeColors.of(context).surface2,
+                  textColor: AdminThemeColors.of(context).text,
+                  labelColor: AdminThemeColors.of(context).muted,
                 ),
                 const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                isDense: true,
-                menuMaxHeight: 320,
-                elevation: 2,
-                borderRadius: BorderRadius.circular(14),
-                  initialValue: equipment,
-                  decoration: const InputDecoration(labelText: 'Equipamento'),
-                  items: const [
-                    DropdownMenuItem(value: 'outro', child: Text('Outro')),
-                    DropdownMenuItem(value: 'barra', child: Text('Barra')),
-                    DropdownMenuItem(value: 'haltere', child: Text('Haltere')),
-                    DropdownMenuItem(
-                      value: 'kettlebell',
-                      child: Text('Kettlebell'),
-                    ),
-                    DropdownMenuItem(value: 'corda', child: Text('Corda')),
-                    DropdownMenuItem(
-                      value: 'peso_corporal',
-                      child: Text('Peso corporal'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'banda',
-                      child: Text('Banda elástica'),
-                    ),
+                AppMenuDropdown<String>(
+                  value: equipment,
+                  options: const [
+                    'outro',
+                    'barra',
+                    'haltere',
+                    'kettlebell',
+                    'corda',
+                    'peso_corporal',
+                    'banda',
                   ],
-                  onChanged: (value) =>
-                      setDialogState(() => equipment = value ?? 'outro'),
+                  labelBuilder: (v) => switch (v) {
+                    'outro' => 'Outro',
+                    'barra' => 'Barra',
+                    'haltere' => 'Haltere',
+                    'kettlebell' => 'Kettlebell',
+                    'corda' => 'Corda',
+                    'peso_corporal' => 'Peso corporal',
+                    _ => 'Banda elástica',
+                  },
+                  onChanged: (value) => setDialogState(() => equipment = value),
+                  label: 'Equipamento',
+                  accentColor: AdminThemeColors.of(context).lime,
+                  fieldColor: AdminThemeColors.of(context).surface,
+                  menuColor: AdminThemeColors.of(context).surface2,
+                  textColor: AdminThemeColors.of(context).text,
+                  labelColor: AdminThemeColors.of(context).muted,
                 ),
                 const SizedBox(height: 10),
                 Row(
@@ -1739,7 +1714,8 @@ class _GlobalWorkoutPlansScreenState
                     musculosPrimarios:
                         selectedCatalogExercise?.musculosPrimarios ?? const [],
                     musculosSecundarios:
-                        selectedCatalogExercise?.musculosSecundarios ?? const [],
+                        selectedCatalogExercise?.musculosSecundarios ??
+                        const [],
                   ),
                 );
               },
@@ -1797,10 +1773,7 @@ class _GlobalWorkoutPlansScreenState
     return Container(
       width: 54,
       height: 54,
-      decoration: BoxDecoration(
-        color: colors.limeDim,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: colors.limeDim, shape: BoxShape.circle),
       clipBehavior: Clip.antiAlias,
       child: photoUrl == null || photoUrl.isEmpty
           ? fallback()
@@ -1845,16 +1818,14 @@ class _GlobalWorkoutPlansScreenState
 
             return AdminResponsiveDialog(
               title: 'Escolher aluno',
-              subtitle:
-                  'Seleciona quem vai receber este plano de treino.',
+              subtitle: 'Seleciona quem vai receber este plano de treino.',
               icon: Icons.person_add_alt_1_rounded,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   TextField(
-                    onChanged: (value) => setModalState(
-                      () => searchQuery = value,
-                    ),
+                    onChanged: (value) =>
+                        setModalState(() => searchQuery = value),
                     style: TextStyle(color: colors.text, fontSize: 13),
                     decoration: InputDecoration(
                       hintText: 'Pesquisar por nome ou email',

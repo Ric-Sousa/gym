@@ -17,6 +17,7 @@ import '../../../../data/models/user_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/app_notification.dart';
+import '../../../../shared/widgets/app_design_system.dart';
 import '../../../../core/services/sound_service.dart';
 import '../../../../core/config/notification_sounds.dart';
 import '../../../../core/utils/progress_photo_normalizer.dart';
@@ -34,8 +35,8 @@ final userProfileProvider = StreamProvider.family<UserModel, String>((
 
 final progressHistoryProvider =
     StreamProvider.family<List<ProgressModel>, String>((ref, userId) {
-  return ref.read(progressRepositoryProvider).watchHistory(userId);
-});
+      return ref.read(progressRepositoryProvider).watchHistory(userId);
+    });
 
 /// Ecrã de perfil — Kinetic Dark.
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -347,7 +348,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outline),
+        border: Border.all(color: Colors.transparent),
       ),
       child: Column(
         children: [
@@ -379,7 +380,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outline),
+        border: Border.all(color: Colors.transparent),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -970,7 +971,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       decoration: BoxDecoration(
         color: AppColors.surfaceHigh,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outline),
+        border: Border.all(color: Colors.transparent),
       ),
       child: Column(
         children: [
@@ -1081,7 +1082,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             decoration: BoxDecoration(
               color: AppColors.surfaceHigh,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.outline),
+              border: Border.all(color: Colors.transparent),
             ),
             child: Row(
               children: [
@@ -1130,11 +1131,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             : available
             ? AppColors.surfaceHighest
             : AppColors.surfaceHighest.withValues(alpha: 0.35),
-        side: BorderSide(
-          color: selected
-              ? StudentThemeColors.of(context).primary
-              : AppColors.outline.withValues(alpha: available ? 1 : 0.35),
-        ),
+        side: BorderSide.none,
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
         minimumSize: const Size(0, 42),
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1160,51 +1157,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         options.any((progress) => _progressKey(progress) == selectedKey)
         ? selectedKey
         : _progressKey(options.first);
-    return DropdownButtonFormField<String>(
-      isDense: true,
-      menuMaxHeight: 320,
-      elevation: 2,
-      borderRadius: BorderRadius.circular(14),
-      initialValue: safeKey,
-      isExpanded: true,
-      dropdownColor: AppColors.surfaceHigh,
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: GoogleFonts.inter(color: AppColors.onSurfaceVariant),
-        filled: true,
-        fillColor: AppColors.surfaceHighest,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 12,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.outline),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.outline),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(
-            color: StudentThemeColors.of(context).primary,
-            width: 1.5,
-          ),
-        ),
-      ),
-      style: GoogleFonts.inter(color: AppColors.onSurface, fontSize: 13),
-      items: [
-        for (final progress in options)
-          DropdownMenuItem<String>(
-            value: _progressKey(progress),
-            child: Text(
-              DateFormat('dd/MM/yyyy').format(progress.data),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-      ],
-      onChanged: onChanged,
+    return AppMenuDropdown<String>(
+      value: safeKey,
+      options: [for (final progress in options) _progressKey(progress)],
+      labelBuilder: (key) {
+        final progress = options.firstWhere(
+          (p) => _progressKey(p) == key,
+          orElse: () => options.first,
+        );
+        return DateFormat('dd/MM/yyyy').format(progress.data);
+      },
+      onChanged: (value) => onChanged(value),
+      label: label,
+      accentColor: StudentThemeColors.of(context).primary,
+      fieldColor: AppColors.surfaceHighest,
+      menuColor: AppColors.surfaceHigh,
+      textColor: AppColors.onSurface,
+      labelColor: AppColors.onSurfaceVariant,
     );
   }
 
@@ -1215,7 +1184,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.outline),
+        border: Border.all(color: Colors.transparent),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1283,7 +1252,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outline),
+        border: Border.all(color: Colors.transparent),
       ),
       child: LineChart(
         LineChartData(
@@ -1344,7 +1313,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.outline),
+        border: Border.all(color: Colors.transparent),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1385,9 +1354,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               decoration: BoxDecoration(
                 color: AppColors.surfaceHigh,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: AppColors.outline.withValues(alpha: 0.7),
-                ),
+                border: Border.all(color: Colors.transparent),
               ),
               child: Column(
                 children: [
@@ -1485,7 +1452,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.outline),
+        border: Border.all(color: Colors.transparent),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1833,7 +1800,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.outline),
+        border: Border.all(color: Colors.transparent),
       ),
       child: Row(
         children: [
@@ -1907,7 +1874,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.outline),
+          border: Border.all(color: Colors.transparent),
         ),
         child: Row(
           children: [
@@ -1949,12 +1916,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         statusColors[payment.effectiveStatus] ?? AppColors.textSecondary;
     final statusLabel =
         statusLabels[payment.effectiveStatus] ?? payment.status.toUpperCase();
-    final periodLabel = payment.periodoInicio != null && payment.periodoFim != null
+    final periodLabel =
+        payment.periodoInicio != null && payment.periodoFim != null
         ? '${DateFormat('dd/MM/yyyy').format(payment.periodoInicio!)} – '
-            '${DateFormat('dd/MM/yyyy').format(payment.periodoFim!)}'
+              '${DateFormat('dd/MM/yyyy').format(payment.periodoFim!)}'
         : DateFormat('d MMM yyyy', 'pt').format(payment.data);
     final loading = _paymentLoadingId == payment.id;
-    final startsInFuture = payment.periodoInicio?.isAfter(DateTime.now()) == true;
+    final startsInFuture =
+        payment.periodoInicio?.isAfter(DateTime.now()) == true;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -1962,7 +1931,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.outline),
+        border: Border.all(color: Colors.transparent),
       ),
       child: Row(
         children: [
@@ -2030,7 +1999,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                 ),
               ),
-              if (!payment.isPaid && payment.stripeHostedInvoiceUrl != null) ...[
+              if (!payment.isPaid &&
+                  payment.stripeHostedInvoiceUrl != null) ...[
                 const SizedBox(height: 4),
                 TextButton(
                   onPressed: loading ? null : () => _payPayment(payment),
@@ -2099,10 +2069,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (_paymentLoadingId != null) return;
     setState(() => _paymentLoadingId = payment.id);
     try {
-      final url = payment.stripeHostedInvoiceUrl ??
-          await ref.read(paymentRepositoryProvider).createPaymentCheckoutSession(
-                paymentId: payment.id,
-              );
+      final url =
+          payment.stripeHostedInvoiceUrl ??
+          await ref
+              .read(paymentRepositoryProvider)
+              .createPaymentCheckoutSession(paymentId: payment.id);
       final opened = await launchUrl(
         Uri.parse(url),
         mode: LaunchMode.externalApplication,
@@ -2140,191 +2111,178 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceHigh,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
-        actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          AppStrings.editProfile,
-          style: GoogleFonts.montserrat(
-            fontWeight: FontWeight.w700,
-            color: AppColors.onSurface,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.surfaceHigh,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 24,
           ),
+          contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
+          actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(
+            AppStrings.editProfile,
+            style: GoogleFonts.montserrat(
+              fontWeight: FontWeight.w700,
+              color: AppColors.onSurface,
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nomeController,
+                  decoration: InputDecoration(
+                    labelText: 'Nome',
+                    labelStyle: GoogleFonts.inter(
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                    filled: true,
+                    fillColor: AppColors.surfaceHighest,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(
+                        color: StudentThemeColors.of(context).primary,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                  style: GoogleFonts.inter(color: AppColors.onSurface),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: pesoController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Peso (kg)',
+                    labelStyle: GoogleFonts.inter(
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                    filled: true,
+                    fillColor: AppColors.surfaceHighest,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(
+                        color: StudentThemeColors.of(context).primary,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                  style: GoogleFonts.inter(color: AppColors.onSurface),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: alturaController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Altura (cm)',
+                    labelStyle: GoogleFonts.inter(
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                    filled: true,
+                    fillColor: AppColors.surfaceHighest,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(
+                        color: StudentThemeColors.of(context).primary,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                  style: GoogleFonts.inter(color: AppColors.onSurface),
+                ),
+                const SizedBox(height: 12),
+                // Seletor de género
+                AppMenuDropdown<String>(
+                  value: genero,
+                  options: const ['feminino', 'masculino'],
+                  labelBuilder: (v) => switch (v) {
+                    'feminino' => '🌸 Feminino',
+                    _ => '💪 Masculino',
+                  },
+                  onChanged: (v) => setDialogState(() => genero = v),
+                  label: 'Género',
+                  accentColor: StudentThemeColors.of(context).primary,
+                  fieldColor: AppColors.surfaceHighest,
+                  menuColor: AppColors.surfaceHigh,
+                  textColor: AppColors.onSurface,
+                  labelColor: AppColors.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+                backgroundColor: AppColors.surfaceHighest.withValues(
+                  alpha: 0.42,
+                ),
+                minimumSize: const Size(0, 48),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 13,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(11),
+                ),
+              ),
+              child: Text(
+                AppStrings.cancel,
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: StudentThemeColors.of(context).primary,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(0, 50),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 15,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(11),
+                ),
+              ),
+              child: Text(
+                AppStrings.save,
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
         ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nomeController,
-                decoration: InputDecoration(
-                  labelText: 'Nome',
-                  labelStyle: GoogleFonts.inter(
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                  filled: true,
-                  fillColor: AppColors.surfaceHighest,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: AppColors.outline),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: AppColors.outline),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(
-                      color: StudentThemeColors.of(context).primary,
-                      width: 1.5,
-                    ),
-                  ),
-                ),
-                style: GoogleFonts.inter(color: AppColors.onSurface),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: pesoController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Peso (kg)',
-                  labelStyle: GoogleFonts.inter(
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                  filled: true,
-                  fillColor: AppColors.surfaceHighest,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: AppColors.outline),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: AppColors.outline),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(
-                      color: StudentThemeColors.of(context).primary,
-                      width: 1.5,
-                    ),
-                  ),
-                ),
-                style: GoogleFonts.inter(color: AppColors.onSurface),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: alturaController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Altura (cm)',
-                  labelStyle: GoogleFonts.inter(
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                  filled: true,
-                  fillColor: AppColors.surfaceHighest,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: AppColors.outline),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: AppColors.outline),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(
-                      color: StudentThemeColors.of(context).primary,
-                      width: 1.5,
-                    ),
-                  ),
-                ),
-                style: GoogleFonts.inter(color: AppColors.onSurface),
-              ),
-              const SizedBox(height: 12),
-              // Seletor de género
-              DropdownButtonFormField<String>(
-                isDense: true,
-                menuMaxHeight: 320,
-                elevation: 2,
-                borderRadius: BorderRadius.circular(14),
-                initialValue: genero,
-                decoration: InputDecoration(
-                  labelText: 'Género',
-                  labelStyle: GoogleFonts.inter(
-                    color: AppColors.onSurfaceVariant,
-                  ),
-                  filled: true,
-                  fillColor: AppColors.surfaceHighest,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: AppColors.outline),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: AppColors.outline),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(
-                      color: StudentThemeColors.of(context).primary,
-                      width: 1.5,
-                    ),
-                  ),
-                ),
-                dropdownColor: AppColors.surfaceHigh,
-                style: GoogleFonts.inter(color: AppColors.onSurface),
-                items: const [
-                  DropdownMenuItem(
-                    value: 'feminino',
-                    child: Text('🌸 Feminino'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'masculino',
-                    child: Text('💪 Masculino'),
-                  ),
-                ],
-                onChanged: (v) => genero = v ?? 'feminino',
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.white,
-              backgroundColor: AppColors.surfaceHighest.withValues(alpha: 0.42),
-              minimumSize: const Size(0, 48),
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(11),
-              ),
-            ),
-            child: Text(
-              AppStrings.cancel,
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: StudentThemeColors.of(context).primary,
-              foregroundColor: Colors.white,
-              minimumSize: const Size(0, 50),
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(11),
-              ),
-            ),
-            child: Text(
-              AppStrings.save,
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
       ),
     );
 

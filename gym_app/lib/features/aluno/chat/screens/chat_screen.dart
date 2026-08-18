@@ -27,7 +27,6 @@ import '../../../../shared/utils/chat_attachment.dart';
 import '../../../../shared/utils/new_message_detector.dart';
 import 'group_chat_screen.dart';
 
-
 final chatMessagesProvider = StreamProvider.family<List<MessageModel>, String>((
   ref,
   salaId,
@@ -38,8 +37,10 @@ final chatMessagesProvider = StreamProvider.family<List<MessageModel>, String>((
 
 /// Provider estável dos grupos do aluno. Não criar providers dentro de build:
 /// cada rebuild recriava a consulta e podia entrar num ciclo de listeners.
-final alunoGroupsProvider =
-    StreamProvider.family<List<GroupModel>, String>((ref, userId) {
+final alunoGroupsProvider = StreamProvider.family<List<GroupModel>, String>((
+  ref,
+  userId,
+) {
   return ref.read(groupRepositoryProvider).watchMyGroups(userId);
 });
 
@@ -248,12 +249,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       }
     }
     try {
-      await ref.read(chatRepositoryProvider).markMessagesAsRead(
-        salaId,
-        userId,
-        readAt,
-        persistConversationCursor: isAdmin,
-      );
+      await ref
+          .read(chatRepositoryProvider)
+          .markMessagesAsRead(
+            salaId,
+            userId,
+            readAt,
+            persistConversationCursor: isAdmin,
+          );
     } catch (_) {
       if (_lastRequestedDirectReadAt == readAt) {
         _lastRequestedDirectReadAt = null;
@@ -347,17 +350,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               onTap: partnerPhoto == null || partnerPhoto.trim().isEmpty
                   ? null
                   : () => showProfilePhotoViewer(
-                        context: context,
-                        photoUrl: partnerPhoto,
-                        name: otherName,
-                        accentColor: StudentThemeColors.of(context).primary,
-                      ),
+                      context: context,
+                      photoUrl: partnerPhoto,
+                      name: otherName,
+                      accentColor: StudentThemeColors.of(context).primary,
+                    ),
               child: CircleAvatar(
                 radius: 16,
                 backgroundColor: StudentThemeColors.of(
                   context,
                 ).primary.withValues(alpha: 0.15),
-                backgroundImage: partnerPhoto != null && partnerPhoto.trim().isNotEmpty
+                backgroundImage:
+                    partnerPhoto != null && partnerPhoto.trim().isNotEmpty
                     ? NetworkImage(partnerPhoto)
                     : null,
                 child: partnerPhoto == null || partnerPhoto.trim().isEmpty
@@ -552,7 +556,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     ? StudentThemeColors.of(
                         context,
                       ).primary.withValues(alpha: 0.4)
-                    : AppColors.outline.withValues(alpha: 0.3),
+                    : Colors.transparent,
               ),
               boxShadow: _isFocused
                   ? [
@@ -629,9 +633,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
       decoration: BoxDecoration(
         color: AppColors.surfaceLow,
-        border: Border(
-          top: BorderSide(color: AppColors.outline.withValues(alpha: 0.5)),
-        ),
+        border: Border(top: BorderSide.none),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
@@ -726,9 +728,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ),
               ),
               const SizedBox(height: 8),
-              ScrollReveal(
-                child: _buildPTChatTile(personalId),
-              ),
+              ScrollReveal(child: _buildPTChatTile(personalId)),
               const SizedBox(height: 24),
             ],
             // ── Grupos ──
@@ -766,7 +766,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     decoration: BoxDecoration(
                       color: AppColors.surface,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.outline),
+                      border: Border.all(color: Colors.transparent),
                       boxShadow: [
                         BoxShadow(
                           color: AppColors.surfaceLowest.withValues(
@@ -876,7 +876,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.outline),
+        border: Border.all(color: Colors.transparent),
       ),
       child: Column(
         children: [
@@ -910,10 +910,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   Widget _buildPTChatTile(String personalId) {
     final userId = ref.watch(authProvider).user?.uid ?? '';
-    final roomId = ref.read(chatRepositoryProvider).getChatRoomId(
-      userId,
-      personalId,
-    );
+    final roomId = ref
+        .read(chatRepositoryProvider)
+        .getChatRoomId(userId, personalId);
     final messagesAsync = ref.watch(chatMessagesProvider(roomId));
     final unreadCount = countUnreadMessages(
       messagesAsync.asData?.value ?? const <MessageModel>[],
@@ -1074,8 +1073,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: hasUnread
-                    ? StudentThemeColors.of(context).primary.withValues(alpha: 0.45)
-                    : AppColors.outline,
+                    ? StudentThemeColors.of(
+                        context,
+                      ).primary.withValues(alpha: 0.45)
+                    : Colors.transparent,
               ),
             ),
             child: Row(
@@ -1396,7 +1397,7 @@ class _MessageBubble extends StatelessWidget {
                           ? StudentThemeColors.of(
                               context,
                             ).primary.withValues(alpha: 0.25)
-                          : AppColors.outline.withValues(alpha: 0.4),
+                          : Colors.transparent,
                     ),
                   ),
                   child: Column(
@@ -1417,9 +1418,10 @@ class _MessageBubble extends StatelessWidget {
                       else if (message.isAttachment)
                         Builder(
                           builder: (context) {
-                            final imageWidth = (MediaQuery.sizeOf(context).width * 0.52)
-                                .clamp(140.0, 210.0)
-                                .toDouble();
+                            final imageWidth =
+                                (MediaQuery.sizeOf(context).width * 0.52)
+                                    .clamp(140.0, 210.0)
+                                    .toDouble();
                             final imageHeight = imageWidth * 0.81;
                             return ClipRRect(
                               borderRadius: BorderRadius.circular(10),
@@ -1503,9 +1505,7 @@ class _DateSeparator extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.surfaceHigh,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: AppColors.outline.withValues(alpha: 0.3),
-                ),
+                border: Border.all(color: Colors.transparent),
               ),
               child: Text(
                 _format(date),

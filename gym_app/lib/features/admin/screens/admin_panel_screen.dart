@@ -1665,10 +1665,16 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                   ),
                   PopupMenuButton<String>(
                     tooltip: 'Ações do cliente',
+                    color: colors.surface2,
+                    elevation: 3,
+                    surfaceTintColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                     onSelected: (action) {
                       if (action == 'delete') _confirmDeleteStudent(aluno);
                     },
-                    itemBuilder: (_) => const [
+                    itemBuilder: (_) => [
                       PopupMenuItem(
                         value: 'delete',
                         child: Row(
@@ -1678,8 +1684,14 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                               size: 17,
                               color: Colors.red,
                             ),
-                            SizedBox(width: 8),
-                            Text('Eliminar cliente'),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Eliminar cliente',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: colors.text,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -6584,7 +6596,6 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
         );
     }
   }
-
 }
 
 class _AdminProgressComparisonDialog extends StatefulWidget {
@@ -6989,13 +7000,7 @@ class _AdminProgressComparisonDialogState
                     backgroundColor: _selectedAngle == index
                         ? colors.lime
                         : colors.surface2,
-                    side: BorderSide(
-                      color: _selectedAngle == index
-                          ? colors.lime
-                          : colors.border.withValues(
-                              alpha: availability[index] ? 1 : 0.35,
-                            ),
-                    ),
+                    side: BorderSide.none,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 15,
                       vertical: 11,
@@ -7615,6 +7620,12 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
                   PopupMenuButton<String>(
                     enabled: !_isImporting && !_isRecategorizing,
                     tooltip: 'Mais ações',
+                    color: colors.surface2,
+                    elevation: 3,
+                    surfaceTintColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                     onSelected: (value) {
                       if (value == 'categorize') {
                         _recategorizeExerciseCatalog();
@@ -7622,13 +7633,19 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
                         _importExerciseCatalog();
                       }
                     },
-                    itemBuilder: (_) => const [
+                    itemBuilder: (_) => [
                       PopupMenuItem(
                         value: 'categorize',
                         child: ListTile(
                           contentPadding: EdgeInsets.zero,
                           leading: Icon(Icons.category_outlined),
-                          title: Text('Corrigir categorias'),
+                          title: Text(
+                            'Corrigir categorias',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: colors.text,
+                            ),
+                          ),
                         ),
                       ),
                       PopupMenuItem(
@@ -7636,7 +7653,13 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
                         child: ListTile(
                           contentPadding: EdgeInsets.zero,
                           leading: Icon(Icons.download_rounded),
-                          title: Text('Importar catálogo'),
+                          title: Text(
+                            'Importar catálogo',
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              color: colors.text,
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -8757,19 +8780,17 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
                 decoration: const InputDecoration(labelText: 'Nome'),
               ),
               const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                initialValue: category,
-                decoration: const InputDecoration(labelText: 'Categoria'),
-                items: categories
-                    .map(
-                      (item) => DropdownMenuItem(
-                        value: item,
-                        child: Text(_displayCatalogValue(item)),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) =>
-                    setDialogState(() => category = value ?? category),
+              AppMenuDropdown<String>(
+                value: category,
+                options: categories,
+                labelBuilder: _displayCatalogValue,
+                onChanged: (value) => setDialogState(() => category = value),
+                label: 'Categoria',
+                accentColor: AdminThemeColors.of(context).lime,
+                fieldColor: AdminThemeColors.of(context).surface,
+                menuColor: AdminThemeColors.of(context).surface2,
+                textColor: AdminThemeColors.of(context).text,
+                labelColor: AdminThemeColors.of(context).muted,
               ),
               const SizedBox(height: 10),
               TextField(
@@ -9061,80 +9082,30 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  isDense: true,
-                  menuMaxHeight: 320,
-                  elevation: 2,
-                  borderRadius: BorderRadius.circular(14),
-                  initialValue: selectedGrupo,
-                  dropdownColor: AdminThemeColors.of(context).surface,
-                  style: GoogleFonts.inter(
-                    color: AdminThemeColors.of(context).text,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Grupo Muscular',
-                    labelStyle: GoogleFonts.inter(
-                      color: AdminThemeColors.of(context).muted,
-                    ),
-                    filled: true,
-                    fillColor: AdminThemeColors.of(context).bg,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  items: _muscles
-                      .where((m) => m != 'Todos')
-                      .map(
-                        (m) => DropdownMenuItem(
-                          value: m,
-                          child: Text(
-                            m,
-                            style: GoogleFonts.inter(
-                              color: AdminThemeColors.of(context).text,
-                            ),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (v) =>
-                      setDialogState(() => selectedGrupo = v ?? 'Peito'),
+                AppMenuDropdown<String>(
+                  value: selectedGrupo,
+                  options: _muscles.where((m) => m != 'Todos').toList(),
+                  labelBuilder: (m) => m,
+                  onChanged: (v) => setDialogState(() => selectedGrupo = v),
+                  label: 'Grupo Muscular',
+                  accentColor: AdminThemeColors.of(context).lime,
+                  fieldColor: AdminThemeColors.of(context).surface,
+                  menuColor: AdminThemeColors.of(context).surface2,
+                  textColor: AdminThemeColors.of(context).text,
+                  labelColor: AdminThemeColors.of(context).muted,
                 ),
                 const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  isDense: true,
-                  menuMaxHeight: 320,
-                  elevation: 2,
-                  borderRadius: BorderRadius.circular(14),
-                  initialValue: selectedCategoria,
-                  dropdownColor: AdminThemeColors.of(context).surface,
-                  style: GoogleFonts.inter(
-                    color: AdminThemeColors.of(context).text,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Categoria',
-                    labelStyle: GoogleFonts.inter(
-                      color: AdminThemeColors.of(context).muted,
-                    ),
-                    filled: true,
-                    fillColor: AdminThemeColors.of(context).bg,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'musculação',
-                      child: Text('Musculação'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'funcional',
-                      child: Text('Funcional'),
-                    ),
-                    DropdownMenuItem(value: 'cardio', child: Text('Cardio')),
-                  ],
-                  onChanged: (v) => setDialogState(
-                    () => selectedCategoria = v ?? 'musculação',
-                  ),
+                AppMenuDropdown<String>(
+                  value: selectedCategoria,
+                  options: const ['musculação', 'funcional', 'cardio'],
+                  labelBuilder: (v) => _displayCatalogValue(v),
+                  onChanged: (v) => setDialogState(() => selectedCategoria = v),
+                  label: 'Categoria',
+                  accentColor: AdminThemeColors.of(context).lime,
+                  fieldColor: AdminThemeColors.of(context).surface,
+                  menuColor: AdminThemeColors.of(context).surface2,
+                  textColor: AdminThemeColors.of(context).text,
+                  labelColor: AdminThemeColors.of(context).muted,
                 ),
                 const SizedBox(height: 8),
                 TextField(
@@ -9290,60 +9261,18 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
     required IconData icon,
   }) {
     final colors = AdminThemeColors.of(context);
-    return DropdownButtonFormField<String>(
-      initialValue: value,
-      isExpanded: true,
-      isDense: true,
-      menuMaxHeight: 320,
-      elevation: 3,
-      borderRadius: BorderRadius.circular(14),
-      dropdownColor: colors.surface,
-      icon: Icon(Icons.keyboard_arrow_down_rounded, color: colors.muted),
-      style: GoogleFonts.inter(
-        color: colors.text,
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-      ),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: GoogleFonts.inter(color: colors.muted, fontSize: 11),
-        prefixIcon: Icon(icon, size: 17, color: colors.lime),
-        filled: true,
-        fillColor: colors.surface,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 11,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colors.lime.withValues(alpha: 0.45)),
-        ),
-      ),
-      items: options.entries
-          .map(
-            (entry) => DropdownMenuItem<String>(
-              value: entry.key,
-              child: Text(
-                entry.value,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(
-                  color: colors.text,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          )
-          .toList(),
-      onChanged: onChanged,
+    return AppMenuDropdown<String>(
+      value: value,
+      options: options.keys.toList(),
+      labelBuilder: (key) => options[key] ?? key,
+      onChanged: (v) => onChanged(v),
+      label: label,
+      prefixIcon: Icon(icon, size: 17, color: colors.lime),
+      accentColor: colors.lime,
+      fieldColor: colors.surface,
+      menuColor: colors.surface2,
+      textColor: colors.text,
+      labelColor: colors.muted,
     );
   }
 
@@ -9894,42 +9823,17 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  isDense: true,
-                  menuMaxHeight: 320,
-                  elevation: 2,
-                  borderRadius: BorderRadius.circular(14),
-                  initialValue: selectedCat,
-                  dropdownColor: AdminThemeColors.of(context).surface,
-                  style: GoogleFonts.inter(
-                    color: AdminThemeColors.of(context).text,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Categoria',
-                    labelStyle: GoogleFonts.inter(
-                      color: AdminThemeColors.of(context).muted,
-                    ),
-                    filled: true,
-                    fillColor: AdminThemeColors.of(context).bg,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  items: categories
-                      .map(
-                        (c) => DropdownMenuItem(
-                          value: c,
-                          child: Text(
-                            c,
-                            style: GoogleFonts.inter(
-                              color: AdminThemeColors.of(context).text,
-                            ),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (v) =>
-                      setDialogState(() => selectedCat = v ?? 'proteina'),
+                AppMenuDropdown<String>(
+                  value: selectedCat,
+                  options: categories,
+                  labelBuilder: (c) => c,
+                  onChanged: (v) => setDialogState(() => selectedCat = v),
+                  label: 'Categoria',
+                  accentColor: AdminThemeColors.of(context).lime,
+                  fieldColor: AdminThemeColors.of(context).surface,
+                  menuColor: AdminThemeColors.of(context).surface2,
+                  textColor: AdminThemeColors.of(context).text,
+                  labelColor: AdminThemeColors.of(context).muted,
                 ),
               ],
             ),
@@ -10920,20 +10824,17 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                DropdownButtonFormField<UserModel>(
-                  isDense: true,
-                  menuMaxHeight: 320,
-                  elevation: 2,
-                  borderRadius: BorderRadius.circular(14),
-
-                  initialValue: aluno,
-                  decoration: const InputDecoration(labelText: 'Aluno'),
-                  items: alunos
-                      .map(
-                        (a) => DropdownMenuItem(value: a, child: Text(a.nome)),
-                      )
-                      .toList(),
+                AppMenuDropdown<UserModel>(
+                  value: aluno,
+                  options: alunos,
+                  labelBuilder: (a) => a.nome,
                   onChanged: (v) => setState(() => aluno = v),
+                  label: 'Aluno',
+                  accentColor: AdminThemeColors.of(context).lime,
+                  fieldColor: AdminThemeColors.of(context).surface,
+                  menuColor: AdminThemeColors.of(context).surface2,
+                  textColor: AdminThemeColors.of(context).text,
+                  labelColor: AdminThemeColors.of(context).muted,
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -10949,25 +10850,21 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                   decoration: const InputDecoration(labelText: 'Descrição'),
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  isDense: true,
-                  menuMaxHeight: 320,
-                  elevation: 2,
-                  borderRadius: BorderRadius.circular(14),
-                  initialValue: metodo,
-                  decoration: const InputDecoration(labelText: 'Método'),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'dinheiro',
-                      child: Text('Dinheiro'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'transferência',
-                      child: Text('Transferência'),
-                    ),
-                    DropdownMenuItem(value: 'outro', child: Text('Outro')),
-                  ],
-                  onChanged: (v) => setState(() => metodo = v ?? metodo),
+                AppMenuDropdown<String>(
+                  value: metodo,
+                  options: const ['dinheiro', 'transferência', 'outro'],
+                  labelBuilder: (v) => switch (v) {
+                    'dinheiro' => 'Dinheiro',
+                    'transferência' => 'Transferência',
+                    _ => 'Outro',
+                  },
+                  onChanged: (v) => setState(() => metodo = v),
+                  label: 'Método',
+                  accentColor: AdminThemeColors.of(context).lime,
+                  fieldColor: AdminThemeColors.of(context).surface,
+                  menuColor: AdminThemeColors.of(context).surface2,
+                  textColor: AdminThemeColors.of(context).text,
+                  labelColor: AdminThemeColors.of(context).muted,
                 ),
                 const SizedBox(height: 12),
                 Align(
@@ -11189,37 +11086,17 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Select student
-                    DropdownButtonFormField<UserModel>(
-                      isDense: true,
-                      menuMaxHeight: 320,
-                      elevation: 2,
-                      borderRadius: BorderRadius.circular(14),
-                      initialValue: selectedAluno,
-                      dropdownColor: AdminThemeColors.of(context).surface,
-                      style: GoogleFonts.inter(
-                        color: AdminThemeColors.of(context).text,
-                      ),
-                      decoration: InputDecoration(
-                        labelText: 'Aluno',
-                        labelStyle: GoogleFonts.inter(
-                          color: AdminThemeColors.of(context).muted,
-                        ),
-                        filled: true,
-                        fillColor: AdminThemeColors.of(context).bg,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(
-                            color: AdminThemeColors.of(context).border,
-                          ),
-                        ),
-                      ),
-                      items: alunos
-                          .map(
-                            (a) =>
-                                DropdownMenuItem(value: a, child: Text(a.nome)),
-                          )
-                          .toList(),
+                    AppMenuDropdown<UserModel>(
+                      value: selectedAluno,
+                      options: alunos,
+                      labelBuilder: (a) => a.nome,
                       onChanged: (v) => setDialogState(() => selectedAluno = v),
+                      label: 'Aluno',
+                      accentColor: AdminThemeColors.of(context).lime,
+                      fieldColor: AdminThemeColors.of(context).surface,
+                      menuColor: AdminThemeColors.of(context).surface2,
+                      textColor: AdminThemeColors.of(context).text,
+                      labelColor: AdminThemeColors.of(context).muted,
                     ),
                     const SizedBox(height: 8),
                     TextField(
@@ -11248,44 +11125,22 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      isDense: true,
-                      menuMaxHeight: 320,
-                      elevation: 2,
-                      borderRadius: BorderRadius.circular(14),
-                      initialValue: tipoMensalidade,
-                      dropdownColor: AdminThemeColors.of(context).surface,
-                      style: GoogleFonts.inter(
-                        color: AdminThemeColors.of(context).text,
-                      ),
-                      decoration: InputDecoration(
-                        labelText: 'Tipo de mensalidade',
-                        labelStyle: GoogleFonts.inter(
-                          color: AdminThemeColors.of(context).muted,
-                        ),
-                        filled: true,
-                        fillColor: AdminThemeColors.of(context).bg,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(
-                            color: AdminThemeColors.of(context).border,
-                          ),
-                        ),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'mensal',
-                          child: Text('Mensal'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'trimestral',
-                          child: Text('Trimestral'),
-                        ),
-                        DropdownMenuItem(value: 'anual', child: Text('Anual')),
-                      ],
-                      onChanged: (value) => setDialogState(
-                        () => tipoMensalidade = value ?? tipoMensalidade,
-                      ),
+                    AppMenuDropdown<String>(
+                      value: tipoMensalidade,
+                      options: const ['mensal', 'trimestral', 'anual'],
+                      labelBuilder: (v) => switch (v) {
+                        'mensal' => 'Mensal',
+                        'trimestral' => 'Trimestral',
+                        _ => 'Anual',
+                      },
+                      onChanged: (value) =>
+                          setDialogState(() => tipoMensalidade = value),
+                      label: 'Tipo de mensalidade',
+                      accentColor: AdminThemeColors.of(context).lime,
+                      fieldColor: AdminThemeColors.of(context).surface,
+                      menuColor: AdminThemeColors.of(context).surface2,
+                      textColor: AdminThemeColors.of(context).text,
+                      labelColor: AdminThemeColors.of(context).muted,
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -12296,9 +12151,7 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
       height: 52,
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(
-            color: AdminThemeColors.of(context).border.withValues(alpha: 0.25),
-          ),
+          bottom: BorderSide(color: AdminThemeColors.of(context).border),
         ),
       ),
       child: Row(

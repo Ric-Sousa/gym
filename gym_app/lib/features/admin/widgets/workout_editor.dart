@@ -11,6 +11,7 @@ import '../../../../shared/providers/admin_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/admin_responsive_dialog.dart';
 import '../../../../shared/widgets/admin_design_system.dart';
+import '../../../../shared/widgets/app_design_system.dart';
 import '../../../../shared/widgets/exercise_catalog_picker.dart';
 
 /// Editor do plano de treino (admin) — GYMBT Lime+Dark.
@@ -468,33 +469,17 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                 ),
               ),
               const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                isDense: true,
-                menuMaxHeight: 320,
-                elevation: 2,
-                borderRadius: BorderRadius.circular(14),
-                initialValue: selectedDay,
-                dropdownColor: AdminThemeColors.of(context).surface,
-                style: GoogleFonts.inter(
-                  color: AdminThemeColors.of(context).text,
-                  fontSize: 14,
-                ),
-                decoration: InputDecoration(
-                  labelText: 'Dia da semana',
-                  labelStyle: GoogleFonts.inter(
-                    color: AdminThemeColors.of(context).muted,
-                  ),
-                  filled: true,
-                  fillColor: AdminThemeColors.of(context).bg,
-                ),
-                items: dayOptions
-                    .map(
-                      (day) => DropdownMenuItem(value: day, child: Text(day)),
-                    )
-                    .toList(),
-                onChanged: (value) => setDialogState(
-                  () => selectedDay = value ?? dayOptions.first,
-                ),
+              AppMenuDropdown<String>(
+                value: selectedDay,
+                options: dayOptions,
+                labelBuilder: (day) => day,
+                onChanged: (value) => setDialogState(() => selectedDay = value),
+                label: 'Dia da semana',
+                accentColor: AdminThemeColors.of(context).lime,
+                fieldColor: AdminThemeColors.of(context).surface,
+                menuColor: AdminThemeColors.of(context).surface2,
+                textColor: AdminThemeColors.of(context).text,
+                labelColor: AdminThemeColors.of(context).muted,
               ),
               const SizedBox(height: 12),
               TextField(
@@ -506,84 +491,57 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
               ),
               const SizedBox(height: 12),
               // Categoria com ícones
-              DropdownButtonFormField<String>(
-                isDense: true,
-                menuMaxHeight: 320,
-                elevation: 2,
-                borderRadius: BorderRadius.circular(14),
-                initialValue: selectedCategoria,
-                dropdownColor: AdminThemeColors.of(context).surface,
-                style: GoogleFonts.inter(
-                  color: AdminThemeColors.of(context).text,
-                  fontSize: 14,
-                ),
-                decoration: InputDecoration(
-                  labelText: 'Categoria',
-                  labelStyle: GoogleFonts.inter(
-                    color: AdminThemeColors.of(context).muted,
-                  ),
-                  filled: true,
-                  fillColor: AdminThemeColors.of(context).bg,
-                ),
-                items: const [
-                  DropdownMenuItem(
-                    value: 'musculação',
-                    child: Text('🏋️ Musculação'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'funcional',
-                    child: Text('⚡ Funcional'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'pesos_livres',
-                    child: Text('🪨 Pesos Livres'),
-                  ),
-                  DropdownMenuItem(value: 'cardio', child: Text('🏃 Cardio')),
+              AppMenuDropdown<String>(
+                value: selectedCategoria,
+                options: const [
+                  'musculação',
+                  'funcional',
+                  'pesos_livres',
+                  'cardio',
                 ],
-                onChanged: (v) =>
-                    setDialogState(() => selectedCategoria = v ?? 'musculação'),
+                labelBuilder: (v) => switch (v) {
+                  'musculação' => '🏋️ Musculação',
+                  'funcional' => '⚡ Funcional',
+                  'pesos_livres' => '🪨 Pesos Livres',
+                  _ => '🏃 Cardio',
+                },
+                onChanged: (v) => setDialogState(() => selectedCategoria = v),
+                label: 'Categoria',
+                accentColor: AdminThemeColors.of(context).lime,
+                fieldColor: AdminThemeColors.of(context).surface,
+                menuColor: AdminThemeColors.of(context).surface2,
+                textColor: AdminThemeColors.of(context).text,
+                labelColor: AdminThemeColors.of(context).muted,
               ),
               const SizedBox(height: 12),
               // Equipamento
-              DropdownButtonFormField<String>(
-                isDense: true,
-                menuMaxHeight: 320,
-                elevation: 2,
-                borderRadius: BorderRadius.circular(14),
-                initialValue: selectedEquipamento,
-                dropdownColor: AdminThemeColors.of(context).surface,
-                style: GoogleFonts.inter(
-                  color: AdminThemeColors.of(context).text,
-                  fontSize: 14,
-                ),
-                decoration: InputDecoration(
-                  labelText: 'Equipamento',
-                  labelStyle: GoogleFonts.inter(
-                    color: AdminThemeColors.of(context).muted,
-                  ),
-                  filled: true,
-                  fillColor: AdminThemeColors.of(context).bg,
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'outro', child: Text('🔧 Outro')),
-                  DropdownMenuItem(value: 'barra', child: Text('🏋️ Barra')),
-                  DropdownMenuItem(value: 'haltere', child: Text('💪 Haltere')),
-                  DropdownMenuItem(
-                    value: 'kettlebell',
-                    child: Text('🔔 Kettlebell'),
-                  ),
-                  DropdownMenuItem(value: 'corda', child: Text('🪢 Corda')),
-                  DropdownMenuItem(
-                    value: 'peso_corporal',
-                    child: Text('🧘 Peso Corporal'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'banda',
-                    child: Text('🎗️ Banda Elástica'),
-                  ),
+              AppMenuDropdown<String>(
+                value: selectedEquipamento,
+                options: const [
+                  'outro',
+                  'barra',
+                  'haltere',
+                  'kettlebell',
+                  'corda',
+                  'peso_corporal',
+                  'banda',
                 ],
-                onChanged: (v) =>
-                    setDialogState(() => selectedEquipamento = v ?? 'outro'),
+                labelBuilder: (v) => switch (v) {
+                  'outro' => '🔧 Outro',
+                  'barra' => '🏋️ Barra',
+                  'haltere' => '💪 Haltere',
+                  'kettlebell' => '🔔 Kettlebell',
+                  'corda' => '🪢 Corda',
+                  'peso_corporal' => '🧘 Peso Corporal',
+                  _ => '🎗️ Banda Elástica',
+                },
+                onChanged: (v) => setDialogState(() => selectedEquipamento = v),
+                label: 'Equipamento',
+                accentColor: AdminThemeColors.of(context).lime,
+                fieldColor: AdminThemeColors.of(context).surface,
+                menuColor: AdminThemeColors.of(context).surface2,
+                textColor: AdminThemeColors.of(context).text,
+                labelColor: AdminThemeColors.of(context).muted,
               ),
               const SizedBox(height: 12),
               // Campos específicos para funcional/pesos_livres
@@ -704,7 +662,8 @@ class _WorkoutEditorState extends ConsumerState<WorkoutEditor> {
                     musculosPrimarios:
                         selectedCatalogExercise?.musculosPrimarios ?? const [],
                     musculosSecundarios:
-                        selectedCatalogExercise?.musculosSecundarios ?? const [],
+                        selectedCatalogExercise?.musculosSecundarios ??
+                        const [],
                     duracao: int.tryParse(duracao.text),
                     rounds: int.tryParse(rounds.text),
                   ),

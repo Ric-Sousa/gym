@@ -11,6 +11,7 @@ import '../../../../shared/providers/admin_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/admin_responsive_dialog.dart';
 import '../../../../shared/widgets/admin_design_system.dart';
+import '../../../../shared/widgets/app_design_system.dart';
 import '../../../../shared/widgets/app_notification.dart';
 
 /// Editor do plano nutricional (admin) — GYMBT Lime+Dark.
@@ -801,7 +802,6 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
       decoration: BoxDecoration(
         color: colors.surface2,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colors.border.withValues(alpha: 0.55)),
       ),
       child: Text(
         'BASE',
@@ -1181,18 +1181,23 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
                 ),
               ),
               const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                isDense: true,
-                menuMaxHeight: 320,
-                elevation: 2,
-                borderRadius: BorderRadius.circular(14),
-                initialValue: horario,
-                decoration: const InputDecoration(labelText: 'Horário'),
-                items:
-                    ['pré-treino', 'pós-treino', 'manhã', 'noite', 'qualquer']
-                        .map((h) => DropdownMenuItem(value: h, child: Text(h)))
-                        .toList(),
-                onChanged: (v) => setDialogState(() => horario = v!),
+              AppMenuDropdown<String>(
+                value: horario,
+                options: const [
+                  'pré-treino',
+                  'pós-treino',
+                  'manhã',
+                  'noite',
+                  'qualquer',
+                ],
+                labelBuilder: (h) => h,
+                onChanged: (v) => setDialogState(() => horario = v),
+                label: 'Horário',
+                accentColor: AdminThemeColors.of(context).lime,
+                fieldColor: AdminThemeColors.of(context).surface,
+                menuColor: AdminThemeColors.of(context).surface2,
+                textColor: AdminThemeColors.of(context).text,
+                labelColor: AdminThemeColors.of(context).muted,
               ),
             ],
           ),

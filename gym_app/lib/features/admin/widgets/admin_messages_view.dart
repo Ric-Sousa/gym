@@ -334,17 +334,21 @@ class AdminMessagesView extends ConsumerWidget {
                                 child: ConstrainedBox(
                                   constraints: BoxConstraints(
                                     maxWidth: 520,
-                                    maxHeight: (MediaQuery.of(context).size.height * 0.78)
-                                        .clamp(320.0, 760.0)
-                                        .toDouble(),
+                                    maxHeight:
+                                        (MediaQuery.of(context).size.height *
+                                                0.78)
+                                            .clamp(320.0, 760.0)
+                                            .toDouble(),
                                   ),
                                   child: SizedBox(
                                     width: isMobile
                                         ? MediaQuery.of(context).size.width - 24
                                         : 420,
-                                    height: (MediaQuery.of(context).size.height * 0.78)
-                                        .clamp(320.0, 760.0)
-                                        .toDouble(),
+                                    height:
+                                        (MediaQuery.of(context).size.height *
+                                                0.78)
+                                            .clamp(320.0, 760.0)
+                                            .toDouble(),
                                     child: GroupChatScreen(
                                       group: g,
                                       isAdminChat: true,
@@ -456,10 +460,8 @@ class _AdminMessagesGroupSummaryContent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = AdminThemeColors.of(context);
-    final unreadCount = ref
-            .watch(adminGroupUnreadCountsProvider)
-            .value?[group.id] ??
-        0;
+    final unreadCount =
+        ref.watch(adminGroupUnreadCountsProvider).value?[group.id] ?? 0;
     final hasUnread = unreadCount > 0;
 
     return Row(
@@ -480,11 +482,8 @@ class _AdminMessagesGroupSummaryContent extends ConsumerWidget {
                       width: 36,
                       height: 36,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Icon(
-                        Icons.group,
-                        color: theme.lime,
-                        size: 18,
-                      ),
+                      errorBuilder: (_, __, ___) =>
+                          Icon(Icons.group, color: theme.lime, size: 18),
                     )
                   : Icon(Icons.group, color: theme.lime, size: 18),
             ),
@@ -566,9 +565,7 @@ Future<void> showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setDialogState) => AdminResponsiveAlertDialog(
         backgroundColor: AdminThemeColors.of(context).surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Criar Grupo',
           style: GoogleFonts.inter(
@@ -622,39 +619,39 @@ Future<void> showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
                 SizedBox(
                   height: 200,
                   child: ListView(
-                      shrinkWrap: true,
-                      children: alunos
-                          .map(
-                            (a) => CheckboxListTile(
-                              dense: true,
-                              title: Text(
-                                a.nome,
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  color: AdminThemeColors.of(context).text,
-                                ),
+                    shrinkWrap: true,
+                    children: alunos
+                        .map(
+                          (a) => CheckboxListTile(
+                            dense: true,
+                            title: Text(
+                              a.nome,
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: AdminThemeColors.of(context).text,
                               ),
-                              subtitle: Text(
-                                a.email,
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  color: AdminThemeColors.of(context).muted,
-                                ),
-                              ),
-                              value: selectedIds.contains(a.uid),
-                              activeColor: AdminThemeColors.of(context).lime,
-                              onChanged: (v) => setDialogState(() {
-                                if (v == true) {
-                                  selectedIds.add(a.uid);
-                                } else {
-                                  selectedIds.remove(a.uid);
-                                }
-                              }),
                             ),
-                          )
-                          .toList(),
-                    ),
+                            subtitle: Text(
+                              a.email,
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: AdminThemeColors.of(context).muted,
+                              ),
+                            ),
+                            value: selectedIds.contains(a.uid),
+                            activeColor: AdminThemeColors.of(context).lime,
+                            onChanged: (v) => setDialogState(() {
+                              if (v == true) {
+                                selectedIds.add(a.uid);
+                              } else {
+                                selectedIds.remove(a.uid);
+                              }
+                            }),
+                          ),
+                        )
+                        .toList(),
                   ),
+                ),
             ],
           ),
         ),
@@ -759,9 +756,7 @@ class _ConversationTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: AdminThemeColors.of(context).surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AdminThemeColors.of(context).border.withValues(alpha: 0.7),
-        ),
+        border: Border.all(color: AdminThemeColors.of(context).border),
       ),
       child: InkWell(
         onTap: onTap,

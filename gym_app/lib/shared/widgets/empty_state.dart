@@ -33,9 +33,7 @@ class EmptyState extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.surfaceHigh,
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: AppColors.outline.withValues(alpha: 0.75),
-                ),
+                border: Border.all(color: Colors.transparent),
                 boxShadow: [
                   BoxShadow(
                     color: AppColors.surfaceLowest.withValues(alpha: 0.35),

@@ -23,7 +23,6 @@ import '../../../../shared/utils/new_message_detector.dart';
 import '../../../../shared/widgets/app_design_system.dart';
 import '../../../../shared/widgets/profile_photo_viewer.dart';
 
-
 /// Ecrã de chat de grupo — alunos trocam horários/blocos.
 class GroupChatScreen extends ConsumerStatefulWidget {
   final GroupModel group;
@@ -92,9 +91,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
   @override
   Widget build(BuildContext context) {
     // Usa provider estável (module-level) — nunca inline StreamProvider no build()!
-    final messagesAsync = ref.watch(
-      groupMessagesStreamProvider(_group.id),
-    );
+    final messagesAsync = ref.watch(groupMessagesStreamProvider(_group.id));
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -110,71 +107,72 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
           cursor: SystemMouseCursors.click,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-          onTap: () => _showGroupInfo(
-            messagesAsync.asData?.value ?? const <MessageModel>[],
-          ),
-          child: Row(
-            children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: StudentThemeColors.of(
-                  context,
-                ).primary.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: StudentThemeColors.of(
-                    context,
-                  ).primary.withValues(alpha: 0.24),
-                ),
-              ),
-              child: _group.imagemUrl != null && _group.imagemUrl!.isNotEmpty
-                  ? ClipOval(
-                      child: Image.network(
-                        _group.imagemUrl!,
-                        width: 34,
-                        height: 34,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Icon(
+            onTap: () => _showGroupInfo(
+              messagesAsync.asData?.value ?? const <MessageModel>[],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: StudentThemeColors.of(
+                      context,
+                    ).primary.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: StudentThemeColors.of(
+                        context,
+                      ).primary.withValues(alpha: 0.24),
+                    ),
+                  ),
+                  child:
+                      _group.imagemUrl != null && _group.imagemUrl!.isNotEmpty
+                      ? ClipOval(
+                          child: Image.network(
+                            _group.imagemUrl!,
+                            width: 34,
+                            height: 34,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Icon(
+                              Icons.group_outlined,
+                              color: StudentThemeColors.of(context).primary,
+                              size: 18,
+                            ),
+                          ),
+                        )
+                      : Icon(
                           Icons.group_outlined,
                           color: StudentThemeColors.of(context).primary,
                           size: 18,
                         ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _group.nome,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.montserrat(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
                       ),
-                    )
-                  : Icon(
-                      Icons.group_outlined,
-                      color: StudentThemeColors.of(context).primary,
-                      size: 18,
-                    ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _group.nome,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.montserrat(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                    ),
+                      Text(
+                        '${_group.membros.length} membros',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    '${_group.membros.length} membros',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            ],
-          ),
           ),
         ),
       ),
@@ -315,7 +313,9 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
       itemCount: messages.length,
       itemBuilder: (_, i) => ScrollReveal(
-        key: ValueKey('group-message-${messages[i].id}-${messages[i].timestamp}'),
+        key: ValueKey(
+          'group-message-${messages[i].id}-${messages[i].timestamp}',
+        ),
         beginOffset: const Offset(0, 0.03),
         child: _messageBubble(messages[i], i > 0 ? messages[i - 1] : null),
       ),
@@ -341,11 +341,9 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
     if (_markingGroupAsRead || _userId.isEmpty) return;
     _markingGroupAsRead = true;
     try {
-      await ref.read(groupRepositoryProvider).markAsRead(
-            _group.id,
-            _userId,
-            readAt,
-          );
+      await ref
+          .read(groupRepositoryProvider)
+          .markAsRead(_group.id, _userId, readAt);
     } catch (_) {
       // O badge pode continuar visível se a rede falhar; a próxima mensagem
       // ou reabertura tentará marcar novamente.
@@ -438,7 +436,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                           ? StudentThemeColors.of(
                               context,
                             ).primaryFixed.withValues(alpha: 0.18)
-                          : AppColors.outline.withValues(alpha: 0.65),
+                          : Colors.transparent,
                     ),
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(16),
@@ -462,9 +460,10 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                       : msg.isAttachment
                       ? Builder(
                           builder: (context) {
-                            final imageWidth = (MediaQuery.sizeOf(context).width * 0.52)
-                                .clamp(140.0, 210.0)
-                                .toDouble();
+                            final imageWidth =
+                                (MediaQuery.sizeOf(context).width * 0.52)
+                                    .clamp(140.0, 210.0)
+                                    .toDouble();
                             final imageHeight = imageWidth * 0.81;
                             return ClipRRect(
                               borderRadius: BorderRadius.circular(10),
@@ -541,17 +540,17 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
     return GestureDetector(
       onTap: hasPhoto
           ? () => showProfilePhotoViewer(
-                context: context,
-                photoUrl: photoUrl,
-                name: name,
-                accentColor: StudentThemeColors.of(context).primary,
-              )
+              context: context,
+              photoUrl: photoUrl,
+              name: name,
+              accentColor: StudentThemeColors.of(context).primary,
+            )
           : null,
       child: CircleAvatar(
         radius: 15,
-        backgroundColor: StudentThemeColors.of(context).primary.withValues(
-          alpha: 0.14,
-        ),
+        backgroundColor: StudentThemeColors.of(
+          context,
+        ).primary.withValues(alpha: 0.14),
         backgroundImage: backgroundImage,
         child: !hasPhoto
             ? Text(
@@ -600,15 +599,11 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
               fillColor: AppColors.surface,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(
-                  color: AppColors.outline.withValues(alpha: 0.35),
-                ),
+                borderSide: BorderSide.none,
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(
-                  color: AppColors.outline.withValues(alpha: 0.35),
-                ),
+                borderSide: BorderSide.none,
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -664,9 +659,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
       decoration: BoxDecoration(
         color: AppColors.surfaceLow,
-        border: Border(
-          top: BorderSide(color: AppColors.outline.withValues(alpha: 0.5)),
-        ),
+        border: Border(top: BorderSide.none),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
@@ -882,7 +875,10 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                   ),
                 ],
                 const SizedBox(height: 22),
-                _groupInfoHeading('ADMINISTRADOR', Icons.admin_panel_settings_outlined),
+                _groupInfoHeading(
+                  'ADMINISTRADOR',
+                  Icons.admin_panel_settings_outlined,
+                ),
                 _groupPersonTile(
                   name: administratorName,
                   photoUrl: administratorPhoto,
@@ -921,10 +917,10 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                     physics: const NeverScrollableScrollPhysics(),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      crossAxisSpacing: 8,
-                      mainAxisSpacing: 8,
-                    ),
+                          crossAxisCount: 3,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                        ),
                     itemCount: sharedImages.length,
                     itemBuilder: (_, index) {
                       final image = sharedImages[index];
@@ -1035,11 +1031,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
   Widget _groupInfoHeading(String text, IconData icon) {
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: StudentThemeColors.of(context).primary,
-        ),
+        Icon(icon, size: 16, color: StudentThemeColors.of(context).primary),
         const SizedBox(width: 8),
         Text(
           text,
@@ -1065,67 +1057,69 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
       cursor: SystemMouseCursors.basic,
       child: Container(
         margin: const EdgeInsets.only(top: 8),
-      decoration: BoxDecoration(
-        color: highlighted
-            ? StudentThemeColors.of(context).primary.withValues(alpha: 0.10)
-            : AppColors.surfaceHigh,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
+        decoration: BoxDecoration(
+          color: highlighted
+              ? StudentThemeColors.of(context).primary.withValues(alpha: 0.10)
+              : AppColors.surfaceHigh,
           borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: highlighted
-                      ? StudentThemeColors.of(context).primary.withValues(alpha: 0.16)
-                      : AppColors.surface,
-                  backgroundImage: photoUrl != null && photoUrl.isNotEmpty
-                      ? NetworkImage(photoUrl)
-                      : null,
-                  child: photoUrl == null || photoUrl.isEmpty
-                      ? Icon(
-                          icon,
-                          size: 19,
-                          color: highlighted
-                              ? StudentThemeColors.of(context).primary
-                              : AppColors.textSecondary,
-                        )
-                      : null,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.onSurface,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: highlighted
+                        ? StudentThemeColors.of(
+                            context,
+                          ).primary.withValues(alpha: 0.16)
+                        : AppColors.surface,
+                    backgroundImage: photoUrl != null && photoUrl.isNotEmpty
+                        ? NetworkImage(photoUrl)
+                        : null,
+                    child: photoUrl == null || photoUrl.isEmpty
+                        ? Icon(
+                            icon,
+                            size: 19,
+                            color: highlighted
+                                ? StudentThemeColors.of(context).primary
+                                : AppColors.textSecondary,
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.onSurface,
+                      ),
                     ),
                   ),
-                ),
-                Text(
-                  role,
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: highlighted
-                        ? StudentThemeColors.of(context).primary
-                        : AppColors.textSecondary,
+                  Text(
+                    role,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: highlighted
+                          ? StudentThemeColors.of(context).primary
+                          : AppColors.textSecondary,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -1177,10 +1171,8 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
               child: const Text('Cancelar'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(
-                dialogContext,
-                controller.text.trim(),
-              ),
+              onPressed: () =>
+                  Navigator.pop(dialogContext, controller.text.trim()),
               child: const Text('Guardar'),
             ),
           ],
@@ -1231,12 +1223,14 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
           ? file.name.split('.').last.toLowerCase()
           : 'jpg';
       final contentType = file.mimeType ?? 'image/$extension';
-      final url = await ref.read(storageDataSourceProvider).uploadFile(
-        path:
-            'chat_attachments/group_images/${_group.id}_${DateTime.now().millisecondsSinceEpoch}.$extension',
-        fileBytes: await file.readAsBytes(),
-        contentType: contentType,
-      );
+      final url = await ref
+          .read(storageDataSourceProvider)
+          .uploadFile(
+            path:
+                'chat_attachments/group_images/${_group.id}_${DateTime.now().millisecondsSinceEpoch}.$extension',
+            fileBytes: await file.readAsBytes(),
+            contentType: contentType,
+          );
       await ref.read(groupRepositoryProvider).updateGroup(_group.id, {
         'imagemUrl': url,
       });
@@ -1303,28 +1297,28 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
 
             Future<void> removeStudent(UserModel student) async {
               final confirmed = await showDialog<bool>(
-                  context: dialogContext,
-                  builder: (confirmContext) => AlertDialog(
-                    backgroundColor: AppColors.surface,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    title: const Text('Remover aluno do grupo?'),
-                    content: Text(
-                      'Queres remover ${student.nome} deste grupo? Esta alteração só será aplicada ao guardar.',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(confirmContext, false),
-                        child: const Text('Cancelar'),
-                      ),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(confirmContext, true),
-                        child: const Text('Remover'),
-                      ),
-                    ],
+                context: dialogContext,
+                builder: (confirmContext) => AlertDialog(
+                  backgroundColor: AppColors.surface,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                );
+                  title: const Text('Remover aluno do grupo?'),
+                  content: Text(
+                    'Queres remover ${student.nome} deste grupo? Esta alteração só será aplicada ao guardar.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(confirmContext, false),
+                      child: const Text('Cancelar'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(confirmContext, true),
+                      child: const Text('Remover'),
+                    ),
+                  ],
+                ),
+              );
               if (confirmed != true || !dialogContext.mounted) return;
               setDialogState(() => selectedIds.remove(student.uid));
             }
@@ -1407,7 +1401,10 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                       const SizedBox(height: 16),
                       FilledButton.icon(
                         onPressed: saving ? null : addStudents,
-                        icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                        icon: const Icon(
+                          Icons.person_add_alt_1_rounded,
+                          size: 18,
+                        ),
                         label: const Text('Adicionar alunos'),
                       ),
                       const SizedBox(height: 12),
@@ -1455,7 +1452,9 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                                     const SizedBox(height: 8),
                                 itemBuilder: (_, index) {
                                   final student = filteredStudents[index];
-                                  final selected = selectedIds.contains(student.uid);
+                                  final selected = selectedIds.contains(
+                                    student.uid,
+                                  );
                                   return Material(
                                     color: selected
                                         ? accent.withValues(alpha: 0.10)
@@ -1473,23 +1472,31 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                                           children: [
                                             CircleAvatar(
                                               radius: 22,
-                                              backgroundColor: accent.withValues(
-                                                alpha: 0.14,
-                                              ),
+                                              backgroundColor: accent
+                                                  .withValues(alpha: 0.14),
                                               backgroundImage:
                                                   student.fotoPerfil != null &&
-                                                      student.fotoPerfil!.isNotEmpty
-                                                  ? NetworkImage(student.fotoPerfil!)
+                                                      student
+                                                          .fotoPerfil!
+                                                          .isNotEmpty
+                                                  ? NetworkImage(
+                                                      student.fotoPerfil!,
+                                                    )
                                                   : null,
-                                              child: student.fotoPerfil == null ||
-                                                      student.fotoPerfil!.isEmpty
+                                              child:
+                                                  student.fotoPerfil == null ||
+                                                      student
+                                                          .fotoPerfil!
+                                                          .isEmpty
                                                   ? Text(
                                                       student.nome.isNotEmpty
-                                                          ? student.nome[0].toUpperCase()
+                                                          ? student.nome[0]
+                                                                .toUpperCase()
                                                           : '?',
                                                       style: GoogleFonts.inter(
                                                         color: accent,
-                                                        fontWeight: FontWeight.w800,
+                                                        fontWeight:
+                                                            FontWeight.w800,
                                                       ),
                                                     )
                                                   : null,
@@ -1503,21 +1510,26 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                                                   Text(
                                                     student.nome,
                                                     maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                     style: GoogleFonts.inter(
                                                       fontSize: 13,
-                                                      fontWeight: FontWeight.w700,
-                                                      color: AppColors.onSurface,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      color:
+                                                          AppColors.onSurface,
                                                     ),
                                                   ),
                                                   const SizedBox(height: 2),
                                                   Text(
                                                     student.email,
                                                     maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                     style: GoogleFonts.inter(
                                                       fontSize: 11,
-                                                      color: AppColors.textSecondary,
+                                                      color: AppColors
+                                                          .textSecondary,
                                                     ),
                                                   ),
                                                 ],
@@ -1526,17 +1538,20 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                                             TextButton.icon(
                                               onPressed: saving
                                                   ? null
-                                                  : () => removeStudent(student),
+                                                  : () =>
+                                                        removeStudent(student),
                                               icon: const Icon(
                                                 Icons.person_remove_outlined,
                                                 size: 17,
                                               ),
                                               label: const Text('Remover'),
                                               style: TextButton.styleFrom(
-                                                foregroundColor: AppColors.error,
-                                                padding: const EdgeInsets.symmetric(
-                                                  horizontal: 8,
-                                                ),
+                                                foregroundColor:
+                                                    AppColors.error,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                    ),
                                               ),
                                             ),
                                           ],
@@ -1568,12 +1583,16 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                                       try {
                                         final memberNames = {
                                           for (final student in students)
-                                            if (selectedIds.contains(student.uid))
+                                            if (selectedIds.contains(
+                                              student.uid,
+                                            ))
                                               student.uid: student.nome,
                                         };
                                         final memberPhotos = {
                                           for (final student in students)
-                                            if (selectedIds.contains(student.uid) &&
+                                            if (selectedIds.contains(
+                                                  student.uid,
+                                                ) &&
                                                 student.fotoPerfil != null &&
                                                 student.fotoPerfil!.isNotEmpty)
                                               student.uid: student.fotoPerfil!,
@@ -1767,7 +1786,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
                             color: selectedToAdd.isEmpty
-                                ? AppColors.outline.withValues(alpha: 0.35)
+                                ? Colors.transparent
                                 : accent.withValues(alpha: 0.32),
                           ),
                         ),
@@ -1820,8 +1839,9 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                                     const SizedBox(height: 8),
                                 itemBuilder: (_, index) {
                                   final student = filteredStudents[index];
-                                  final selected =
-                                      selectedToAdd.contains(student.uid);
+                                  final selected = selectedToAdd.contains(
+                                    student.uid,
+                                  );
                                   return Material(
                                     color: selected
                                         ? accent.withValues(alpha: 0.10)
@@ -1831,7 +1851,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                                       side: BorderSide(
                                         color: selected
                                             ? accent.withValues(alpha: 0.42)
-                                            : AppColors.outline.withValues(alpha: 0.22),
+                                            : Colors.transparent,
                                       ),
                                     ),
                                     clipBehavior: Clip.antiAlias,
@@ -1853,23 +1873,31 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                                           children: [
                                             CircleAvatar(
                                               radius: 22,
-                                              backgroundColor: accent.withValues(
-                                                alpha: 0.14,
-                                              ),
+                                              backgroundColor: accent
+                                                  .withValues(alpha: 0.14),
                                               backgroundImage:
                                                   student.fotoPerfil != null &&
-                                                      student.fotoPerfil!.isNotEmpty
-                                                  ? NetworkImage(student.fotoPerfil!)
+                                                      student
+                                                          .fotoPerfil!
+                                                          .isNotEmpty
+                                                  ? NetworkImage(
+                                                      student.fotoPerfil!,
+                                                    )
                                                   : null,
-                                              child: student.fotoPerfil == null ||
-                                                      student.fotoPerfil!.isEmpty
+                                              child:
+                                                  student.fotoPerfil == null ||
+                                                      student
+                                                          .fotoPerfil!
+                                                          .isEmpty
                                                   ? Text(
                                                       student.nome.isNotEmpty
-                                                          ? student.nome[0].toUpperCase()
+                                                          ? student.nome[0]
+                                                                .toUpperCase()
                                                           : '?',
                                                       style: GoogleFonts.inter(
                                                         color: accent,
-                                                        fontWeight: FontWeight.w800,
+                                                        fontWeight:
+                                                            FontWeight.w800,
                                                       ),
                                                     )
                                                   : null,
@@ -1883,21 +1911,26 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                                                   Text(
                                                     student.nome,
                                                     maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                     style: GoogleFonts.inter(
                                                       fontSize: 13,
-                                                      fontWeight: FontWeight.w700,
-                                                      color: AppColors.onSurface,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      color:
+                                                          AppColors.onSurface,
                                                     ),
                                                   ),
                                                   const SizedBox(height: 2),
                                                   Text(
                                                     student.email,
                                                     maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                     style: GoogleFonts.inter(
                                                       fontSize: 11,
-                                                      color: AppColors.textSecondary,
+                                                      color: AppColors
+                                                          .textSecondary,
                                                     ),
                                                   ),
                                                 ],
@@ -1910,9 +1943,13 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                                                 if (value == null) return;
                                                 setDialogState(() {
                                                   if (value) {
-                                                    selectedToAdd.add(student.uid);
+                                                    selectedToAdd.add(
+                                                      student.uid,
+                                                    );
                                                   } else {
-                                                    selectedToAdd.remove(student.uid);
+                                                    selectedToAdd.remove(
+                                                      student.uid,
+                                                    );
                                                   }
                                                 });
                                               },
@@ -1943,7 +1980,10 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                                       dialogContext,
                                       Set<String>.from(selectedToAdd),
                                     ),
-                              icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                              icon: const Icon(
+                                Icons.person_add_alt_1_rounded,
+                                size: 18,
+                              ),
                               label: const Text('Adicionar'),
                             ),
                           ),

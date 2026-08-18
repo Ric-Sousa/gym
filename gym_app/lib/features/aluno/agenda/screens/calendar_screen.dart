@@ -152,7 +152,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        border: Border(bottom: BorderSide(color: AppColors.outline)),
+        border: Border(bottom: BorderSide.none),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -181,7 +181,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                   border: Border.all(
                     color: isToday && !isSelected
                         ? StudentThemeColors.of(context).primary
-                        : AppColors.outline,
+                        : Colors.transparent,
                   ),
                 ),
                 child: Column(
@@ -423,9 +423,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: isAvailable ? AppColors.outline : Colors.transparent,
-              ),
+              border: Border.all(color: Colors.transparent),
             ),
             child: Row(
               children: [
