@@ -11734,6 +11734,7 @@ class _PaymentStatusMenu extends StatelessWidget {
       builder: (context, constraints) {
         final fieldWidth = constraints.maxWidth;
         return MenuAnchor(
+          animated: true,
           crossAxisUnconstrained: false,
           alignmentOffset: const Offset(0, 4),
           style: MenuStyle(

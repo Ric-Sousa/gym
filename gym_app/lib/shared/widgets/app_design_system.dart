@@ -48,6 +48,7 @@ class AppMenuDropdown<T> extends StatelessWidget {
             ? constraints.maxWidth
             : 240.0;
         return MenuAnchor(
+          animated: true,
           crossAxisUnconstrained: false,
           alignmentOffset: const Offset(0, 4),
           style: MenuStyle(
@@ -143,14 +144,20 @@ class AppMenuDropdown<T> extends StatelessWidget {
                   fontSize: compact ? 12 : 13,
                 ),
               ),
-              child: Text(
-                selectedLabel ?? '',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
-                  fontSize: compact ? 12 : 13,
-                  color: textColor,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 160),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                child: Text(
+                  selectedLabel ?? '',
+                  key: ValueKey(selectedLabel),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: compact ? 12 : 13,
+                    color: textColor,
+                  ),
                 ),
               ),
             ),
