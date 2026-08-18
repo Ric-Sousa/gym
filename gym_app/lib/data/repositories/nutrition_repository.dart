@@ -49,13 +49,32 @@ class NutritionRepository {
     }
   }
 
-  /// Lista todos os alimentos.
+  /// Lista todos os alimentos guardados localmente no Firestore.
   Future<List<FoodModel>> getAllFoods() async {
     try {
       return await _firestoreDataSource.getAllFoods();
     } on ServerException catch (e) {
       throw ServerFailure(message: e.message);
     }
+  }
+
+  /// Lista os alimentos disponíveis para seleção, incluindo a mesma base
+  /// Open Food Facts usada pela pesquisa do aluno e do admin.
+  Future<List<FoodModel>> getAvailableFoods() async {
+    List<FoodModel> localFoods = [];
+    try {
+      localFoods = await getAllFoods();
+    } catch (_) {
+      // A base externa continua disponível mesmo quando o Firestore falha.
+    }
+
+    final externalFoods = await _openFoodFactsDataSource.getInitialFoods();
+    final names = localFoods.map(_normaliseName).toSet();
+    final merged = [...localFoods];
+    for (final food in externalFoods) {
+      if (names.add(_normaliseName(food))) merged.add(food);
+    }
+    return merged;
   }
 
   /// Pesquisa alimentos.

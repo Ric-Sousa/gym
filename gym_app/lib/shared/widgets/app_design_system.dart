@@ -3,6 +3,150 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/config/admin_theme.dart';
 
+/// Dropdown baseado no mesmo menu flutuante usado no questionário.
+/// As cores são recebidas para funcionar tanto no tema do aluno como no admin.
+class AppMenuDropdown<T> extends StatelessWidget {
+  final T? value;
+  final List<T> options;
+  final String Function(T option) labelBuilder;
+  final ValueChanged<T> onChanged;
+  final String label;
+  final Color accentColor;
+  final Color fieldColor;
+  final Color menuColor;
+  final Color textColor;
+  final Color labelColor;
+  final bool enabled;
+
+  const AppMenuDropdown({
+    super.key,
+    required this.value,
+    required this.options,
+    required this.labelBuilder,
+    required this.onChanged,
+    required this.label,
+    required this.accentColor,
+    required this.fieldColor,
+    required this.menuColor,
+    required this.textColor,
+    required this.labelColor,
+    this.enabled = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    final selectedLabel = value == null ? null : labelBuilder(value as T);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final fieldWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : 240.0;
+        return MenuAnchor(
+          crossAxisUnconstrained: false,
+          alignmentOffset: const Offset(0, 4),
+          style: MenuStyle(
+            backgroundColor: WidgetStatePropertyAll(menuColor),
+            elevation: const WidgetStatePropertyAll(3),
+            minimumSize: WidgetStatePropertyAll(Size(fieldWidth, 0)),
+            maximumSize: WidgetStatePropertyAll(Size(fieldWidth, 320)),
+            shape: const WidgetStatePropertyAll(
+              RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(14)),
+              ),
+            ),
+            padding: const WidgetStatePropertyAll(
+              EdgeInsets.symmetric(vertical: 6),
+            ),
+          ),
+          menuChildren: options
+              .map(
+                (option) => MenuItemButton(
+                  onPressed: enabled ? () => onChanged(option) : null,
+                  style: MenuItemButton.styleFrom(
+                    minimumSize: const Size.fromHeight(46),
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                  ),
+                  child: SizedBox(
+                    width: fieldWidth - 28,
+                    child: Text(
+                      labelBuilder(option),
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: compact ? 12 : 13,
+                        color: textColor,
+                      ),
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+          builder: (context, controller, child) => GestureDetector(
+            onTap: !enabled || options.isEmpty
+                ? null
+                : () {
+                    if (controller.isOpen) {
+                      controller.close();
+                    } else {
+                      controller.open();
+                    }
+                  },
+            child: InputDecorator(
+              isFocused: controller.isOpen,
+              isEmpty: selectedLabel == null,
+              decoration: InputDecoration(
+                labelText: label,
+                filled: true,
+                fillColor: fieldColor,
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: compact ? 12 : 14,
+                  vertical: compact ? 10 : 12,
+                ),
+                suffixIcon: Icon(
+                  controller.isOpen
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  color: accentColor,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                floatingLabelStyle: GoogleFonts.inter(
+                  color: labelColor,
+                  fontSize: compact ? 12 : 14,
+                ),
+                labelStyle: GoogleFonts.inter(
+                  color: labelColor,
+                  fontSize: compact ? 12 : 14,
+                ),
+              ),
+              child: Text(
+                selectedLabel ?? '',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  fontSize: compact ? 12 : 13,
+                  color: textColor,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// Mostra um seletor de data com espaçamento explícito entre os botões e a
 /// borda do modal. O DatePicker nativo do Flutter fixa essa margem em 8 px.
 Future<DateTime?> showAppDatePicker({
@@ -68,7 +212,9 @@ class _AppDatePickerDialogState extends State<_AppDatePickerDialog> {
   void initState() {
     super.initState();
     _selectedDate = widget.initialDate;
-    _inputController = TextEditingController(text: _formatInput(widget.initialDate));
+    _inputController = TextEditingController(
+      text: _formatInput(widget.initialDate),
+    );
   }
 
   @override
@@ -100,7 +246,9 @@ class _AppDatePickerDialogState extends State<_AppDatePickerDialog> {
 
   void _confirm() {
     final date = _inputMode ? _parseInput() : _selectedDate;
-    if (date == null || date.isBefore(widget.firstDate) || date.isAfter(widget.lastDate)) {
+    if (date == null ||
+        date.isBefore(widget.firstDate) ||
+        date.isAfter(widget.lastDate)) {
       setState(() => _inputError = 'Seleciona uma data válida.');
       return;
     }
@@ -115,7 +263,8 @@ class _AppDatePickerDialogState extends State<_AppDatePickerDialog> {
     final selectedLabel = _selectedDate == null
         ? ''
         : MaterialLocalizations.of(context).formatMediumDate(_selectedDate!);
-    final shape = datePickerTheme.shape ??
+    final shape =
+        datePickerTheme.shape ??
         RoundedRectangleBorder(borderRadius: BorderRadius.circular(28));
 
     return Dialog(
@@ -163,7 +312,10 @@ class _AppDatePickerDialogState extends State<_AppDatePickerDialog> {
                 ],
               ),
             ),
-            Divider(height: 1, color: colors.outlineVariant.withValues(alpha: 0.35)),
+            Divider(
+              height: 1,
+              color: colors.outlineVariant.withValues(alpha: 0.35),
+            ),
             if (_inputMode)
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
@@ -836,26 +988,22 @@ class _NavigationIcon extends StatelessWidget {
               ),
             ),
           Positioned(
-            top: -7,
-            right: -8,
+            top: -9,
+            right: -10,
             child: Container(
-              constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
-              padding: const EdgeInsets.symmetric(horizontal: 3),
+              constraints: const BoxConstraints(minWidth: 21, minHeight: 21),
+              padding: const EdgeInsets.symmetric(horizontal: 5),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.error,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.surface,
-                  width: 1.5,
-                ),
+                borderRadius: BorderRadius.circular(999),
               ),
               alignment: Alignment.center,
               child: Text(
                 badge > 99 ? '99+' : '$badge',
                 style: GoogleFonts.inter(
                   color: Colors.white,
-                  fontSize: 8,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
                   height: 1,
                 ),
               ),
@@ -931,7 +1079,9 @@ class StudentFloatingDock extends StatelessWidget {
                                 ? scheme.primary
                                 : scheme.onSurfaceVariant,
                             badge: entry.key == 4 ? chatUnreadCount : 0,
-                            preview: entry.key == 4 ? chatPreview : null,
+                            // No mobile, o contador é suficiente e evita que
+                            // uma pré-visualização de texto cubra os ícones.
+                            preview: null,
                           ),
                           if (!compact) ...[
                             const SizedBox(height: 3),

@@ -165,6 +165,19 @@ void main() {
       expect(find.text('AGENDA'), findsWidgets);
     });
 
+    testWidgets('agenda apresenta horários das 06:00 às 23:00', (
+      tester,
+    ) async {
+      await _pumpLargeAdmin(tester);
+      await tester.tap(find.text('Agenda'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('06:00'), findsOneWidget);
+      expect(find.text('23:00'), findsOneWidget);
+      expect(find.byType(Scrollbar), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('mobile drawer and Agenda fit a 320px viewport', (
       tester,
     ) async {

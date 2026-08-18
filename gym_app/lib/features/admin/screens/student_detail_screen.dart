@@ -10,7 +10,6 @@ import '../../../../data/models/user_model.dart';
 import '../../../../shared/providers/admin_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/app_page_frame.dart';
-import '../widgets/nutrition_editor.dart';
 import '../widgets/report_generator.dart';
 import '../../aluno/chat/screens/chat_screen.dart';
 import '../../aluno/perfil/screens/video_progress_screen.dart';
@@ -29,14 +28,7 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  final tabs = const [
-    'Resumo',
-    'Nutrição',
-    'Treino',
-    'Progresso',
-    'Vídeos',
-    'Chat',
-  ];
+  final tabs = const ['Resumo', 'Progresso', 'Vídeos', 'Chat'];
 
   @override
   void initState() {
@@ -95,8 +87,6 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
         controller: _tabController,
         children: [
           _buildResumo(aluno),
-          _buildNutricao(aluno),
-          _buildTreino(aluno),
           _buildProgresso(aluno),
           VideoProgressScreen(userId: aluno.uid, isAdmin: true, student: aluno),
           ChatScreen(
@@ -401,20 +391,6 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildNutricao(UserModel aluno) {
-    return NutritionEditor(aluno: aluno);
-  }
-
-  Widget _buildTreino(UserModel aluno) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Text(
-        'Os planos de treino são criados e atribuídos na área global “Treinos” do painel administrativo.',
-        style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
-      ),
     );
   }
 

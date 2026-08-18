@@ -19,6 +19,13 @@ class OpenFoodFactsDataSource {
     : _functions =
           functions ?? FirebaseFunctions.instanceFor(region: 'europe-west1');
 
+  /// Carrega uma seleção inicial da mesma base Open Food Facts usada nas pesquisas.
+  ///
+  /// É usada quando o seletor de alimentos é aberto sem texto de pesquisa.
+  Future<List<FoodModel>> getInitialFoods() async {
+    return _call('');
+  }
+
   /// Pesquisa produtos com nome disponível em português.
   ///
   /// Falhas da API externa são tratadas como uma pesquisa sem resultados,
@@ -26,8 +33,14 @@ class OpenFoodFactsDataSource {
   Future<List<FoodModel>> searchFoods(String query) async {
     final trimmedQuery = query.trim();
     if (trimmedQuery.length < 3) return [];
+    return _call(trimmedQuery);
+  }
 
-    final cacheKey = trimmedQuery.toLowerCase();
+  Future<List<FoodModel>> _call(String query) async {
+    final trimmedQuery = query.trim();
+    final cacheKey = trimmedQuery.isEmpty
+        ? '__initial__'
+        : trimmedQuery.toLowerCase();
     final cached = _cache[cacheKey];
     if (cached != null &&
         DateTime.now().difference(cached.createdAt) < _cacheDuration) {

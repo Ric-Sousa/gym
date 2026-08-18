@@ -1774,6 +1774,57 @@ class _GlobalWorkoutPlansScreenState
     await _savePlan(plan, updated);
   }
 
+  Widget _studentAvatar(UserModel student) {
+    final colors = AdminThemeColors.of(context);
+    final photoUrl = student.fotoPerfil?.trim();
+    final initial = student.nome.trim().isEmpty
+        ? '?'
+        : student.nome.trim()[0].toUpperCase();
+
+    Widget fallback() {
+      return Center(
+        child: Text(
+          initial,
+          style: GoogleFonts.montserrat(
+            color: colors.lime,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: 54,
+      height: 54,
+      decoration: BoxDecoration(
+        color: colors.limeDim,
+        shape: BoxShape.circle,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: photoUrl == null || photoUrl.isEmpty
+          ? fallback()
+          : Image.network(
+              photoUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => fallback(),
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) return child;
+                return Center(
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: colors.lime,
+                    ),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+
   Future<void> _assignPlan(WorkoutPlanModel plan) async {
     final students = await ref.read(userRepositoryProvider).getAllAlunos();
     if (!mounted) return;
@@ -1781,61 +1832,168 @@ class _GlobalWorkoutPlansScreenState
       context: context,
       builder: (dialogContext) {
         final colors = AdminThemeColors.of(dialogContext);
-        return AdminResponsiveDialog(
-          title: 'Escolher aluno',
-          subtitle:
-              'O plano completo será atribuído com todos os sub-planos e exercícios.',
-          icon: Icons.person_add_alt_1_rounded,
-          child: students.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 30),
-                  child: Text(
-                    'Não existem alunos disponíveis.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: colors.muted),
+        var searchQuery = '';
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final query = searchQuery.trim().toLowerCase();
+            final filteredStudents = students.where((student) {
+              if (query.isEmpty) return true;
+              return student.nome.toLowerCase().contains(query) ||
+                  student.email.toLowerCase().contains(query);
+            }).toList();
+
+            return AdminResponsiveDialog(
+              title: 'Escolher aluno',
+              subtitle:
+                  'Seleciona quem vai receber este plano de treino.',
+              icon: Icons.person_add_alt_1_rounded,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    onChanged: (value) => setModalState(
+                      () => searchQuery = value,
+                    ),
+                    style: TextStyle(color: colors.text, fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Pesquisar por nome ou email',
+                      hintStyle: TextStyle(color: colors.muted, fontSize: 12),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        size: 19,
+                        color: colors.muted,
+                      ),
+                      filled: true,
+                      fillColor: colors.surface2,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 13,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(13),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(13),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(13),
+                        borderSide: BorderSide(color: colors.lime),
+                      ),
+                    ),
                   ),
-                )
-              : SizedBox(
-                  height: 340,
-                  child: ListView.separated(
-                    itemCount: students.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 1),
-                    itemBuilder: (_, index) {
-                      final student = students[index];
-                      return ListTile(
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 4,
-                        ),
-                        leading: CircleAvatar(
-                          backgroundColor: colors.limeDim,
-                          foregroundColor: colors.lime,
-                          child: Text(
-                            student.nome.isEmpty
-                                ? '?'
-                                : student.nome[0].toUpperCase(),
-                          ),
-                        ),
-                        title: Text(
-                          student.nome,
-                          style: TextStyle(
-                            color: colors.text,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        subtitle: Text(
-                          student.email,
-                          style: TextStyle(color: colors.muted, fontSize: 12),
-                        ),
-                        trailing: Icon(
-                          Icons.chevron_right_rounded,
-                          color: colors.muted,
-                        ),
-                        onTap: () => Navigator.pop(dialogContext, student),
-                      );
-                    },
+                  const SizedBox(height: 14),
+                  Text(
+                    filteredStudents.length == 1
+                        ? '1 aluno disponível'
+                        : '${filteredStudents.length} alunos disponíveis',
+                    style: TextStyle(
+                      color: colors.muted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 9),
+                  if (filteredStudents.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 34),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.person_search_outlined,
+                            size: 38,
+                            color: colors.muted,
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            students.isEmpty
+                                ? 'Não existem alunos disponíveis.'
+                                : 'Nenhum aluno encontrado.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: colors.muted),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    SizedBox(
+                      height: 360,
+                      child: ListView.separated(
+                        padding: const EdgeInsets.only(top: 2),
+                        itemCount: filteredStudents.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 9),
+                        itemBuilder: (_, index) {
+                          final student = filteredStudents[index];
+                          return Material(
+                            color: colors.surface2,
+                            borderRadius: BorderRadius.circular(16),
+                            clipBehavior: Clip.antiAlias,
+                            child: InkWell(
+                              onTap: () =>
+                                  Navigator.pop(dialogContext, student),
+                              borderRadius: BorderRadius.circular(16),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Row(
+                                  children: [
+                                    _studentAvatar(student),
+                                    const SizedBox(width: 13),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            student.nome,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: colors.text,
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            student.email,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: colors.muted,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Container(
+                                      width: 34,
+                                      height: 34,
+                                      decoration: BoxDecoration(
+                                        color: colors.limeDim,
+                                        borderRadius: BorderRadius.circular(11),
+                                      ),
+                                      child: Icon(
+                                        Icons.arrow_forward_rounded,
+                                        size: 17,
+                                        color: colors.lime,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
         );
       },
     );

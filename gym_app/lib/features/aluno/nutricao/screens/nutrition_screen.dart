@@ -19,9 +19,9 @@ import '../../../../shared/widgets/app_design_system.dart';
 
 final nutritionPlanProvider =
     StreamProvider.family<NutritionPlanModel?, (String, String)>((ref, params) {
-  final (userId, diaSemana) = params;
-  return ref.read(nutritionRepositoryProvider).watchPlan(userId, diaSemana);
-});
+      final (userId, diaSemana) = params;
+      return ref.read(nutritionRepositoryProvider).watchPlan(userId, diaSemana);
+    });
 
 /// Calorias totais já consumidas hoje (do diário).
 final todayConsumedCaloriesProvider = StreamProvider.family<double, String>((
@@ -57,7 +57,9 @@ final foodSearchProvider = FutureProvider.family<List<FoodModel>, String>((
   ref,
   query,
 ) {
-  if (query.isEmpty) return ref.read(nutritionRepositoryProvider).getAllFoods();
+  if (query.trim().isEmpty) {
+    return ref.read(nutritionRepositoryProvider).getAvailableFoods();
+  }
   return ref.read(nutritionRepositoryProvider).searchFoods(query);
 });
 
@@ -1674,6 +1676,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
         expand: false,
         initialChildSize: 0.7,
         builder: (_, scrollController) => _FoodSearchSheet(
+          scrollController: scrollController,
           onFoodSelected: (food) {
             if (diaSemana != null && mealTipo != null) {
               if (alimentoToReplace != null) {
@@ -1691,6 +1694,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
                 // Adicionar novo alimento (sem substituir)
                 final mealKey = '${diaSemana}_$mealTipo';
                 final newAlimento = Alimento(
+                  foodId: food.id,
                   nome: food.nome,
                   quantidade: '100g',
                   calorias: food.caloriasPor100g,
@@ -1717,7 +1721,9 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
 
 class _FoodSearchSheet extends ConsumerStatefulWidget {
   final Function(FoodModel) onFoodSelected;
-  const _FoodSearchSheet({required this.onFoodSelected});
+  final ScrollController? scrollController;
+
+  const _FoodSearchSheet({required this.onFoodSelected, this.scrollController});
 
   @override
   ConsumerState<_FoodSearchSheet> createState() => _FoodSearchSheetState();
@@ -1741,74 +1747,248 @@ class _FoodSearchSheetState extends ConsumerState<_FoodSearchSheet> {
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: TextField(
-            decoration: InputDecoration(
-              hintText: AppStrings.searchFood,
-              prefixIcon: const Icon(Icons.search),
-              filled: true,
-              fillColor: AppColors.surface,
+  String _formatValue(double? value) =>
+      value == null ? '—' : value.toStringAsFixed(1);
+
+  Widget _macro(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: RichText(
+        text: TextSpan(
+          children: [
+            TextSpan(
+              text: '$label ',
+              style: GoogleFonts.inter(
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-            onChanged: _onQueryChanged,
-            style: GoogleFonts.inter(color: AppColors.onSurface),
+            TextSpan(
+              text: '${value}g',
+              style: GoogleFonts.montserrat(
+                color: AppColors.onSurface,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _foodTile(FoodModel food) {
+    final primary = StudentThemeColors.of(context).primary;
+    final initial = food.nome.trim().isEmpty ? '?' : food.nome.trim()[0];
+    return Material(
+      color: AppColors.surfaceLow,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: () => widget.onFoodSelected(food),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(13),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 19,
+                    backgroundColor: primary.withValues(alpha: 0.14),
+                    child: Text(
+                      initial.toUpperCase(),
+                      style: GoogleFonts.montserrat(
+                        color: primary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Text(
+                      food.nome,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.montserrat(
+                        color: AppColors.onSurface,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: primary.withValues(alpha: 0.13),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.add_rounded, color: primary, size: 18),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 11),
+              Row(
+                children: [
+                  Text(
+                    '${food.caloriasPor100g.toStringAsFixed(0)} kcal',
+                    style: GoogleFonts.montserrat(
+                      color: AppColors.calories,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'por 100 g',
+                    style: GoogleFonts.inter(
+                      color: AppColors.textSecondary,
+                      fontSize: 10,
+                    ),
+                  ),
+                  const Spacer(),
+                  _macro(
+                    'P',
+                    _formatValue(food.proteinasPor100g),
+                    AppColors.protein,
+                  ),
+                  const SizedBox(width: 5),
+                  _macro(
+                    'C',
+                    _formatValue(food.hidratosPor100g),
+                    AppColors.carbs,
+                  ),
+                  const SizedBox(width: 5),
+                  _macro(
+                    'G',
+                    _formatValue(food.gordurasPor100g),
+                    AppColors.fat,
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
-        Expanded(
-          child: ref
-              .watch(foodSearchProvider(_query))
-              .when(
-                data: (foods) => ListView.builder(
-                  itemCount: foods.length,
-                  itemBuilder: (_, i) {
-                    final food = foods[i];
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: AppColors.caloriesLight,
-                        child: Text(
-                          food.nome[0].toUpperCase(),
-                          style: GoogleFonts.inter(
-                            color: AppColors.calories,
-                            fontWeight: FontWeight.w600,
-                          ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = StudentThemeColors.of(context).primary;
+    final foodsAsync = ref.watch(foodSearchProvider(_query));
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: primary.withValues(alpha: 0.13),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.restaurant_menu_rounded, color: primary),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Registar alimento',
+                        style: GoogleFonts.montserrat(
+                          color: AppColors.onSurface,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
-                      title: Text(
-                        food.nome,
-                        style: GoogleFonts.inter(color: AppColors.onSurface),
-                      ),
-                      subtitle: Text(
-                        '${food.caloriasPor100g.toStringAsFixed(0)} kcal/100g',
+                      const SizedBox(height: 2),
+                      Text(
+                        'Escolhe um alimento da base nutricional',
                         style: GoogleFonts.inter(
                           color: AppColors.textSecondary,
+                          fontSize: 11,
                         ),
                       ),
-                      trailing: Icon(
-                        Icons.add_circle_outline,
-                        color: StudentThemeColors.of(context).primary,
-                      ),
-                      onTap: () => widget.onFoodSelected(food),
-                    );
-                  },
-                ),
-                loading: () => Center(
-                  child: CircularProgressIndicator(
-                    color: StudentThemeColors.of(context).primary,
+                    ],
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              decoration: InputDecoration(
+                hintText: 'Pesquisar alimento...',
+                hintStyle: GoogleFonts.inter(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
+                prefixIcon: Icon(
+                  Icons.search_rounded,
+                  color: primary,
+                  size: 20,
+                ),
+                filled: true,
+                fillColor: AppColors.surface,
+                contentPadding: const EdgeInsets.symmetric(vertical: 13),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(13),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onChanged: _onQueryChanged,
+              style: GoogleFonts.inter(
+                color: AppColors.onSurface,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 13),
+            Expanded(
+              child: foodsAsync.when(
+                data: (foods) => foods.isEmpty
+                    ? Center(
+                        child: Text(
+                          'Nenhum alimento disponível.',
+                          style: GoogleFonts.inter(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        controller: widget.scrollController,
+                        padding: const EdgeInsets.only(bottom: 8),
+                        itemCount: foods.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (_, index) => _foodTile(foods[index]),
+                      ),
+                loading: () =>
+                    Center(child: CircularProgressIndicator(color: primary)),
                 error: (_, __) => Center(
                   child: Text(
-                    'Erro',
-                    style: TextStyle(color: AppColors.textSecondary),
+                    'Não foi possível carregar os alimentos.',
+                    style: GoogleFonts.inter(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

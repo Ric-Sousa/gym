@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod/legacy.dart';
 
 import '../../core/config/app_constants.dart';
 import '../../features/auth/providers/auth_provider.dart';
@@ -18,6 +19,13 @@ bool _isDirectRoomForAdmin(String roomId, String adminId) {
       (parts[1] == adminId || parts[2] == adminId);
 }
 
+/// Cursor local otimista de leitura por conversa. É partilhado pelo badge e
+/// pela lista para que um snapshot antigo não volte a mostrar mensagens já
+/// abertas pelo admin enquanto a escrita no Firestore termina.
+final adminConversationReadAtProvider = StateProvider<Map<String, DateTime>>(
+  (ref) => <String, DateTime>{},
+);
+
 /// Counts unread direct messages without depending on an async map over room
 /// snapshots. The message listeners are the source of truth, so a parent-room
 /// refresh cannot briefly reset the tab badge to zero.
@@ -28,6 +36,10 @@ final adminUnreadCountProvider = StreamProvider<int>((ref) {
   final firestore = FirebaseFirestore.instance;
   final controller = StreamController<int>();
   final counts = <String, int>{};
+  final readAtByRoom = <String, DateTime?>{
+    ...ref.read(adminConversationReadAtProvider),
+  };
+  final messagesByRoom = <String, List<Map<String, dynamic>>>{};
   final initializedRooms = <String>{};
   final subscriptions =
       <String, StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>{};
@@ -41,6 +53,28 @@ final adminUnreadCountProvider = StreamProvider<int>((ref) {
     }
   }
 
+  void recalculate(String roomId) {
+    final readAt = readAtByRoom[roomId];
+    final messages = messagesByRoom[roomId] ?? const <Map<String, dynamic>>[];
+    counts[roomId] = messages.where((data) {
+      final timestamp = _adminChatTimestamp(data['timestamp']);
+      return data['lida'] != true &&
+          data['remetenteId'] != adminId &&
+          (readAt == null ||
+              (timestamp != null && timestamp.isAfter(readAt)));
+    }).length;
+  }
+
+  // Atualiza o badge imediatamente ao abrir a conversa, sem recriar todos os
+  // listeners Firestore por causa de uma alteração puramente local.
+  ref.listen<Map<String, DateTime>>(adminConversationReadAtProvider, (_, next) {
+    for (final entry in next.entries) {
+      readAtByRoom[entry.key] = entry.value;
+      if (messagesByRoom.containsKey(entry.key)) recalculate(entry.key);
+    }
+    emitTotal();
+  });
+
   bool ready() =>
       roomsDiscovered && subscriptions.keys.every(initializedRooms.contains);
 
@@ -53,10 +87,9 @@ final adminUnreadCountProvider = StreamProvider<int>((ref) {
         .snapshots()
         .listen((snapshot) {
           initializedRooms.add(roomId);
-          counts[roomId] = snapshot.docs.where((doc) {
-            final data = doc.data();
-            return data['lida'] != true && data['remetenteId'] != adminId;
-          }).length;
+          messagesByRoom[roomId] =
+              snapshot.docs.map((doc) => doc.data()).toList();
+          recalculate(roomId);
           if (firstValueEmitted || ready()) {
             firstValueEmitted = true;
             emitTotal();
@@ -86,8 +119,19 @@ final adminUnreadCountProvider = StreamProvider<int>((ref) {
       if (!currentIds.contains(oldId)) {
         subscriptions.remove(oldId)?.cancel();
         counts.remove(oldId);
+        readAtByRoom.remove(oldId);
+        messagesByRoom.remove(oldId);
         initializedRooms.remove(oldId);
       }
+    }
+    for (final doc in snapshot.docs) {
+      final persistedReadAt = _adminChatTimestamp(doc.data()['lastReadAt']);
+      final optimisticReadAt = readAtByRoom[doc.id];
+      if (persistedReadAt != null &&
+          (optimisticReadAt == null || persistedReadAt.isAfter(optimisticReadAt))) {
+        readAtByRoom[doc.id] = persistedReadAt;
+      }
+      if (messagesByRoom.containsKey(doc.id)) recalculate(doc.id);
     }
     for (final roomId in currentIds) {
       watchRoom(roomId);

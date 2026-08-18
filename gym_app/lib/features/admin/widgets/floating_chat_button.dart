@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod/legacy.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -31,7 +33,6 @@ import '../../../shared/widgets/group_members_preview.dart';
 import '../../../shared/widgets/profile_photo_viewer.dart';
 import '../../../shared/widgets/app_design_system.dart';
 import 'admin_messages_view.dart';
-
 
 // ─── Color constants ──────────────────────────────────────────────
 
@@ -67,7 +68,9 @@ final adminLegacyUnreadCountProvider = Provider<int>((ref) {
 /// persistido em `lida`, e não apenas mensagens recebidas enquanto a tela está
 /// aberta.
 final adminLegacyGroupUnreadCountProvider = StreamProvider<int>((ref) {
-  final adminId = ref.watch(authProvider.select((state) => state.user?.uid ?? ''));
+  final adminId = ref.watch(
+    authProvider.select((state) => state.user?.uid ?? ''),
+  );
   if (adminId.isEmpty) return Stream.value(0);
 
   final firestore = FirebaseFirestore.instance;
@@ -81,7 +84,9 @@ final adminLegacyGroupUnreadCountProvider = StreamProvider<int>((ref) {
 
   void emitTotal() {
     if (!controller.isClosed) {
-      controller.add(counts.values.fold<int>(0, (total, value) => total + value));
+      controller.add(
+        counts.values.fold<int>(0, (total, value) => total + value),
+      );
     }
   }
 
@@ -98,8 +103,7 @@ final adminLegacyGroupUnreadCountProvider = StreamProvider<int>((ref) {
       final timestamp = timestampOf(data['timestamp']);
       return data['lida'] != true &&
           data['remetenteId'] != adminId &&
-          (readAt == null ||
-              (timestamp != null && timestamp.isAfter(readAt)));
+          (readAt == null || (timestamp != null && timestamp.isAfter(readAt)));
     }).length;
   }
 
@@ -110,39 +114,44 @@ final adminLegacyGroupUnreadCountProvider = StreamProvider<int>((ref) {
         .doc(groupId)
         .collection(AppConstants.groupMessagesSubcollection)
         .snapshots()
-        .listen((snapshot) {
-      messagesByGroup[groupId] = snapshot.docs.map((doc) => doc.data()).toList();
-      recalculate(groupId);
-      emitTotal();
-    }, onError: (_) {
-      counts[groupId] = 0;
-      emitTotal();
-    });
+        .listen(
+          (snapshot) {
+            messagesByGroup[groupId] = snapshot.docs
+                .map((doc) => doc.data())
+                .toList();
+            recalculate(groupId);
+            emitTotal();
+          },
+          onError: (_) {
+            counts[groupId] = 0;
+            emitTotal();
+          },
+        );
   }
 
-  groupsSubscription = firestore.collection(AppConstants.groupsCollection).snapshots().listen(
-    (snapshot) {
-      final currentIds = snapshot.docs.map((doc) => doc.id).toSet();
-      for (final oldId in subscriptions.keys.toList()) {
-        if (!currentIds.contains(oldId)) {
-          subscriptions.remove(oldId)?.cancel();
-          counts.remove(oldId);
-          readAtByGroup.remove(oldId);
-          messagesByGroup.remove(oldId);
+  groupsSubscription = firestore
+      .collection(AppConstants.groupsCollection)
+      .snapshots()
+      .listen((snapshot) {
+        final currentIds = snapshot.docs.map((doc) => doc.id).toSet();
+        for (final oldId in subscriptions.keys.toList()) {
+          if (!currentIds.contains(oldId)) {
+            subscriptions.remove(oldId)?.cancel();
+            counts.remove(oldId);
+            readAtByGroup.remove(oldId);
+            messagesByGroup.remove(oldId);
+          }
         }
-      }
-      for (final doc in snapshot.docs) {
-        final raw = (doc.data()['lastReadAtByUser'] as Map?)?[adminId];
-        readAtByGroup[doc.id] = timestampOf(raw);
-        recalculate(doc.id);
-      }
-      for (final groupId in currentIds) {
-        watchGroup(groupId);
-      }
-      emitTotal();
-    },
-    onError: (_) => emitTotal(),
-  );
+        for (final doc in snapshot.docs) {
+          final raw = (doc.data()['lastReadAtByUser'] as Map?)?[adminId];
+          readAtByGroup[doc.id] = timestampOf(raw);
+          recalculate(doc.id);
+        }
+        for (final groupId in currentIds) {
+          watchGroup(groupId);
+        }
+        emitTotal();
+      }, onError: (_) => emitTotal());
 
   ref.onDispose(() {
     groupsSubscription?.cancel();
@@ -159,14 +168,23 @@ final isChatModalOpenProvider = StateProvider<bool>((ref) => false);
 
 // ─── Floating Chat Button ─────────────────────────────────────────
 
-class FloatingChatButton extends ConsumerWidget {
+class FloatingChatButton extends ConsumerStatefulWidget {
   /// Called when admin taps "Ver perfil" on a student's name.
   final void Function(UserModel aluno)? onViewProfile;
 
   const FloatingChatButton({super.key, this.onViewProfile});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FloatingChatButton> createState() =>
+      _FloatingChatButtonState();
+}
+
+class _FloatingChatButtonState extends ConsumerState<FloatingChatButton> {
+  double? _right;
+  double? _bottom;
+
+  @override
+  Widget build(BuildContext context) {
     final directUnreadCount = ref.watch(adminUnreadCountProvider).value ?? 0;
     final groupUnreadCount = ref.watch(adminGroupUnreadCountProvider);
     final unreadCount = directUnreadCount + groupUnreadCount;
@@ -192,11 +210,28 @@ class FloatingChatButton extends ConsumerWidget {
     );
 
     final compact = MediaQuery.sizeOf(context).width < 600;
-    return Positioned(
-      bottom: compact ? 16 : 24,
-      right: compact ? 16 : 24,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+    final buttonSize = compact ? 48.0 : 60.0;
+    final defaultRight = compact ? 16.0 : 24.0;
+    final defaultBottom = compact ? 16.0 : 24.0;
+
+    return Positioned.fill(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final maxRight = (constraints.maxWidth - buttonSize - 8)
+              .clamp(8.0, double.infinity)
+              .toDouble();
+          final maxBottom = (constraints.maxHeight - buttonSize - 8)
+              .clamp(8.0, double.infinity)
+              .toDouble();
+          final right = (_right ?? defaultRight)
+              .clamp(8.0, maxRight)
+              .toDouble();
+          final bottom = (_bottom ?? defaultBottom)
+              .clamp(8.0, maxBottom)
+              .toDouble();
+
+          final content = Column(
+            mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           // Unread badge chip above the button — black, minimalist
@@ -240,8 +275,8 @@ class FloatingChatButton extends ConsumerWidget {
               onTap: () => _openChatModal(context, ref),
               borderRadius: BorderRadius.circular(30),
               child: Container(
-                width: compact ? 54 : 60,
-                height: compact ? 54 : 60,
+                width: buttonSize,
+                height: buttonSize,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
@@ -257,19 +292,19 @@ class FloatingChatButton extends ConsumerWidget {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.chat_bubble_rounded,
                       color: Colors.white,
-                      size: 28,
+                      size: compact ? 23 : 28,
                     ),
                     // Badge count on button — black
                     if (unreadCount > 0)
                       Positioned(
-                        top: 10,
-                        right: 10,
+                        top: compact ? 6 : 10,
+                        right: compact ? 6 : 10,
                         child: Container(
-                          width: 20,
-                          height: 20,
+                          width: compact ? 18 : 20,
+                          height: compact ? 18 : 20,
                           decoration: BoxDecoration(
                             color: _badgeBlack,
                             shape: BoxShape.circle,
@@ -280,7 +315,7 @@ class FloatingChatButton extends ConsumerWidget {
                             unreadCount > 99 ? '99+' : '$unreadCount',
                             style: GoogleFonts.inter(
                               color: Colors.white,
-                              fontSize: 9,
+                              fontSize: compact ? 8 : 9,
                               fontWeight: FontWeight.w800,
                               height: 1,
                             ),
@@ -293,6 +328,36 @@ class FloatingChatButton extends ConsumerWidget {
             ),
           ),
         ],
+      );
+
+          final positionedContent = compact
+              ? GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onPanUpdate: (details) {
+                    setState(() {
+                      _right = (right - details.delta.dx)
+                          .clamp(8.0, maxRight)
+                          .toDouble();
+                      _bottom = (bottom - details.delta.dy)
+                          .clamp(8.0, maxBottom)
+                          .toDouble();
+                    });
+                  },
+                  child: content,
+                )
+              : content;
+
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                right: right,
+                bottom: bottom,
+                child: positionedContent,
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -320,7 +385,7 @@ class FloatingChatButton extends ConsumerWidget {
               isMobile: isMobile,
               screenWidth: screenWidth,
               screenHeight: screenHeight,
-              onViewProfile: onViewProfile,
+              onViewProfile: widget.onViewProfile,
               onClose: () => Navigator.of(dialogContext).pop(),
             ),
           ),
@@ -461,8 +526,7 @@ class _ConversationListView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final conversationsAsync = ref.watch(adminConversationsProvider);
     final directUnreadCount = ref.watch(adminUnreadCountProvider).value ?? 0;
-    final groupUnreadCount =
-        ref.watch(adminGroupUnreadCountProvider);
+    final groupUnreadCount = ref.watch(adminGroupUnreadCountProvider);
 
     return Column(
       children: [
@@ -572,7 +636,9 @@ class _ConversationListView extends ConsumerWidget {
                             itemBuilder: (context, index) {
                               final conv = conversations[index];
                               return ScrollReveal(
-                                key: ValueKey('admin-conversation-${conv.roomId}'),
+                                key: ValueKey(
+                                  'admin-conversation-${conv.roomId}',
+                                ),
                                 child: _ConversationListTile(
                                   preview: conv,
                                   onTap: () => onSelectConversation(conv),
@@ -584,31 +650,35 @@ class _ConversationListView extends ConsumerWidget {
                         loading: () => _buildLoadingState(context),
                         error: (_, __) => _buildErrorState(context),
                       ),
-                      ref.watch(adminGroupsProvider).when(
-                        data: (groups) {
-                          if (groups.isEmpty) {
-                            return _buildEmptyGroupsState(context);
-                          }
-                          return ListView.separated(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            itemCount: groups.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 6),
-                            itemBuilder: (context, index) => ScrollReveal(
-                              key: ValueKey('admin-group-${groups[index].id}'),
-                              child: _AdminGroupTile(
-                                group: groups[index],
-                                onTap: () => onSelectGroup(groups[index]),
-                              ),
-                            ),
-                          );
-                        },
-                        loading: () => _buildLoadingState(context),
-                        error: (_, __) => _buildErrorState(context),
-                      ),
+                      ref
+                          .watch(adminGroupsProvider)
+                          .when(
+                            data: (groups) {
+                              if (groups.isEmpty) {
+                                return _buildEmptyGroupsState(context);
+                              }
+                              return ListView.separated(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                                itemCount: groups.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 6),
+                                itemBuilder: (context, index) => ScrollReveal(
+                                  key: ValueKey(
+                                    'admin-group-${groups[index].id}',
+                                  ),
+                                  child: _AdminGroupTile(
+                                    group: groups[index],
+                                    onTap: () => onSelectGroup(groups[index]),
+                                  ),
+                                ),
+                              );
+                            },
+                            loading: () => _buildLoadingState(context),
+                            error: (_, __) => _buildErrorState(context),
+                          ),
                     ],
                   ),
                 ),
@@ -632,9 +702,7 @@ class _ConversationListView extends ConsumerWidget {
     return Center(
       child: Text(
         'Erro ao carregar',
-        style: GoogleFonts.inter(
-          color: AdminThemeColors.of(context).muted,
-        ),
+        style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
       ),
     );
   }
@@ -748,10 +816,8 @@ class _AdminGroupTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = AdminThemeColors.of(context);
-    final unreadCount = ref
-            .watch(adminGroupUnreadCountsProvider)
-            .value?[group.id] ??
-        0;
+    final unreadCount =
+        ref.watch(adminGroupUnreadCountsProvider).value?[group.id] ?? 0;
     final hasUnread = unreadCount > 0;
 
     return Container(
@@ -779,7 +845,8 @@ class _AdminGroupTile extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(11),
                     ),
                     clipBehavior: Clip.antiAlias,
-                    child: group.imagemUrl != null && group.imagemUrl!.isNotEmpty
+                    child:
+                        group.imagemUrl != null && group.imagemUrl!.isNotEmpty
                         ? Image.network(
                             group.imagemUrl!,
                             fit: BoxFit.cover,
@@ -1168,6 +1235,7 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
       await ref
           .read(chatRepositoryProvider)
           .sendMessage(widget.conversation.roomId, message);
+      _notifyChat(widget.conversation.roomId, adminId, '[Áudio]');
     } catch (error) {
       debugPrint('Erro ao enviar áudio do admin: $error');
       if (mounted) {
@@ -1198,6 +1266,7 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
       await ref
           .read(chatRepositoryProvider)
           .sendMessage(widget.conversation.roomId, message);
+      _notifyChat(widget.conversation.roomId, adminId, '[Imagem]');
       _scrollToBottom();
     } catch (error) {
       debugPrint('Erro ao enviar imagem do admin: $error');
@@ -1231,10 +1300,39 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
       await ref
           .read(chatRepositoryProvider)
           .sendMessage(widget.conversation.roomId, msg);
+      _notifyChat(widget.conversation.roomId, adminId, text);
       _scrollToBottom();
     } catch (_) {
       // Silently ignore
     }
+  }
+
+  /// Persiste e envia o aviso ao aluno através da mesma Function usada pelo
+  /// chat do aluno. Este detalhe do admin não passava anteriormente por esse
+  /// caminho, por isso a mensagem chegava ao chat mas não ao sino.
+  void _notifyChat(String salaId, String remetenteId, String texto) {
+    Future(() async {
+      try {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user == null) return;
+        final authToken = await user.getIdToken(true);
+        if (authToken == null || authToken.isEmpty) return;
+        await FirebaseFunctions.instanceFor(
+          region: 'europe-west1',
+        ).httpsCallable('sendChatNotification').call({
+          'salaId': salaId,
+          'remetenteId': remetenteId,
+          'texto': texto,
+          'authToken': authToken,
+        });
+      } on FirebaseFunctionsException catch (error) {
+        debugPrint(
+          '⚠️ Cloud Function sendChatNotification: ${error.code} — ${error.message}',
+        );
+      } catch (error) {
+        debugPrint('⚠️ Cloud Function sendChatNotification erro: $error');
+      }
+    });
   }
 
   void _showPhotoZoom(BuildContext context, UserModel aluno) {
@@ -1316,27 +1414,27 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
                           details.globalPosition,
                         ),
                         child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              aluno.nome,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: AdminThemeColors.of(context).text,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                aluno.nome,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AdminThemeColors.of(context).text,
+                                ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.arrow_drop_down,
-                            size: 16,
-                            color: AdminThemeColors.of(context).muted,
-                          ),
-                        ],
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.arrow_drop_down,
+                              size: 16,
+                              color: AdminThemeColors.of(context).muted,
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -1632,10 +1730,22 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
           children: [
             Positioned(
               left: (position.dx - 120)
-                  .clamp(8.0, (MediaQuery.sizeOf(context).width - 168).clamp(8.0, double.infinity))
+                  .clamp(
+                    8.0,
+                    (MediaQuery.sizeOf(context).width - 168).clamp(
+                      8.0,
+                      double.infinity,
+                    ),
+                  )
                   .toDouble(),
               top: (position.dy + 4)
-                  .clamp(8.0, (MediaQuery.sizeOf(context).height - 72).clamp(8.0, double.infinity))
+                  .clamp(
+                    8.0,
+                    (MediaQuery.sizeOf(context).height - 72).clamp(
+                      8.0,
+                      double.infinity,
+                    ),
+                  )
                   .toDouble(),
               child: Material(
                 elevation: 0,
@@ -1804,9 +1914,11 @@ class _ChatBubble extends StatelessWidget {
                     width: (MediaQuery.sizeOf(context).width - 72)
                         .clamp(140.0, 220.0)
                         .toDouble(),
-                    height: (MediaQuery.sizeOf(context).width - 72)
-                        .clamp(140.0, 220.0)
-                        .toDouble() * 0.77,
+                    height:
+                        (MediaQuery.sizeOf(context).width - 72)
+                            .clamp(140.0, 220.0)
+                            .toDouble() *
+                        0.77,
                     fit: BoxFit.cover,
                     loadingBuilder: (context, child, progress) {
                       if (progress == null) return child;
@@ -1814,9 +1926,11 @@ class _ChatBubble extends StatelessWidget {
                         width: (MediaQuery.sizeOf(context).width - 72)
                             .clamp(140.0, 220.0)
                             .toDouble(),
-                        height: (MediaQuery.sizeOf(context).width - 72)
-                            .clamp(140.0, 220.0)
-                            .toDouble() * 0.77,
+                        height:
+                            (MediaQuery.sizeOf(context).width - 72)
+                                .clamp(140.0, 220.0)
+                                .toDouble() *
+                            0.77,
                         child: Center(
                           child: CircularProgressIndicator(
                             strokeWidth: 2,

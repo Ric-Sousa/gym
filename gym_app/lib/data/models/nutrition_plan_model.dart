@@ -5,6 +5,9 @@ class Alimento {
   final String nome;
   final String quantidade;
   final double calorias;
+
+  /// ID do alimento usado na coleção `foods`, quando disponível.
+  final String? foodId;
   final double? proteinas;
   final double? hidratos;
   final double? gorduras;
@@ -13,6 +16,7 @@ class Alimento {
     required this.nome,
     required this.quantidade,
     required this.calorias,
+    this.foodId,
     this.proteinas,
     this.hidratos,
     this.gorduras,
@@ -61,6 +65,7 @@ class Alimento {
       nome: map['nome'] as String? ?? '',
       quantidade: map['quantidade'] as String? ?? '',
       calorias: (map['calorias'] as num?)?.toDouble() ?? 0.0,
+      foodId: map['foodId'] as String?,
       proteinas: (map['proteinas'] as num?)?.toDouble(),
       hidratos: (map['hidratos'] as num?)?.toDouble(),
       gorduras: (map['gorduras'] as num?)?.toDouble(),
@@ -72,6 +77,7 @@ class Alimento {
       'nome': nome,
       'quantidade': quantidade,
       'calorias': calorias,
+      if (foodId != null && foodId!.isNotEmpty) 'foodId': foodId,
       if (proteinas != null) 'proteinas': proteinas,
       if (hidratos != null) 'hidratos': hidratos,
       if (gorduras != null) 'gorduras': gorduras,

@@ -5,11 +5,13 @@ import '../../../../core/config/admin_theme.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../data/models/user_model.dart';
 import '../../../../data/models/nutrition_plan_model.dart';
+import '../../../../data/models/food_model.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/providers/admin_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/admin_responsive_dialog.dart';
 import '../../../../shared/widgets/admin_design_system.dart';
+import '../../../../shared/widgets/app_notification.dart';
 
 /// Editor do plano nutricional (admin) — GYMBT Lime+Dark.
 class NutritionEditor extends ConsumerStatefulWidget {
@@ -48,6 +50,595 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
   }
 
   Widget _buildEditor(NutritionPlanModel? plan) {
+    final colors = AdminThemeColors.of(context);
+    if (plan == null) {
+      return Center(
+        child: AdminSurface(
+          padding: const EdgeInsets.all(32),
+          color: colors.surface,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: colors.limeDim,
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: Icon(Icons.spa_outlined, size: 30, color: colors.lime),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'Começa o plano nutricional',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.montserrat(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: colors.text,
+                ),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                'Define as metas e cria uma rotina simples para este aluno.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(fontSize: 13, color: colors.muted),
+              ),
+              const SizedBox(height: 22),
+              FilledButton.icon(
+                onPressed: _createEmptyPlan,
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('Criar plano'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: colors.lime,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(2, 2, 2, 28),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 680;
+          final plannedCalories = plan.totalCaloriasPlaneadas;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(compact ? 20 : 26),
+                decoration: BoxDecoration(
+                  color: colors.surface2,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 46,
+                          height: 46,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: colors.limeDim,
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          child: Icon(Icons.spa_outlined, color: colors.lime),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Plano nutricional',
+                                style: GoogleFonts.montserrat(
+                                  fontSize: compact ? 19 : 23,
+                                  fontWeight: FontWeight.w800,
+                                  color: colors.text,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Rotina base · Segunda-feira',
+                                style: GoogleFonts.inter(
+                                  fontSize: 12,
+                                  color: colors.muted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (!compact)
+                          Icon(
+                            Icons.auto_awesome_outlined,
+                            color: colors.lime.withValues(alpha: 0.65),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        _minimalMetric(
+                          icon: Icons.local_fire_department_outlined,
+                          label: 'Meta diária',
+                          value: '${plan.metaCalorias.toStringAsFixed(0)} kcal',
+                          accent: colors.orange,
+                          onTap: () => _editMetaCalorias(plan),
+                        ),
+                        _minimalMetric(
+                          icon: Icons.water_drop_outlined,
+                          label: 'Hidratação',
+                          value:
+                              '${(plan.metaAgua / 1000).toStringAsFixed(1)} L',
+                          accent: colors.blue,
+                          onTap: () => _editMetaAgua(plan),
+                        ),
+                        _minimalMetric(
+                          icon: Icons.restaurant_outlined,
+                          label: 'Planeado',
+                          value: '${plannedCalories.toStringAsFixed(0)} kcal',
+                          accent: colors.lime,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              _minimalSectionHeader(
+                title: 'Refeições',
+                subtitle: plan.refeicoes.isEmpty
+                    ? 'Adiciona os momentos principais do dia.'
+                    : '${plan.refeicoes.length} ${plan.refeicoes.length == 1 ? 'refeição planeada' : 'refeições planeadas'}',
+                action: _minimalAction(
+                  label: 'Adicionar refeição',
+                  icon: Icons.add_rounded,
+                  onPressed: () => _addMeal(plan),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (plan.refeicoes.isEmpty)
+                _minimalEmpty(
+                  icon: Icons.restaurant_outlined,
+                  text: 'Ainda não existem refeições neste plano.',
+                )
+              else
+                ...plan.refeicoes.map((meal) => _minimalMeal(plan, meal)),
+              const SizedBox(height: 24),
+              _minimalSectionHeader(
+                title: 'Suplementos',
+                subtitle: plan.suplementos.isEmpty
+                    ? 'Opcional'
+                    : '${plan.suplementos.length} ${plan.suplementos.length == 1 ? 'item' : 'itens'}',
+                action: _minimalAction(
+                  label: 'Adicionar suplemento',
+                  icon: Icons.add_rounded,
+                  onPressed: () => _addSuplemento(plan),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _minimalSupplements(plan),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _minimalMetric({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color accent,
+    VoidCallback? onTap,
+  }) {
+    final colors = AdminThemeColors.of(context);
+    final content = Container(
+      width: 178,
+      padding: const EdgeInsets.fromLTRB(13, 12, 13, 12),
+      decoration: BoxDecoration(
+        color: colors.bg.withValues(alpha: 0.62),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 19, color: accent),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.inter(fontSize: 10, color: colors.muted),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.montserrat(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: colors.text,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (onTap != null)
+            Icon(Icons.edit_outlined, size: 14, color: colors.muted),
+        ],
+      ),
+    );
+    if (onTap == null) return content;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: content,
+    );
+  }
+
+  Widget _minimalSectionHeader({
+    required String title,
+    required String subtitle,
+    required Widget action,
+  }) {
+    final colors = AdminThemeColors.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 520;
+        final copy = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: GoogleFonts.montserrat(
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
+                color: colors.text,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              subtitle,
+              style: GoogleFonts.inter(fontSize: 12, color: colors.muted),
+            ),
+          ],
+        );
+        if (stacked) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [copy, const SizedBox(height: 12), action],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: copy),
+            action,
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _minimalAction({
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    final colors = AdminThemeColors.of(context);
+    return FilledButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+      style: FilledButton.styleFrom(
+        backgroundColor: colors.limeDim,
+        foregroundColor: colors.lime,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+        textStyle: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Widget _minimalEmpty({required IconData icon, required String text}) {
+    final colors = AdminThemeColors.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+      decoration: BoxDecoration(
+        color: colors.surface2,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 28, color: colors.muted),
+          const SizedBox(height: 9),
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(fontSize: 12, color: colors.muted),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _minimalMeal(NutritionPlanModel plan, PlannedMeal meal) {
+    final colors = AdminThemeColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        decoration: BoxDecoration(
+          color: colors.surface,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 5,
+            ),
+            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+            shape: const RoundedRectangleBorder(),
+            collapsedShape: const RoundedRectangleBorder(),
+            leading: Container(
+              width: 38,
+              height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: colors.limeDim,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                Icons.restaurant_outlined,
+                size: 19,
+                color: colors.lime,
+              ),
+            ),
+            title: Text(
+              meal.tipo,
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: colors.text,
+              ),
+            ),
+            subtitle: Text(
+              '${meal.alimentos.length} ${meal.alimentos.length == 1 ? 'alimento' : 'alimentos'} · ${meal.totalCalorias.toStringAsFixed(0)} kcal',
+              style: GoogleFonts.inter(fontSize: 11, color: colors.muted),
+            ),
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(14, 4, 14, 10),
+                decoration: BoxDecoration(
+                  color: colors.bg.withValues(alpha: 0.72),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  children: [
+                    if (meal.alimentos.isEmpty)
+                      _minimalEmpty(
+                        icon: Icons.inventory_2_outlined,
+                        text: 'Adiciona o primeiro alimento.',
+                      )
+                    else
+                      ...meal.alimentos.map(
+                        (food) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 7),
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.circle,
+                                    size: 7,
+                                    color: colors.lime,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      food.nome,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: GoogleFonts.inter(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: colors.text,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    food.quantidade,
+                                    style: GoogleFonts.montserrat(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: colors.lime,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '${food.calorias.toStringAsFixed(0)} kcal',
+                                    style: GoogleFonts.montserrat(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: colors.muted,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Wrap(
+                                  spacing: 6,
+                                  runSpacing: 5,
+                                  children: [
+                                    _macroBadge(
+                                      'Proteína',
+                                      food.proteinas,
+                                      colors.blue,
+                                    ),
+                                    _macroBadge(
+                                      'Carboidratos',
+                                      food.hidratos,
+                                      colors.orange,
+                                    ),
+                                    _macroBadge(
+                                      'Gordura',
+                                      food.gorduras,
+                                      colors.purple,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => _addAlimentoToMeal(plan, meal.tipo),
+                        icon: Icon(
+                          Icons.add_rounded,
+                          size: 16,
+                          color: colors.lime,
+                        ),
+                        label: Text(
+                          'Adicionar alimento da base de dados',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: colors.lime,
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 6,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _macroBadge(String label, double? value, Color color) {
+    final colors = AdminThemeColors.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        '$label ${value == null ? '—' : '${value.toStringAsFixed(1)}g'}',
+        style: GoogleFonts.inter(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: value == null ? colors.muted : color,
+        ),
+      ),
+    );
+  }
+
+  Widget _minimalSupplements(NutritionPlanModel plan) {
+    final colors = AdminThemeColors.of(context);
+    if (plan.suplementos.isEmpty) {
+      return _minimalEmpty(
+        icon: Icons.medication_outlined,
+        text: 'Nenhum suplemento adicionado.',
+      );
+    }
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        children: plan.suplementos.asMap().entries.map((entry) {
+          final supplement = entry.value;
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            child: Row(
+              children: [
+                Icon(Icons.medication_outlined, size: 19, color: colors.purple),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        supplement.nome,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: colors.text,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${supplement.dosagem} · ${supplement.horario}',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: colors.muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => _removeSuplemento(plan, entry.key),
+                  tooltip: 'Remover suplemento',
+                  icon: Icon(
+                    Icons.close_rounded,
+                    size: 17,
+                    color: colors.muted,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildLegacyEditor(NutritionPlanModel? plan) {
     final colors = AdminThemeColors.of(context);
 
     if (plan == null) {
@@ -652,52 +1243,66 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
   }
 
   Future<void> _editMetaCalorias(NutritionPlanModel plan) async {
+    final colors = AdminThemeColors.of(context);
     final controller = TextEditingController(
-      text: plan.metaCalorias.toString(),
+      text: plan.metaCalorias.toStringAsFixed(0),
     );
     final result = await showDialog<double>(
       context: context,
-      builder: (ctx) => AdminResponsiveAlertDialog(
-        backgroundColor: AdminThemeColors.of(context).surface,
-        title: Text(
-          'Meta calórica',
-          style: GoogleFonts.inter(
-            fontWeight: FontWeight.w700,
-            color: AdminThemeColors.of(context).text,
-          ),
-        ),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
-          decoration: const InputDecoration(
-            labelText: 'Calorias',
-            suffixText: 'kcal',
-          ),
+      builder: (ctx) => AdminResponsiveDialog(
+        title: 'Meta diária',
+        subtitle: 'Define o objetivo energético diário do aluno.',
+        icon: Icons.local_fire_department_outlined,
+        maxWidth: 440,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AdminDialogSection(
+              title: 'Objetivo',
+              child: TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                style: GoogleFonts.montserrat(
+                  color: colors.text,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                ),
+                decoration: InputDecoration(
+                  hintText: '2000',
+                  suffixText: 'kcal',
+                  suffixStyle: GoogleFonts.inter(
+                    color: colors.orange,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.local_fire_department_outlined,
+                    color: colors.orange,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'O valor será aplicado a todos os dias do plano.',
+              style: GoogleFonts.inter(fontSize: 12, color: colors.muted),
+            ),
+          ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              AppStrings.cancel,
-              style: GoogleFonts.inter(
-                color: AdminThemeColors.of(context).muted,
-              ),
-            ),
+            style: adminDialogCancelStyle(ctx),
+            child: const Text('Cancelar'),
           ),
-          ElevatedButton(
+          ElevatedButton.icon(
             onPressed: () => Navigator.pop(
               ctx,
               double.tryParse(controller.text.replaceAll(',', '.')),
             ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AdminThemeColors.of(context).lime,
-              foregroundColor: Colors.white,
-            ),
-            child: Text(
-              AppStrings.save,
-              style: GoogleFonts.inter(fontWeight: FontWeight.w700),
-            ),
+            icon: const Icon(Icons.check_rounded, size: 17),
+            label: const Text('Guardar meta'),
+            style: adminDialogPrimaryStyle(ctx),
           ),
         ],
       ),
@@ -708,53 +1313,66 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
   }
 
   Future<void> _editMetaAgua(NutritionPlanModel plan) async {
+    final colors = AdminThemeColors.of(context);
     final controller = TextEditingController(
       text: plan.metaAgua.toStringAsFixed(0),
     );
     final result = await showDialog<double>(
       context: context,
-      builder: (ctx) => AdminResponsiveAlertDialog(
-        backgroundColor: AdminThemeColors.of(context).surface,
-        title: Text(
-          'Meta diária de água',
-          style: GoogleFonts.inter(
-            fontWeight: FontWeight.w700,
-            color: AdminThemeColors.of(context).text,
-          ),
-        ),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          style: GoogleFonts.inter(color: AdminThemeColors.of(context).text),
-          decoration: const InputDecoration(
-            labelText: 'Quantidade de água',
-            suffixText: 'ml',
-            hintText: 'Ex.: 2500',
-          ),
+      builder: (ctx) => AdminResponsiveDialog(
+        title: 'Hidratação',
+        subtitle: 'Define a quantidade de água recomendada por dia.',
+        icon: Icons.water_drop_outlined,
+        maxWidth: 440,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AdminDialogSection(
+              title: 'Objetivo diário',
+              child: TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                style: GoogleFonts.montserrat(
+                  color: colors.text,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                ),
+                decoration: InputDecoration(
+                  hintText: '2500',
+                  suffixText: 'ml',
+                  suffixStyle: GoogleFonts.inter(
+                    color: colors.blue,
+                    fontWeight: FontWeight.w800,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.water_drop_outlined,
+                    color: colors.blue,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'O valor será convertido automaticamente para litros no plano.',
+              style: GoogleFonts.inter(fontSize: 12, color: colors.muted),
+            ),
+          ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              AppStrings.cancel,
-              style: GoogleFonts.inter(
-                color: AdminThemeColors.of(context).muted,
-              ),
-            ),
+            style: adminDialogCancelStyle(ctx),
+            child: const Text('Cancelar'),
           ),
-          ElevatedButton(
+          ElevatedButton.icon(
             onPressed: () => Navigator.pop(
               ctx,
               double.tryParse(controller.text.replaceAll(',', '.')),
             ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AdminThemeColors.of(context).lime,
-              foregroundColor: Colors.white,
-            ),
-            child: Text(
-              AppStrings.save,
-              style: GoogleFonts.inter(fontWeight: FontWeight.w700),
-            ),
+            icon: const Icon(Icons.check_rounded, size: 17),
+            label: const Text('Guardar meta'),
+            style: adminDialogPrimaryStyle(ctx),
           ),
         ],
       ),
@@ -768,98 +1386,255 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
     NutritionPlanModel plan,
     String mealTipo,
   ) async {
-    final nome = TextEditingController();
-    final qtd = TextEditingController();
-    final kcal = TextEditingController();
-    final result = await showDialog<Map<String, String>>(
+    List<FoodModel> foods;
+    try {
+      foods = await ref.read(nutritionRepositoryProvider).getAvailableFoods();
+    } catch (_) {
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Não foi possível carregar os alimentos da base de dados.',
+          type: NotificationType.error,
+        );
+      }
+      return;
+    }
+    if (foods.isEmpty) {
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Ainda não existem alimentos na base de dados. Adiciona-os primeiro na secção Alimentos.',
+          type: NotificationType.info,
+        );
+      }
+      return;
+    }
+
+    final gramsController = TextEditingController(text: '100');
+    FoodModel? selectedFood;
+    var visibleFoods = List<FoodModel>.from(foods);
+    final result = await showDialog<(FoodModel, double)>(
       context: context,
-      builder: (ctx) => AdminResponsiveAlertDialog(
-        backgroundColor: AdminThemeColors.of(context).surface,
-        title: Text(
-          'Adicionar alimento',
-          style: GoogleFonts.inter(
-            fontWeight: FontWeight.w700,
-            color: AdminThemeColors.of(context).text,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nome,
-              style: GoogleFonts.inter(
-                color: AdminThemeColors.of(context).text,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          Widget foodOption(FoodModel food) {
+            final selected = selectedFood?.id == food.id;
+            final colors = AdminThemeColors.of(ctx);
+            return Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(13),
+              child: InkWell(
+                onTap: () => setDialogState(() => selectedFood = food),
+                borderRadius: BorderRadius.circular(13),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: selected ? colors.limeDim : colors.bg,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        selected
+                            ? Icons.check_circle
+                            : Icons.restaurant_outlined,
+                        size: 18,
+                        color: selected ? colors.lime : colors.muted,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              food.nome,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: colors.text,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '${food.caloriasPor100g.toStringAsFixed(0)} kcal · P ${food.proteinasPor100g?.toStringAsFixed(1) ?? '—'}g · C ${food.hidratosPor100g?.toStringAsFixed(1) ?? '—'}g · G ${food.gordurasPor100g?.toStringAsFixed(1) ?? '—'}g / 100g',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                color: colors.muted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              decoration: const InputDecoration(labelText: 'Nome do alimento'),
+            );
+          }
+
+          final filtered = visibleFoods;
+          final colors = AdminThemeColors.of(ctx);
+          return AdminResponsiveDialog(
+            title: 'Adicionar alimento',
+            subtitle:
+                'Escolhe um alimento da base de dados e indica a quantidade.',
+            icon: Icons.restaurant_menu_outlined,
+            maxWidth: 620,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AdminDialogSection(
+                  title: 'Pesquisar na base de dados',
+                  child: TextField(
+                    onChanged: (value) async {
+                      setDialogState(() {});
+                      final trimmed = value.trim();
+                      if (trimmed.isEmpty) {
+                        setDialogState(
+                          () => visibleFoods = List<FoodModel>.from(foods),
+                        );
+                        return;
+                      }
+                      final matches = await ref
+                          .read(nutritionRepositoryProvider)
+                          .searchFoods(trimmed);
+                      if (ctx.mounted) {
+                        setDialogState(() => visibleFoods = matches);
+                      }
+                    },
+                    style: GoogleFonts.inter(color: colors.text),
+                    decoration: InputDecoration(
+                      hintText: 'Ex.: peito de frango, arroz...',
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: colors.muted,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                if (filtered.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 22),
+                    child: Text(
+                      'Nenhum alimento encontrado na base de dados.',
+                      style: GoogleFonts.inter(
+                        color: colors.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 250),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 6),
+                      itemBuilder: (_, index) => foodOption(filtered[index]),
+                    ),
+                  ),
+                AdminDialogSection(
+                  title: 'Quantidade',
+                  child: TextField(
+                    controller: gramsController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    style: GoogleFonts.montserrat(
+                      color: colors.text,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: '100',
+                      suffixText: 'g',
+                      suffixStyle: GoogleFonts.inter(
+                        color: colors.lime,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.scale_outlined,
+                        color: colors.lime,
+                      ),
+                    ),
+                  ),
+                ),
+                if (selectedFood != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Os valores nutricionais serão calculados para a quantidade indicada.',
+                    style: GoogleFonts.inter(fontSize: 11, color: colors.muted),
+                  ),
+                ],
+              ],
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: qtd,
-              style: GoogleFonts.inter(
-                color: AdminThemeColors.of(context).text,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: adminDialogCancelStyle(ctx),
+                child: const Text('Cancelar'),
               ),
-              decoration: const InputDecoration(labelText: 'Quantidade'),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: kcal,
-              keyboardType: TextInputType.number,
-              style: GoogleFonts.inter(
-                color: AdminThemeColors.of(context).text,
+              ElevatedButton.icon(
+                onPressed: selectedFood == null
+                    ? null
+                    : () {
+                        final grams = double.tryParse(
+                          gramsController.text.replaceAll(',', '.'),
+                        );
+                        if (grams != null && grams > 0) {
+                          Navigator.pop(ctx, (selectedFood!, grams));
+                        }
+                      },
+                icon: const Icon(Icons.add_rounded, size: 17),
+                label: const Text('Adicionar'),
+                style: adminDialogPrimaryStyle(ctx),
               ),
-              decoration: const InputDecoration(labelText: 'Calorias'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              AppStrings.cancel,
-              style: GoogleFonts.inter(
-                color: AdminThemeColors.of(context).muted,
-              ),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, {
-              'nome': nome.text.trim(),
-              'quantidade': qtd.text.trim(),
-              'calorias': kcal.text.replaceAll(',', '.'),
-            }),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AdminThemeColors.of(context).lime,
-              foregroundColor: Colors.white,
-            ),
-            child: Text(
-              AppStrings.save,
-              style: GoogleFonts.inter(fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
-    if (result != null && result['nome']!.isNotEmpty) {
-      final alimento = Alimento(
-        nome: result['nome']!,
-        quantidade: result['quantidade']!,
-        calorias: double.tryParse(result['calorias']!) ?? 0.0,
-      );
-      final updated = plan.refeicoes
-          .map(
-            (m) => m.tipo == mealTipo
-                ? PlannedMeal(
-                    tipo: m.tipo,
-                    alimentos: [...m.alimentos, alimento],
-                    instrucoes: m.instrucoes,
-                  )
-                : m,
-          )
-          .toList();
-      await _saveToAllDays({
-        'refeicoes': updated.map((m) => m.toMap()).toList(),
-      });
-    }
+
+    if (result == null) return;
+    final food = result.$1;
+    final grams = result.$2;
+    final factor = grams / 100;
+    final alimento = Alimento(
+      foodId: food.id,
+      nome: food.nome,
+      quantidade:
+          '${grams.toStringAsFixed(grams == grams.roundToDouble() ? 0 : 1)}g',
+      calorias: food.caloriasPor100g * factor,
+      proteinas: food.proteinasPor100g == null
+          ? null
+          : food.proteinasPor100g! * factor,
+      hidratos: food.hidratosPor100g == null
+          ? null
+          : food.hidratosPor100g! * factor,
+      gorduras: food.gordurasPor100g == null
+          ? null
+          : food.gordurasPor100g! * factor,
+    );
+    final updated = plan.refeicoes
+        .map(
+          (m) => m.tipo == mealTipo
+              ? PlannedMeal(
+                  tipo: m.tipo,
+                  alimentos: [...m.alimentos, alimento],
+                  instrucoes: m.instrucoes,
+                )
+              : m,
+        )
+        .toList();
+    await _saveToAllDays({'refeicoes': updated.map((m) => m.toMap()).toList()});
   }
 
   Future<void> _addMeal(NutritionPlanModel plan) async {

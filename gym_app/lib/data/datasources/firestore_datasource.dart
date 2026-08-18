@@ -102,9 +102,7 @@ class FirestoreDataSource {
       if (!doc.exists || doc.data() == null) return null;
       return QuestionnaireResponse.fromMap(doc.data()!);
     } on FirebaseException catch (e) {
-      throw ServerException(
-        message: e.message ?? 'Erro ao obter questionário',
-      );
+      throw ServerException(message: e.message ?? 'Erro ao obter questionário');
     }
   }
 
@@ -169,9 +167,11 @@ class FirestoreDataSource {
         .collection(AppConstants.questionnaireConfigCollection)
         .doc(QuestionnaireConfig.documentId)
         .snapshots()
-        .map((doc) => !doc.exists || doc.data() == null
-            ? QuestionnaireConfig.defaultConfig()
-            : QuestionnaireConfig.fromMap(doc.data()!));
+        .map(
+          (doc) => !doc.exists || doc.data() == null
+              ? QuestionnaireConfig.defaultConfig()
+              : QuestionnaireConfig.fromMap(doc.data()!),
+        );
   }
 
   /// Guarda a configuração criada pelo administrador.
@@ -196,9 +196,11 @@ class FirestoreDataSource {
         .collection('questionario')
         .doc('resposta')
         .snapshots()
-        .map((doc) => doc.exists && doc.data() != null
-            ? QuestionnaireResponse.fromMap(doc.data()!)
-            : null);
+        .map(
+          (doc) => doc.exists && doc.data() != null
+              ? QuestionnaireResponse.fromMap(doc.data()!)
+              : null,
+        );
   }
 
   /// Stream de um utilizador.
@@ -219,9 +221,11 @@ class FirestoreDataSource {
         .collection(AppConstants.usersCollection)
         .where('role', isEqualTo: AppConstants.roleAluno)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => UserModel.fromMap(doc.id, doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => UserModel.fromMap(doc.id, doc.data()))
+              .toList(),
+        );
   }
 
   /// Lista todos os alunos.
@@ -350,10 +354,7 @@ class FirestoreDataSource {
   }
 
   /// Stream do histórico de diários (para o dashboard do aluno).
-  Stream<List<DiaryModel>> watchDiaryHistory(
-    String userId, {
-    int limit = 90,
-  }) {
+  Stream<List<DiaryModel>> watchDiaryHistory(String userId, {int limit = 90}) {
     return _firestore
         .collection(AppConstants.usersCollection)
         .doc(userId)
@@ -401,9 +402,11 @@ class FirestoreDataSource {
         .collection(AppConstants.nutritionPlanSubcollection)
         .doc(diaSemana)
         .snapshots()
-        .map((doc) => doc.exists && doc.data() != null
-            ? NutritionPlanModel.fromMap(diaSemana, userId, doc.data()!)
-            : null);
+        .map(
+          (doc) => doc.exists && doc.data() != null
+              ? NutritionPlanModel.fromMap(diaSemana, userId, doc.data()!)
+              : null,
+        );
   }
 
   /// Obtém plano nutricional para um dia da semana.
@@ -454,9 +457,11 @@ class FirestoreDataSource {
     return _firestore
         .collection(AppConstants.globalWorkoutPlansCollection)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => WorkoutPlanModel.fromMap(doc.id, '', doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => WorkoutPlanModel.fromMap(doc.id, '', doc.data()))
+              .toList(),
+        );
   }
 
   /// Lista os planos globais criados pelo administrador.
@@ -581,9 +586,13 @@ class FirestoreDataSource {
         .doc(userId)
         .collection(AppConstants.workoutPlanSubcollection)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => WorkoutPlanModel.fromMap(doc.id, userId, doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map(
+                (doc) => WorkoutPlanModel.fromMap(doc.id, userId, doc.data()),
+              )
+              .toList(),
+        );
   }
 
   /// Lista todos os planos de treino do aluno.
@@ -667,8 +676,9 @@ class FirestoreDataSource {
   Future<void> markMessagesAsRead(
     String salaId,
     String userId,
-    DateTime readAt,
-  ) async {
+    DateTime readAt, {
+    bool persistConversationCursor = false,
+  }) async {
     try {
       final roomRef = _firestore
           .collection(AppConstants.chatCollection)
@@ -691,6 +701,12 @@ class FirestoreDataSource {
           batch.update(doc.reference, {'lida': true});
         }
         await batch.commit();
+      }
+
+      // O cursor no documento pai é específico da leitura do admin. O aluno
+      // continua a usar apenas `lida`, que é compatível com os dados legados.
+      if (persistConversationCursor) {
+        await roomRef.set({'lastReadAt': readAt}, SetOptions(merge: true));
       }
     } on FirebaseException catch (e) {
       throw ServerException(
@@ -806,9 +822,11 @@ class FirestoreDataSource {
         .orderBy('data', descending: true)
         .limit(limit)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => ProgressModel.fromMap(doc.id, userId, doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => ProgressModel.fromMap(doc.id, userId, doc.data()))
+              .toList(),
+        );
   }
 
   /// Obtém registos de progresso.
@@ -857,9 +875,13 @@ class FirestoreDataSource {
         .collection('progressVideos')
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => ProgressVideoModel.fromMap(doc.id, userId, doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map(
+                (doc) => ProgressVideoModel.fromMap(doc.id, userId, doc.data()),
+              )
+              .toList(),
+        );
   }
 
   Future<List<ProgressVideoModel>> getProgressVideos(String userId) async {
@@ -926,9 +948,11 @@ class FirestoreDataSource {
         .collection(AppConstants.foodsCollection)
         .orderBy('nome')
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => FoodModel.fromMap(doc.id, doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => FoodModel.fromMap(doc.id, doc.data()))
+              .toList(),
+        );
   }
 
   /// Lista todos os alimentos.
@@ -980,9 +1004,11 @@ class FirestoreDataSource {
         .collection(AppConstants.workoutLogSubcollection)
         .doc(date)
         .snapshots()
-        .map((doc) => doc.exists && doc.data() != null
-            ? WorkoutLogModel.fromMap(doc.id, userId, doc.data()!)
-            : null);
+        .map(
+          (doc) => doc.exists && doc.data() != null
+              ? WorkoutLogModel.fromMap(doc.id, userId, doc.data()!)
+              : null,
+        );
   }
 
   /// Obtém registo de treino de um dia específico.
@@ -1040,9 +1066,11 @@ class FirestoreDataSource {
         .orderBy('data', descending: true)
         .limit(limit)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => WorkoutLogModel.fromMap(doc.id, userId, doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => WorkoutLogModel.fromMap(doc.id, userId, doc.data()))
+              .toList(),
+        );
   }
 
   /// Obtém histórico de registos de treino.
@@ -1091,9 +1119,11 @@ class FirestoreDataSource {
         .collection(AppConstants.paymentsCollection)
         .orderBy('data', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => PaymentModel.fromMap(doc.id, doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => PaymentModel.fromMap(doc.id, doc.data()))
+              .toList(),
+        );
   }
 
   /// Obtém pagamentos de um utilizador.
@@ -1169,6 +1199,56 @@ class FirestoreDataSource {
           notifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           return notifications;
         });
+  }
+
+  Future<void> markNotificationRead(
+    String userId,
+    String notificationId,
+  ) async {
+    if (userId.isEmpty || notificationId.isEmpty) return;
+    try {
+      final ref = _firestore
+          .collection(AppConstants.notificationsCollection)
+          .doc(notificationId);
+      final doc = await ref.get();
+      if (!doc.exists || doc.data()?['userId'] != userId) return;
+      await ref.update({'read': true, 'readAt': FieldValue.serverTimestamp()});
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao marcar aviso como lido',
+      );
+    }
+  }
+
+  Future<void> markChatNotificationsRead(String userId, String salaId) async {
+    if (userId.isEmpty || salaId.isEmpty) return;
+    try {
+      final snapshot = await _firestore
+          .collection(AppConstants.notificationsCollection)
+          .where('userId', isEqualTo: userId)
+          .get();
+      final matchingDocs = snapshot.docs.where((doc) {
+        final metadata = doc.data()['metadata'];
+        return metadata is Map &&
+            metadata['salaId'] == salaId &&
+            doc.data()['read'] != true;
+      }).toList();
+      for (var offset = 0; offset < matchingDocs.length; offset += 450) {
+        final end = (offset + 450).clamp(0, matchingDocs.length);
+        final batch = _firestore.batch();
+        for (final doc in matchingDocs.sublist(offset, end)) {
+          batch.update(doc.reference, {
+            'read': true,
+            'readAt': FieldValue.serverTimestamp(),
+          });
+        }
+        await batch.commit();
+      }
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao marcar mensagens como lidas',
+      );
+    }
   }
 
   Future<void> markNotificationsRead(String userId) async {
@@ -1340,16 +1420,15 @@ class FirestoreDataSource {
 
   /// Stream de todos os grupos para o admin.
   Stream<List<GroupModel>> watchAllGroups() {
-    return _firestore
-        .collection(AppConstants.groupsCollection)
-        .snapshots()
-        .map((snapshot) {
-          final groups = snapshot.docs
-              .map((doc) => GroupModel.fromMap(doc.id, doc.data()))
-              .toList();
-          groups.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          return groups;
-        });
+    return _firestore.collection(AppConstants.groupsCollection).snapshots().map(
+      (snapshot) {
+        final groups = snapshot.docs
+            .map((doc) => GroupModel.fromMap(doc.id, doc.data()))
+            .toList();
+        groups.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return groups;
+      },
+    );
   }
 
   /// Obtém grupos onde o utilizador é membro.
@@ -1403,9 +1482,7 @@ class FirestoreDataSource {
           .doc(groupId)
           .update(data);
     } on FirebaseException catch (e) {
-      throw ServerException(
-        message: e.message ?? 'Erro ao atualizar grupo',
-      );
+      throw ServerException(message: e.message ?? 'Erro ao atualizar grupo');
     }
   }
 
@@ -1431,9 +1508,7 @@ class FirestoreDataSource {
       batch.set(groupRef, {
         'lastMessage': (data['texto'] as String?)?.isNotEmpty == true
             ? data['texto']
-            : (data['attachmentUrl'] != null
-                ? 'Imagem'
-                : 'Mensagem de áudio'),
+            : (data['attachmentUrl'] != null ? 'Imagem' : 'Mensagem de áudio'),
         'lastTimestamp': timestamp,
         'lastSenderId': data['remetenteId'] ?? '',
         'lastMessageId': messageRef.id,
@@ -1454,11 +1529,14 @@ class FirestoreDataSource {
     DateTime readAt,
   ) async {
     try {
-      await _firestore.collection(AppConstants.groupsCollection).doc(groupId).update({
-        'lastReadAtByUser.$userId': readAt,
-      });
+      await _firestore
+          .collection(AppConstants.groupsCollection)
+          .doc(groupId)
+          .update({'lastReadAtByUser.$userId': readAt});
     } on FirebaseException catch (e) {
-      throw ServerException(message: e.message ?? 'Erro ao marcar grupo como lido');
+      throw ServerException(
+        message: e.message ?? 'Erro ao marcar grupo como lido',
+      );
     }
   }
 
@@ -1481,16 +1559,22 @@ class FirestoreDataSource {
 
   /// Stream de todos os exercícios ou filtrado por grupo muscular.
   Stream<List<Map<String, dynamic>>> watchExercises({String? grupoMuscular}) {
-    Query<Map<String, dynamic>> query =
-        _firestore.collection(AppConstants.exercisesCollection);
+    Query<Map<String, dynamic>> query = _firestore.collection(
+      AppConstants.exercisesCollection,
+    );
     if (grupoMuscular != null) {
       query = query.where('grupoMuscular', isEqualTo: grupoMuscular);
     }
-    return query.orderBy('nome').snapshots().map((snapshot) => snapshot.docs.map((doc) {
-      final data = Map<String, dynamic>.from(doc.data());
-      data['id'] = doc.id;
-      return data;
-    }).toList());
+    return query
+        .orderBy('nome')
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs.map((doc) {
+            final data = Map<String, dynamic>.from(doc.data());
+            data['id'] = doc.id;
+            return data;
+          }).toList(),
+        );
   }
 
   /// Lista todos os exercícios ou filtra por grupo muscular.
@@ -1518,12 +1602,16 @@ class FirestoreDataSource {
   Stream<List<ExerciseCatalogModel>> watchExerciseCatalog({
     bool includeInactive = true,
   }) {
-    Query<Map<String, dynamic>> query =
-        _firestore.collection(AppConstants.exercisesCollection);
+    Query<Map<String, dynamic>> query = _firestore.collection(
+      AppConstants.exercisesCollection,
+    );
     if (!includeInactive) {
       query = query.where('ativo', isEqualTo: true);
     }
-    return query.orderBy('nome').snapshots().map(
+    return query
+        .orderBy('nome')
+        .snapshots()
+        .map(
           (snapshot) => snapshot.docs
               .map((doc) => ExerciseCatalogModel.fromMap(doc.id, doc.data()))
               .toList(),
@@ -1550,7 +1638,9 @@ class FirestoreDataSource {
           .doc(exercise.id)
           .set(exercise.toMap(now: DateTime.now()), SetOptions(merge: true));
     } on FirebaseException catch (e) {
-      throw ServerException(message: e.message ?? 'Erro ao atualizar exercício');
+      throw ServerException(
+        message: e.message ?? 'Erro ao atualizar exercício',
+      );
     }
   }
 
@@ -1560,9 +1650,14 @@ class FirestoreDataSource {
       await _firestore
           .collection(AppConstants.exercisesCollection)
           .doc(exerciseId)
-          .set({'ativo': false, 'atualizadoEm': DateTime.now()}, SetOptions(merge: true));
+          .set({
+            'ativo': false,
+            'atualizadoEm': DateTime.now(),
+          }, SetOptions(merge: true));
     } on FirebaseException catch (e) {
-      throw ServerException(message: e.message ?? 'Erro ao desativar exercício');
+      throw ServerException(
+        message: e.message ?? 'Erro ao desativar exercício',
+      );
     }
   }
 
@@ -1588,7 +1683,9 @@ class FirestoreDataSource {
         await batch.commit();
       }
     } on FirebaseException catch (e) {
-      throw ServerException(message: e.message ?? 'Erro ao importar exercícios');
+      throw ServerException(
+        message: e.message ?? 'Erro ao importar exercícios',
+      );
     }
   }
 

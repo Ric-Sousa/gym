@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:riverpod/legacy.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/config/app_colors.dart';
@@ -20,12 +19,6 @@ import '../../../shared/providers/admin_providers.dart';
 import '../../../shared/providers/admin_chat_unread_providers.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/aluno/chat/screens/group_chat_screen.dart';
-
-/// Cursor local otimista de leitura por conversa. Evita que uma resposta
-/// antiga de uma query assíncrona reintroduza mensagens já abertas pelo admin.
-final adminConversationReadAtProvider = StateProvider<Map<String, DateTime>>(
-  (ref) => <String, DateTime>{},
-);
 
 /// Converte valores de timestamp vindos do Firestore sem deixar uma falha
 /// de formato interromper a lista inteira de conversas.
@@ -219,6 +212,11 @@ Future<void> markAdminConversationAsRead({
     }
     await batch.commit();
   }
+
+  // Persiste também o cursor da sala. Assim a lista de conversas e o badge
+  // continuam a considerar lidas as mensagens antigas depois de uma nova
+  // subscrição ou de um snapshot que chegue fora de ordem.
+  await roomRef.set({'lastReadAt': readAt}, SetOptions(merge: true));
 }
 
 /// View de mensagens do admin — lista de conversas + gestão de grupos.

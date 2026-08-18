@@ -25,23 +25,45 @@ const auth = admin.auth();
 const messaging = admin.messaging();
 
 // ═══ Stripe ═══
-// functions.config() is unavailable in Cloud Functions 2nd gen. Keep the
-// legacy config for existing 1st gen functions, but use environment variables
-// when this module is loaded by a 2nd gen container.
-function runtimeConfig(): Record<string, any> {
-  if (process.env.K_CONFIGURATION) {
-    return {
-      stripe: {
-        secret_key: process.env.STRIPE_SECRET_KEY,
-        webhook_secret: process.env.STRIPE_WEBHOOK_SECRET,
-      },
-      resend: {
-        api_key: process.env.RESEND_API_KEY,
-        from_email: process.env.RESEND_FROM_EMAIL,
-      },
-    };
+// Não chamar functions.config() durante o carregamento do módulo: o Firebase
+// CLI importa este ficheiro para descobrir as exports e esse acesso ao config
+// legado pode bloquear a descoberta por 10 segundos. O runtime legado expõe o
+// mesmo conteúdo em CLOUD_RUNTIME_CONFIG; as Functions Gen 2 usam variáveis de
+// ambiente diretamente.
+function legacyRuntimeConfig(): Record<string, any> {
+  const raw = process.env.CLOUD_RUNTIME_CONFIG;
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (_) {
+    return {};
   }
-  return functions.config();
+}
+
+function runtimeConfig(): Record<string, any> {
+  const legacy = legacyRuntimeConfig();
+  return {
+    ...legacy,
+    stripe: {
+      ...(legacy.stripe ?? {}),
+      ...(process.env.STRIPE_SECRET_KEY
+        ? { secret_key: process.env.STRIPE_SECRET_KEY }
+        : {}),
+      ...(process.env.STRIPE_WEBHOOK_SECRET
+        ? { webhook_secret: process.env.STRIPE_WEBHOOK_SECRET }
+        : {}),
+    },
+    resend: {
+      ...(legacy.resend ?? {}),
+      ...(process.env.RESEND_API_KEY
+        ? { api_key: process.env.RESEND_API_KEY }
+        : {}),
+      ...(process.env.RESEND_FROM_EMAIL
+        ? { from_email: process.env.RESEND_FROM_EMAIL }
+        : {}),
+    },
+  };
 }
 
 const configured = runtimeConfig();
@@ -462,20 +484,60 @@ async function fetchOpenFoodFactsProducts(
   return [];
 }
 
+/**
+ * Obtém uma lista inicial para os seletores que abrem sem pesquisa.
+ * Mantemos os termos aqui para usar exatamente a mesma fonte Open Food Facts
+ * da pesquisa, mas sem fazer uma chamada impossível com query vazia.
+ */
+async function fetchOpenFoodFactsCatalog(): Promise<Record<string, unknown>[]> {
+  const terms = ['arroz', 'frango', 'ovo', 'banana', 'iogurte', 'aveia'];
+  const responses = await Promise.all(
+    terms.map((term) => fetchOpenFoodFactsProducts(term)),
+  );
+  const products: Record<string, unknown>[] = [];
+  const seenCodes = new Set<string>();
+  const seenNames = new Set<string>();
+
+  for (const response of responses) {
+    for (const product of response) {
+      const code = typeof product.code === 'string' ? product.code.trim() : '';
+      const rawName = typeof product.product_name_pt === 'string' &&
+          product.product_name_pt.trim().length > 0
+        ? product.product_name_pt
+        : product.product_name;
+      const name = typeof rawName === 'string' ? rawName.trim() : '';
+      const nameKey = normaliseFoodSearchTerm(name);
+      if ((code && seenCodes.has(code)) ||
+          (nameKey && seenNames.has(nameKey))) {
+        continue;
+      }
+      if (code) seenCodes.add(code);
+      if (nameKey) seenNames.add(nameKey);
+      products.push(product);
+      if (products.length >= 40) return products;
+    }
+  }
+  return products;
+}
+
 export const searchOpenFoodFacts = functions.region('europe-west1').https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
   }
 
   const query = typeof data?.query === 'string' ? data.query.trim() : '';
-  if (query.length < 3 || query.length > 80) {
+  if ((query.length > 0 && query.length < 3) || query.length > 80) {
     throw new functions.https.HttpsError(
       'invalid-argument',
-      'A pesquisa deve ter entre 3 e 80 caracteres.',
+      'A pesquisa deve ter entre 3 e 80 caracteres, ou ficar vazia para carregar a lista inicial.',
     );
   }
 
   try {
+    if (query.length === 0) {
+      return { products: await fetchOpenFoodFactsCatalog() };
+    }
+
     const products: Record<string, unknown>[] = [];
     const seenCodes = new Set<string>();
     const seenNames = new Set<string>();
@@ -1211,72 +1273,301 @@ async function resolvedUid(data: any, context: any): Promise<string> {
   }
 }
 
+type ChatNotificationDetails = {
+  recipientIds: string[];
+  type: 'chat_direct' | 'chat_group';
+  title: string;
+  metadata: Record<string, string>;
+};
+
+async function resolveChatNotificationDetails(
+  salaId: string,
+  remetenteId: string,
+): Promise<ChatNotificationDetails | null> {
+  const senderDoc = await db.collection('users').doc(remetenteId).get();
+  const senderName = String(senderDoc.data()?.nome ?? 'Personal Trainer');
+  const parts = salaId.split('_');
+
+  // Salas 1:1 usam o formato chat_uid_uid.
+  if (parts.length >= 3 && parts[0] === 'chat') {
+    const uid1 = parts[1];
+    const uid2 = parts.slice(2).join('_');
+    const recipientId = remetenteId === uid1 ? uid2 : uid1;
+    if (!recipientId || recipientId === remetenteId) return null;
+    return {
+      recipientIds: [recipientId],
+      type: 'chat_direct',
+      title: `Nova mensagem direta de ${senderName}`,
+      metadata: {
+        salaId,
+        link: `${publicAppUrl}/?destino=chat`,
+        chatKind: 'direct',
+      },
+    };
+  }
+
+  // Grupos usam o próprio ID do documento em /grupos.
+  const groupDoc = await db.collection('grupos').doc(salaId).get();
+  if (!groupDoc.exists) return null;
+  const groupData = groupDoc.data() ?? {};
+  const groupName = String(groupData.nome ?? groupData.name ?? 'Grupo');
+  const members = Array.isArray(groupData.membros) ? groupData.membros : [];
+  const groupAdmin = groupData.criadoPor;
+  const recipientIds = [...members, groupAdmin]
+    .filter((id: unknown): id is string =>
+      typeof id === 'string' && id.length > 0 && id !== remetenteId,
+    )
+    .filter((id, index, ids) => ids.indexOf(id) === index);
+  if (recipientIds.length === 0) return null;
+
+  return {
+    recipientIds,
+    type: 'chat_group',
+    title: `Nova mensagem no grupo ${groupName}`,
+    metadata: {
+      salaId,
+      link: `${publicAppUrl}/?destino=chat`,
+      chatKind: 'group',
+      groupId: salaId,
+      groupName,
+    },
+  };
+}
+
+/** Envia o push de uma mensagem; o histórico persistente é criado pelo trigger. */
 export const sendChatNotification = functions
   .region('europe-west1')
   .https.onCall(async (data, context) => {
     const uid = await resolvedUid(data, context);
-
-    const { salaId, remetenteId, texto } = data;
-    if (!salaId || !remetenteId || !texto)
-      throw new functions.https.HttpsError('invalid-argument', 'salaId, remetenteId e texto obrigatórios.');
-
-    // Verifica que o remetente é o utilizador autenticado
-    if (remetenteId !== uid)
+    const salaId = typeof data?.salaId === 'string' ? data.salaId : '';
+    const remetenteId = typeof data?.remetenteId === 'string'
+      ? data.remetenteId
+      : '';
+    const texto = typeof data?.texto === 'string' ? data.texto : '';
+    if (!salaId || !remetenteId || !texto) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'salaId, remetenteId e texto obrigatórios.',
+      );
+    }
+    if (remetenteId !== uid) {
       throw new functions.https.HttpsError('permission-denied', 'ID não corresponde.');
-
-    const senderDoc = await db.collection('users').doc(remetenteId).get();
-    const title = senderDoc.data()?.nome ?? 'Personal Trainer';
-    const notification = {
-      title,
-      body: texto.substring(0, 100),
-    };
-
-    // Salas 1:1 usam o formato chat_uid_uid. Grupos usam o próprio ID do
-    // documento em /grupos e precisam de notificar todos os membros.
-    const parts = salaId.split('_');
-    let recipientIds: string[];
-    if (parts.length >= 3 && parts[0] === 'chat') {
-      const uid1 = parts[1];
-      const uid2 = parts[2];
-      recipientIds = [remetenteId === uid1 ? uid2 : uid1];
-    } else {
-      const groupDoc = await db.collection('grupos').doc(salaId).get();
-      if (!groupDoc.exists) return { ok: true };
-      const groupData = groupDoc.data() ?? {};
-      const members = Array.isArray(groupData.membros)
-        ? groupData.membros
-        : [];
-      const groupAdmin = groupData.criadoPor;
-      recipientIds = [...members, groupAdmin]
-        .filter((id: unknown): id is string =>
-          typeof id === 'string' && id.length > 0 && id !== remetenteId,
-        )
-        .filter((id, index, ids) => ids.indexOf(id) === index);
     }
 
-    if (recipientIds.length === 0) return { ok: true };
-
-    const link = `${publicAppUrl}/?destino=chat`;
+    const details = await resolveChatNotificationDetails(salaId, remetenteId);
+    if (!details) return { ok: true };
+    const body = texto.substring(0, 100);
     await Promise.all(
-      recipientIds.map(async (recipientId) => {
-        // A notificação persistente mantém o aviso disponível mesmo quando o
-        // dispositivo não tem token push ou está offline.
-        await createNotification({
-          userId: recipientId,
+      details.recipientIds.map((recipientId) =>
+        sendUserPush(recipientId, details.title, body, {
           type: 'chat',
-          title,
-          body: notification.body,
-          action: 'chat',
-          metadata: { salaId, link },
-        });
-        await sendUserPush(recipientId, title, notification.body, {
-          type: 'chat',
+          chatKind: details.metadata.chatKind,
           salaId,
-          link,
-        });
-      }),
+          link: details.metadata.link,
+        }),
+      ),
     );
     return { ok: true };
+  });
+
+/**
+ * Cria o aviso persistente a partir da mensagem efetivamente gravada.
+ * Assim o sino funciona mesmo quando um widget envia a mensagem sem chamar
+ * explicitamente a callable (por exemplo, um compositor administrativo).
+ */
+export const notifyChatMessageCreated = functions
+  .region('europe-west1')
+  .firestore.document('chat/{salaId}/mensagens/{messageId}')
+  .onCreate(async (snapshot, context) => {
+    const message = snapshot.data() ?? {};
+    const salaId = context.params.salaId as string;
+    const remetenteId = typeof message.remetenteId === 'string'
+      ? message.remetenteId
+      : '';
+    if (!remetenteId) return null;
+
+    const details = await resolveChatNotificationDetails(salaId, remetenteId);
+    if (!details) return null;
+    const rawText = typeof message.texto === 'string' && message.texto.trim()
+      ? message.texto
+      : message.attachmentUrl
+          ? '[Imagem]'
+          : '[Mensagem de áudio]';
+    const body = rawText.substring(0, 100);
+    const metadata = {
+      ...details.metadata,
+      messageId: context.params.messageId as string,
+    };
+
+    await Promise.all(
+      details.recipientIds.map((recipientId) =>
+        createNotification({
+          userId: recipientId,
+          type: details.type,
+          title: details.title,
+          body,
+          action: 'chat',
+          metadata,
+        }),
+      ),
+    );
+    return null;
+  });
+
+/** Persiste avisos das mensagens criadas dentro de grupos. */
+export const notifyGroupMessageCreated = functions
+  .region('europe-west1')
+  .firestore.document('grupos/{groupId}/mensagens/{messageId}')
+  .onCreate(async (snapshot, context) => {
+    const message = snapshot.data() ?? {};
+    const salaId = context.params.groupId as string;
+    const remetenteId = typeof message.remetenteId === 'string'
+      ? message.remetenteId
+      : '';
+    if (!remetenteId) return null;
+
+    const details = await resolveChatNotificationDetails(salaId, remetenteId);
+    if (!details) return null;
+    const rawText = typeof message.texto === 'string' && message.texto.trim()
+      ? message.texto
+      : message.attachmentUrl
+          ? '[Imagem]'
+          : '[Mensagem de áudio]';
+    const metadata = {
+      ...details.metadata,
+      messageId: context.params.messageId as string,
+    };
+
+    await Promise.all(
+      details.recipientIds.map((recipientId) =>
+        createNotification({
+          userId: recipientId,
+          type: details.type,
+          title: details.title,
+          body: rawText.substring(0, 100),
+          action: 'chat',
+          metadata,
+        }),
+      ),
+    );
+    return null;
+  });
+
+/**
+ * Cria um pedido de marcação de forma transacional.
+ *
+ * A app não escreve diretamente em /agenda: esta verificação no servidor
+ * impede que o mesmo aluno tenha dois pedidos `pending`, mesmo que abra dois
+ * dispositivos ou faça duas tentativas simultâneas.
+ */
+export const createBooking = functions
+  .region('europe-west1')
+  .https.onCall(async (data, context) => {
+    const uid = await resolvedUid(data, context);
+    const studentId = typeof data?.studentId === 'string'
+      ? data.studentId.trim()
+      : '';
+    const trainerId = typeof data?.trainerId === 'string'
+      ? data.trainerId.trim()
+      : '';
+    const bookingDate = typeof data?.bookingDate === 'string'
+      ? data.bookingDate.trim()
+      : '';
+    const duration = Number(data?.duracaoMinutos ?? 60);
+    const tipo = data?.tipo === 'online' ? 'online' : 'presencial';
+
+    if (!studentId || !trainerId || !bookingDate ||
+        !Number.isInteger(duration) || duration <= 0 || duration > 240) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Aluno, trainer, data e duração válidos são obrigatórios.',
+      );
+    }
+    if (studentId !== uid) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Só podes criar marcações para a tua própria conta.',
+      );
+    }
+
+    const date = new Date(bookingDate);
+    if (Number.isNaN(date.getTime())) {
+      throw new functions.https.HttpsError('invalid-argument', 'Data inválida.');
+    }
+
+    const [studentDoc, trainerDoc] = await Promise.all([
+      db.collection('users').doc(studentId).get(),
+      db.collection('users').doc(trainerId).get(),
+    ]);
+    const student = studentDoc.data() ?? {};
+    const trainer = trainerDoc.data() ?? {};
+    if (!studentDoc.exists || student.role === 'admin') {
+      throw new functions.https.HttpsError('not-found', 'Aluno não encontrado.');
+    }
+    if (student.isActive === false) {
+      throw new functions.https.HttpsError('permission-denied', 'Acesso inativo.');
+    }
+    const contractEndsAt = asDate(student.contractEndsAt);
+    if (contractEndsAt && contractEndsAt <= new Date()) {
+      throw new functions.https.HttpsError('permission-denied', 'Contrato expirado.');
+    }
+    if (!trainerDoc.exists || trainer.role !== 'admin') {
+      throw new functions.https.HttpsError('not-found', 'Personal Trainer não encontrado.');
+    }
+
+    const agenda = db.collection('agenda');
+    const bookingRef = agenda.doc();
+    const requestedEnd = new Date(date.getTime() + duration * 60_000);
+    await db.runTransaction(async (transaction) => {
+      const existingSnapshot = await transaction.get(
+        agenda.where('studentId', '==', studentId),
+      );
+      const hasPending = existingSnapshot.docs.some((doc) => {
+        const status = doc.data().status;
+        return status == null || status === 'pending';
+      });
+      if (hasPending) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'Já existe um pedido de marcação pendente.',
+        );
+      }
+
+      const trainerBookingsSnapshot = await transaction.get(
+        agenda.where('trainerId', '==', trainerId),
+      );
+      const hasTimeConflict = trainerBookingsSnapshot.docs.some((doc) => {
+        const data = doc.data();
+        if (data.status !== 'pending' && data.status !== 'confirmed') {
+          return false;
+        }
+        const existingDate = asDate(data.data);
+        if (!existingDate) return false;
+        const existingDuration = Number(data.duracaoMinutos ?? 60);
+        const existingEnd = new Date(
+          existingDate.getTime() + existingDuration * 60_000,
+        );
+        return date < existingEnd && requestedEnd > existingDate;
+      });
+      if (hasTimeConflict) {
+        throw new functions.https.HttpsError(
+          'failed-precondition',
+          'Este horário já não está disponível.',
+        );
+      }
+
+      transaction.create(bookingRef, {
+        studentId,
+        trainerId,
+        data: admin.firestore.Timestamp.fromDate(date),
+        duracaoMinutos: duration,
+        status: 'pending',
+        tipo,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+
+    return { bookingId: bookingRef.id };
   });
 
 export const notifyNewBooking = functions
@@ -1501,7 +1792,7 @@ export const notifyUserAccessChange = functions
     return null;
   });
 
-/** Persiste avisos quando uma marcação é aceite, recusada ou cancelada. */
+/** Persiste avisos quando uma marcação é aceite, recusada ou concluída. */
 export const notifyBookingStatusChange = functions
   .region('europe-west1')
   .firestore.document('agenda/{bookingId}')
@@ -1509,25 +1800,70 @@ export const notifyBookingStatusChange = functions
     const before = change.before.data() ?? {};
     const after = change.after.data() ?? {};
     if (before.status === after.status) return null;
+
     const studentId = typeof after.studentId === 'string' ? after.studentId : '';
     if (!studentId) return null;
 
-    const labels: Record<string, string> = {
-      confirmed: 'A tua aula foi aceite ✅',
-      cancelled: 'A tua aula foi recusada/cancelada ❌',
-      completed: 'A tua aula foi marcada como concluída',
+    const status = String(after.status ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/ /g, '_')
+      .replace(/-/g, '_');
+    const accepted = new Set([
+      'confirmed', 'approved', 'accepted', 'aprovado', 'aprovada', 'aceite', 'aceita',
+    ]);
+    const rejected = new Set([
+      'cancelled', 'canceled', 'rejected', 'declined', 'recusado', 'recusada',
+      'rejeitado', 'rejeitada', 'cancelado', 'cancelada',
+    ]);
+    const completed = new Set(['completed', 'complete', 'concluido', 'concluida', 'concluído', 'concluída']);
+    if (!accepted.has(status) && !rejected.has(status) && !completed.has(status)) {
+      return null;
+    }
+
+    const bookingDate = asDate(after.data);
+    const dateLabel = bookingDate
+      ? bookingDate.toLocaleDateString('pt-PT', {
+          weekday: 'long', day: 'numeric', month: 'long',
+        })
+      : 'a aula agendada';
+    const timeLabel = bookingDate
+      ? bookingDate.toLocaleTimeString('pt-PT', {
+          hour: '2-digit', minute: '2-digit',
+        })
+      : '';
+    const typeLabel = after.tipo === 'online' ? 'sessão online' : 'sessão presencial';
+
+    const title = accepted.has(status)
+      ? 'Marcação aceite ✅'
+      : rejected.has(status)
+          ? 'Marcação recusada ❌'
+          : 'Aula concluída';
+    const body = accepted.has(status)
+      ? `O administrador aceitou a tua ${typeLabel} de ${dateLabel} às ${timeLabel}.`
+      : rejected.has(status)
+          ? `O administrador recusou a tua ${typeLabel} de ${dateLabel} às ${timeLabel}. Consulta a agenda para escolher outro horário.`
+          : `A tua ${typeLabel} de ${dateLabel} às ${timeLabel} foi marcada como concluída.`;
+    const metadata: Record<string, string> = {
+      bookingId: context.params.bookingId as string,
+      status,
+      ...(bookingDate ? { bookingDate: bookingDate.toISOString() } : {}),
     };
-    const title = labels[String(after.status)] || 'A tua marcação foi atualizada';
+
     await createNotification({
       userId: studentId,
       type: 'booking_update',
       title,
-      body: 'Consulta a agenda para veres os detalhes da marcação.',
+      body,
       action: 'agenda',
-      metadata: { bookingId: context.params.bookingId as string },
+      metadata,
     });
-    // As callables de agenda já enviam o push; este trigger acrescenta apenas
-    // o histórico persistente para evitar notificações duplicadas.
+    await sendUserPush(studentId, title, body, {
+      type: 'booking_update',
+      bookingId: context.params.bookingId as string,
+      newStatus: status,
+      link: `${publicAppUrl}/?destino=agenda`,
+    });
     return null;
   });
 

@@ -12,17 +12,38 @@ import '../../../../shared/widgets/app_notification.dart';
 import '../../../../shared/widgets/app_design_system.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 
-/// Horários disponíveis para marcação (8h às 18h, blocos de 60 min).
-const _kAvailableHours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+/// Horários disponíveis para marcação (06:00 às 23:00, blocos de 60 min).
+const _kAvailableHours = [
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  19,
+  20,
+  21,
+  22,
+  23,
+];
 const _kSlotDurationMin = 60;
 
 /// Estado visual de cada bloco horário.
 enum _SlotState {
   available, // cinzento — livre para marcar
   pending, // amarelo — pedido pendente do próprio aluno
+  waitingForApproval, // bloqueado enquanto existe outro pedido pendente
   confirmedMine, // verde — confirmado (meu)
   confirmedOther, // verde escuro — ocupado por outro aluno
   cancelled, // vermelho claro — recusado/cancelado
+  past, // cinzento — horário que já passou
 }
 
 /// Ecrã de agenda do aluno — grelha horária com blocos coloridos.
@@ -251,30 +272,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     List<BookingModel> myBookings,
     List<BookingModel> allTrainerBookings,
   ) {
-    // 1. Verifica se há um booking confirmado que se sobrepõe (de qualquer aluno)
-    final confirmedOverlap = allTrainerBookings.where((b) => b.isConfirmed).any(
-      (b) {
-        return _overlaps(
-          slotStart,
-          slotEnd,
-          b.data,
-          b.data.add(Duration(minutes: b.duracaoMinutos)),
-        );
-      },
-    );
-    if (confirmedOverlap) {
-      final myConfirmed = myBookings.where((b) => b.isConfirmed).any((b) {
-        return _overlaps(
-          slotStart,
-          slotEnd,
-          b.data,
-          b.data.add(Duration(minutes: b.duracaoMinutos)),
-        );
-      });
-      return myConfirmed ? _SlotState.confirmedMine : _SlotState.confirmedOther;
-    }
-
-    // 2. Pendentes do próprio aluno
+    // 1. Pedido pendente do próprio aluno: continua clicável para permitir
+    // o cancelamento, mesmo que também apareça no stream do trainer.
     final myPending = myBookings.where((b) => b.isPending).any((b) {
       return _overlaps(
         slotStart,
@@ -284,6 +283,39 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       );
     });
     if (myPending) return _SlotState.pending;
+
+    // 2. Um pedido pending ou uma aula confirmed de outro aluno ocupa o
+    // horário desde já. O pedido pendente não deve continuar a parecer livre.
+    final occupiedByAnother = allTrainerBookings
+        .where((b) {
+          return b.studentId != _userId && (b.isPending || b.isConfirmed);
+        })
+        .any((b) {
+          return _overlaps(
+            slotStart,
+            slotEnd,
+            b.data,
+            b.data.add(Duration(minutes: b.duracaoMinutos)),
+          );
+        });
+    if (occupiedByAnother) return _SlotState.confirmedOther;
+
+    // A própria aula confirmada continua identificada separadamente.
+    final myConfirmed = myBookings.where((b) => b.isConfirmed).any((b) {
+      return _overlaps(
+        slotStart,
+        slotEnd,
+        b.data,
+        b.data.add(Duration(minutes: b.duracaoMinutos)),
+      );
+    });
+    if (myConfirmed) return _SlotState.confirmedMine;
+
+    // Enquanto existir um pedido pendente, o aluno só pode interagir com
+    // esse pedido para o cancelar; os restantes horários ficam bloqueados.
+    if (myBookings.any((booking) => booking.isPending)) {
+      return _SlotState.waitingForApproval;
+    }
 
     // 3. Cancelados do próprio aluno
     final myCancelled = myBookings.where((b) => b.isCancelled).any((b) {
@@ -310,12 +342,21 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     bool isPast,
     List<BookingModel> myBookings,
   ) {
+    // Horários passados não precisam do cadeado de aprovação nem do estado
+    // de ocupação de outro aluno: já não podem ser marcados de qualquer forma.
+    final visualState =
+        isPast &&
+            (state == _SlotState.waitingForApproval ||
+                state == _SlotState.confirmedOther)
+        ? _SlotState.past
+        : state;
+
     final (
       Color bgColor,
       Color textColor,
       IconData? icon,
       String label,
-    ) = switch (state) {
+    ) = switch (visualState) {
       _SlotState.available => (
         AppColors.surface,
         AppColors.onSurface,
@@ -328,6 +369,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         Icons.hourglass_bottom,
         'Aguardando',
       ),
+      _SlotState.waitingForApproval => (
+        AppColors.surfaceHigh,
+        AppColors.warning,
+        Icons.lock_clock_outlined,
+        'Aguarda aprovação',
+      ),
       _SlotState.confirmedMine => (
         StudentThemeColors.of(context).primary.withValues(alpha: 0.2),
         StudentThemeColors.of(context).primary,
@@ -338,13 +385,19 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         AppColors.error.withValues(alpha: 0.12),
         AppColors.error,
         Icons.lock,
-        'Ocupado',
+        'Horário não disponível',
       ),
       _SlotState.cancelled => (
         AppColors.error.withValues(alpha: 0.08),
         AppColors.error.withValues(alpha: 0.5),
         Icons.cancel,
         'Recusada',
+      ),
+      _SlotState.past => (
+        AppColors.surfaceLow,
+        AppColors.textSecondary.withValues(alpha: 0.55),
+        Icons.schedule_outlined,
+        'Indisponível',
       ),
     };
 
@@ -360,7 +413,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
           onTap: isAvailable
-              ? () => _confirmBooking(slotStart)
+              ? () => _confirmBooking(slotStart, myBookings)
               : isMyPending
               ? () => _cancelMyPending(slotStart, myBookings)
               : isMyConfirmed
@@ -438,9 +491,23 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   // ACTIONS
   // ═══════════════════════════════════════════════════════════════
 
-  Future<void> _confirmBooking(DateTime slotStart) async {
+  Future<void> _confirmBooking(
+    DateTime slotStart,
+    List<BookingModel> myBookings,
+  ) async {
     final authState = ref.read(authProvider);
     final trainerId = authState.user?.personalId ?? '';
+
+    if (myBookings.any((booking) => booking.isPending)) {
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Aguarda a aprovação do teu pedido atual antes de marcar outra aula.',
+          type: NotificationType.info,
+        );
+      }
+      return;
+    }
 
     if (trainerId.isEmpty) {
       if (mounted)
@@ -499,14 +566,22 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     if (confirmed != true) return;
 
     try {
-      await ref.read(bookingRepositoryProvider).addBooking({
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw StateError('Utilizador não autenticado.');
+      final token = await user.getIdToken(true);
+      if (token == null || token.isEmpty) {
+        throw StateError('Sessão expirada.');
+      }
+
+      await FirebaseFunctions.instanceFor(
+        region: 'europe-west1',
+      ).httpsCallable('createBooking').call({
         'studentId': _userId,
         'trainerId': trainerId,
-        'data': slotStart,
+        'bookingDate': slotStart.toIso8601String(),
         'duracaoMinutos': _kSlotDurationMin,
-        'status': 'pending',
         'tipo': 'presencial',
-        'createdAt': DateTime.now(),
+        'authToken': token,
       });
 
       // Notificar PT (fire-and-forget), sem deixar rejeições assíncronas no
@@ -519,6 +594,18 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           'Aula marcada! Aguarda confirmação do PT.',
           type: NotificationType.success,
         );
+    } on FirebaseFunctionsException catch (error) {
+      if (mounted) {
+        showAppNotification(
+          context,
+          error.code == 'failed-precondition'
+              ? 'Já tens um pedido pendente. Aguarda a aprovação do PT.'
+              : 'Erro ao marcar aula.',
+          type: error.code == 'failed-precondition'
+              ? NotificationType.info
+              : NotificationType.error,
+        );
+      }
     } catch (_) {
       if (mounted)
         showAppNotification(

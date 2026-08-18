@@ -121,12 +121,14 @@ final adminDashboardStatsProvider = StreamProvider<AdminDashboardStats>((ref) {
       (total, entry) => total + entry.$2,
     );
     if (!controller.isClosed) {
-      controller.add(AdminDashboardStats(
-        totalAlunos: alunoSnapshot.length,
-        activeAlunos: active,
-        sessoesMes: monthSessions,
-        sessoesTotal: totalSessions,
-      ));
+      controller.add(
+        AdminDashboardStats(
+          totalAlunos: alunoSnapshot.length,
+          activeAlunos: active,
+          sessoesMes: monthSessions,
+          sessoesTotal: totalSessions,
+        ),
+      );
     }
   }
 
@@ -137,28 +139,35 @@ final adminDashboardStatsProvider = StreamProvider<AdminDashboardStats>((ref) {
         .doc(userId)
         .collection(AppConstants.diarySubcollection)
         .snapshots()
-        .listen((snapshot) {
-          var total = 0;
-          var month = 0;
-          final startOfMonth = DateTime(DateTime.now().year, DateTime.now().month, 1);
-          for (final doc in snapshot.docs) {
-            final data = doc.data();
-            if (data['treinoConcluido'] != true) continue;
-            total++;
-            final treinoData = data['treinoData'];
-            final completedAt = treinoData is Map
-                ? asDate(treinoData['completedAt'])
-                : null;
-            if (completedAt != null && completedAt.isAfter(startOfMonth)) {
-              month++;
+        .listen(
+          (snapshot) {
+            var total = 0;
+            var month = 0;
+            final startOfMonth = DateTime(
+              DateTime.now().year,
+              DateTime.now().month,
+              1,
+            );
+            for (final doc in snapshot.docs) {
+              final data = doc.data();
+              if (data['treinoConcluido'] != true) continue;
+              total++;
+              final treinoData = data['treinoData'];
+              final completedAt = treinoData is Map
+                  ? asDate(treinoData['completedAt'])
+                  : null;
+              if (completedAt != null && completedAt.isAfter(startOfMonth)) {
+                month++;
+              }
             }
-          }
-          diaryCounts[userId] = (total, month);
-          emit();
-        }, onError: (_) {
-          diaryCounts[userId] = (0, 0);
-          emit();
-        });
+            diaryCounts[userId] = (total, month);
+            emit();
+          },
+          onError: (_) {
+            diaryCounts[userId] = (0, 0);
+            emit();
+          },
+        );
   }
 
   final usersSubscription = firestore
@@ -192,16 +201,18 @@ final adminDashboardStatsProvider = StreamProvider<AdminDashboardStats>((ref) {
 
 // ─── Exercises ────────────────────────────────────────────────────
 
-final adminExercisesProvider =
-    StreamProvider<List<Map<String, dynamic>>>((ref) {
+final adminExercisesProvider = StreamProvider<List<Map<String, dynamic>>>((
+  ref,
+) {
   return ref.read(workoutRepositoryProvider).watchExercises();
 });
 
 /// Biblioteca completa de exercícios, incluindo instruções e classificação.
-final adminExerciseCatalogProvider =
-    StreamProvider<List<ExerciseCatalogModel>>((ref) {
-  return ref.read(workoutRepositoryProvider).watchExerciseCatalog();
-});
+final adminExerciseCatalogProvider = StreamProvider<List<ExerciseCatalogModel>>(
+  (ref) {
+    return ref.read(workoutRepositoryProvider).watchExerciseCatalog();
+  },
+);
 
 // ─── Foods ────────────────────────────────────────────────────────
 
@@ -209,21 +220,19 @@ final adminFoodsProvider = StreamProvider<List<FoodModel>>((ref) {
   return ref.read(nutritionRepositoryProvider).watchAllFoods();
 });
 
-final adminFoodsSearchProvider =
-    StreamProvider.family<List<FoodModel>, String>((ref, query) {
-  final foods = ref.watch(adminFoodsProvider);
-  return foods.when(
-    data: (items) {
-      if (query.trim().isEmpty) return Stream.value(items);
-      final lower = query.trim().toLowerCase();
-      return Stream.value(
-        items.where((food) => food.nome.toLowerCase().contains(lower)).toList(),
-      );
-    },
-    loading: () => const Stream.empty(),
-    error: (error, stack) => Stream.error(error, stack),
-  );
-});
+final adminFoodsSearchProvider = StreamProvider.family<List<FoodModel>, String>(
+  (ref, query) {
+    // Mantém este provider dependente do stream local para atualizar a lista
+    // depois de um alimento ser criado no admin, mas não bloqueia o catálogo
+    // inicial enquanto esse stream ainda está a carregar.
+    ref.watch(adminFoodsProvider);
+    final repository = ref.read(nutritionRepositoryProvider);
+    final future = query.trim().isEmpty
+        ? repository.getAvailableFoods()
+        : repository.searchFoods(query);
+    return Stream.fromFuture(future);
+  },
+);
 
 // ─── Payments ─────────────────────────────────────────────────────
 
@@ -250,8 +259,8 @@ final adminTrainerBookingsProvider =
 /// Provider de progressão de cargas para clientes online.
 final onlineProgressionProvider =
     StreamProvider.family<List<ProgressionData>, String>((ref, userId) {
-  return ref.read(workoutRepositoryProvider).watchProgression(userId);
-});
+      return ref.read(workoutRepositoryProvider).watchProgression(userId);
+    });
 
 /// Provider de todos os grupos (admin).
 final adminGroupsProvider = StreamProvider<List<GroupModel>>((ref) {
@@ -261,10 +270,15 @@ final adminGroupsProvider = StreamProvider<List<GroupModel>>((ref) {
 /// Provider de nomes de alunos para a agenda (batch fetch).
 final adminStudentNamesProvider =
     StreamProvider.family<Map<String, String>, String>((ref, trainerId) {
-  if (trainerId.isEmpty) return Stream.value({});
-  final bookingsAsync = ref.watch(adminTrainerBookingsProvider(trainerId));
-  final bookings = bookingsAsync.asData?.value ?? const <BookingModel>[];
-  final uids = bookings.map((booking) => booking.studentId).toSet().toList();
-  if (uids.isEmpty) return Stream.value({});
-  return Stream.fromFuture(ref.read(userRepositoryProvider).getUserNames(uids));
-});
+      if (trainerId.isEmpty) return Stream.value({});
+      final bookingsAsync = ref.watch(adminTrainerBookingsProvider(trainerId));
+      final bookings = bookingsAsync.asData?.value ?? const <BookingModel>[];
+      final uids = bookings
+          .map((booking) => booking.studentId)
+          .toSet()
+          .toList();
+      if (uids.isEmpty) return Stream.value({});
+      return Stream.fromFuture(
+        ref.read(userRepositoryProvider).getUserNames(uids),
+      );
+    });

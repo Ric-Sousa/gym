@@ -39,10 +39,7 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
   };
 
   static const _choiceLabels = <String, Map<String, String>>{
-    'genero': {
-      'masculino': 'Masculino',
-      'feminino': 'Feminino',
-    },
+    'genero': {'masculino': 'Masculino', 'feminino': 'Feminino'},
   };
 
   static const _textIds = [
@@ -189,7 +186,9 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
           ? _controllerFor(question.id).text
           : _choices[question.id] ?? '';
       if (question.required && value.trim().isEmpty) missing.add(question.id);
-      if (question.isBinary && _choices[question.id] == 'sim' && question.hasDetail &&
+      if (question.isBinary &&
+          _choices[question.id] == 'sim' &&
+          question.hasDetail &&
           _controllerFor(question.resolvedDetailId).text.trim().isEmpty) {
         missing.add(question.resolvedDetailId);
       }
@@ -207,22 +206,17 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
     if (_activeConfig != null) return _validateConfiguredStep(_activeConfig!);
     final required = switch (_step) {
       0 => [
-          'birthDate',
-          'genero',
-          'profession',
-          'activity',
-          ..._profileBinaryQuestions.keys,
-          'meals',
-          'water',
-          'sleep',
-        ],
+        'birthDate',
+        'genero',
+        'profession',
+        'activity',
+        ..._profileBinaryQuestions.keys,
+        'meals',
+        'water',
+        'sleep',
+      ],
       1 => _healthBinaryQuestions.keys.toList(),
-      _ => [
-          'dislikedFoods',
-          'preferredFoods',
-          'outsideMeals',
-          'objective',
-        ],
+      _ => ['dislikedFoods', 'preferredFoods', 'outsideMeals', 'objective'],
     };
     final missing = <String>[];
     for (final id in required) {
@@ -283,17 +277,22 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
           };
     final config = _activeConfig;
     try {
-      await ref.read(userRepositoryProvider).saveQuestionnaire(
+      await ref
+          .read(userRepositoryProvider)
+          .saveQuestionnaire(
             widget.user.uid,
             QuestionnaireResponse(
-              version: config?.versionId ?? QuestionnaireResponse.currentVersion,
+              version:
+                  config?.versionId ?? QuestionnaireResponse.currentVersion,
               completedAt: DateTime.now(),
               answers: answers,
             ),
             nome: answers['nome'],
             genero: answers['genero'] ?? _choices['genero'],
             peso: double.tryParse(answers['peso']?.replaceAll(',', '.') ?? ''),
-            altura: double.tryParse(answers['altura']?.replaceAll(',', '.') ?? ''),
+            altura: double.tryParse(
+              answers['altura']?.replaceAll(',', '.') ?? '',
+            ),
             dataNascimento: _parseDate(answers['birthDate'] ?? ''),
           );
       await ref.read(authProvider.notifier).refreshUser();
@@ -302,7 +301,9 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Não foi possível guardar as respostas. Tenta novamente.'),
+          content: Text(
+            'Não foi possível guardar as respostas. Tenta novamente.',
+          ),
         ),
       );
     }
@@ -387,116 +388,121 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
     return Theme(
       data: questionnaireTheme,
       child: Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.all(compact ? 12 : 20),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 680),
-              child: Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  side: BorderSide.none,
-                ),
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    compact ? 18 : 24,
-                    compact ? 20 : 26,
-                    compact ? 18 : 24,
-                    compact ? 16 : 22,
+        backgroundColor: AppColors.background,
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(compact ? 12 : 20),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 680),
+                child: Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: BorderSide.none,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Center(
-                            child: Container(
-                              width: 46,
-                              height: 46,
-                              decoration: BoxDecoration(
-                                color: colors.primaryContainer,
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: Icon(
-                                Icons.assignment_turned_in_outlined,
-                                color: colors.primary,
-                              ),
-                            ),
-                          ),
-                          SizedBox(height: compact ? 10 : 14),
-                          Text(
-                            'Vamos conhecer-te melhor',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.montserrat(
-                              fontSize: compact ? 19 : 21,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.onSurface,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            'Antes de começares, responde a esta ficha rápida. As respostas ficam disponíveis apenas para a equipa que te acompanha.',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.inter(
-                              fontSize: compact ? 12 : 13,
-                              height: compact ? 1.35 : 1.45,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: compact ? 16 : 22),
-                      _buildProgress(colors, _activeConfig),
-                      SizedBox(height: compact ? 18 : 24),
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 180),
-                        child: _buildStepContent(_activeConfig),
-                      ),
-                      SizedBox(height: compact ? 16 : 22),
-                      Row(
-                        children: [
-                          if (_step > 0)
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: _saving
-                                    ? null
-                                    : () => setState(() => _step--),
-                                child: const Text('Anterior'),
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      compact ? 18 : 24,
+                      compact ? 20 : 26,
+                      compact ? 18 : 24,
+                      compact ? 16 : 22,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Center(
+                              child: Container(
+                                width: 46,
+                                height: 46,
+                                decoration: BoxDecoration(
+                                  color: colors.primaryContainer,
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Icon(
+                                  Icons.assignment_turned_in_outlined,
+                                  color: colors.primary,
+                                ),
                               ),
                             ),
-                          if (_step > 0) const SizedBox(width: 10),
-                          Expanded(
-                            flex: _step == 0 ? 1 : 2,
-                            child: ElevatedButton(
-                              onPressed: _saving ? null : _next,
-                              child: _saving
-                                  ? const SizedBox(
-                                      height: 18,
-                                      width: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : Text(_step == lastStep ? 'Concluir ficha' : 'Continuar'),
+                            SizedBox(height: compact ? 10 : 14),
+                            Text(
+                              'Vamos conhecer-te melhor',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.montserrat(
+                                fontSize: compact ? 19 : 21,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.onSurface,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Esta etapa é necessária para desbloquear o início.',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          color: AppColors.textSecondary,
+                            const SizedBox(height: 5),
+                            Text(
+                              'Antes de começares, responde a esta ficha rápida. As respostas ficam disponíveis apenas para a equipa que te acompanha.',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.inter(
+                                fontSize: compact ? 12 : 13,
+                                height: compact ? 1.35 : 1.45,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                        SizedBox(height: compact ? 16 : 22),
+                        _buildProgress(colors, _activeConfig),
+                        SizedBox(height: compact ? 18 : 24),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 180),
+                          child: _buildStepContent(_activeConfig),
+                        ),
+                        SizedBox(height: compact ? 16 : 22),
+                        Row(
+                          children: [
+                            if (_step > 0)
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: _saving
+                                      ? null
+                                      : () => setState(() => _step--),
+                                  child: const Text('Anterior'),
+                                ),
+                              ),
+                            if (_step > 0) const SizedBox(width: 10),
+                            Expanded(
+                              flex: _step == 0 ? 1 : 2,
+                              child: ElevatedButton(
+                                onPressed: _saving ? null : _next,
+                                child: _saving
+                                    ? const SizedBox(
+                                        height: 18,
+                                        width: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : Text(
+                                        _step == lastStep
+                                            ? 'Concluir ficha'
+                                            : 'Continuar',
+                                      ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Esta etapa é necessária para desbloquear o início.',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -504,12 +510,12 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
           ),
         ),
       ),
-    ),
     );
   }
 
   Widget _buildProgress(ColorScheme colors, QuestionnaireConfig? config) {
-    final labels = config?.topics.map((topic) => topic.title).toList() ??
+    final labels =
+        config?.topics.map((topic) => topic.title).toList() ??
         ['Perfil', 'Saúde', 'Objetivos'];
     return Row(
       children: [
@@ -531,7 +537,9 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
                   labels[index],
                   style: GoogleFonts.inter(
                     fontSize: MediaQuery.sizeOf(context).width < 480 ? 10 : 11,
-                    fontWeight: index == _step ? FontWeight.w700 : FontWeight.w500,
+                    fontWeight: index == _step
+                        ? FontWeight.w700
+                        : FontWeight.w500,
                     color: index <= _step
                         ? colors.primary
                         : AppColors.textSecondary,
@@ -547,7 +555,10 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
   }
 
   Widget _buildStepContent(QuestionnaireConfig? config) {
-    final safeConfig = config != null && config.topics.isNotEmpty && _step < config.topics.length
+    final safeConfig =
+        config != null &&
+            config.topics.isNotEmpty &&
+            _step < config.topics.length
         ? config
         : null;
     return KeyedSubtree(
@@ -570,7 +581,9 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
         const SizedBox(height: 16),
         ...topic.questions.expand((question) sync* {
           yield _buildConfiguredQuestion(question);
-          if (question.isBinary && _choices[question.id] == 'sim' && question.hasDetail) {
+          if (question.isBinary &&
+              _choices[question.id] == 'sim' &&
+              question.hasDetail) {
             yield const SizedBox(height: 8);
             yield _textField(
               question.resolvedDetailId,
@@ -589,15 +602,30 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
 
   Widget _buildConfiguredQuestion(QuestionnaireQuestion question) {
     return switch (question.type) {
-      'choice' => _choiceField(question.id, question.label, options: question.options),
-      'binary' => _choiceField(question.id, question.label, options: question.options.isEmpty ? const ['sim', 'não'] : question.options),
+      'choice' => _choiceField(
+        question.id,
+        question.label,
+        options: question.options,
+      ),
+      'binary' => _choiceField(
+        question.id,
+        question.label,
+        options: question.options.isEmpty
+            ? const ['sim', 'não']
+            : question.options,
+      ),
       'date' => _textField(
-          question.id,
-          question.label,
-          readOnly: true,
-          onTap: () => _pickConfiguredDate(question.id),
-        ),
-      _ => _textField(question.id, question.label, hint: question.hint, multiline: question.multiline),
+        question.id,
+        question.label,
+        readOnly: true,
+        onTap: () => _pickConfiguredDate(question.id),
+      ),
+      _ => _textField(
+        question.id,
+        question.label,
+        hint: question.hint,
+        multiline: question.multiline,
+      ),
     };
   }
 
@@ -612,12 +640,16 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
       cancelText: 'Cancelar',
       confirmText: 'Confirmar',
       builder: (dialogContext, child) => Theme(
-        data: _buildQuestionnaireTheme(Theme.of(dialogContext), _choices['genero']),
+        data: _buildQuestionnaireTheme(
+          Theme.of(dialogContext),
+          _choices['genero'],
+        ),
         child: child!,
       ),
     );
     if (!mounted || date == null) return;
-    _controllerFor(id).text = '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+    _controllerFor(id).text =
+        '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
     setState(() {});
   }
 
@@ -625,18 +657,27 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionTitle('Sobre ti', 'Informação básica para personalizar o acompanhamento.'),
+        _sectionTitle(
+          'Sobre ti',
+          'Informação básica para personalizar o acompanhamento.',
+        ),
         SizedBox(height: MediaQuery.sizeOf(context).width < 480 ? 12 : 16),
-        _textField('birthDate', 'Data de nascimento', readOnly: true, onTap: _pickBirthDate),
+        _textField(
+          'birthDate',
+          'Data de nascimento',
+          readOnly: true,
+          onTap: _pickBirthDate,
+        ),
         const SizedBox(height: 12),
         _choiceField('genero', 'Qual é o teu sexo?'),
-        _textField('profession', 'Profissão', hint: 'Ex.: estudante, professora, motorista'),
+        _textField(
+          'profession',
+          'Profissão',
+          hint: 'Ex.: estudante, professora, motorista',
+        ),
         SizedBox(height: MediaQuery.sizeOf(context).width < 480 ? 12 : 18),
         _choiceField('activity', 'Já praticas ginásio ou algum desporto?'),
-        _binaryField(
-          'sedentary',
-          _profileBinaryQuestions['sedentary']!,
-        ),
+        _binaryField('sedentary', _profileBinaryQuestions['sedentary']!),
         _choiceField('meals', 'Quantas refeições costumas fazer por dia?'),
         _choiceField('water', 'Que quantidade de água bebes diariamente?'),
         _choiceField('sleep', 'Em média, quantas horas dormes?'),
@@ -648,9 +689,15 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionTitle('Saúde e rotina', 'Assinala Sim ou Não. Se responderes Sim, descreve a situação.'),
+        _sectionTitle(
+          'Saúde e rotina',
+          'Assinala Sim ou Não. Se responderes Sim, descreve a situação.',
+        ),
         const SizedBox(height: 16),
-        _binaryField('pathologiesHas', _healthBinaryQuestions['pathologiesHas']!),
+        _binaryField(
+          'pathologiesHas',
+          _healthBinaryQuestions['pathologiesHas']!,
+        ),
         if (_choices['pathologiesHas'] == 'sim') ...[
           const SizedBox(height: 8),
           _textField(
@@ -697,7 +744,10 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
           ),
         ],
         const SizedBox(height: 12),
-        _binaryField('supplementsHas', _healthBinaryQuestions['supplementsHas']!),
+        _binaryField(
+          'supplementsHas',
+          _healthBinaryQuestions['supplementsHas']!,
+        ),
         if (_choices['supplementsHas'] == 'sim') ...[
           const SizedBox(height: 8),
           _textField(
@@ -726,13 +776,28 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionTitle('Alimentação e objetivo', 'Estas respostas ajudam a preparar um plano realista para ti.'),
+        _sectionTitle(
+          'Alimentação e objetivo',
+          'Estas respostas ajudam a preparar um plano realista para ti.',
+        ),
         const SizedBox(height: 16),
-        _textField('dislikedFoods', 'Que alimentos não gostas ou preferes evitar?', multiline: true),
+        _textField(
+          'dislikedFoods',
+          'Que alimentos não gostas ou preferes evitar?',
+          multiline: true,
+        ),
         const SizedBox(height: 12),
-        _textField('preferredFoods', 'Que alimentos gostas e tens facilidade em comer?', multiline: true),
+        _textField(
+          'preferredFoods',
+          'Que alimentos gostas e tens facilidade em comer?',
+          multiline: true,
+        ),
         const SizedBox(height: 12),
-        _textField('outsideMeals', 'Quantas vezes por semana comes fora, fast food ou doces?', multiline: true),
+        _textField(
+          'outsideMeals',
+          'Quantas vezes por semana comes fora, fast food ou doces?',
+          multiline: true,
+        ),
         const SizedBox(height: 16),
         _choiceField('objective', 'Qual é o teu objetivo principal?'),
       ],
@@ -786,7 +851,9 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
       onTap: onTap,
       minLines: multiline ? (detail ? 1 : 2) : 1,
       maxLines: multiline ? (detail ? 3 : 4) : 1,
-      textInputAction: multiline ? TextInputAction.newline : TextInputAction.next,
+      textInputAction: multiline
+          ? TextInputAction.newline
+          : TextInputAction.next,
       textAlign: TextAlign.center,
       // Mantém o texto no centro do campo mesmo quando o label flutua.
       // O alinhamento anterior com y positivo fazia o conteúdo parecer colado
@@ -802,29 +869,25 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
         alignLabelWithHint: false,
         filled: true,
         fillColor: detail ? AppColors.surfaceHigh : AppColors.surface,
-        suffixIcon: readOnly ? const Icon(Icons.calendar_today_outlined, size: 18) : null,
+        suffixIcon: readOnly
+            ? const Icon(Icons.calendar_today_outlined, size: 18)
+            : null,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: detail
-              ? BorderSide(
-                  color: _questionnairePrimary.withValues(alpha: 0.35),
-                )
+              ? BorderSide(color: _questionnairePrimary.withValues(alpha: 0.35))
               : BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: detail
-              ? BorderSide(
-                  color: _questionnairePrimary.withValues(alpha: 0.35),
-                )
+              ? BorderSide(color: _questionnairePrimary.withValues(alpha: 0.35))
               : BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(
-            color: detail
-                ? _questionnairePrimary
-                : Colors.transparent,
+            color: detail ? _questionnairePrimary : Colors.transparent,
             width: detail ? 1.2 : 0,
           ),
         ),
@@ -862,135 +925,34 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
   }
 
   String _choiceDisplayLabel(String id, String value) {
-    return _choiceLabels[id]?[value] ?? switch (value) {
-      'sim' => 'Sim',
-      'não' => 'Não',
-      _ => value,
-    };
+    return _choiceLabels[id]?[value] ??
+        switch (value) {
+          'sim' => 'Sim',
+          'não' => 'Não',
+          _ => value,
+        };
   }
 
-  Widget _choiceField(
-    String id,
-    String label, {
-    List<String>? options,
-  }) {
+  Widget _choiceField(String id, String label, {List<String>? options}) {
     final resolvedOptions = options ?? _choiceOptions[id]!;
     final selected = _choices[id];
-    final selectedLabel = selected == null
-        ? null
-        : _choiceDisplayLabel(id, selected);
     final primary = _questionnairePrimary;
 
     final compact = MediaQuery.sizeOf(context).width < 480;
     return Padding(
       padding: EdgeInsets.only(bottom: compact ? 10 : 14),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final fieldWidth = constraints.maxWidth;
-          return MenuAnchor(
-            crossAxisUnconstrained: false,
-            alignmentOffset: const Offset(0, 4),
-            style: MenuStyle(
-              backgroundColor: const WidgetStatePropertyAll(
-                AppColors.surfaceHighest,
-              ),
-              elevation: const WidgetStatePropertyAll(3),
-              minimumSize: WidgetStatePropertyAll(
-                Size(fieldWidth, 0),
-              ),
-              maximumSize: WidgetStatePropertyAll(
-                Size(fieldWidth, 320),
-              ),
-              shape: const WidgetStatePropertyAll(
-                RoundedRectangleBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(14)),
-                ),
-              ),
-              padding: const WidgetStatePropertyAll(
-                EdgeInsets.symmetric(vertical: 6),
-              ),
-            ),
-            menuChildren: resolvedOptions
-                .map(
-                  (option) => MenuItemButton(
-                    onPressed: _saving
-                        ? null
-                        : () => setState(() => _choices[id] = option),
-                    child: SizedBox(
-                      width: fieldWidth - 28,
-                      child: Text(
-                        _choiceDisplayLabel(id, option),
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(
-                          fontSize: compact ? 12 : 13,
-                          color: AppColors.onSurface,
-                        ),
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-            builder: (context, controller, child) => GestureDetector(
-              onTap: _saving
-                  ? null
-                  : () {
-                      if (controller.isOpen) {
-                        controller.close();
-                      } else {
-                        controller.open();
-                      }
-                    },
-              child: InputDecorator(
-                isFocused: controller.isOpen,
-                isEmpty: selectedLabel == null,
-                decoration: InputDecoration(
-                  labelText: label,
-                  filled: true,
-                  fillColor: AppColors.surface,
-                  isDense: true,
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: compact ? 12 : 14,
-          vertical: compact ? 10 : 12,
-        ),
-                  suffixIcon: Icon(
-                    controller.isOpen
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    color: primary,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  floatingLabelStyle: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: compact ? 12 : 14,
-                  ),
-                  labelStyle: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontSize: compact ? 12 : 14,
-                  ),
-                ),
-                child: Text(
-                  selectedLabel ?? '',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
-                    fontSize: compact ? 12 : 13,
-                    color: AppColors.onSurface,
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
+      child: AppMenuDropdown<String>(
+        value: selected,
+        options: resolvedOptions,
+        labelBuilder: (option) => _choiceDisplayLabel(id, option),
+        onChanged: (option) => setState(() => _choices[id] = option),
+        label: label,
+        accentColor: primary,
+        fieldColor: AppColors.surface,
+        menuColor: AppColors.surfaceHighest,
+        textColor: AppColors.onSurface,
+        labelColor: Colors.white,
+        enabled: !_saving,
       ),
     );
   }

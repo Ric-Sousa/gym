@@ -796,7 +796,8 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
   @override
   Widget build(BuildContext context) {
     final userId = ref.watch(authProvider).user?.uid ?? '';
-    final directChatUnread = ref.watch(alunoUnreadCountProvider(userId)).value ?? 0;
+    final directChatUnread =
+        ref.watch(alunoUnreadCountProvider(userId)).value ?? 0;
     final groupChatUnread =
         ref.watch(alunoGroupUnreadCountProvider(userId)).value ?? 0;
     final chatUnreadCount = directChatUnread + groupChatUnread;
@@ -842,10 +843,13 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
     final content = AppPageFrame(
       maxWidth: isWide ? 1440 : double.infinity,
       padding: EdgeInsets.zero,
-      child: FadeSlideSwitcher(
-        child: KeyedSubtree(
-          key: ValueKey('aluno_tab_$_currentIndex'),
-          child: _screens[_currentIndex],
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: FadeSlideSwitcher(
+          child: KeyedSubtree(
+            key: ValueKey('aluno_tab_$_currentIndex'),
+            child: _screens[_currentIndex],
+          ),
         ),
       ),
     );

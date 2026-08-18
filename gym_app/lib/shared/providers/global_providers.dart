@@ -221,9 +221,11 @@ final paymentsStreamProvider =
 /// evitar índices compostos e a subscrição é estável por UID.
 final notificationsStreamProvider =
     StreamProvider.family<List<AppNotificationModel>, String>((ref, userId) {
-  if (userId.isEmpty) return Stream.value(const []);
-  return ref.read(notificationRepositoryProvider).watchNotifications(userId);
-});
+      if (userId.isEmpty) return Stream.value(const []);
+      return ref
+          .read(notificationRepositoryProvider)
+          .watchNotifications(userId);
+    });
 
 /// Número total de avisos que requerem atenção, incluindo cobranças antigas
 /// que foram criadas antes do centro persistente existir.
@@ -235,9 +237,15 @@ final latestChatPreviewProvider = Provider.family<String?, String>((
   userId,
 ) {
   if (userId.isEmpty) return null;
-  final notifications = ref.watch(notificationsStreamProvider(userId)).asData?.value;
-  for (final notification in notifications ?? const <AppNotificationModel>[]) {
-    if (notification.type == 'chat' &&
+  final notifications = ref
+      .watch(notificationsStreamProvider(userId))
+      .asData
+      ?.value;
+  final grouped = AppNotificationModel.groupNotifications(
+    notifications ?? const <AppNotificationModel>[],
+  );
+  for (final notification in grouped) {
+    if (notification.isChat &&
         !notification.read &&
         notification.body.trim().isNotEmpty) {
       return notification.body.trim();
@@ -254,18 +262,22 @@ final paymentNotificationCountProvider = Provider.family<int, String>((
   final paymentsAsync = ref.watch(paymentsStreamProvider(userId));
   final notificationsAsync = ref.watch(notificationsStreamProvider(userId));
   final pendingPayments = paymentsAsync.maybeWhen(
-        data: (payments) => payments
-            .where((payment) =>
-                !payment.isPaid &&
-                !payment.isCancelled &&
-                payment.status != 'refunded')
-            .length,
-        orElse: () => 0,
-      );
+    data: (payments) => payments
+        .where(
+          (payment) =>
+              !payment.isPaid &&
+              !payment.isCancelled &&
+              payment.status != 'refunded',
+        )
+        .length,
+    orElse: () => 0,
+  );
   final unreadNotifications = notificationsAsync.maybeWhen(
-        data: (items) => items.where((item) => !item.read).length,
-        orElse: () => 0,
-      );
+    data: (items) => AppNotificationModel.groupNotifications(
+      items,
+    ).where((item) => !item.read).length,
+    orElse: () => 0,
+  );
   return unreadNotifications > pendingPayments
       ? unreadNotifications
       : pendingPayments;
@@ -274,15 +286,17 @@ final paymentNotificationCountProvider = Provider.family<int, String>((
 /// Stream estável do estado "a escrever" de uma conversa direta.
 /// O StreamBuilder recebe sempre a mesma instância para o mesmo par de IDs;
 /// não criar este stream diretamente dentro de build().
-final typingStreamProvider = Provider.family<Stream<String?>, ({
-  String salaId,
-  String userId,
-})>((ref, args) {
-  if (args.salaId.isEmpty || args.userId.isEmpty) return const Stream.empty();
-  return ref
-      .read(chatRepositoryProvider)
-      .typingStream(args.salaId, args.userId);
-});
+final typingStreamProvider =
+    Provider.family<Stream<String?>, ({String salaId, String userId})>((
+      ref,
+      args,
+    ) {
+      if (args.salaId.isEmpty || args.userId.isEmpty)
+        return const Stream.empty();
+      return ref
+          .read(chatRepositoryProvider)
+          .typingStream(args.salaId, args.userId);
+    });
 
 /// Stream de mensagens de um grupo.
 /// Provider family estável — NUNCA criar StreamProvider inline no build().

@@ -154,12 +154,21 @@ service cloud.firestore {
 
       match /mensagens/{msgId} {
         allow read, create: if isAdmin() || isActiveOwner(request.auth.uid);
-        // Apenas o admin marca mensagens como lidas. O get() permite adicionar
-        // lida a mensagens antigas que ainda não possuíam esse campo.
-        allow update: if isAdmin() &&
+        // O admin pode marcar mensagens recebidas como lidas. O aluno também
+        // pode marcar apenas mensagens enviadas por outra pessoa, sem alterar
+        // o conteúdo, a autoria ou o timestamp da mensagem.
+        allow update: if (
+          isAdmin() &&
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['lida']) &&
-          request.resource.data.get('lida', false) == true;
+          request.resource.data.get('lida', false) == true
+        ) || (
+          isActiveOwner(request.auth.uid) &&
+          resource.data.get('remetenteId', '') != request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['lida']) &&
+          request.resource.data.get('lida', false) == true
+        );
         // Mensagens não podem ser apagadas.
         allow delete: if false;
       }
@@ -194,10 +203,10 @@ service cloud.firestore {
         resource.data.trainerId == request.auth.uid ||
         resource.data.trainerId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('personalId', '')
       ));
-      // Aluno pode criar marcações (status='pending'); admin pode criar/atualizar qualquer
-      allow create: if isAdmin() || (isActiveOwner(request.auth.uid) &&
-        request.resource.data.studentId == request.auth.uid
-      );
+      // Novas marcações de alunos são criadas pela Cloud Function transacional,
+      // que garante no servidor que existe no máximo um pedido pending por aluno.
+      // O cliente só pode ler e cancelar/atualizar as suas marcações existentes.
+      allow create: if isAdmin();
       // Admin, o próprio aluno OU o trainer pode atualizar (ex: cancelar, concluir)
       allow update: if isAdmin() || (isActiveOwner(request.auth.uid) && (
         resource.data.studentId == request.auth.uid ||

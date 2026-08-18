@@ -19,8 +19,8 @@ import '../../../../shared/widgets/app_notification.dart';
 
 final workoutPlansProvider =
     StreamProvider.family<List<WorkoutPlanModel>, String>((ref, userId) {
-  return ref.read(workoutRepositoryProvider).watchAllPlans(userId);
-});
+      return ref.read(workoutRepositoryProvider).watchAllPlans(userId);
+    });
 
 final todayWorkoutDiaryProvider = StreamProvider.family<DiaryModel?, String>((
   ref,
@@ -30,11 +30,12 @@ final todayWorkoutDiaryProvider = StreamProvider.family<DiaryModel?, String>((
   return ref.read(diaryRepositoryProvider).diaryEntryStream(userId, today);
 });
 
-final todayWorkoutLogProvider =
-    StreamProvider.family<WorkoutLogModel?, String>((ref, userId) {
-  final today = DateFormat(AppConstants.dateFormat).format(DateTime.now());
-  return ref.read(workoutLogRepositoryProvider).logStream(userId, today);
-});
+final todayWorkoutLogProvider = StreamProvider.family<WorkoutLogModel?, String>(
+  (ref, userId) {
+    final today = DateFormat(AppConstants.dateFormat).format(DateTime.now());
+    return ref.read(workoutLogRepositoryProvider).logStream(userId, today);
+  },
+);
 
 /// Ecrã de treino — Execução interativa com registo de séries, timer e vídeos.
 class WorkoutScreen extends ConsumerStatefulWidget {
@@ -2453,7 +2454,9 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
           // Garante que o último valor introduzido é persistido mesmo quando
           // o aluno fecha o teclado sem alterar outra série.
           _saveLog(readOnly: readOnly);
-          FocusManager.instance.primaryFocus?.unfocus();
+          // No Flutter Web, retirar o foco aqui provoca uma atualização de
+          // viewInsets fora do ciclo de layout e dispara a assertion do engine
+          // em window.dart:99. O teclado pode ser fechado pelo próprio sistema.
         },
       ),
     );

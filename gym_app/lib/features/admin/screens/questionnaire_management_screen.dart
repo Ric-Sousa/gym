@@ -7,6 +7,7 @@ import '../../../shared/providers/admin_providers.dart';
 import '../../../shared/providers/global_providers.dart';
 import '../../../shared/widgets/admin_design_system.dart';
 import '../../../shared/widgets/admin_responsive_dialog.dart';
+import '../../../shared/widgets/app_design_system.dart';
 
 class QuestionnaireManagementScreen extends ConsumerWidget {
   const QuestionnaireManagementScreen({super.key});
@@ -17,7 +18,9 @@ class QuestionnaireManagementScreen extends ConsumerWidget {
     return AdminPageFrame(
       child: configAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => _ErrorState(onRetry: () => ref.invalidate(questionnaireConfigProvider)),
+        error: (_, __) => _ErrorState(
+          onRetry: () => ref.invalidate(questionnaireConfigProvider),
+        ),
         data: (config) => _QuestionnaireEditor(config: config),
       ),
     );
@@ -30,7 +33,8 @@ class _QuestionnaireEditor extends ConsumerStatefulWidget {
   const _QuestionnaireEditor({required this.config});
 
   @override
-  ConsumerState<_QuestionnaireEditor> createState() => _QuestionnaireEditorState();
+  ConsumerState<_QuestionnaireEditor> createState() =>
+      _QuestionnaireEditorState();
 }
 
 class _QuestionnaireEditorState extends ConsumerState<_QuestionnaireEditor> {
@@ -42,13 +46,17 @@ class _QuestionnaireEditorState extends ConsumerState<_QuestionnaireEditor> {
       await ref.read(userRepositoryProvider).saveQuestionnaireConfig(config);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Questionário atualizado para novos acessos.')),
+          const SnackBar(
+            content: Text('Questionário atualizado para novos acessos.'),
+          ),
         );
       }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Não foi possível guardar o questionário.')),
+          const SnackBar(
+            content: Text('Não foi possível guardar o questionário.'),
+          ),
         );
       }
     } finally {
@@ -59,11 +67,16 @@ class _QuestionnaireEditorState extends ConsumerState<_QuestionnaireEditor> {
   Future<void> _addTopic() async {
     final topic = await _showTopicDialog(context);
     if (topic == null) return;
-    await _save(widget.config.copyWith(topics: [...widget.config.topics, topic]));
+    await _save(
+      widget.config.copyWith(topics: [...widget.config.topics, topic]),
+    );
   }
 
   Future<void> _editTopic(int index) async {
-    final topic = await _showTopicDialog(context, initial: widget.config.topics[index]);
+    final topic = await _showTopicDialog(
+      context,
+      initial: widget.config.topics[index],
+    );
     if (topic == null) return;
     final topics = [...widget.config.topics]..[index] = topic;
     await _save(widget.config.copyWith(topics: topics));
@@ -75,12 +88,19 @@ class _QuestionnaireEditorState extends ConsumerState<_QuestionnaireEditor> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Eliminar tópico?'),
-        content: Text('As ${topic.questions.length} perguntas de “${topic.title}” também serão removidas.'),
+        content: Text(
+          'As ${topic.questions.length} perguntas de “${topic.title}” também serão removidas.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: AdminThemeColors.of(context).danger),
+            style: FilledButton.styleFrom(
+              backgroundColor: AdminThemeColors.of(context).danger,
+            ),
             child: const Text('Eliminar'),
           ),
         ],
@@ -121,12 +141,19 @@ class _QuestionnaireEditorState extends ConsumerState<_QuestionnaireEditor> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Eliminar pergunta?'),
-        content: Text('“${question.label}” deixará de aparecer para novos alunos.'),
+        content: Text(
+          '“${question.label}” deixará de aparecer para novos alunos.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: AdminThemeColors.of(context).danger),
+            style: FilledButton.styleFrom(
+              backgroundColor: AdminThemeColors.of(context).danger,
+            ),
             child: const Text('Eliminar'),
           ),
         ],
@@ -147,7 +174,8 @@ class _QuestionnaireEditorState extends ConsumerState<_QuestionnaireEditor> {
       children: [
         AdminPageHeader(
           title: 'QUESTIONÁRIO INICIAL',
-          subtitle: 'Organiza os tópicos e as perguntas que o aluno responde no primeiro acesso.',
+          subtitle:
+              'Organiza os tópicos e as perguntas que o aluno responde no primeiro acesso.',
           icon: Icons.assignment_outlined,
           action: FilledButton.icon(
             onPressed: _saving ? null : _addTopic,
@@ -165,36 +193,48 @@ class _QuestionnaireEditorState extends ConsumerState<_QuestionnaireEditor> {
           _EmptyState(onAdd: _addTopic)
         else
           ...widget.config.topics.asMap().entries.map(
-                (entry) => Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: _TopicCard(
-                    topic: entry.value,
-                    onEdit: entry.value.isProtected || _saving
-                        ? null
-                        : () => _editTopic(entry.key),
-                    onDelete: entry.value.isProtected || _saving
-                        ? null
-                        : () => _deleteTopic(entry.key),
-                    onAddQuestion: entry.value.isProtected || _saving
-                        ? null
-                        : () => _addQuestion(entry.key),
-                    onEditQuestion: entry.value.isProtected || _saving
-                        ? null
-                        : (questionIndex) => _editQuestion(entry.key, questionIndex),
-                    onDeleteQuestion: entry.value.isProtected || _saving
-                        ? null
-                        : (questionIndex) => _deleteQuestion(entry.key, questionIndex),
-                  ),
-                ),
+            (entry) => Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: _TopicCard(
+                topic: entry.value,
+                onEdit: entry.value.isProtected || _saving
+                    ? null
+                    : () => _editTopic(entry.key),
+                onDelete: entry.value.isProtected || _saving
+                    ? null
+                    : () => _deleteTopic(entry.key),
+                onAddQuestion: entry.value.isProtected || _saving
+                    ? null
+                    : () => _addQuestion(entry.key),
+                onEditQuestion: entry.value.isProtected || _saving
+                    ? null
+                    : (questionIndex) =>
+                          _editQuestion(entry.key, questionIndex),
+                onDeleteQuestion: entry.value.isProtected || _saving
+                    ? null
+                    : (questionIndex) =>
+                          _deleteQuestion(entry.key, questionIndex),
               ),
+            ),
+          ),
         if (_saving)
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Row(
               children: [
-                SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: colors.lime)),
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: colors.lime,
+                  ),
+                ),
                 const SizedBox(width: 10),
-                Text('A guardar alterações...', style: GoogleFonts.inter(fontSize: 12, color: colors.muted)),
+                Text(
+                  'A guardar alterações...',
+                  style: GoogleFonts.inter(fontSize: 12, color: colors.muted),
+                ),
               ],
             ),
           ),
@@ -238,7 +278,10 @@ class _TopicCard extends StatelessWidget {
               Container(
                 width: 38,
                 height: 38,
-                decoration: BoxDecoration(color: colors.limeDim, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(
+                  color: colors.limeDim,
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Icon(Icons.topic_outlined, color: colors.lime, size: 20),
               ),
               const SizedBox(width: 12),
@@ -246,10 +289,23 @@ class _TopicCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(topic.title, style: GoogleFonts.montserrat(fontSize: 16, fontWeight: FontWeight.w800, color: colors.text)),
+                    Text(
+                      topic.title,
+                      style: GoogleFonts.montserrat(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: colors.text,
+                      ),
+                    ),
                     if (topic.description.trim().isNotEmpty) ...[
                       const SizedBox(height: 4),
-                      Text(topic.description, style: GoogleFonts.inter(fontSize: 12, color: colors.muted)),
+                      Text(
+                        topic.description,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: colors.muted,
+                        ),
+                      ),
                     ],
                   ],
                 ),
@@ -260,8 +316,24 @@ class _TopicCard extends StatelessWidget {
                   child: Icon(Icons.lock_outline, color: colors.lime, size: 19),
                 )
               else ...[
-                IconButton(onPressed: onEdit, tooltip: 'Editar tópico', icon: Icon(Icons.edit_outlined, color: colors.muted, size: 19)),
-                IconButton(onPressed: onDelete, tooltip: 'Eliminar tópico', icon: Icon(Icons.delete_outline, color: colors.danger, size: 19)),
+                IconButton(
+                  onPressed: onEdit,
+                  tooltip: 'Editar tópico',
+                  icon: Icon(
+                    Icons.edit_outlined,
+                    color: colors.muted,
+                    size: 19,
+                  ),
+                ),
+                IconButton(
+                  onPressed: onDelete,
+                  tooltip: 'Eliminar tópico',
+                  icon: Icon(
+                    Icons.delete_outline,
+                    color: colors.danger,
+                    size: 19,
+                  ),
+                ),
               ],
             ],
           ),
@@ -269,21 +341,24 @@ class _TopicCard extends StatelessWidget {
           if (topic.questions.isEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: Text('Ainda não existem perguntas neste tópico.', style: GoogleFonts.inter(fontSize: 12, color: colors.muted)),
+              child: Text(
+                'Ainda não existem perguntas neste tópico.',
+                style: GoogleFonts.inter(fontSize: 12, color: colors.muted),
+              ),
             )
           else
             ...topic.questions.asMap().entries.map(
-                  (entry) => _QuestionRow(
-                    question: entry.value,
-                    protected: topic.isProtected,
-                    onEdit: onEditQuestion == null
-                        ? null
-                        : () => onEditQuestion!(entry.key),
-                    onDelete: onDeleteQuestion == null
-                        ? null
-                        : () => onDeleteQuestion!(entry.key),
-                  ),
-                ),
+              (entry) => _QuestionRow(
+                question: entry.value,
+                protected: topic.isProtected,
+                onEdit: onEditQuestion == null
+                    ? null
+                    : () => onEditQuestion!(entry.key),
+                onDelete: onDeleteQuestion == null
+                    ? null
+                    : () => onDeleteQuestion!(entry.key),
+              ),
+            ),
           if (topic.isProtected)
             Padding(
               padding: const EdgeInsets.only(top: 4),
@@ -294,7 +369,10 @@ class _TopicCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       'Este tópico é obrigatório e não pode ser alterado.',
-                      style: GoogleFonts.inter(fontSize: 11, color: colors.muted),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: colors.muted,
+                      ),
                     ),
                   ),
                 ],
@@ -329,11 +407,11 @@ class _QuestionRow extends StatelessWidget {
   });
 
   String get typeLabel => switch (question.type) {
-        'choice' => 'Menu com opções',
-        'binary' => 'Sim / Não',
-        'date' => 'Data',
-        _ => 'Texto',
-      };
+    'choice' => 'Menu com opções',
+    'binary' => 'Sim / Não',
+    'date' => 'Data',
+    _ => 'Texto',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -342,16 +420,30 @@ class _QuestionRow extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
-        decoration: BoxDecoration(color: colors.surface2.withValues(alpha: 0.38), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(
+          color: colors.surface2.withValues(alpha: 0.38),
+          borderRadius: BorderRadius.circular(12),
+        ),
         child: Row(
           children: [
-            Icon(question.isBinary ? Icons.toggle_on_outlined : Icons.help_outline, size: 18, color: colors.lime),
+            Icon(
+              question.isBinary ? Icons.toggle_on_outlined : Icons.help_outline,
+              size: 18,
+              color: colors.lime,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(question.label, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: colors.text)),
+                  Text(
+                    question.label,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: colors.text,
+                    ),
+                  ),
                   const SizedBox(height: 3),
                   Text(
                     '${typeLabel}${question.hasDetail ? ' · abre campo de detalhe ao escolher Sim' : ''}',
@@ -366,8 +458,20 @@ class _QuestionRow extends StatelessWidget {
                 child: Icon(Icons.lock_outline, size: 18, color: colors.lime),
               )
             else ...[
-              IconButton(onPressed: onEdit, tooltip: 'Editar pergunta', icon: Icon(Icons.edit_outlined, size: 18, color: colors.muted)),
-              IconButton(onPressed: onDelete, tooltip: 'Eliminar pergunta', icon: Icon(Icons.delete_outline, size: 18, color: colors.danger)),
+              IconButton(
+                onPressed: onEdit,
+                tooltip: 'Editar pergunta',
+                icon: Icon(Icons.edit_outlined, size: 18, color: colors.muted),
+              ),
+              IconButton(
+                onPressed: onDelete,
+                tooltip: 'Eliminar pergunta',
+                icon: Icon(
+                  Icons.delete_outline,
+                  size: 18,
+                  color: colors.danger,
+                ),
+              ),
             ],
           ],
         ),
@@ -449,7 +553,9 @@ class _TopicDialogState extends State<_TopicDialog> {
             initialValue: _description,
             maxLines: 2,
             onChanged: (value) => _description = value,
-            decoration: const InputDecoration(labelText: 'Descrição (opcional)'),
+            decoration: const InputDecoration(
+              labelText: 'Descrição (opcional)',
+            ),
           ),
         ],
       ),
@@ -541,7 +647,8 @@ class _QuestionDialogState extends State<_QuestionDialog> {
     final label = _label.trim();
     if (label.isEmpty) return;
     final initial = widget.initial;
-    final id = initial?.id ?? 'question-${DateTime.now().millisecondsSinceEpoch}';
+    final id =
+        initial?.id ?? 'question-${DateTime.now().millisecondsSinceEpoch}';
     final options = _type == 'binary' ? const ['sim', 'não'] : _choiceOptions;
     if (_type == 'choice' && options.isEmpty) {
       setState(() => _optionsError = 'Adiciona pelo menos uma opção.');
@@ -627,12 +734,12 @@ class _QuestionDialogState extends State<_QuestionDialog> {
                   onPressed: _optionDrafts.length == 1
                       ? null
                       : () => setState(() {
-                            _optionDrafts.removeAt(index);
-                            if (_previewChoice != null &&
-                                !_choiceOptions.contains(_previewChoice)) {
-                              _previewChoice = null;
-                            }
-                          }),
+                          _optionDrafts.removeAt(index);
+                          if (_previewChoice != null &&
+                              !_choiceOptions.contains(_previewChoice)) {
+                            _previewChoice = null;
+                          }
+                        }),
                   icon: const Icon(Icons.remove_circle_outline),
                 ),
               ],
@@ -669,117 +776,23 @@ class _QuestionDialogState extends State<_QuestionDialog> {
     if (mounted && date != null) setState(() => _previewDate = date);
   }
 
-  Widget _buildPreviewChoiceField(AdminThemeColors colors, List<String> options) {
+  Widget _buildPreviewChoiceField(
+    AdminThemeColors colors,
+    List<String> options,
+  ) {
     final selected = options.contains(_previewChoice) ? _previewChoice : null;
-    final compact = MediaQuery.sizeOf(context).width < 600;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final fieldWidth = constraints.maxWidth;
-        return MenuAnchor(
-          key: const ValueKey('admin-question-preview-menu'),
-          crossAxisUnconstrained: false,
-          alignmentOffset: const Offset(0, 4),
-          style: MenuStyle(
-            backgroundColor: WidgetStatePropertyAll(colors.surface2),
-            elevation: const WidgetStatePropertyAll(8),
-            minimumSize: WidgetStatePropertyAll(Size(fieldWidth, 0)),
-            maximumSize: WidgetStatePropertyAll(Size(fieldWidth, 320)),
-            shape: WidgetStatePropertyAll(
-              RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            padding: const WidgetStatePropertyAll(
-              EdgeInsets.symmetric(vertical: 6),
-            ),
-          ),
-          menuChildren: options
-              .map(
-                (option) => MenuItemButton(
-                  onPressed: () => setState(() => _previewChoice = option),
-                  style: MenuItemButton.styleFrom(
-                    minimumSize: const Size.fromHeight(46),
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                  ),
-                  child: SizedBox(
-                    width: fieldWidth - 28,
-                    child: Text(
-                      option,
-                      textAlign: TextAlign.left,
-                      style: TextStyle(
-                        color: colors.text,
-                        fontSize: compact ? 12 : 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              )
-              .toList(),
-          builder: (context, controller, child) => GestureDetector(
-            onTap: options.isEmpty
-                ? null
-                : () {
-                    if (controller.isOpen) {
-                      controller.close();
-                    } else {
-                      controller.open();
-                    }
-                  },
-            child: InputDecorator(
-              isFocused: controller.isOpen,
-              isEmpty: selected == null,
-              decoration: InputDecoration(
-                labelText: 'Seleciona uma opção',
-                filled: true,
-                fillColor: colors.surface,
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: compact ? 12 : 14,
-                  vertical: compact ? 10 : 12,
-                ),
-                suffixIcon: Icon(
-                  controller.isOpen
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.keyboard_arrow_down_rounded,
-                  color: colors.lime,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: colors.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: colors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: colors.lime, width: 1.2),
-                ),
-                labelStyle: TextStyle(
-                  color: colors.muted,
-                  fontSize: compact ? 12 : 13,
-                ),
-                floatingLabelStyle: TextStyle(
-                  color: colors.lime,
-                  fontSize: compact ? 11 : 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              child: Text(
-                selected ?? '',
-                textAlign: TextAlign.left,
-                style: TextStyle(
-                  color: colors.text,
-                  fontSize: compact ? 12 : 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+    return AppMenuDropdown<String>(
+      key: const ValueKey('admin-question-preview-menu'),
+      value: selected,
+      options: options,
+      labelBuilder: (option) => option,
+      onChanged: (option) => setState(() => _previewChoice = option),
+      label: 'Seleciona uma opção',
+      accentColor: colors.lime,
+      fieldColor: colors.surface,
+      menuColor: colors.surface2,
+      textColor: colors.text,
+      labelColor: colors.muted,
     );
   }
 
@@ -826,7 +839,9 @@ class _QuestionDialogState extends State<_QuestionDialog> {
           readOnly: true,
           decoration: InputDecoration(
             labelText: 'Resposta',
-            hintText: _hint.trim().isEmpty ? 'Escreve a tua resposta' : _hint.trim(),
+            hintText: _hint.trim().isEmpty
+                ? 'Escreve a tua resposta'
+                : _hint.trim(),
           ),
         );
     }
@@ -848,7 +863,10 @@ class _QuestionDialogState extends State<_QuestionDialog> {
               const SizedBox(width: 8),
               Text(
                 'Pré-visualização para o aluno',
-                style: TextStyle(color: colors.text, fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  color: colors.text,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
           ),
@@ -858,7 +876,14 @@ class _QuestionDialogState extends State<_QuestionDialog> {
             style: TextStyle(color: colors.muted, fontSize: 11),
           ),
           const SizedBox(height: 12),
-          Text(title, style: TextStyle(color: colors.text, fontSize: 13, fontWeight: FontWeight.w600)),
+          Text(
+            title,
+            style: TextStyle(
+              color: colors.text,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 8),
           field,
         ],
@@ -889,7 +914,16 @@ class _QuestionDialogState extends State<_QuestionDialog> {
           ),
           const SizedBox(height: 14),
           DropdownButtonFormField<String>(
-            value: _type,
+            initialValue: _type,
+            isDense: true,
+            menuMaxHeight: 320,
+            elevation: 3,
+            borderRadius: BorderRadius.circular(14),
+            dropdownColor: AdminThemeColors.of(context).surface2,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: AdminThemeColors.of(context).text,
+            ),
             decoration: const InputDecoration(labelText: 'Tipo de resposta'),
             items: const [
               DropdownMenuItem(value: 'text', child: Text('Texto livre')),
@@ -946,19 +980,27 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(40),
-          child: Column(
-            children: [
-              Icon(Icons.assignment_outlined, size: 42, color: AdminThemeColors.of(context).muted),
-              const SizedBox(height: 12),
-              const Text('Ainda não existem tópicos.'),
-              const SizedBox(height: 14),
-              OutlinedButton.icon(onPressed: onAdd, icon: const Icon(Icons.add), label: const Text('Criar primeiro tópico')),
-            ],
+    child: Padding(
+      padding: const EdgeInsets.all(40),
+      child: Column(
+        children: [
+          Icon(
+            Icons.assignment_outlined,
+            size: 42,
+            color: AdminThemeColors.of(context).muted,
           ),
-        ),
-      );
+          const SizedBox(height: 12),
+          const Text('Ainda não existem tópicos.'),
+          const SizedBox(height: 14),
+          OutlinedButton.icon(
+            onPressed: onAdd,
+            icon: const Icon(Icons.add),
+            label: const Text('Criar primeiro tópico'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _ErrorState extends StatelessWidget {
@@ -967,13 +1009,16 @@ class _ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Não foi possível carregar a configuração.'),
-            const SizedBox(height: 12),
-            OutlinedButton(onPressed: onRetry, child: const Text('Tentar novamente')),
-          ],
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text('Não foi possível carregar a configuração.'),
+        const SizedBox(height: 12),
+        OutlinedButton(
+          onPressed: onRetry,
+          child: const Text('Tentar novamente'),
         ),
-      );
+      ],
+    ),
+  );
 }

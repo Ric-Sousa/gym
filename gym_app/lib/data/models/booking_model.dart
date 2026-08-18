@@ -5,7 +5,7 @@ class BookingModel {
   final String trainerId;
   final DateTime data;
   final int duracaoMinutos;
-  final String status; // 'pending', 'confirmed', 'cancelled', 'completed'
+  final String status; // pending/confirmed/cancelled/completed e equivalentes legados
   final String? notas;
   final String tipo; // 'presencial', 'online'
   final DateTime? createdAt;
@@ -23,13 +23,24 @@ class BookingModel {
   });
 
   factory BookingModel.fromMap(String id, Map<String, dynamic> map) {
+    final rawStatus = map['status'];
+    final status = rawStatus is String && rawStatus.trim().isNotEmpty
+        ? rawStatus
+        : map['approved'] == true || map['aprovado'] == true
+        ? 'confirmed'
+        : map['rejected'] == true ||
+              map['recusado'] == true ||
+              map['recusada'] == true
+        ? 'cancelled'
+        : 'pending';
+
     return BookingModel(
       id: id,
       studentId: map['studentId'] as String? ?? '',
       trainerId: map['trainerId'] as String? ?? '',
       data: (map['data'] as dynamic).toDate() as DateTime,
       duracaoMinutos: map['duracaoMinutos'] as int? ?? 60,
-      status: map['status'] as String? ?? 'pending',
+      status: status,
       notas: map['notas'] as String?,
       tipo: map['tipo'] as String? ?? 'presencial',
       createdAt: map['createdAt'] != null
@@ -51,10 +62,51 @@ class BookingModel {
     };
   }
 
-  bool get isConfirmed => status == 'confirmed';
-  bool get isPending => status == 'pending';
-  bool get isCancelled => status == 'cancelled';
-  bool get isCompleted => status == 'completed';
+  String get normalizedStatus => status
+      .trim()
+      .toLowerCase()
+      .replaceAll(' ', '_')
+      .replaceAll('-', '_');
+
+  bool get isConfirmed => const {
+    'confirmed',
+    'approved',
+    'accepted',
+    'aprovado',
+    'aprovada',
+    'aceite',
+    'aceita',
+  }.contains(normalizedStatus);
+
+  bool get isPending => const {
+    'pending',
+    'pendente',
+    'aguarda_aprovacao',
+    'aguardando_aprovacao',
+    'aguarda_aprovação',
+    'aguardando_aprovação',
+  }.contains(normalizedStatus);
+
+  bool get isCancelled => const {
+    'cancelled',
+    'canceled',
+    'rejected',
+    'declined',
+    'recusado',
+    'recusada',
+    'rejeitado',
+    'rejeitada',
+    'cancelado',
+    'cancelada',
+  }.contains(normalizedStatus);
+
+  bool get isCompleted => const {
+    'completed',
+    'complete',
+    'concluido',
+    'concluída',
+    'concluida',
+  }.contains(normalizedStatus);
 
   String get horaFormatada =>
       '${data.hour.toString().padLeft(2, '0')}:${data.minute.toString().padLeft(2, '0')}';

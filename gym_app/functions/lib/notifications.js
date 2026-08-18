@@ -38,7 +38,6 @@ exports.sendUserPush = sendUserPush;
 exports.sendUserEmail = sendUserEmail;
 exports.escapeHtml = escapeHtml;
 const admin = __importStar(require("firebase-admin"));
-const functions = __importStar(require("firebase-functions"));
 function db() {
     return admin.firestore();
 }
@@ -88,10 +87,16 @@ async function sendUserPush(userId, title, body, data = {}) {
     }
 }
 function legacyResendConfig() {
-    // functions.config() throws while a 2nd gen container is starting.
-    if (process.env.K_CONFIGURATION)
+    const raw = process.env.CLOUD_RUNTIME_CONFIG;
+    if (!raw)
         return {};
-    return functions.config().resend ?? {};
+    try {
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed.resend === 'object' ? parsed.resend : {};
+    }
+    catch (_) {
+        return {};
+    }
 }
 function resendApiKey() {
     return process.env.RESEND_API_KEY || legacyResendConfig().api_key || '';

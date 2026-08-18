@@ -34,11 +34,7 @@ ThemeData buildWorkspaceTheme(ThemeData baseTheme, AdminThemeColors colors) {
       height: 1.3,
       color: colors.text,
     ),
-    bodyLarge: GoogleFonts.inter(
-      fontSize: 16,
-      height: 1.5,
-      color: colors.text,
-    ),
+    bodyLarge: GoogleFonts.inter(fontSize: 16, height: 1.5, color: colors.text),
     bodyMedium: GoogleFonts.inter(
       fontSize: 14,
       height: 1.45,
@@ -94,10 +90,7 @@ ThemeData buildWorkspaceTheme(ThemeData baseTheme, AdminThemeColors colors) {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(13),
-        borderSide: BorderSide(
-          color: colors.border,
-          width: 1.3,
-        ),
+        borderSide: BorderSide(color: colors.border, width: 1.3),
       ),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
@@ -331,6 +324,7 @@ class AdminSurface extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final Color? color;
   final bool emphasized;
+  final bool borderless;
   final BorderRadius borderRadius;
   final VoidCallback? onTap;
 
@@ -340,6 +334,7 @@ class AdminSurface extends StatelessWidget {
     this.padding = const EdgeInsets.all(24),
     this.color,
     this.emphasized = false,
+    this.borderless = false,
     this.borderRadius = const BorderRadius.all(
       Radius.circular(AdminDesignTokens.radius),
     ),
@@ -357,10 +352,12 @@ class AdminSurface extends StatelessWidget {
       decoration: BoxDecoration(
         color: surfaceColor,
         borderRadius: borderRadius,
-        border: compact
+        border: compact || borderless
             ? null
             : Border.all(
-                color: colors.border.withValues(alpha: emphasized ? 0.72 : 0.48),
+                color: colors.border.withValues(
+                  alpha: emphasized ? 0.72 : 0.48,
+                ),
               ),
       ),
       child: child,
@@ -418,46 +415,44 @@ class AdminMetric extends StatelessWidget {
     final colors = AdminThemeColors.of(context);
     final color = accent ?? colors.lime;
     return AdminSurface(
+      borderless: true,
       padding: const EdgeInsets.fromLTRB(20, 19, 20, 18),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Icon(icon, size: 18, color: color),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label.toUpperCase(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
-                    color: colors.muted,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.7,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  value,
-                  style: GoogleFonts.montserrat(
-                    color: colors.text,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    height: 1,
-                  ),
-                ),
-                if (detail != null) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    detail!,
-                    style: GoogleFonts.inter(                fontSize: 12, color: colors.muted),
-                  ),
-                ],
-              ],
+          const SizedBox(height: 9),
+          Text(
+            label.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              color: colors.muted,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.7,
             ),
           ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.montserrat(
+              color: colors.text,
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              height: 1,
+            ),
+          ),
+          if (detail != null) ...[
+            const SizedBox(height: 3),
+            Text(
+              detail!,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(fontSize: 12, color: colors.muted),
+            ),
+          ],
         ],
       ),
     );

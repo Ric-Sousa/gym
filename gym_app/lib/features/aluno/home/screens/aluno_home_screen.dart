@@ -189,8 +189,7 @@ final alunoGroupUnreadCountProvider = StreamProvider.family<int, String>((
       final timestamp = timestampOf(data['timestamp']);
       return data['lida'] != true &&
           data['remetenteId'] != userId &&
-          (readAt == null ||
-              (timestamp != null && timestamp.isAfter(readAt)));
+          (readAt == null || (timestamp != null && timestamp.isAfter(readAt)));
     }).length;
   }
 
@@ -204,7 +203,9 @@ final alunoGroupUnreadCountProvider = StreamProvider.family<int, String>((
         .listen(
           (snap) {
             initializedGroups.add(groupId);
-            messagesByGroup[groupId] = snap.docs.map((message) => message.data()).toList();
+            messagesByGroup[groupId] = snap.docs
+                .map((message) => message.data())
+                .toList();
             recalculate(groupId);
             if (activeGroupIds.every(initializedGroups.contains)) {
               emitTotal();
@@ -264,8 +265,10 @@ final alunoGroupUnreadCountProvider = StreamProvider.family<int, String>((
 });
 
 /// Provider do plano de treino de hoje (se existir).
-final todayWorkoutPlanProvider =
-    StreamProvider.family<WorkoutDay?, String>((ref, userId) {
+final todayWorkoutPlanProvider = StreamProvider.family<WorkoutDay?, String>((
+  ref,
+  userId,
+) {
   final weekday = DateTime.now().weekday - 1;
   final diaSemana = AppStrings.daysOfWeek[weekday];
   return ref.read(workoutRepositoryProvider).watchAllPlans(userId).map((plans) {
@@ -278,15 +281,17 @@ final todayWorkoutPlanProvider =
 });
 
 /// Provider do histórico semanal (últimos 7 dias).
-final weeklyHistoryProvider =
-    StreamProvider.family<List<DiaryModel>, String>((ref, userId) {
-  return ref.read(diaryRepositoryProvider).watchHistory(userId, limit: 7).map(
-    (history) {
-      final sorted = [...history];
-      sorted.sort((a, b) => a.data.compareTo(b.data));
-      return sorted;
-    },
-  );
+final weeklyHistoryProvider = StreamProvider.family<List<DiaryModel>, String>((
+  ref,
+  userId,
+) {
+  return ref.read(diaryRepositoryProvider).watchHistory(userId, limit: 7).map((
+    history,
+  ) {
+    final sorted = [...history];
+    sorted.sort((a, b) => a.data.compareTo(b.data));
+    return sorted;
+  });
 });
 
 final todayDateProvider = Provider<String>((ref) {
@@ -296,9 +301,9 @@ final todayDateProvider = Provider<String>((ref) {
 /// Meta de água do plano nutricional do dia atual.
 final todayNutritionPlanProvider =
     StreamProvider.family<NutritionPlanModel?, String>((ref, userId) {
-  final diaSemana = AppStrings.daysOfWeek[DateTime.now().weekday - 1];
-  return ref.read(nutritionRepositoryProvider).watchPlan(userId, diaSemana);
-});
+      final diaSemana = AppStrings.daysOfWeek[DateTime.now().weekday - 1];
+      return ref.read(nutritionRepositoryProvider).watchPlan(userId, diaSemana);
+    });
 
 final todayDiaryProvider = StreamProvider.family<DiaryModel?, String>((
   ref,
@@ -312,8 +317,8 @@ final todayDiaryProvider = StreamProvider.family<DiaryModel?, String>((
 /// Provider de todos os planos de treino (para cruzar com o grafico semanal).
 final weeklyWorkoutPlansProvider =
     StreamProvider.family<List<WorkoutPlanModel>, String>((ref, userId) {
-  return ref.read(workoutRepositoryProvider).watchAllPlans(userId);
-});
+      return ref.read(workoutRepositoryProvider).watchAllPlans(userId);
+    });
 
 final ensureDiaryProvider = FutureProvider.family<void, String>((
   ref,
@@ -336,15 +341,34 @@ class AlunoHomeScreen extends ConsumerStatefulWidget {
 class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
   final LayerLink _notificationLayerLink = LayerLink();
   OverlayEntry? _notificationOverlay;
+  ValueNotifier<bool>? _notificationVisibility;
 
-  void _closeNotificationOverlay() {
+  void _finishNotificationClose() {
+    final visibility = _notificationVisibility;
+    if (visibility == null || visibility.value) return;
     _notificationOverlay?.remove();
     _notificationOverlay = null;
+    _notificationVisibility = null;
+    visibility.dispose();
+  }
+
+  void _closeNotificationOverlay() {
+    final visibility = _notificationVisibility;
+    if (visibility == null) {
+      _notificationOverlay?.remove();
+      _notificationOverlay = null;
+      return;
+    }
+    if (!visibility.value) return;
+    visibility.value = false;
   }
 
   @override
   void dispose() {
-    _closeNotificationOverlay();
+    _notificationOverlay?.remove();
+    _notificationOverlay = null;
+    _notificationVisibility?.dispose();
+    _notificationVisibility = null;
     super.dispose();
   }
 
@@ -363,7 +387,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
     final authState = ref.watch(authProvider);
     final userId = authState.user?.uid ?? '';
     final isOffline = ref.watch(connectivityStreamProvider).value ?? false;
-    final paymentNotificationCount = ref.watch(
+    final notificationCount = ref.watch(
       paymentNotificationCountProvider(userId),
     );
 
@@ -379,7 +403,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: _buildAppBar(userId, paymentNotificationCount),
+      appBar: _buildAppBar(userId, notificationCount),
       body: Column(
         children: [
           OfflineBanner(isOffline: isOffline),
@@ -396,247 +420,417 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
   }
 
   void _showPaymentNotifications(BuildContext context, String userId) {
-    final payments = ref
-        .read(paymentsStreamProvider(userId))
-        .asData
-        ?.value
-        .where((payment) =>
-            !payment.isPaid &&
-            !payment.isCancelled &&
-            payment.status != 'refunded')
-        .toList() ??
-        [];
-    final notifications = ref
-            .read(notificationsStreamProvider(userId))
-            .asData
-            ?.value ??
-        [];
-    unawaited(
-      ref.read(notificationRepositoryProvider).markAllAsRead(userId),
-    );
-
     if (_notificationOverlay != null) {
       _closeNotificationOverlay();
       return;
     }
 
     final overlay = Overlay.of(context);
+    final visibility = ValueNotifier<bool>(false);
+    _notificationVisibility = visibility;
     late OverlayEntry notificationEntry;
 
     notificationEntry = OverlayEntry(
-      builder: (dialogContext) => Stack(
-        children: [
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: _closeNotificationOverlay,
-              child: const SizedBox.expand(),
-            ),
-          ),
-          CompositedTransformFollower(
-            link: _notificationLayerLink,
-            showWhenUnlinked: false,
-            targetAnchor: Alignment.bottomRight,
-            followerAnchor: Alignment.topRight,
-            offset: const Offset(0, 10),
-            child: Material(
-              color: AppColors.surface,
-              elevation: 8,
-              shadowColor: Colors.black.withValues(alpha: 0.18),
-              surfaceTintColor: Colors.transparent,
-              borderRadius: BorderRadius.circular(18),
-              clipBehavior: Clip.antiAlias,
-              child: ConstrainedBox(
-          constraints: BoxConstraints(
-            minWidth: (MediaQuery.sizeOf(dialogContext).width - 24)
-                .clamp(280.0, 400.0)
-                .toDouble(),
-            maxWidth: (MediaQuery.sizeOf(dialogContext).width - 24)
-                .clamp(280.0, 400.0)
-                .toDouble(),
-            maxHeight: MediaQuery.sizeOf(dialogContext).height * 0.78,
-          ),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
-            child: payments.isEmpty && notifications.isEmpty
-              ? Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 34),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.mark_email_read_outlined,
-                        color: AppColors.textSecondary,
-                        size: 34,
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Não tens avisos pendentes.',
-                        style: GoogleFonts.inter(
-                          color: AppColors.textSecondary,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: StudentThemeColors.of(context)
-                                .primary
-                                .withValues(alpha: 0.12),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.notifications_none_rounded,
-                            color: StudentThemeColors.of(context).primary,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'Avisos',
-                            style: GoogleFonts.montserrat(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.onSurface,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: _closeNotificationOverlay,
-                          icon: const Icon(Icons.close_rounded),
-                          tooltip: 'Fechar',
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Toca num aviso para abrir a área correspondente.',
-                      style: GoogleFonts.inter(
-                        color: AppColors.textSecondary,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    ...notifications.map(
-                      (notification) => ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                        onTap: () => _openNotification(dialogContext, notification),
-                        tileColor: AppColors.surfaceHigh.withValues(alpha: 0.72),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        trailing: const Icon(
-                          Icons.chevron_right_rounded,
-                          color: AppColors.textSecondary,
-                        ),
-                        leading: CircleAvatar(
-                          backgroundColor: StudentThemeColors.of(context)
-                              .primaryContainer,
-                          child: Icon(
-                            Icons.notifications_outlined,
-                            color: StudentThemeColors.of(context).primary,
-                          ),
-                        ),
-                        title: Text(
-                          notification.title,
-                          style: GoogleFonts.inter(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.onSurface,
-                          ),
-                        ),
-                        subtitle: Text(
-                          notification.body,
-                          style: GoogleFonts.inter(
-                            color: AppColors.textSecondary,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (payments.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        'Pagamentos pendentes',
-                        style: GoogleFonts.inter(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                    ],
-                    ...payments.map(
-                      (payment) => ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                        onTap: () {
-                          _closeNotificationOverlay();
-                          widget.onNavigate?.call(5);
-                        },
-                        tileColor: AppColors.surfaceHigh.withValues(alpha: 0.72),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        trailing: const Icon(
-                          Icons.chevron_right_rounded,
-                          color: AppColors.textSecondary,
-                        ),
-                        leading: CircleAvatar(
-                          backgroundColor: StudentThemeColors.of(context)
-                              .primaryContainer,
-                          child: Icon(
-                            Icons.payment_outlined,
-                            color: StudentThemeColors.of(context).primary,
-                          ),
-                        ),
-                        title: Text(
-                          payment.descricao ?? payment.tipoMensalidadeLabel,
-                          style: GoogleFonts.inter(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.onSurface,
-                          ),
-                        ),
-                        subtitle: Text(
-                          '${payment.tipoMensalidadeLabel} · ${payment.valorFormatado}',
-                          style: GoogleFonts.inter(
-                            color: AppColors.textSecondary,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+      builder: (dialogContext) => ValueListenableBuilder<bool>(
+        valueListenable: visibility,
+        builder: (animationContext, visible, child) => AnimatedOpacity(
+          opacity: visible ? 1 : 0,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          onEnd: () {
+            if (!visible) _finishNotificationClose();
+          },
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: _closeNotificationOverlay,
+                  child: const SizedBox.expand(),
                 ),
+              ),
+              CompositedTransformFollower(
+                link: _notificationLayerLink,
+                showWhenUnlinked: false,
+                targetAnchor: Alignment.bottomRight,
+                followerAnchor: Alignment.topRight,
+                offset: const Offset(0, 10),
+                child: Material(
+                  color: AppColors.surface,
+                  elevation: 8,
+                  shadowColor: Colors.black.withValues(alpha: 0.18),
+                  surfaceTintColor: Colors.transparent,
+                  borderRadius: BorderRadius.circular(18),
+                  clipBehavior: Clip.antiAlias,
+                  child: Consumer(
+                    builder: (panelContext, panelRef, _) {
+                      final livePayments =
+                          panelRef
+                              .watch(paymentsStreamProvider(userId))
+                              .asData
+                              ?.value
+                              .where(
+                                (payment) =>
+                                    !payment.isPaid &&
+                                    !payment.isCancelled &&
+                                    payment.status != 'refunded',
+                              )
+                              .toList() ??
+                          [];
+                      final liveNotifications =
+                          panelRef
+                              .watch(notificationsStreamProvider(userId))
+                              .asData
+                              ?.value ??
+                          [];
+                      final notifications =
+                          AppNotificationModel.groupNotifications(
+                                liveNotifications,
+                              )
+                              .where((notification) => !notification.read)
+                              .toList();
+                      final payments = livePayments;
+                      return ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minWidth:
+                              (MediaQuery.sizeOf(dialogContext).width - 24)
+                                  .clamp(280.0, 400.0)
+                                  .toDouble(),
+                          maxWidth:
+                              (MediaQuery.sizeOf(dialogContext).width - 24)
+                                  .clamp(280.0, 400.0)
+                                  .toDouble(),
+                          maxHeight:
+                              MediaQuery.sizeOf(dialogContext).height * 0.78,
+                        ),
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+                          child: payments.isEmpty && notifications.isEmpty
+                              ? Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 34,
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Icon(
+                                        Icons.mark_email_read_outlined,
+                                        color: AppColors.textSecondary,
+                                        size: 34,
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        'Não tens avisos pendentes.',
+                                        style: GoogleFonts.inter(
+                                          color: AppColors.textSecondary,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          width: 38,
+                                          height: 38,
+                                          decoration: BoxDecoration(
+                                            color: StudentThemeColors.of(
+                                              context,
+                                            ).primary.withValues(alpha: 0.12),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(
+                                            Icons.notifications_none_rounded,
+                                            color: StudentThemeColors.of(
+                                              context,
+                                            ).primary,
+                                            size: 20,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(
+                                            'Avisos',
+                                            style: GoogleFonts.montserrat(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w700,
+                                              color: AppColors.onSurface,
+                                            ),
+                                          ),
+                                        ),
+                                        TextButton.icon(
+                                          onPressed: notifications.isEmpty
+                                              ? null
+                                              : () => unawaited(
+                                                  panelRef
+                                                      .read(
+                                                        notificationRepositoryProvider,
+                                                      )
+                                                      .markAllAsRead(userId),
+                                                ),
+                                          icon: const Icon(
+                                            Icons.done_all_rounded,
+                                            size: 16,
+                                          ),
+                                          label: const Text('Ler todas'),
+                                          style: TextButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                            ),
+                                            textStyle: GoogleFonts.inter(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                        IconButton(
+                                          onPressed: _closeNotificationOverlay,
+                                          icon: const Icon(Icons.close_rounded),
+                                          tooltip: 'Fechar',
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Toca num aviso para abrir a área correspondente.',
+                                      style: GoogleFonts.inter(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    ...notifications.map(
+                                      (notification) => Container(
+                                        margin: const EdgeInsets.only(
+                                          bottom: 10,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: notification.read
+                                              ? AppColors.surfaceHigh
+                                                    .withValues(alpha: 0.58)
+                                              : StudentThemeColors.of(context)
+                                                    .primary
+                                                    .withValues(alpha: 0.10),
+                                          borderRadius: BorderRadius.circular(
+                                            16,
+                                          ),
+                                          border: Border.all(
+                                            color: notification.read
+                                                ? AppColors.outline.withValues(
+                                                    alpha: 0.35,
+                                                  )
+                                                : StudentThemeColors.of(context)
+                                                      .primary
+                                                      .withValues(alpha: 0.35),
+                                          ),
+                                        ),
+                                        child: ListTile(
+                                          contentPadding:
+                                              const EdgeInsets.fromLTRB(
+                                                12,
+                                                8,
+                                                10,
+                                                8,
+                                              ),
+                                          onTap: () => _openNotification(
+                                            userId,
+                                            notification,
+                                          ),
+                                          leading: CircleAvatar(
+                                            backgroundColor:
+                                                StudentThemeColors.of(
+                                                  context,
+                                                ).primaryContainer,
+                                            child: Icon(
+                                              _notificationIcon(
+                                                notification.type,
+                                              ),
+                                              color: StudentThemeColors.of(
+                                                context,
+                                              ).primary,
+                                            ),
+                                          ),
+                                          title: Text(
+                                            notification.title,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: GoogleFonts.inter(
+                                              fontWeight: notification.read
+                                                  ? FontWeight.w600
+                                                  : FontWeight.w800,
+                                              color: AppColors.onSurface,
+                                            ),
+                                          ),
+                                          subtitle: Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 5,
+                                            ),
+                                            child: Text(
+                                              notification.body,
+                                              maxLines: 3,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: GoogleFonts.inter(
+                                                color: AppColors.textSecondary,
+                                                fontSize: 12,
+                                                height: 1.35,
+                                              ),
+                                            ),
+                                          ),
+                                          trailing: Column(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              if (notification.unreadCount > 1)
+                                                Container(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 7,
+                                                        vertical: 3,
+                                                      ),
+                                                  decoration: BoxDecoration(
+                                                    color:
+                                                        StudentThemeColors.of(
+                                                          context,
+                                                        ).primary,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          10,
+                                                        ),
+                                                  ),
+                                                  child: Text(
+                                                    '${notification.unreadCount}',
+                                                    style: GoogleFonts.inter(
+                                                      color: Colors.white,
+                                                      fontSize: 10,
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                    ),
+                                                  ),
+                                                ),
+                                              const SizedBox(height: 4),
+                                              const Icon(
+                                                Icons.chevron_right_rounded,
+                                                color: AppColors.textSecondary,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    if (payments.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Pagamentos pendentes',
+                                        style: GoogleFonts.inter(
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.onSurface,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                    ],
+                                    ...payments.map(
+                                      (payment) => ListTile(
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                            ),
+                                        onTap: () {
+                                          _closeNotificationOverlay();
+                                          widget.onNavigate?.call(5);
+                                        },
+                                        tileColor: AppColors.surfaceHigh
+                                            .withValues(alpha: 0.72),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                        ),
+                                        trailing: const Icon(
+                                          Icons.chevron_right_rounded,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                        leading: CircleAvatar(
+                                          backgroundColor:
+                                              StudentThemeColors.of(
+                                                context,
+                                              ).primaryContainer,
+                                          child: Icon(
+                                            Icons.payment_outlined,
+                                            color: StudentThemeColors.of(
+                                              context,
+                                            ).primary,
+                                          ),
+                                        ),
+                                        title: Text(
+                                          payment.descricao ??
+                                              payment.tipoMensalidadeLabel,
+                                          style: GoogleFonts.inter(
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.onSurface,
+                                          ),
+                                        ),
+                                        subtitle: Text(
+                                          '${payment.tipoMensalidadeLabel} · ${payment.valorFormatado}',
+                                          style: GoogleFonts.inter(
+                                            color: AppColors.textSecondary,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
-      ),
-    ],
-  ),
     );
 
     _notificationOverlay = notificationEntry;
     overlay.insert(notificationEntry);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_notificationVisibility == visibility &&
+          _notificationOverlay != null) {
+        visibility.value = true;
+      }
+    });
   }
 
-  void _openNotification(
-    BuildContext dialogContext,
-    AppNotificationModel notification,
-  ) {
+  void _openNotification(String userId, AppNotificationModel notification) {
+    final salaId = notification.metadata['salaId'];
+    unawaited(
+      salaId != null && salaId.isNotEmpty
+          ? ref
+                .read(notificationRepositoryProvider)
+                .markChatAsRead(userId, salaId)
+          : ref
+                .read(notificationRepositoryProvider)
+                .markAsRead(userId, notification.id),
+    );
     _closeNotificationOverlay();
     final destination = _notificationDestination(
       action: notification.action,
       type: notification.type,
     );
     if (destination != null) widget.onNavigate?.call(destination);
+  }
+
+  IconData _notificationIcon(String type) {
+    if (type == 'chat_group') return Icons.groups_outlined;
+    if (type.startsWith('chat')) return Icons.chat_bubble_outline_rounded;
+    if (type == 'booking_update') return Icons.event_available_outlined;
+    if (type.startsWith('payment_')) return Icons.payment_outlined;
+    return Icons.notifications_outlined;
   }
 
   int? _notificationDestination({String? action, required String type}) {
@@ -646,15 +840,12 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
       return 5; // Perfil
     }
     if (action == 'agenda' || type == 'booking_update') return 3;
-    if (action == 'chat' || type == 'chat') return 4;
+    if (action == 'chat' || type.startsWith('chat')) return 4;
     if (action == 'profile' || type == 'progress_request') return 5;
     return null;
   }
 
-  PreferredSizeWidget _buildAppBar(
-    String userId,
-    int paymentNotificationCount,
-  ) {
+  PreferredSizeWidget _buildAppBar(String userId, int notificationCount) {
     final authState = ref.watch(authProvider);
     final nome = authState.user?.nome ?? 'Aluno';
     final foto = authState.user?.fotoPerfil;
@@ -731,49 +922,47 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
         CompositedTransformTarget(
           link: _notificationLayerLink,
           child: IconButton(
-          icon: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Icon(
-                Icons.notifications_outlined,
-                color: StudentThemeColors.of(context).primaryFixed,
-                size: 22,
-              ),
-              if (paymentNotificationCount > 0)
-                Positioned(
-                  top: -8,
-                  right: -9,
-                  child: Container(
-                    constraints: const BoxConstraints(minWidth: 17),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.error,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: AppColors.surfaceLow,
-                        width: 1.5,
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  Icons.notifications_outlined,
+                  color: StudentThemeColors.of(context).primaryFixed,
+                  size: 22,
+                ),
+                if (notificationCount > 0)
+                  Positioned(
+                    top: -8,
+                    right: -9,
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 17),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
                       ),
-                    ),
-                    child: Text(
-                      paymentNotificationCount > 99
-                          ? '99+'
-                          : '$paymentNotificationCount',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.inter(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
+                      decoration: BoxDecoration(
+                        color: AppColors.error,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: AppColors.surfaceLow,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Text(
+                        notificationCount > 99 ? '99+' : '$notificationCount',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                   ),
-                ),
-            ],
-          ),
-          tooltip: 'Notificações de pagamentos',
-          onPressed: () => _showPaymentNotifications(context, userId),
+              ],
+            ),
+            tooltip: 'Notificações',
+            onPressed: () => _showPaymentNotifications(context, userId),
           ),
         ),
         const SizedBox(width: 8),

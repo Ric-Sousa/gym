@@ -33,10 +33,16 @@ class ChatRepository {
   Future<void> markMessagesAsRead(
     String salaId,
     String userId,
-    DateTime readAt,
-  ) async {
+    DateTime readAt, {
+    bool persistConversationCursor = false,
+  }) async {
     try {
-      await _firestoreDataSource.markMessagesAsRead(salaId, userId, readAt);
+      await _firestoreDataSource.markMessagesAsRead(
+        salaId,
+        userId,
+        readAt,
+        persistConversationCursor: persistConversationCursor,
+      );
     } on ServerException catch (e) {
       throw ServerFailure(message: e.message);
     }

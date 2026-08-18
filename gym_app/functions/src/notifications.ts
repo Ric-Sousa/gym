@@ -1,5 +1,4 @@
 import * as admin from 'firebase-admin';
-import * as functions from 'firebase-functions';
 
 export type NotificationInput = {
   userId: string;
@@ -70,9 +69,14 @@ export async function sendUserPush(
 }
 
 function legacyResendConfig(): Record<string, any> {
-  // functions.config() throws while a 2nd gen container is starting.
-  if (process.env.K_CONFIGURATION) return {};
-  return functions.config().resend ?? {};
+  const raw = process.env.CLOUD_RUNTIME_CONFIG;
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed.resend === 'object' ? parsed.resend : {};
+  } catch (_) {
+    return {};
+  }
 }
 
 function resendApiKey(): string {

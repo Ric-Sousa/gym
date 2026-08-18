@@ -14,6 +14,7 @@ import '../../../../data/models/message_model.dart';
 import '../../../../data/models/group_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
+import '../../../../shared/providers/admin_chat_unread_providers.dart';
 import '../../../../shared/widgets/app_notification.dart';
 import '../../../../shared/widgets/audio_message_player.dart';
 import '../../../../shared/widgets/audio_record_button.dart';
@@ -235,11 +236,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       return;
     }
     _markingDirectAsRead = true;
+    final isAdmin = ref.read(authProvider).user?.isAdmin ?? false;
+    if (isAdmin) {
+      final current = ref.read(adminConversationReadAtProvider);
+      final previous = current[salaId];
+      if (previous == null || readAt.isAfter(previous)) {
+        ref.read(adminConversationReadAtProvider.notifier).state = {
+          ...current,
+          salaId: readAt,
+        };
+      }
+    }
     try {
       await ref.read(chatRepositoryProvider).markMessagesAsRead(
         salaId,
         userId,
         readAt,
+        persistConversationCursor: isAdmin,
       );
     } catch (_) {
       if (_lastRequestedDirectReadAt == readAt) {
