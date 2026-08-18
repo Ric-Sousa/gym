@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/config/app_colors.dart';
 import '../../core/config/firebase_messaging_config.dart';
-import '../../data/repositories/user_repository.dart';
 
 /// Serviço de Firebase Cloud Messaging (FCM).
 /// Responsável por:
@@ -15,7 +15,6 @@ import '../../data/repositories/user_repository.dart';
 /// - Lidar com refresh de tokens
 class FCMService {
   final FirebaseMessaging _messaging;
-  final UserRepository _userRepository;
   String? _currentUserId;
   StreamSubscription<RemoteMessage>? _foregroundSubscription;
   StreamSubscription<RemoteMessage>? _openedSubscription;
@@ -28,11 +27,8 @@ class FCMService {
   // Callback para abrir a área correspondente ao tocar numa notificação.
   void Function(RemoteMessage)? onNotificationOpened;
 
-  FCMService({
-    FirebaseMessaging? messaging,
-    required UserRepository userRepository,
-  }) : _messaging = messaging ?? FirebaseMessaging.instance,
-       _userRepository = userRepository;
+  FCMService({FirebaseMessaging? messaging})
+    : _messaging = messaging ?? FirebaseMessaging.instance;
 
   /// Inicializa o serviço FCM para um utilizador específico.
   Future<void> initialize(String userId) async {
@@ -97,10 +93,15 @@ class FCMService {
 
   /// Guarda o token FCM no documento do utilizador.
   Future<void> _saveToken(String userId, String token) async {
+    if (userId.isEmpty || token.trim().isEmpty || token.length > 4096) return;
     try {
-      await _userRepository.updateUser(userId, {'fcmToken': token});
+      // Tokens são credenciais de entrega e não devem ser escritos diretamente
+      // pelo cliente no perfil. A callable associa-os à sessão autenticada.
+      await FirebaseFunctions.instanceFor(region: 'europe-west1')
+          .httpsCallable('registerFcmToken')
+          .call({'token': token});
     } catch (_) {
-      // Ignorar falhas de rede
+      // Ignorar falhas de rede; o próximo refresh tenta novamente.
     }
   }
 
@@ -240,9 +241,23 @@ class FCMService {
   Future<void> removeToken() async {
     if (_currentUserId == null) return;
     try {
+      await FirebaseFunctions.instanceFor(region: 'europe-west1')
+          .httpsCallable('removeFcmToken')
+          .call();
+    } catch (_) {
+      // A remoção local continua a ser feita mesmo se o backend estiver offline.
+    }
+    try {
       await _messaging.deleteToken();
-      await _userRepository.updateUser(_currentUserId!, {'fcmToken': null});
     } catch (_) {}
+    await _foregroundSubscription?.cancel();
+    await _openedSubscription?.cancel();
+    await _tokenRefreshSubscription?.cancel();
+    _foregroundSubscription = null;
+    _openedSubscription = null;
+    _tokenRefreshSubscription = null;
+    _initialized = false;
+    _currentUserId = null;
   }
 
   /// Liberta recursos.

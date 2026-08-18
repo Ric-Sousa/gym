@@ -10,6 +10,7 @@ import '../../../../data/models/progress_video_model.dart';
 import '../../../../data/models/user_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
+import '../../../../core/utils/storage_resource.dart';
 
 final progressVideosProvider =
     StreamProvider.family<List<ProgressVideoModel>, String>((ref, userId) {
@@ -55,6 +56,16 @@ class _VideoProgressScreenState extends ConsumerState<VideoProgressScreen> {
       final extension = picked.name.contains('.')
           ? picked.name.split('.').last.toLowerCase()
           : 'mp4';
+      const allowedExtensions = {'mp4', 'mov', 'webm', 'avi'};
+      if (!allowedExtensions.contains(extension) || bytes.length > 200 * 1024 * 1024) {
+        throw StateError('Formato ou tamanho de vídeo não suportado.');
+      }
+      final contentType = switch (extension) {
+        'mov' => 'video/quicktime',
+        'webm' => 'video/webm',
+        'avi' => 'video/x-msvideo',
+        _ => 'video/mp4',
+      };
       await ref
           .read(progressVideoRepositoryProvider)
           .uploadVideo(
@@ -63,7 +74,7 @@ class _VideoProgressScreenState extends ConsumerState<VideoProgressScreen> {
             exerciseName: exercise,
             bytes: bytes,
             extension: extension,
-            contentType: 'video/$extension',
+            contentType: contentType,
           );
       _exerciseController.clear();
       ref.invalidate(progressVideosProvider(widget.userId));
@@ -350,19 +361,25 @@ class _ProgressVideoPlayer extends StatefulWidget {
 }
 
 class _ProgressVideoPlayerState extends State<_ProgressVideoPlayer> {
-  late final VideoPlayerController _controller;
+  VideoPlayerController? _controller;
   late final Future<void> _initialization;
 
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
-    _initialization = _controller.initialize();
+    _initialization = _initialize();
+  }
+
+  Future<void> _initialize() async {
+    final resolvedUrl = await StorageResource.resolve(widget.url);
+    final controller = VideoPlayerController.networkUrl(Uri.parse(resolvedUrl));
+    _controller = controller;
+    await controller.initialize();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
@@ -392,13 +409,17 @@ class _ProgressVideoPlayerState extends State<_ProgressVideoPlayer> {
           final maxWidth = (MediaQuery.sizeOf(context).width - 72)
               .clamp(220.0, 560.0)
               .toDouble();
+          final controller = _controller;
+          if (controller == null) {
+            return const Text('Não foi possível reproduzir este vídeo.');
+          }
           return ConstrainedBox(
             constraints: BoxConstraints(maxWidth: maxWidth),
             child: AspectRatio(
-              aspectRatio: _controller.value.aspectRatio == 0
+              aspectRatio: controller.value.aspectRatio == 0
                   ? 16 / 9
-                  : _controller.value.aspectRatio,
-              child: VideoPlayer(_controller),
+                  : controller.value.aspectRatio,
+              child: VideoPlayer(controller),
             ),
           );
         },
@@ -411,17 +432,22 @@ class _ProgressVideoPlayerState extends State<_ProgressVideoPlayer> {
         FutureBuilder<void>(
           future: _initialization,
           builder: (context, snapshot) => FilledButton.icon(
-            onPressed: snapshot.connectionState == ConnectionState.done
+            onPressed: snapshot.connectionState == ConnectionState.done &&
+                    _controller != null
                 ? () => setState(() {
-                    _controller.value.isPlaying
-                        ? _controller.pause()
-                        : _controller.play();
+                    _controller!.value.isPlaying
+                        ? _controller!.pause()
+                        : _controller!.play();
                   })
                 : null,
             icon: Icon(
-              _controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
+              _controller?.value.isPlaying == true
+                  ? Icons.pause
+                  : Icons.play_arrow,
             ),
-            label: Text(_controller.value.isPlaying ? 'Pausar' : 'Reproduzir'),
+            label: Text(
+              _controller?.value.isPlaying == true ? 'Pausar' : 'Reproduzir',
+            ),
           ),
         ),
       ],

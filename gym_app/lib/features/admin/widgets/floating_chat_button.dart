@@ -2,8 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod/legacy.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -12,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../core/config/admin_theme.dart';
 import '../../../core/config/app_constants.dart';
+import '../../../core/utils/storage_resource.dart';
 import '../../../core/services/audio_recording_model.dart';
 import '../../../core/services/sound_service.dart';
 import '../../../shared/utils/new_message_detector.dart';
@@ -847,7 +846,7 @@ class _AdminGroupTile extends ConsumerWidget {
                     clipBehavior: Clip.antiAlias,
                     child:
                         group.imagemUrl != null && group.imagemUrl!.isNotEmpty
-                        ? Image.network(
+                        ? StorageImage(
                             group.imagemUrl!,
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => Icon(
@@ -962,24 +961,20 @@ class _ConversationListTile extends StatelessWidget {
                 children: [
                   GestureDetector(
                     onTap: () => _showPhotoZoom(context, aluno),
-                    child: CircleAvatar(
+                    child: StorageAvatar(
+                      resource: aluno.fotoPerfil,
                       radius: 20,
                       backgroundColor: AdminThemeColors.of(context).surface2,
-                      backgroundImage: aluno.fotoPerfil != null
-                          ? NetworkImage(aluno.fotoPerfil!)
-                          : null,
-                      child: aluno.fotoPerfil == null
-                          ? Text(
-                              aluno.nome.isNotEmpty
-                                  ? aluno.nome[0].toUpperCase()
-                                  : '?',
-                              style: GoogleFonts.montserrat(
-                                color: AdminThemeColors.of(context).lime,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                              ),
-                            )
-                          : null,
+                      fallback: Text(
+                        aluno.nome.isNotEmpty
+                            ? aluno.nome[0].toUpperCase()
+                            : '?',
+                        style: GoogleFonts.montserrat(
+                          color: AdminThemeColors.of(context).lime,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
                     ),
                   ),
                   if (hasUnread)
@@ -1225,18 +1220,33 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
     final adminId = ref.read(authProvider).user?.uid ?? '';
     if (adminId.isEmpty) return;
 
+    MessageModel? uploadedMessage;
     try {
+      final participants = [adminId, widget.conversation.aluno.uid];
+      await ref.read(chatRepositoryProvider).ensureChatRoom(
+        widget.conversation.roomId,
+        participants,
+      );
       final message = await createUploadedAudioMessage(
         storage: ref.read(storageDataSourceProvider),
         senderId: adminId,
         chatId: widget.conversation.roomId,
         audio: audio,
       );
+      uploadedMessage = message;
       await ref
           .read(chatRepositoryProvider)
-          .sendMessage(widget.conversation.roomId, message);
-      _notifyChat(widget.conversation.roomId, adminId, '[Áudio]');
+          .sendMessage(
+            widget.conversation.roomId,
+            message,
+            participantIds: participants,
+          );
+      // A trigger notifica áudio após a mensagem ser persistida.
     } catch (error) {
+      await cleanupUploadedMessage(
+        ref.read(storageDataSourceProvider),
+        uploadedMessage,
+      );
       debugPrint('Erro ao enviar áudio do admin: $error');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1250,6 +1260,7 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
     final adminId = ref.read(authProvider).user?.uid ?? '';
     if (adminId.isEmpty) return;
 
+    MessageModel? uploadedMessage;
     try {
       final file = await _imagePicker.pickImage(
         source: ImageSource.gallery,
@@ -1257,18 +1268,32 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
         maxWidth: 1800,
       );
       if (file == null) return;
+      final participants = [adminId, widget.conversation.aluno.uid];
+      await ref.read(chatRepositoryProvider).ensureChatRoom(
+        widget.conversation.roomId,
+        participants,
+      );
       final message = await createUploadedImageMessage(
         storage: ref.read(storageDataSourceProvider),
         senderId: adminId,
         chatId: widget.conversation.roomId,
         file: file,
       );
+      uploadedMessage = message;
       await ref
           .read(chatRepositoryProvider)
-          .sendMessage(widget.conversation.roomId, message);
-      _notifyChat(widget.conversation.roomId, adminId, '[Imagem]');
+          .sendMessage(
+            widget.conversation.roomId,
+            message,
+            participantIds: participants,
+          );
+      // A trigger notifica anexos após a mensagem ser persistida.
       _scrollToBottom();
     } catch (error) {
+      await cleanupUploadedMessage(
+        ref.read(storageDataSourceProvider),
+        uploadedMessage,
+      );
       debugPrint('Erro ao enviar imagem do admin: $error');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1295,45 +1320,24 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
       texto: text,
       timestamp: DateTime.now(),
     );
+    final participants = [adminId, widget.conversation.aluno.uid];
 
     try {
       await ref
           .read(chatRepositoryProvider)
-          .sendMessage(widget.conversation.roomId, msg);
-      _notifyChat(widget.conversation.roomId, adminId, text);
+          .sendMessage(
+            widget.conversation.roomId,
+            msg,
+            participantIds: participants,
+          );
+      // A trigger notifyChatMessageCreated notifica a mensagem persistida.
+
       _scrollToBottom();
     } catch (_) {
       // Silently ignore
     }
   }
 
-  /// Persiste e envia o aviso ao aluno através da mesma Function usada pelo
-  /// chat do aluno. Este detalhe do admin não passava anteriormente por esse
-  /// caminho, por isso a mensagem chegava ao chat mas não ao sino.
-  void _notifyChat(String salaId, String remetenteId, String texto) {
-    Future(() async {
-      try {
-        final user = FirebaseAuth.instance.currentUser;
-        if (user == null) return;
-        final authToken = await user.getIdToken(true);
-        if (authToken == null || authToken.isEmpty) return;
-        await FirebaseFunctions.instanceFor(
-          region: 'europe-west1',
-        ).httpsCallable('sendChatNotification').call({
-          'salaId': salaId,
-          'remetenteId': remetenteId,
-          'texto': texto,
-          'authToken': authToken,
-        });
-      } on FirebaseFunctionsException catch (error) {
-        debugPrint(
-          '⚠️ Cloud Function sendChatNotification: ${error.code} — ${error.message}',
-        );
-      } catch (error) {
-        debugPrint('⚠️ Cloud Function sendChatNotification erro: $error');
-      }
-    });
-  }
 
   void _showPhotoZoom(BuildContext context, UserModel aluno) {
     if (aluno.fotoPerfil == null || aluno.fotoPerfil!.trim().isEmpty) return;
@@ -1379,24 +1383,20 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
               // Photo with zoom
               GestureDetector(
                 onTap: () => _showPhotoZoom(context, aluno),
-                child: CircleAvatar(
+                child: StorageAvatar(
+                  resource: aluno.fotoPerfil,
                   radius: 16,
                   backgroundColor: AdminThemeColors.of(context).limeDim,
-                  backgroundImage: aluno.fotoPerfil != null
-                      ? NetworkImage(aluno.fotoPerfil!)
-                      : null,
-                  child: aluno.fotoPerfil == null
-                      ? Text(
-                          aluno.nome.isNotEmpty
-                              ? aluno.nome[0].toUpperCase()
-                              : '?',
-                          style: GoogleFonts.montserrat(
-                            color: AdminThemeColors.of(context).lime,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                          ),
-                        )
-                      : null,
+                  fallback: Text(
+                    aluno.nome.isNotEmpty
+                        ? aluno.nome[0].toUpperCase()
+                        : '?',
+                    style: GoogleFonts.montserrat(
+                      color: AdminThemeColors.of(context).lime,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
@@ -1909,7 +1909,7 @@ class _ChatBubble extends StatelessWidget {
               else if (msg.isAttachment)
                 ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: Image.network(
+                  child: StorageImage(
                     msg.attachmentUrl!,
                     width: (MediaQuery.sizeOf(context).width - 72)
                         .clamp(140.0, 220.0)

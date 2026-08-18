@@ -9,6 +9,7 @@ import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/student_theme.dart';
 import '../../../../core/config/app_constants.dart';
 import '../../../../core/config/app_strings.dart';
+import '../../../../core/utils/storage_resource.dart';
 import '../../../../data/models/workout_plan_model.dart';
 import '../../../../data/models/workout_log_model.dart';
 import '../../../../data/models/diary_model.dart';
@@ -57,6 +58,7 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
   String? _restingExercise;
   String _restMode = 'DESCANSO';
   bool _saving = false;
+  bool _saveFailed = false;
   bool _saveQueued = false;
   Future<void>? _saveInFlight;
   bool _initialized = false;
@@ -145,8 +147,20 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
           await ref
               .read(workoutLogRepositoryProvider)
               .saveLog(userId, dateKey, log.toMap());
-        } catch (_) {
-          // Silently fail auto-save; the next edit will retry the latest state.
+          _saveFailed = false;
+        } catch (error, stackTrace) {
+          debugPrint('Workout autosave failed: $error');
+          if (!_saveFailed && mounted) {
+            _saveFailed = true;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('O treino ficou pendente de sincronização.'),
+              ),
+            );
+          }
+          // A próxima edição mantém o retry; o estado de falha deixa de ser
+          // silencioso e não cria uma notificação por cada tecla.
+          debugPrintStack(stackTrace: stackTrace);
         }
       } while (_saveQueued && mounted);
     } finally {
@@ -2810,18 +2824,26 @@ class _InlineExercisePreviewState extends State<_InlineExercisePreview> {
   @override
   void initState() {
     super.initState();
-    final url = widget.videoUrl;
-    if (url == null || url.isEmpty) return;
-    final controller = VideoPlayerController.networkUrl(Uri.parse(url));
-    _controller = controller;
-    controller
-        .initialize()
-        .then((_) {
-          if (mounted) setState(() {});
-        })
-        .catchError((_) {
-          if (mounted) setState(() => _error = true);
-        });
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    final resource = widget.videoUrl;
+    if (resource == null || resource.trim().isEmpty) return;
+    try {
+      final resolvedUrl = await StorageResource.resolve(resource);
+      if (!mounted) return;
+      final controller = VideoPlayerController.networkUrl(Uri.parse(resolvedUrl));
+      _controller = controller;
+      await controller.initialize();
+      if (mounted) {
+        setState(() {});
+      } else {
+        await controller.dispose();
+      }
+    } catch (_) {
+      if (mounted) setState(() => _error = true);
+    }
   }
 
   @override
@@ -2933,29 +2955,37 @@ class _VideoPlayerSheet extends StatefulWidget {
 }
 
 class _VideoPlayerSheetState extends State<_VideoPlayerSheet> {
-  late VideoPlayerController _controller;
+  VideoPlayerController? _controller;
   bool _initialized = false;
   bool _error = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl))
-      ..initialize()
-          .then((_) {
-            if (mounted) {
-              setState(() => _initialized = true);
-              _controller.play();
-            }
-          })
-          .catchError((_) {
-            if (mounted) setState(() => _error = true);
-          });
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    try {
+      final resolvedUrl = await StorageResource.resolve(widget.videoUrl);
+      if (!mounted) return;
+      final controller = VideoPlayerController.networkUrl(Uri.parse(resolvedUrl));
+      _controller = controller;
+      await controller.initialize();
+      if (mounted) {
+        setState(() => _initialized = true);
+        await controller.play();
+      } else {
+        await controller.dispose();
+      }
+    } catch (_) {
+      if (mounted) setState(() => _error = true);
+    }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
@@ -3019,15 +3049,17 @@ class _VideoPlayerSheetState extends State<_VideoPlayerSheet> {
                 color: StudentThemeColors.of(context).primary,
               ),
             )
+          else if (_controller == null)
+            const SizedBox.shrink()
           else
             AspectRatio(
-              aspectRatio: _controller.value.aspectRatio,
+              aspectRatio: _controller!.value.aspectRatio,
               child: Stack(
                 alignment: Alignment.bottomCenter,
                 children: [
-                  VideoPlayer(_controller),
+                  VideoPlayer(_controller!),
                   VideoProgressIndicator(
-                    _controller,
+                    _controller!,
                     allowScrubbing: true,
                     colors: VideoProgressColors(
                       playedColor: StudentThemeColors.of(context).primary,
@@ -3035,7 +3067,7 @@ class _VideoPlayerSheetState extends State<_VideoPlayerSheet> {
                       backgroundColor: AppColors.outline,
                     ),
                   ),
-                  _VideoControls(controller: _controller),
+                  _VideoControls(controller: _controller!),
                 ],
               ),
             ),

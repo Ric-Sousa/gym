@@ -5,9 +5,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/student_theme.dart';
+import '../../../../core/utils/storage_resource.dart';
 import '../../../../data/models/group_model.dart';
 import '../../../../data/models/message_model.dart';
 import '../../../../data/models/user_model.dart';
@@ -131,7 +131,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
               ),
               child: _group.imagemUrl != null && _group.imagemUrl!.isNotEmpty
                   ? ClipOval(
-                      child: Image.network(
+                      child: StorageImage(
                         _group.imagemUrl!,
                         width: 34,
                         height: 34,
@@ -468,7 +468,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                             final imageHeight = imageWidth * 0.81;
                             return ClipRRect(
                               borderRadius: BorderRadius.circular(10),
-                              child: Image.network(
+                              child: StorageImage(
                                 msg.attachmentUrl!,
                                 width: imageWidth,
                                 height: imageHeight,
@@ -534,10 +534,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
   Widget _senderAvatar(String uid) {
     final photoUrl = _getSenderPhoto(uid);
     final name = _getSenderName(uid);
-    final backgroundImage = photoUrl != null && photoUrl.trim().isNotEmpty
-        ? NetworkImage(photoUrl)
-        : null;
-    final hasPhoto = backgroundImage != null;
+    final hasPhoto = photoUrl != null && photoUrl.trim().isNotEmpty;
     return GestureDetector(
       onTap: hasPhoto
           ? () => showProfilePhotoViewer(
@@ -547,22 +544,20 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                 accentColor: StudentThemeColors.of(context).primary,
               )
           : null,
-      child: CircleAvatar(
+      child: StorageAvatar(
+        resource: photoUrl,
         radius: 15,
         backgroundColor: StudentThemeColors.of(context).primary.withValues(
           alpha: 0.14,
         ),
-        backgroundImage: backgroundImage,
-        child: !hasPhoto
-            ? Text(
-                name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: GoogleFonts.inter(
-                  color: StudentThemeColors.of(context).primary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                ),
-              )
-            : null,
+        fallback: Text(
+          name.isNotEmpty ? name[0].toUpperCase() : '?',
+          style: GoogleFonts.inter(
+            color: StudentThemeColors.of(context).primary,
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
       ),
     );
   }
@@ -932,7 +927,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                         onTap: () => _showSharedImage(image.attachmentUrl!),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(10),
-                          child: Image.network(
+                          child: StorageImage(
                             image.attachmentUrl!,
                             fit: BoxFit.cover,
                             errorBuilder: (_, __, ___) => Container(
@@ -965,7 +960,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
         shape: BoxShape.circle,
       ),
       child: imageUrl != null && imageUrl.isNotEmpty
-          ? Image.network(
+          ? StorageImage(
               imageUrl,
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => Icon(
@@ -1080,23 +1075,19 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
-                CircleAvatar(
+                StorageAvatar(
+                  resource: photoUrl,
                   radius: 18,
                   backgroundColor: highlighted
                       ? StudentThemeColors.of(context).primary.withValues(alpha: 0.16)
                       : AppColors.surface,
-                  backgroundImage: photoUrl != null && photoUrl.isNotEmpty
-                      ? NetworkImage(photoUrl)
-                      : null,
-                  child: photoUrl == null || photoUrl.isEmpty
-                      ? Icon(
-                          icon,
-                          size: 19,
-                          color: highlighted
-                              ? StudentThemeColors.of(context).primary
-                              : AppColors.textSecondary,
-                        )
-                      : null,
+                  fallback: Icon(
+                    icon,
+                    size: 19,
+                    color: highlighted
+                        ? StudentThemeColors.of(context).primary
+                        : AppColors.textSecondary,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -1138,7 +1129,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
         insetPadding: const EdgeInsets.all(12),
         child: Stack(
           children: [
-            InteractiveViewer(child: Image.network(url, fit: BoxFit.contain)),
+            InteractiveViewer(child: StorageImage(url, fit: BoxFit.contain)),
             Positioned(
               top: 4,
               right: 4,
@@ -1218,6 +1209,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
   }
 
   Future<void> _pickGroupImage() async {
+    String? uploadedPath;
     try {
       final file = await _imagePicker.pickImage(
         source: ImageSource.gallery,
@@ -1231,17 +1223,18 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
           ? file.name.split('.').last.toLowerCase()
           : 'jpg';
       final contentType = file.mimeType ?? 'image/$extension';
-      final url = await ref.read(storageDataSourceProvider).uploadFile(
-        path:
-            'chat_attachments/group_images/${_group.id}_${DateTime.now().millisecondsSinceEpoch}.$extension',
+      uploadedPath =
+          'chat_attachments/group_images/${_group.id}/${DateTime.now().millisecondsSinceEpoch}.$extension';
+      final storagePath = await ref.read(storageDataSourceProvider).uploadFile(
+        path: uploadedPath,
         fileBytes: await file.readAsBytes(),
         contentType: contentType,
       );
       await ref.read(groupRepositoryProvider).updateGroup(_group.id, {
-        'imagemUrl': url,
+        'imagemUrl': storagePath,
       });
       if (mounted) {
-        setState(() => _group = _group.copyWith(imagemUrl: url));
+        setState(() => _group = _group.copyWith(imagemUrl: storagePath));
         showAppNotification(
           context,
           'Imagem do grupo atualizada.',
@@ -1249,6 +1242,9 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
         );
       }
     } catch (_) {
+      if (uploadedPath != null) {
+        await ref.read(storageDataSourceProvider).deleteFile(uploadedPath).catchError((_) {});
+      }
       if (mounted) {
         showAppNotification(
           context,
@@ -1471,28 +1467,21 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                                         ),
                                         child: Row(
                                           children: [
-                                            CircleAvatar(
+                                            StorageAvatar(
+                                              resource: student.fotoPerfil,
                                               radius: 22,
                                               backgroundColor: accent.withValues(
                                                 alpha: 0.14,
                                               ),
-                                              backgroundImage:
-                                                  student.fotoPerfil != null &&
-                                                      student.fotoPerfil!.isNotEmpty
-                                                  ? NetworkImage(student.fotoPerfil!)
-                                                  : null,
-                                              child: student.fotoPerfil == null ||
-                                                      student.fotoPerfil!.isEmpty
-                                                  ? Text(
-                                                      student.nome.isNotEmpty
-                                                          ? student.nome[0].toUpperCase()
-                                                          : '?',
-                                                      style: GoogleFonts.inter(
-                                                        color: accent,
-                                                        fontWeight: FontWeight.w800,
-                                                      ),
-                                                    )
-                                                  : null,
+                                              fallback: Text(
+                                                student.nome.isNotEmpty
+                                                    ? student.nome[0].toUpperCase()
+                                                    : '?',
+                                                style: GoogleFonts.inter(
+                                                  color: accent,
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                              ),
                                             ),
                                             const SizedBox(width: 12),
                                             Expanded(
@@ -1851,28 +1840,21 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
                                         ),
                                         child: Row(
                                           children: [
-                                            CircleAvatar(
+                                            StorageAvatar(
+                                              resource: student.fotoPerfil,
                                               radius: 22,
                                               backgroundColor: accent.withValues(
                                                 alpha: 0.14,
                                               ),
-                                              backgroundImage:
-                                                  student.fotoPerfil != null &&
-                                                      student.fotoPerfil!.isNotEmpty
-                                                  ? NetworkImage(student.fotoPerfil!)
-                                                  : null,
-                                              child: student.fotoPerfil == null ||
-                                                      student.fotoPerfil!.isEmpty
-                                                  ? Text(
-                                                      student.nome.isNotEmpty
-                                                          ? student.nome[0].toUpperCase()
-                                                          : '?',
-                                                      style: GoogleFonts.inter(
-                                                        color: accent,
-                                                        fontWeight: FontWeight.w800,
-                                                      ),
-                                                    )
-                                                  : null,
+                                              fallback: Text(
+                                                student.nome.isNotEmpty
+                                                    ? student.nome[0].toUpperCase()
+                                                    : '?',
+                                                style: GoogleFonts.inter(
+                                                  color: accent,
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                              ),
                                             ),
                                             const SizedBox(width: 12),
                                             Expanded(
@@ -1963,6 +1945,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
   }
 
   Future<void> _sendAttachment() async {
+    MessageModel? uploadedMessage;
     try {
       final file = await _imagePicker.pickImage(
         source: ImageSource.gallery,
@@ -1977,11 +1960,16 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
         chatId: _group.id,
         file: file,
       );
+      uploadedMessage = message;
       await ref
           .read(groupRepositoryProvider)
           .sendMessage(_group.id, message.toMap());
-      _notifyGroup(preview: 'Imagem');
+      // A trigger notifica anexos após a mensagem ser persistida.
     } catch (_) {
+      await cleanupUploadedMessage(
+        ref.read(storageDataSourceProvider),
+        uploadedMessage,
+      );
       if (mounted) {
         showAppNotification(
           context,
@@ -1996,6 +1984,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
 
   Future<void> _sendAudio(RecordedAudio audio) async {
     setState(() => _sending = true);
+    MessageModel? uploadedMessage;
     try {
       final message = await createUploadedAudioMessage(
         storage: ref.read(storageDataSourceProvider),
@@ -2003,11 +1992,16 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
         chatId: _group.id,
         audio: audio,
       );
+      uploadedMessage = message;
       await ref
           .read(groupRepositoryProvider)
           .sendMessage(_group.id, message.toMap());
-      _notifyGroup(preview: 'Mensagem de áudio');
+      // A trigger notifica áudio após a mensagem ser persistida.
     } catch (_) {
+      await cleanupUploadedMessage(
+        ref.read(storageDataSourceProvider),
+        uploadedMessage,
+      );
       if (mounted) {
         showAppNotification(
           context,
@@ -2033,8 +2027,8 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
         'lida': false,
       });
       _textCtrl.clear();
-      // Notificar membros do grupo (fire-and-forget)
-      _notifyGroup(preview: text);
+      // A trigger notifyGroupMessageCreated notifica a mensagem persistida.
+
     } catch (_) {
       if (mounted)
         showAppNotification(
@@ -2047,32 +2041,4 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
     }
   }
 
-  /// Envia notificação push aos membros do grupo (best-effort).
-  void _notifyGroup({required String preview}) {
-    // Fire-and-forget — não bloqueia o envio da mensagem
-    Future(() async {
-      try {
-        final user = FirebaseAuth.instance.currentUser;
-        if (user == null) return;
-        final authToken = await user.getIdToken(true);
-        if (authToken == null || authToken.isEmpty) return;
-
-        await FirebaseFunctions.instanceFor(
-          region: 'europe-west1',
-        ).httpsCallable('sendChatNotification').call({
-          'salaId': _group.id,
-          'remetenteId': _userId,
-          'texto': preview,
-          'authToken': authToken,
-        });
-      } on FirebaseFunctionsException catch (e) {
-        // Log apenas em debug — nao incomoda o utilizador
-        debugPrint(
-          '⚠️ Cloud Function sendChatNotification: ${e.code} — ${e.message}',
-        );
-      } catch (e) {
-        debugPrint('⚠️ Cloud Function sendChatNotification erro: $e');
-      }
-    });
-  }
 }

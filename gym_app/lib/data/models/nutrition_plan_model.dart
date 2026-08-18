@@ -62,13 +62,21 @@ class Alimento {
 
   factory Alimento.fromMap(Map<String, dynamic> map) {
     return Alimento(
-      nome: map['nome'] as String? ?? '',
-      quantidade: map['quantidade'] as String? ?? '',
-      calorias: (map['calorias'] as num?)?.toDouble() ?? 0.0,
-      foodId: map['foodId'] as String?,
-      proteinas: (map['proteinas'] as num?)?.toDouble(),
-      hidratos: (map['hidratos'] as num?)?.toDouble(),
-      gorduras: (map['gorduras'] as num?)?.toDouble(),
+      nome: map['nome'] is String ? map['nome'] as String : '',
+      quantidade: map['quantidade'] is String ? map['quantidade'] as String : '',
+      calorias: map['calorias'] is num
+          ? (map['calorias'] as num).toDouble().clamp(0, 100000)
+          : 0.0,
+      foodId: map['foodId'] is String ? map['foodId'] as String : null,
+      proteinas: map['proteinas'] is num
+          ? (map['proteinas'] as num).toDouble().clamp(0, 10000)
+          : null,
+      hidratos: map['hidratos'] is num
+          ? (map['hidratos'] as num).toDouble().clamp(0, 10000)
+          : null,
+      gorduras: map['gorduras'] is num
+          ? (map['gorduras'] as num).toDouble().clamp(0, 10000)
+          : null,
     );
   }
 
@@ -98,13 +106,14 @@ class PlannedMeal {
   });
 
   factory PlannedMeal.fromMap(Map<String, dynamic> map) {
-    final alimentosList = map['alimentos'] as List? ?? [];
+    final alimentosList = map['alimentos'] is List ? map['alimentos'] as List : const [];
     return PlannedMeal(
-      tipo: map['tipo'] as String? ?? '',
+      tipo: map['tipo'] is String ? map['tipo'] as String : '',
       alimentos: alimentosList
-          .map((a) => Alimento.fromMap(a as Map<String, dynamic>))
+          .whereType<Map>()
+          .map((a) => Alimento.fromMap(Map<String, dynamic>.from(a)))
           .toList(),
-      instrucoes: map['instrucoes'] as String?,
+      instrucoes: map['instrucoes'] is String ? map['instrucoes'] as String : null,
     );
   }
 
@@ -134,9 +143,9 @@ class Suplemento {
 
   factory Suplemento.fromMap(Map<String, dynamic> map) {
     return Suplemento(
-      nome: map['nome'] as String? ?? '',
-      dosagem: map['dosagem'] as String? ?? '',
-      horario: map['horario'] as String? ?? 'qualquer',
+      nome: map['nome'] is String ? map['nome'] as String : '',
+      dosagem: map['dosagem'] is String ? map['dosagem'] as String : '',
+      horario: map['horario'] is String ? map['horario'] as String : 'qualquer',
     );
   }
 
@@ -170,20 +179,25 @@ class NutritionPlanModel {
     String userId,
     Map<String, dynamic> map,
   ) {
-    final refeicoesList = map['refeicoes'] as List? ?? [];
+    final refeicoesList = map['refeicoes'] is List ? map['refeicoes'] as List : const [];
+    final suplementosList = map['suplementos'] is List ? map['suplementos'] as List : const [];
     return NutritionPlanModel(
       dia: dia,
       userId: userId,
-      metaCalorias: (map['metaCalorias'] as num?)?.toDouble() ?? 0.0,
+      metaCalorias: map['metaCalorias'] is num
+          ? (map['metaCalorias'] as num).toDouble().clamp(0, 100000)
+          : 0.0,
       // Documentos antigos ainda não têm este campo; mantém a meta anterior.
-      metaAgua:
-          (map['metaAgua'] as num?)?.toDouble() ??
-          AppConstants.dailyWaterGoalMl,
+      metaAgua: map['metaAgua'] is num
+          ? (map['metaAgua'] as num).toDouble().clamp(0, 100000)
+          : AppConstants.dailyWaterGoalMl,
       refeicoes: refeicoesList
-          .map((r) => PlannedMeal.fromMap(r as Map<String, dynamic>))
+          .whereType<Map>()
+          .map((r) => PlannedMeal.fromMap(Map<String, dynamic>.from(r)))
           .toList(),
-      suplementos: (map['suplementos'] as List? ?? [])
-          .map((s) => Suplemento.fromMap(s as Map<String, dynamic>))
+      suplementos: suplementosList
+          .whereType<Map>()
+          .map((s) => Suplemento.fromMap(Map<String, dynamic>.from(s)))
           .toList(),
     );
   }

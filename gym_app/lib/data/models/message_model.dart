@@ -26,11 +26,17 @@ class MessageModel {
   final String texto;
   final DateTime timestamp;
   final bool lida;
+  /// Path privado Storage; URLs antigas continuam compatíveis na leitura.
   final String? audioUrl;
   final int? audioDurationMs;
+  /// Path privado Storage; URLs antigas continuam compatíveis na leitura.
   final String? attachmentUrl;
   final String? attachmentName;
   final String? attachmentType;
+
+  /// Path Storage usado durante o upload. Não é persistido no Firestore;
+  /// permite apagar o ficheiro se a escrita da mensagem falhar.
+  final String? storagePath;
 
   const MessageModel({
     this.id = '',
@@ -43,6 +49,7 @@ class MessageModel {
     this.attachmentUrl,
     this.attachmentName,
     this.attachmentType,
+    this.storagePath,
   });
 
   bool get isAudio => audioUrl != null && audioUrl!.isNotEmpty;
@@ -53,15 +60,23 @@ class MessageModel {
     final timestamp = _parseTimestamp(map['timestamp']);
     return MessageModel(
       id: id,
-      remetenteId: map['remetenteId'] as String? ?? '',
-      texto: map['texto'] as String? ?? '',
+      remetenteId: map['remetenteId'] is String ? map['remetenteId'] as String : '',
+      texto: map['texto'] is String ? map['texto'] as String : '',
       timestamp: timestamp,
-      lida: map['lida'] as bool? ?? false,
-      audioUrl: map['audioUrl'] as String?,
-      audioDurationMs: (map['audioDurationMs'] as num?)?.toInt(),
-      attachmentUrl: map['attachmentUrl'] as String?,
-      attachmentName: map['attachmentName'] as String?,
-      attachmentType: map['attachmentType'] as String?,
+      lida: map['lida'] is bool ? map['lida'] as bool : false,
+      audioUrl: map['audioUrl'] is String ? map['audioUrl'] as String : null,
+      audioDurationMs: map['audioDurationMs'] is num
+          ? (map['audioDurationMs'] as num).toInt().clamp(0, 24 * 60 * 60 * 1000)
+          : null,
+      attachmentUrl: map['attachmentUrl'] is String
+          ? map['attachmentUrl'] as String
+          : null,
+      attachmentName: map['attachmentName'] is String
+          ? map['attachmentName'] as String
+          : null,
+      attachmentType: map['attachmentType'] is String
+          ? map['attachmentType'] as String
+          : null,
     );
   }
 
@@ -93,6 +108,7 @@ class MessageModel {
     String? attachmentUrl,
     String? attachmentName,
     String? attachmentType,
+    String? storagePath,
   }) {
     return MessageModel(
       id: id ?? this.id,
@@ -105,6 +121,7 @@ class MessageModel {
       attachmentUrl: attachmentUrl ?? this.attachmentUrl,
       attachmentName: attachmentName ?? this.attachmentName,
       attachmentType: attachmentType ?? this.attachmentType,
+      storagePath: storagePath ?? this.storagePath,
     );
   }
 }

@@ -1,6 +1,6 @@
 // Conditional import: use web version on web, no-op stub elsewhere.
 import 'sound_service_io.dart'
-    if (dart.library.html) 'sound_service_web.dart'
+    if (dart.library.js_interop) 'sound_service_web.dart'
     as impl;
 
 /// Serviço de som para notificações.

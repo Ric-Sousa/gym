@@ -17,10 +17,12 @@ class AuthException implements Exception {
 
   factory AuthException.fromFirebaseCode(String code) {
     switch (code) {
+      // Não revelar se o endereço existe. A proteção de enumeração deve ser
+      // ativada também no Firebase Console, mas a camada Flutter não deve
+      // apresentar mensagens distinguíveis por conta.
       case 'user-not-found':
-        return AuthException(code: code, message: 'Utilizador não encontrado.');
       case 'wrong-password':
-        return AuthException(code: code, message: 'Palavra-passe incorreta.');
+        return AuthException(code: code, message: 'Credenciais inválidas.');
       case 'email-already-in-use':
         return AuthException(
           code: code,

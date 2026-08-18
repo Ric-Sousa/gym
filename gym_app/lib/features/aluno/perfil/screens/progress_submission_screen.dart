@@ -638,14 +638,22 @@ class _ProgressSubmissionScreenState
 
   Future<void> _submitProgress() async {
     setState(() => _saving = true);
+    final uploadedFileNames = <String>[];
+    final progressRepo = ref.read(progressRepositoryProvider);
+    var progressEntryCommitted = false;
 
     try {
       final authState = ref.read(authProvider);
       final userId = authState.user?.uid ?? '';
-      final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      // O pedido de progresso identifica a submissão. Se o upload Firestore
+      // ou a atualização do perfil falhar, repetir o fluxo reutiliza o mesmo
+      // ID e sobrescreve os mesmos ficheiros em vez de criar uma entrada nova.
+      final requestKey = authState.user?.progressRequestedAt?.millisecondsSinceEpoch
+          .toString() ??
+          DateTime.now().toIso8601String().substring(0, 10).replaceAll('-', '');
+      final timestamp = 'submission_$requestKey';
 
       // Upload das fotos
-      final progressRepo = ref.read(progressRepositoryProvider);
       // Mantém os quatro índices para que o comparador saiba qual URL
       // corresponde a Frente, Lado 1, Lado 2 e Costas. Um slot não enviado
       // fica vazio, sem deslocar as posições seguintes.
@@ -653,12 +661,14 @@ class _ProgressSubmissionScreenState
       for (int i = 0; i < _photos.length; i++) {
         final photo = _photos[i];
         if (photo == null) continue;
-        final url = await progressRepo.uploadProgressPhoto(
+        final fileName = '${timestamp}_$i';
+        final storagePath = await progressRepo.uploadProgressPhoto(
           userId,
-          '${timestamp}_$i',
+          fileName,
           photo,
         );
-        fotoUrls[i] = url;
+        uploadedFileNames.add(fileName);
+        fotoUrls[i] = storagePath;
       }
 
       // Construir medidas
@@ -695,7 +705,8 @@ class _ProgressSubmissionScreenState
         'medidas': medidas,
         'fotos': fotoUrls,
         'fotosPorPosicao': fotosPorPosicao,
-      });
+      }, entryId: timestamp);
+      progressEntryCommitted = true;
 
       // Atualizar peso no perfil
       final userRepo = ref.read(userRepositoryProvider);
@@ -718,6 +729,16 @@ class _ProgressSubmissionScreenState
         Navigator.pop(context);
       }
     } catch (e) {
+      // A falha antes de criar o documento Firestore não deve deixar
+      // fotografias privadas órfãs no Storage. Depois de o documento existir,
+      // nunca apagar os ficheiros aqui: uma falha posterior (por exemplo, na
+      // atualização do perfil) ainda deixa o documento a referenciá-los.
+      if (!progressEntryCommitted) {
+        final cleanupUserId = ref.read(authProvider).user?.uid ?? '';
+        for (final fileName in uploadedFileNames) {
+          await progressRepo.deleteProgressPhoto(cleanupUserId, fileName).catchError((_) {});
+        }
+      }
       if (mounted) {
         showAppNotification(
           context,

@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import '../../core/utils/storage_resource.dart';
 
 /// Comparador visual de progresso antes/depois.
 ///
@@ -98,27 +99,24 @@ class _ImageComparisonSliderState extends State<ImageComparisonSlider> {
     required Color fallbackColor,
     BoxFit? fit,
   }) {
-    return Image.network(
+    return StorageImage(
       url,
       fit: fit ?? widget.imageFit,
       width: double.infinity,
       height: double.infinity,
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        return Container(
-          color: fallbackColor,
-          alignment: Alignment.center,
-          child: const SizedBox(
-            width: 28,
-            height: 28,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Colors.white70,
-            ),
+      placeholder: Container(
+        color: fallbackColor,
+        alignment: Alignment.center,
+        child: const SizedBox(
+          width: 28,
+          height: 28,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Colors.white70,
           ),
-        );
-      },
-      errorBuilder: (_, __, ___) => Container(
+        ),
+      ),
+      error: Container(
         color: fallbackColor,
         alignment: Alignment.center,
         child: const Column(

@@ -45,8 +45,7 @@ final isAdminInChatProvider = StateProvider<bool>((ref) => false);
 
 /// Provider para FCMService (singleton).
 final fcmServiceProvider = Provider<FCMService>((ref) {
-  final userRepo = ref.watch(userRepositoryProvider);
-  final service = FCMService(userRepository: userRepo);
+  final service = FCMService();
   ref.onDispose(() => service.dispose());
   return service;
 });

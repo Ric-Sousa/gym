@@ -1,15 +1,14 @@
 import 'dart:async';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod/legacy.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/student_theme.dart';
 import '../../../../core/config/app_strings.dart';
+import '../../../../core/utils/storage_resource.dart';
 import '../../../../data/models/message_model.dart';
 import '../../../../data/models/group_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
@@ -86,6 +85,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   DateTime? _pendingDirectReadAt;
   bool _markingDirectAsRead = false;
   String? _fetchedPartnerPhoto;
+
+  List<String>? _directParticipantIds(String userId) {
+    final partnerId = widget.chatPartnerId;
+    if (userId.isEmpty || partnerId == null || partnerId.isEmpty) return null;
+    return [userId, partnerId];
+  }
+
   // Guardado localmente porque ref fica invalido no dispose
   StateController<bool>? _chatNotifier;
 
@@ -131,7 +137,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       if (_currentSalaId != null && _currentUserId != null) {
         ref
             .read(chatRepositoryProvider)
-            .setTypingStatus(_currentSalaId!, _currentUserId!, false);
+            .setTypingStatus(
+              _currentSalaId!,
+              _currentUserId!,
+              false,
+              participantIds: _directParticipantIds(_currentUserId!),
+            );
       }
       _textController.clear();
       _currentSalaId = null;
@@ -181,7 +192,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // Só escreve no Firestore uma vez ate ser limpo
     if (!_typingSent) {
       _typingSent = true;
-      ref.read(chatRepositoryProvider).setTypingStatus(salaId, userId, true);
+      ref.read(chatRepositoryProvider).setTypingStatus(
+        salaId,
+        userId,
+        true,
+        participantIds: _directParticipantIds(userId),
+      );
     }
 
     // Após 2.5s sem teclar, limpa o indicador
@@ -199,7 +215,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       try {
         await ref
             .read(chatRepositoryProvider)
-            .setTypingStatus(_currentSalaId!, _currentUserId!, false);
+            .setTypingStatus(
+              _currentSalaId!,
+              _currentUserId!,
+              false,
+              participantIds: _directParticipantIds(_currentUserId!),
+            );
       } catch (_) {}
     }
   }
@@ -352,24 +373,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         name: otherName,
                         accentColor: StudentThemeColors.of(context).primary,
                       ),
-              child: CircleAvatar(
+              child: StorageAvatar(
+                resource: partnerPhoto,
                 radius: 16,
                 backgroundColor: StudentThemeColors.of(
                   context,
                 ).primary.withValues(alpha: 0.15),
-                backgroundImage: partnerPhoto != null && partnerPhoto.trim().isNotEmpty
-                    ? NetworkImage(partnerPhoto)
-                    : null,
-                child: partnerPhoto == null || partnerPhoto.trim().isEmpty
-                    ? Text(
-                        otherInitials,
-                        style: GoogleFonts.montserrat(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: StudentThemeColors.of(context).primary,
-                        ),
-                      )
-                    : null,
+                fallback: Text(
+                  otherInitials,
+                  style: GoogleFonts.montserrat(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: StudentThemeColors.of(context).primary,
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 10),
@@ -1190,6 +1207,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   Future<void> _sendAttachment(String salaId, String userId) async {
+    final participants = _directParticipantIds(userId);
+    if (participants == null) return;
+    MessageModel? uploadedMessage;
     try {
       final file = await _imagePicker.pickImage(
         source: ImageSource.gallery,
@@ -1197,15 +1217,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         maxWidth: 1800,
       );
       if (file == null) return;
+      await ref.read(chatRepositoryProvider).ensureChatRoom(
+        salaId,
+        participants,
+      );
       final message = await createUploadedImageMessage(
         storage: ref.read(storageDataSourceProvider),
         senderId: userId,
         chatId: salaId,
         file: file,
       );
-      await ref.read(chatRepositoryProvider).sendMessage(salaId, message);
-      _notifyChat(salaId, userId, '[Imagem]');
+      uploadedMessage = message;
+      await ref.read(chatRepositoryProvider).sendMessage(
+        salaId,
+        message,
+        participantIds: participants,
+      );
+      // A trigger notifica anexos após a mensagem ser persistida.
     } catch (error) {
+      await cleanupUploadedMessage(
+        ref.read(storageDataSourceProvider),
+        uploadedMessage,
+      );
       debugPrint('Erro ao enviar anexo: $error');
       if (mounted) {
         showAppNotification(
@@ -1222,16 +1255,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     String userId,
     RecordedAudio audio,
   ) async {
+    final participants = _directParticipantIds(userId);
+    if (participants == null) return;
+    MessageModel? uploadedMessage;
     try {
+      await ref.read(chatRepositoryProvider).ensureChatRoom(
+        salaId,
+        participants,
+      );
       final message = await createUploadedAudioMessage(
         storage: ref.read(storageDataSourceProvider),
         senderId: userId,
         chatId: salaId,
         audio: audio,
       );
-      await ref.read(chatRepositoryProvider).sendMessage(salaId, message);
-      _notifyChat(salaId, userId, '[Áudio]');
+      uploadedMessage = message;
+      await ref.read(chatRepositoryProvider).sendMessage(
+        salaId,
+        message,
+        participantIds: participants,
+      );
+      // A trigger notifica áudio após a mensagem ser persistida.
     } catch (error) {
+      await cleanupUploadedMessage(
+        ref.read(storageDataSourceProvider),
+        uploadedMessage,
+      );
       debugPrint('Erro ao enviar áudio: $error');
       if (mounted) {
         showAppNotification(
@@ -1244,6 +1293,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   Future<void> _sendMessage(String salaId, String userId) async {
+    final participants = _directParticipantIds(userId);
+    if (participants == null) return;
     final texto = _textController.text.trim();
     if (texto.isEmpty) return;
 
@@ -1254,13 +1305,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
 
     try {
-      await ref.read(chatRepositoryProvider).sendMessage(salaId, message);
+      await ref.read(chatRepositoryProvider).sendMessage(
+        salaId,
+        message,
+        participantIds: participants,
+      );
       _typingDebounce?.cancel();
       _clearTypingStatus();
       _textController.clear();
       _scrollToBottom();
-      // Notificar o destinatário (fire-and-forget, sem bloquear)
-      _notifyChat(salaId, userId, texto);
+      // A trigger notifyChatMessageCreated notifica a mensagem efetivamente persistida.
+
     } catch (e) {
       debugPrint('❌ Erro ao enviar mensagem: $e');
       if (mounted) {
@@ -1273,36 +1328,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
-  /// Envia notificação push ao destinatário via Cloud Function (best-effort).
-  void _notifyChat(String salaId, String remetenteId, String texto) {
-    // Fire-and-forget — não bloqueia o envio da mensagem
-    Future(() async {
-      try {
-        final user = FirebaseAuth.instance.currentUser;
-        if (user == null) return;
-        final authToken = await user.getIdToken(true);
-        if (authToken == null || authToken.isEmpty) return;
-
-        // O SDK envia o Authorization automaticamente. O token no payload é
-        // apenas fallback para a callable v1, que também valida o token.
-        await FirebaseFunctions.instanceFor(
-          region: 'europe-west1',
-        ).httpsCallable('sendChatNotification').call({
-          'salaId': salaId,
-          'remetenteId': remetenteId,
-          'texto': texto,
-          'authToken': authToken,
-        });
-      } on FirebaseFunctionsException catch (e) {
-        // Log apenas em debug — nao incomoda o utilizador
-        debugPrint(
-          '⚠️ Cloud Function sendChatNotification: ${e.code} — ${e.message}',
-        );
-      } catch (e) {
-        debugPrint('⚠️ Cloud Function sendChatNotification erro: $e');
-      }
-    });
-  }
 }
 
 class _MessageBubble extends StatelessWidget {
@@ -1423,7 +1448,7 @@ class _MessageBubble extends StatelessWidget {
                             final imageHeight = imageWidth * 0.81;
                             return ClipRRect(
                               borderRadius: BorderRadius.circular(10),
-                              child: Image.network(
+                              child: StorageImage(
                                 message.attachmentUrl!,
                                 width: imageWidth,
                                 height: imageHeight,

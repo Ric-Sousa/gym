@@ -12,7 +12,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../core/config/admin_theme.dart';
 import '../../../core/config/app_colors.dart';
+import '../../../core/services/fcm_service.dart';
 import '../../../core/utils/progress_photo_resolver.dart';
+import '../../../core/utils/storage_resource.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/models/food_model.dart';
 import '../../../data/models/progress_model.dart';
@@ -114,6 +116,9 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
     if (userId != null && userId.isNotEmpty) {
       _fcmInitialized = true;
       final fcmService = ref.read(fcmServiceProvider);
+      fcmService.onForegroundMessage = (message) {
+        if (mounted) FCMService.showLocalNotification(context, message);
+      };
       fcmService.onNotificationOpened = (message) {
         if (!mounted) return;
         if (message.data['type'] == 'chat') {
@@ -578,9 +583,8 @@ class _AdminSidebar extends StatelessWidget {
 
 class _NavCategory extends StatelessWidget {
   final String label;
-  final IconData? icon;
 
-  const _NavCategory({required this.label, this.icon});
+  const _NavCategory({required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -589,10 +593,6 @@ class _NavCategory extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 6),
       child: Row(
         children: [
-          if (icon != null) ...[
-            Icon(icon, size: 13, color: colors.lime),
-            const SizedBox(width: 6),
-          ],
           Text(
             label,
             style: GoogleFonts.inter(
@@ -1388,13 +1388,28 @@ class _AdminClientsList extends ConsumerStatefulWidget {
 class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
   String _search = '';
   String _filter = 'all';
-  String _viewMode = 'list';
 
   @override
   Widget build(BuildContext context) {
     final colors = AdminThemeColors.of(context);
     final isMobile = MediaQuery.sizeOf(context).width < 900;
-    final alunosAsync = ref.watch(alunosSearchProvider(_search));
+    final studentsPager = ref.watch(adminStudentsPagerProvider);
+    final search = _search.trim().toLowerCase();
+    final loadedStudents = search.isEmpty
+        ? studentsPager.items
+        : studentsPager.items
+              .where(
+                (student) =>
+                    student.nome.toLowerCase().contains(search) ||
+                    student.email.toLowerCase().contains(search),
+              )
+              .toList();
+    final AsyncValue<List<UserModel>> alunosAsync =
+        studentsPager.isLoading && studentsPager.items.isEmpty
+        ? const AsyncLoading<List<UserModel>>()
+        : studentsPager.error != null
+        ? AsyncError<List<UserModel>>(studentsPager.error!, StackTrace.current)
+        : AsyncData<List<UserModel>>(loadedStudents);
 
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(
@@ -1449,6 +1464,28 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
             ),
             error: (_, __) => _clientsErrorState(colors),
           ),
+          if (studentsPager.hasMore) ...[
+            const SizedBox(height: 18),
+            Center(
+              child: OutlinedButton.icon(
+                onPressed: studentsPager.isLoading
+                    ? null
+                    : studentsPager.loadMore,
+                icon: studentsPager.isLoading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.expand_more_rounded, size: 18),
+                label: Text(
+                  studentsPager.isLoading
+                      ? 'A carregar...'
+                      : 'Carregar mais clientes',
+                ),
+              ),
+            ),
+          ],
           if (isMobile) ...[
             const SizedBox(height: 16),
             SizedBox(width: double.infinity, child: _newClientButton()),
@@ -1542,6 +1579,27 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
     );
   }
 
+  List<UserModel> _filteredClients(List<UserModel> alunos) {
+    final search = _search.trim().toLowerCase();
+    return alunos.where((aluno) {
+      final matchesSearch = search.isEmpty ||
+          aluno.nome.toLowerCase().contains(search) ||
+          aluno.email.toLowerCase().contains(search);
+      final matchesFilter = switch (_filter) {
+        'active' => aluno.isAccessAllowed,
+        'inactive' => !aluno.isAccessAllowed,
+        _ => true,
+      };
+      return matchesSearch && matchesFilter;
+    }).toList();
+  }
+
+  String _accessDateLabel(UserModel aluno) {
+    final endsAt = aluno.contractEndsAt;
+    if (endsAt == null) return aluno.isActive ? 'Sem data' : 'Bloqueado';
+    return DateFormat('dd/MM/yyyy').format(endsAt);
+  }
+
   Widget _buildNewClientDirectory(
     List<UserModel> alunos,
     AdminThemeColors colors,
@@ -1601,7 +1659,6 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
   Widget _newClientCard(UserModel aluno) {
     final colors = AdminThemeColors.of(context);
     final photo = aluno.fotoPerfil?.trim();
-    final hasPhoto = photo != null && photo.isNotEmpty;
     final active = aluno.isAccessAllowed;
     final typeLabel = aluno.tipoCliente == 'online' ? 'Online' : 'Presencial';
 
@@ -1618,22 +1675,20 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
             children: [
               Row(
                 children: [
-                  CircleAvatar(
+                  StorageAvatar(
+                    resource: photo,
                     radius: 25,
                     backgroundColor: colors.limeDim,
-                    backgroundImage: hasPhoto ? NetworkImage(photo!) : null,
-                    child: hasPhoto
-                        ? null
-                        : Text(
-                            aluno.nome.trim().isEmpty
-                                ? '?'
-                                : aluno.nome.trim()[0].toUpperCase(),
-                            style: GoogleFonts.montserrat(
-                              color: colors.lime,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
+                    fallback: Text(
+                      aluno.nome.trim().isEmpty
+                          ? '?'
+                          : aluno.nome.trim()[0].toUpperCase(),
+                      style: GoogleFonts.montserrat(
+                        color: colors.lime,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1791,99 +1846,6 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
     );
   }
 
-  Widget _buildClientsToolbar(bool isMobile, AdminThemeColors colors) {
-    final filterLabel = switch (_filter) {
-      'active' => 'Ativos',
-      'inactive' => 'Inativos',
-      _ => 'Todos',
-    };
-    final search = SizedBox(
-      height: 42,
-      child: TextField(
-        onChanged: (value) => setState(() => _search = value),
-        style: GoogleFonts.inter(fontSize: 13, color: colors.text),
-        decoration: InputDecoration(
-          hintText: 'Pesquisar por nome ou email',
-          hintStyle: GoogleFonts.inter(fontSize: 12, color: colors.muted),
-          prefixIcon: Icon(Icons.search_rounded, size: 18, color: colors.muted),
-          filled: true,
-          fillColor: colors.surface,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(11),
-            borderSide: BorderSide(color: colors.border),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(11),
-            borderSide: BorderSide(color: colors.border),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(11),
-            borderSide: BorderSide(color: colors.border, width: 1.2),
-          ),
-        ),
-      ),
-    );
-    final filter = PopupMenuButton<String>(
-      tooltip: 'Filtrar clientes',
-      onSelected: (value) => setState(() => _filter = value),
-      itemBuilder: (_) => const [
-        PopupMenuItem(value: 'all', child: Text('Todos os clientes')),
-        PopupMenuItem(value: 'active', child: Text('Apenas ativos')),
-        PopupMenuItem(value: 'inactive', child: Text('Apenas inativos')),
-      ],
-      child: Container(
-        height: 42,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(11),
-          border: Border.all(color: colors.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.filter_list_rounded, size: 17, color: colors.muted),
-            const SizedBox(width: 7),
-            Text(
-              filterLabel,
-              style: GoogleFonts.inter(fontSize: 12, color: colors.text),
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: 17,
-              color: colors.muted,
-            ),
-          ],
-        ),
-      ),
-    );
-    final view = _viewToggle();
-
-    if (isMobile) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          search,
-          const SizedBox(height: 8),
-          filter,
-          const SizedBox(height: 8),
-          Align(alignment: Alignment.centerLeft, child: view),
-        ],
-      );
-    }
-    return Row(
-      children: [
-        Expanded(child: search),
-        const SizedBox(width: 8),
-        filter,
-        const SizedBox(width: 8),
-        view,
-      ],
-    );
-  }
-
   Widget _clientsErrorState(AdminThemeColors colors) {
     return Container(
       width: double.infinity,
@@ -1908,653 +1870,6 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
           Text(
             'Tenta atualizar a página novamente.',
             style: GoogleFonts.inter(fontSize: 12, color: colors.muted),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _viewToggle() {
-    final colors = AdminThemeColors.of(context);
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colors.border),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _viewToggleButton(Icons.grid_view_rounded, 'Cartões', 'cards'),
-          _viewToggleButton(Icons.view_list_rounded, 'Lista', 'list'),
-        ],
-      ),
-    );
-  }
-
-  Widget _viewToggleButton(IconData icon, String label, String mode) {
-    final colors = AdminThemeColors.of(context);
-    final selected = _viewMode == mode;
-    return InkWell(
-      onTap: () => setState(() => _viewMode = mode),
-      borderRadius: BorderRadius.circular(9),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? colors.surface2 : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: selected ? colors.text : colors.muted),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? colors.text : colors.muted,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  List<UserModel> _filteredClients(List<UserModel> alunos) {
-    return alunos.where((a) {
-      if (_filter == 'active') return a.isAccessAllowed;
-      if (_filter == 'inactive') return !a.isAccessAllowed;
-      return true;
-    }).toList();
-  }
-
-  Widget _buildGrid(List<UserModel> alunos) {
-    final filtered = _filteredClients(alunos);
-
-    if (filtered.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 60),
-        child: Center(
-          child: Column(
-            children: [
-              Icon(
-                Icons.person_search,
-                size: 48,
-                color: AdminThemeColors.of(context).muted,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Nenhum cliente encontrado',
-                style: GoogleFonts.inter(
-                  color: AdminThemeColors.of(context).muted,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (_, constraints) {
-        final cols = constraints.maxWidth > 900
-            ? 3
-            : (constraints.maxWidth > 500 ? 2 : 1);
-        return Wrap(
-          spacing: 16,
-          runSpacing: 16,
-          children: filtered.map((a) {
-            final w = (constraints.maxWidth - 16 * (cols - 1)) / cols;
-            return SizedBox(width: w, child: _clientCard(a));
-          }).toList(),
-        );
-      },
-    );
-  }
-
-  Widget _buildList(List<UserModel> alunos) {
-    final filtered = _filteredClients(alunos);
-    final colors = AdminThemeColors.of(context);
-
-    if (filtered.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 58, horizontal: 24),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colors.border),
-        ),
-        child: Column(
-          children: [
-            Icon(Icons.person_outline_rounded, size: 34, color: colors.muted),
-            const SizedBox(height: 10),
-            Text(
-              'Nenhum cliente encontrado',
-              style: GoogleFonts.inter(
-                color: colors.text,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Altera a pesquisa ou o filtro selecionado.',
-              style: GoogleFonts.inter(fontSize: 12, color: colors.muted),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 620) {
-          return Container(
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: colors.border),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Column(
-              children: filtered.asMap().entries.map((entry) {
-                return _clientListCompactRow(
-                  entry.value,
-                  entry.key == filtered.length - 1,
-                );
-              }).toList(),
-            ),
-          );
-        }
-
-        return Container(
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: colors.border),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: [
-              _clientListHeader(),
-              ...filtered.asMap().entries.map((entry) {
-                return _clientListRow(
-                  entry.value,
-                  entry.key == filtered.length - 1,
-                );
-              }),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _clientListCompactRow(UserModel aluno, bool isLast) {
-    final colors = AdminThemeColors.of(context);
-    final date = aluno.createdAt == null
-        ? 'Data de entrada: —'
-        : 'Entrada: ${DateFormat('dd/MM/yyyy').format(aluno.createdAt!)}';
-    final plan = aluno.tipoCliente == 'online' ? 'Online' : 'Presencial';
-    final accessDate = _accessDateLabel(aluno);
-
-    return Material(
-      color: colors.surface,
-      child: InkWell(
-        onTap: () => widget.onSelect(aluno),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            border: isLast
-                ? null
-                : Border(bottom: BorderSide(color: colors.border)),
-          ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: colors.surface2,
-                child: Text(
-                  aluno.nome.isNotEmpty ? aluno.nome[0].toUpperCase() : '?',
-                  style: GoogleFonts.inter(
-                    color: colors.lime,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      aluno.nome,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: colors.text,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$date · Plano: $plan',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: colors.muted,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      'Acesso: $accessDate',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: colors.muted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(
-                width: 48,
-                child: PopupMenuButton<String>(
-                  tooltip: 'Ações do cliente',
-                  onSelected: (action) {
-                    if (action == 'delete') _confirmDeleteStudent(aluno);
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.delete_outline,
-                            size: 17,
-                            color: Colors.red,
-                          ),
-                          SizedBox(width: 8),
-                          Text('Eliminar cliente'),
-                        ],
-                      ),
-                    ),
-                  ],
-                  icon: Icon(
-                    Icons.more_horiz_rounded,
-                    size: 19,
-                    color: colors.muted,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _clientListHeader() {
-    final colors = AdminThemeColors.of(context);
-    return Container(
-      color: colors.surface2.withValues(alpha: 0.45),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      child: Row(
-        children: [
-          const SizedBox(width: 48),
-          Expanded(child: _listHeaderText('CLIENTE')),
-          SizedBox(width: 118, child: _listHeaderText('ENTRADA')),
-          SizedBox(
-            width: 105,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 9),
-              child: _listHeaderText('PLANO'),
-            ),
-          ),
-          SizedBox(
-            width: 135,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: _listHeaderText('TERMINA EM'),
-            ),
-          ),
-          const SizedBox(width: 48),
-        ],
-      ),
-    );
-  }
-
-  String _accessDateLabel(UserModel aluno) {
-    final endsAt = aluno.contractEndsAt;
-    if (endsAt == null) return aluno.isActive ? 'Sem data' : 'Bloqueado';
-    return DateFormat('dd/MM/yyyy').format(endsAt);
-  }
-
-  Widget _listHeaderText(String text) {
-    return Text(
-      text,
-      style: GoogleFonts.inter(
-        fontSize: 10,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 0.8,
-        color: AdminThemeColors.of(context).muted,
-      ),
-    );
-  }
-
-  Widget _clientListRow(UserModel aluno, bool isLast) {
-    final colors = AdminThemeColors.of(context);
-    final date = aluno.createdAt == null
-        ? '—'
-        : DateFormat('dd/MM/yyyy').format(aluno.createdAt!);
-    final isOnline = aluno.tipoCliente == 'online';
-    return Material(
-      color: colors.surface,
-      child: InkWell(
-        onTap: () => widget.onSelect(aluno),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          decoration: BoxDecoration(
-            border: isLast
-                ? null
-                : Border(bottom: BorderSide(color: colors.border)),
-          ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: colors.surface2,
-                child: Text(
-                  aluno.nome.isNotEmpty ? aluno.nome[0].toUpperCase() : '?',
-                  style: GoogleFonts.inter(
-                    color: colors.lime,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      aluno.nome,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: colors.text,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      aluno.email,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: colors.muted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(
-                width: 118,
-                child: Text(
-                  date,
-                  style: GoogleFonts.inter(fontSize: 12, color: colors.muted),
-                ),
-              ),
-              SizedBox(
-                width: 105,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isOnline
-                          ? colors.lime.withValues(alpha: 0.12)
-                          : colors.surface2,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      isOnline ? 'Online' : 'Presencial',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: isOnline ? colors.lime : colors.text,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: 135,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 5,
-                    ),
-                    child: Text(
-                      _accessDateLabel(aluno),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: 48,
-                child: PopupMenuButton<String>(
-                  tooltip: 'Ações do cliente',
-                  onSelected: (action) {
-                    if (action == 'delete') _confirmDeleteStudent(aluno);
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.delete_outline,
-                            size: 17,
-                            color: Colors.red,
-                          ),
-                          SizedBox(width: 8),
-                          Text('Eliminar cliente'),
-                        ],
-                      ),
-                    ),
-                  ],
-                  icon: Icon(
-                    Icons.more_horiz_rounded,
-                    size: 19,
-                    color: colors.muted,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _clientCard(UserModel aluno) {
-    return Material(
-      color: AdminThemeColors.of(context).surface,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: () => widget.onSelect(aluno),
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AdminThemeColors.of(context).border),
-            boxShadow: [
-              BoxShadow(
-                color: AdminThemeColors.of(context).shadow,
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 22,
-                    backgroundColor: AdminThemeColors.of(context).surface2,
-                    child: Text(
-                      aluno.nome.isNotEmpty ? aluno.nome[0].toUpperCase() : '?',
-                      style: GoogleFonts.montserrat(
-                        color: AdminThemeColors.of(context).lime,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          aluno.nome,
-                          style: GoogleFonts.inter(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: AdminThemeColors.of(context).text,
-                          ),
-                        ),
-                        Text(
-                          '${aluno.pesoAtual?.toStringAsFixed(1) ?? '--'} kg',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: AdminThemeColors.of(context).muted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Botão de excluir
-                  GestureDetector(
-                    onTap: () => _confirmDeleteStudent(aluno),
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: Colors.red.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.delete_outline,
-                        size: 16,
-                        color: Colors.red,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  _miniStat(
-                    'PESO',
-                    '${aluno.pesoAtual?.toStringAsFixed(0) ?? '--'}kg',
-                  ),
-                  const SizedBox(width: 8),
-                  _miniStat(
-                    'ALTURA',
-                    '${aluno.altura?.toStringAsFixed(0) ?? '--'}cm',
-                  ),
-                  const SizedBox(width: 8),
-                  _miniStat('IMC', aluno.imc?.toStringAsFixed(1) ?? '--'),
-                ].map((e) => Expanded(child: e)).toList(),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(
-                    Icons.email_outlined,
-                    size: 12,
-                    color: AdminThemeColors.of(context).muted,
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      aluno.email,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: AdminThemeColors.of(context).muted,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Icon(
-                    Icons.chevron_right,
-                    size: 14,
-                    color: AdminThemeColors.of(context).muted,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _miniStat(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: AdminThemeColors.of(context).bg,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 10,
-              color: AdminThemeColors.of(context).muted,
-              letterSpacing: 0.06,
-            ),
-          ),
-          Text(
-            value,
-            style: GoogleFonts.montserrat(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: AdminThemeColors.of(context).text,
-            ),
           ),
         ],
       ),
@@ -2746,7 +2061,6 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                           'nome': nomeCtrl.text.trim(),
                           'email': emailCtrl.text.trim(),
                           'personalId': adminId,
-                          'authToken': token ?? '',
                         };
                         if (pw.isNotEmpty) body['password'] = pw;
 
@@ -2754,7 +2068,10 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                           Uri.parse(
                             'https://europe-west1-gymbt-4ef87.cloudfunctions.net/createStudentHttp',
                           ),
-                          headers: {'Content-Type': 'application/json'},
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ${token ?? ''}',
+                          },
                           body: json.encode(body),
                         );
                         if (!mounted) return;
@@ -2909,8 +2226,11 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
         Uri.parse(
           'https://europe-west1-gymbt-4ef87.cloudfunctions.net/deleteStudentHttp',
         ),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'userId': aluno.uid, 'authToken': token ?? ''}),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${token ?? ''}',
+        },
+        body: json.encode({'userId': aluno.uid}),
       );
       if (!mounted) return;
       if (response.statusCode == 200) {
@@ -3253,7 +2573,6 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
   bool _personalIdSet = false;
   late bool _isActive;
   DateTime? _contractEndsAt;
-  String _adminNote = '';
   bool _loadingAccountAction = false;
   bool _loadingNote = true;
   bool _savingNote = false;
@@ -3288,7 +2607,6 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
           .getAdminNote(widget.client.uid);
       if (!mounted) return;
       setState(() {
-        _adminNote = note;
         _noteController.text = note;
         _loadingNote = false;
       });
@@ -3309,10 +2627,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
             adminId: adminId,
           );
       if (!mounted) return;
-      setState(() {
-        _adminNote = _noteController.text.trim();
-        _savingNote = false;
-      });
+      setState(() => _savingNote = false);
       showAppNotification(
         context,
         'Nota guardada.',
@@ -3515,7 +2830,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
       showAppNotification(
         context,
         choice == 'later'
-            ? 'Contrato agendado para ${DateFormat('dd/MM/yyyy HH:mm').format(endsAt!)}.'
+            ? 'Contrato agendado para ${DateFormat('dd/MM/yyyy HH:mm').format(endsAt)}.'
             : 'Contrato terminado. O acesso foi bloqueado.',
         type: NotificationType.success,
       );
@@ -3548,22 +2863,6 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
       _personalIdSet = true;
     } catch (_) {}
   }
-
-  EdgeInsets get _pad => EdgeInsets.fromLTRB(
-    widget.isMobile ? 12 : 22,
-    widget.isMobile ? 12 : 16,
-    widget.isMobile ? 12 : 22,
-    widget.isMobile ? 20 : 28,
-  );
-
-  BorderRadius get _detailRadius =>
-      BorderRadius.circular(widget.isMobile ? 14 : 16);
-
-  BoxShadow _detailShadow(AdminThemeColors colors) => BoxShadow(
-    color: colors.shadow.withValues(alpha: 0.26),
-    blurRadius: 10,
-    offset: const Offset(0, 3),
-  );
 
   Widget _requestProgressButton(UserModel client) {
     final isMobile = widget.isMobile;
@@ -3720,7 +3019,6 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
   Widget _buildModernClientHeader(UserModel c) {
     final colors = AdminThemeColors.of(context);
     final photo = c.fotoPerfil?.trim();
-    final hasPhoto = photo != null && photo.isNotEmpty;
     final initials = c.nome.trim().isEmpty
         ? '?'
         : c.nome
@@ -3774,20 +3072,18 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
               final compact = constraints.maxWidth < 720;
               final identity = Row(
                 children: [
-                  CircleAvatar(
+                  StorageAvatar(
+                    resource: photo,
                     radius: widget.isMobile ? 29 : 34,
                     backgroundColor: colors.limeDim,
-                    backgroundImage: hasPhoto ? NetworkImage(photo!) : null,
-                    child: hasPhoto
-                        ? null
-                        : Text(
-                            initials,
-                            style: GoogleFonts.inter(
-                              color: colors.lime,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
+                    fallback: Text(
+                      initials,
+                      style: GoogleFonts.inter(
+                        color: colors.lime,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -4172,1256 +3468,6 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
     );
   }
 
-  Widget _buildAccountManagement(UserModel c) {
-    final colors = AdminThemeColors.of(context);
-    final scheduled =
-        _contractEndsAt != null &&
-        _contractEndsAt!.isAfter(DateTime.now()) &&
-        _isActive;
-    final statusColor = !_isActive
-        ? colors.danger
-        : scheduled
-        ? colors.orange
-        : colors.lime;
-
-    Widget statusPill() => Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: statusColor.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: statusColor.withValues(alpha: 0.28)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            scheduled
-                ? Icons.schedule
-                : (_isActive ? Icons.check_circle : Icons.block),
-            size: 14,
-            color: statusColor,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            scheduled
-                ? 'Termina ${DateFormat('dd/MM HH:mm').format(_contractEndsAt!)}'
-                : (_isActive ? 'Perfil ativo' : 'Perfil inativo'),
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: statusColor,
-            ),
-          ),
-        ],
-      ),
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 720;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: EdgeInsets.all(widget.isMobile ? 14 : 18),
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: colors.border),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text(
-                        'GESTÃO DO CLIENTE',
-                        style: GoogleFonts.montserrat(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: colors.text,
-                          letterSpacing: 0.04,
-                        ),
-                      ),
-                      statusPill(),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Flex(
-                    direction: compact ? Axis.vertical : Axis.horizontal,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        flex: compact ? 0 : 1,
-                        child: _loadingNote
-                            ? Text(
-                                'A carregar nota privada...',
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  color: colors.muted,
-                                ),
-                              )
-                            : TextField(
-                                controller: _noteController,
-                                minLines: 2,
-                                maxLines: 4,
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  color: colors.text,
-                                ),
-                                decoration: InputDecoration(
-                                  labelText: 'Nota interna',
-                                  hintText:
-                                      'Adiciona uma observação privada sobre este cliente...',
-                                  prefixIcon: const Icon(
-                                    Icons.sticky_note_2_outlined,
-                                    size: 18,
-                                  ),
-                                  filled: true,
-                                  fillColor: colors.bg,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: colors.border,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                      ),
-                      SizedBox(
-                        width: compact ? 0 : 12,
-                        height: compact ? 10 : 0,
-                      ),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          OutlinedButton.icon(
-                            onPressed: _savingNote || _loadingNote
-                                ? null
-                                : _saveAdminNote,
-                            icon: _savingNote
-                                ? const SizedBox(
-                                    width: 14,
-                                    height: 14,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.save_outlined, size: 16),
-                            label: const Text('Guardar nota'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: _loadingAccountAction
-                                ? null
-                                : _handleAccessAction,
-                            icon: Icon(
-                              _hasScheduledContract
-                                  ? Icons.event_busy_outlined
-                                  : (_isActive
-                                        ? Icons.pause_circle_outline
-                                        : Icons.play_circle_outline),
-                              size: 17,
-                            ),
-                            label: Text(
-                              _hasScheduledContract
-                                  ? 'Cancelar término'
-                                  : (_isActive
-                                        ? 'Desativar perfil'
-                                        : 'Ativar perfil'),
-                            ),
-                          ),
-                          ElevatedButton.icon(
-                            onPressed: _loadingAccountAction
-                                ? null
-                                : _terminateContract,
-                            icon: const Icon(
-                              Icons.assignment_late_outlined,
-                              size: 17,
-                            ),
-                            label: const Text('Terminar contrato'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: colors.orange,
-                              foregroundColor: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  if (_adminNote.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'Nota privada guardada',
-                      style: GoogleFonts.inter(
-                        fontSize: 10,
-                        color: colors.muted,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildClientProfileStrip(UserModel c) {
-    final colors = AdminThemeColors.of(context);
-    final isMobile = widget.isMobile;
-    final initials = c.nome.trim().isEmpty
-        ? '?'
-        : c.nome
-              .trim()
-              .split(RegExp(r'\s+'))
-              .take(2)
-              .map((part) => part[0])
-              .join()
-              .toUpperCase();
-    final statusColor = c.isAccessAllowed ? colors.lime : colors.danger;
-
-    Widget metric(String label, String value) => Padding(
-      padding: const EdgeInsets.only(right: 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: GoogleFonts.inter(
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.7,
-              color: colors.muted,
-            ),
-          ),
-          const SizedBox(height: 3),
-          Text(
-            value,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: colors.text,
-            ),
-          ),
-        ],
-      ),
-    );
-
-    final identity = Row(
-      children: [
-        CircleAvatar(
-          radius: 22,
-          backgroundColor: colors.limeDim,
-          child: Text(
-            initials,
-            style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              color: colors.lime,
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                c.nome,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.35,
-                  color: colors.text,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                c.email,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(fontSize: 11, color: colors.muted),
-              ),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 6,
-                children: [
-                  Text(
-                    c.isOnline ? 'ONLINE' : 'PRESENCIAL',
-                    style: GoogleFonts.inter(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.7,
-                      color: colors.muted,
-                    ),
-                  ),
-                  Text('•', style: TextStyle(fontSize: 9, color: colors.muted)),
-                  Text(
-                    c.accessStatus.toUpperCase(),
-                    style: GoogleFonts.inter(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.7,
-                      color: statusColor,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-
-    final metrics = Wrap(
-      spacing: 0,
-      runSpacing: 10,
-      children: [
-        metric('Peso', '${c.pesoAtual?.toStringAsFixed(1) ?? '--'} kg'),
-        metric('Altura', '${c.altura?.toStringAsFixed(0) ?? '--'} cm'),
-        metric('IMC', c.imc?.toStringAsFixed(1) ?? '--'),
-      ],
-    );
-
-    final actions = Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      children: [
-        _requestProgressButton(c),
-        IconButton(
-          tooltip: 'Reset password',
-          onPressed: () => _resetStudentPassword(c),
-          icon: Icon(Icons.lock_reset_rounded, size: 18, color: colors.orange),
-          style: IconButton.styleFrom(
-            backgroundColor: colors.orange.withValues(alpha: 0.1),
-            minimumSize: const Size(38, 38),
-          ),
-        ),
-      ],
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final stacked = isMobile || constraints.maxWidth < 980;
-        return Container(
-          padding: EdgeInsets.all(isMobile ? 14 : 16),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: colors.border),
-          ),
-          child: stacked
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    identity,
-                    const SizedBox(height: 12),
-                    if (isMobile) ...[
-                      metrics,
-                      const SizedBox(height: 12),
-                      actions,
-                    ] else
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Expanded(child: metrics),
-                          const SizedBox(width: 10),
-                          actions,
-                        ],
-                      ),
-                  ],
-                )
-              : Row(
-                  children: [
-                    Expanded(flex: 5, child: identity),
-                    Container(width: 1, height: 38, color: colors.border),
-                    const SizedBox(width: 18),
-                    Expanded(flex: 4, child: metrics),
-                    const SizedBox(width: 12),
-                    actions,
-                  ],
-                ),
-        );
-      },
-    );
-  }
-
-  Widget _buildAccountSummary(UserModel c) {
-    final colors = AdminThemeColors.of(context);
-    final scheduled =
-        _contractEndsAt != null &&
-        _contractEndsAt!.isAfter(DateTime.now()) &&
-        _isActive;
-    final statusColor = !_isActive
-        ? colors.danger
-        : scheduled
-        ? colors.orange
-        : colors.lime;
-    final statusText = scheduled
-        ? 'Termina ${DateFormat('dd/MM HH:mm').format(_contractEndsAt!)}'
-        : (_isActive ? 'Acesso ativo' : 'Acesso bloqueado');
-
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: colors.border),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final narrow = constraints.maxWidth < 980;
-          final note = _loadingNote
-              ? Text(
-                  'A carregar nota...',
-                  style: GoogleFonts.inter(fontSize: 11, color: colors.muted),
-                )
-              : TextField(
-                  controller: _noteController,
-                  minLines: narrow ? 2 : 1,
-                  maxLines: narrow ? 3 : 1,
-                  style: GoogleFonts.inter(fontSize: 11, color: colors.text),
-                  decoration: InputDecoration(
-                    hintText: 'Nota interna privada',
-                    prefixIcon: Icon(
-                      Icons.sticky_note_2_outlined,
-                      size: 16,
-                      color: colors.muted,
-                    ),
-                    filled: true,
-                    fillColor: colors.bg,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(color: colors.border),
-                    ),
-                  ),
-                );
-          final actions = Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              OutlinedButton.icon(
-                onPressed: _savingNote || _loadingNote ? null : _saveAdminNote,
-                icon: _savingNote
-                    ? const SizedBox(
-                        width: 12,
-                        height: 12,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save_outlined, size: 14),
-                label: const Text('Guardar nota'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  backgroundColor:
-                      Theme.of(context).brightness == Brightness.light
-                      ? colors.text.withValues(alpha: 0.68)
-                      : colors.surface2.withValues(alpha: 0.18),
-                  side: BorderSide(color: Colors.transparent),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  minimumSize: const Size(0, 48),
-                ),
-              ),
-              OutlinedButton.icon(
-                onPressed: _loadingAccountAction ? null : _handleAccessAction,
-                icon: Icon(
-                  _hasScheduledContract
-                      ? Icons.event_busy_outlined
-                      : (_isActive
-                            ? Icons.pause_circle_outline
-                            : Icons.play_circle_outline),
-                  size: 15,
-                ),
-                label: Text(
-                  _hasScheduledContract
-                      ? 'Cancelar término'
-                      : (_isActive ? 'Desativar' : 'Ativar'),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  backgroundColor:
-                      Theme.of(context).brightness == Brightness.light
-                      ? colors.text.withValues(alpha: 0.68)
-                      : colors.surface2.withValues(alpha: 0.18),
-                  side: BorderSide(color: Colors.transparent),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  minimumSize: const Size(0, 48),
-                ),
-              ),
-              ElevatedButton.icon(
-                onPressed: _loadingAccountAction ? null : _terminateContract,
-                icon: const Icon(Icons.assignment_late_outlined, size: 15),
-                label: const Text('Terminar contrato'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colors.orange,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 11,
-                  ),
-                  minimumSize: const Size(0, 46),
-                ),
-              ),
-            ],
-          );
-          final status = Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 7,
-                height: 7,
-                decoration: BoxDecoration(
-                  color: statusColor,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 7),
-              Text(
-                statusText,
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: statusColor,
-                ),
-              ),
-            ],
-          );
-          if (narrow) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.tune_rounded, size: 16, color: colors.muted),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: Text(
-                        'Gestão do cliente',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: colors.text,
-                        ),
-                      ),
-                    ),
-                    status,
-                  ],
-                ),
-                const SizedBox(height: 10),
-                note,
-                const SizedBox(height: 8),
-                actions,
-              ],
-            );
-          }
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Icon(Icons.tune_rounded, size: 16, color: colors.muted),
-              const SizedBox(width: 7),
-              Text(
-                'Gestão',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: colors.text,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(child: note),
-              const SizedBox(width: 10),
-              status,
-              const SizedBox(width: 10),
-              actions,
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildCompactClientHeader(UserModel c) {
-    final colors = AdminThemeColors.of(context);
-    final isCompact = widget.isMobile;
-    final initials = c.nome.trim().isEmpty
-        ? '?'
-        : c.nome
-              .trim()
-              .split(RegExp(r'\s+'))
-              .take(2)
-              .map((part) => part[0])
-              .join()
-              .toUpperCase();
-
-    Widget badge(String label, Color color, IconData icon) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: color.withValues(alpha: 0.22)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 13, color: color),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: color,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Container(
-      padding: EdgeInsets.all(isCompact ? 12 : 14),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: _detailRadius,
-        border: Border.all(color: colors.border),
-        boxShadow: [_detailShadow(colors)],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CircleAvatar(
-                radius: isCompact ? 22 : 25,
-                backgroundColor: colors.limeDim,
-                child: Text(
-                  initials,
-                  style: GoogleFonts.inter(
-                    fontSize: isCompact ? 13 : 15,
-                    fontWeight: FontWeight.w800,
-                    color: colors.lime,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      c.nome,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
-                        fontSize: isCompact ? 17 : 19,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.3,
-                        color: colors.text,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      c.email,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: colors.muted,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 5,
-                      runSpacing: 5,
-                      children: [
-                        badge(
-                          c.isOnline ? 'Online' : 'Presencial',
-                          c.isOnline ? colors.blue : colors.lime,
-                          c.isOnline ? Icons.wifi : Icons.fitness_center,
-                        ),
-                        badge(
-                          c.accessStatus,
-                          c.isAccessAllowed ? colors.lime : colors.danger,
-                          c.isAccessAllowed ? Icons.check_circle : Icons.block,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: colors.bg.withValues(alpha: 0.72),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final metrics = Row(
-                  children: [
-                    Expanded(
-                      child: _compactClientMetric(
-                        colors,
-                        'Peso',
-                        '${c.pesoAtual?.toStringAsFixed(1) ?? '--'} kg',
-                      ),
-                    ),
-                    _compactMetricDivider(colors),
-                    Expanded(
-                      child: _compactClientMetric(
-                        colors,
-                        'Altura',
-                        '${c.altura?.toStringAsFixed(0) ?? '--'} cm',
-                      ),
-                    ),
-                    _compactMetricDivider(colors),
-                    Expanded(
-                      child: _compactClientMetric(
-                        colors,
-                        'IMC',
-                        c.imc?.toStringAsFixed(1) ?? '--',
-                      ),
-                    ),
-                  ],
-                );
-                if (isCompact || constraints.maxWidth < 560) return metrics;
-                return Row(
-                  children: [
-                    Expanded(child: metrics),
-                    const SizedBox(width: 12),
-                    _requestProgressButton(c),
-                  ],
-                );
-              },
-            ),
-          ),
-          if (isCompact) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                _requestProgressButton(c),
-                TextButton.icon(
-                  onPressed: () => _resetStudentPassword(c),
-                  icon: Icon(Icons.lock_reset, size: 14, color: colors.orange),
-                  label: const Text('Reset password'),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    minimumSize: const Size(0, 42),
-                  ),
-                ),
-              ],
-            ),
-          ] else ...[
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () => _resetStudentPassword(c),
-                icon: Icon(Icons.lock_reset, size: 14, color: colors.orange),
-                label: Text(
-                  'Reset password',
-                  style: GoogleFonts.inter(fontSize: 11, color: Colors.white),
-                ),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  minimumSize: const Size(0, 42),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _compactClientMetric(dynamic colors, String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label.toUpperCase(),
-          style: GoogleFonts.inter(
-            fontSize: 9,
-            fontWeight: FontWeight.w700,
-            color: colors.muted,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: colors.text,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _compactMetricDivider(dynamic colors) {
-    return Container(
-      width: 1,
-      height: 24,
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      color: colors.border,
-    );
-  }
-
-  Widget _buildCompactAccountManagement(UserModel c) {
-    final colors = AdminThemeColors.of(context);
-    final scheduled =
-        _contractEndsAt != null &&
-        _contractEndsAt!.isAfter(DateTime.now()) &&
-        _isActive;
-    final statusColor = !_isActive
-        ? colors.danger
-        : scheduled
-        ? colors.orange
-        : colors.lime;
-    final statusText = scheduled
-        ? 'Termina ${DateFormat('dd/MM HH:mm').format(_contractEndsAt!)}'
-        : (_isActive ? 'Acesso ativo' : 'Acesso bloqueado');
-
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: _detailRadius,
-        border: Border.all(color: colors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.tune_rounded, size: 16, color: colors.muted),
-              const SizedBox(width: 7),
-              Text(
-                'Gestão rápida',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: colors.text,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  statusText,
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: statusColor,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final stacked = constraints.maxWidth < 760;
-              final note = _loadingNote
-                  ? Text(
-                      'A carregar nota...',
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: colors.muted,
-                      ),
-                    )
-                  : TextField(
-                      controller: _noteController,
-                      minLines: stacked ? 2 : 1,
-                      maxLines: stacked ? 3 : 2,
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: colors.text,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'Nota interna privada...',
-                        prefixIcon: const Icon(
-                          Icons.sticky_note_2_outlined,
-                          size: 16,
-                        ),
-                        filled: true,
-                        fillColor: colors.bg,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: colors.border),
-                        ),
-                      ),
-                    );
-              final actions = Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: _savingNote || _loadingNote
-                        ? null
-                        : _saveAdminNote,
-                    icon: _savingNote
-                        ? const SizedBox(
-                            width: 12,
-                            height: 12,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.save_outlined, size: 14),
-                    label: const Text('Guardar'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      backgroundColor:
-                          Theme.of(context).brightness == Brightness.light
-                          ? colors.text.withValues(alpha: 0.68)
-                          : colors.surface2.withValues(alpha: 0.18),
-                      side: BorderSide(color: Colors.transparent),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      minimumSize: const Size(0, 48),
-                    ),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: _loadingAccountAction
-                        ? null
-                        : _handleAccessAction,
-                    icon: Icon(
-                      _hasScheduledContract
-                          ? Icons.event_busy_outlined
-                          : (_isActive
-                                ? Icons.pause_circle_outline
-                                : Icons.play_circle_outline),
-                      size: 15,
-                    ),
-                    label: Text(
-                      _hasScheduledContract
-                          ? 'Cancelar término'
-                          : (_isActive ? 'Desativar' : 'Ativar'),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      backgroundColor:
-                          Theme.of(context).brightness == Brightness.light
-                          ? colors.text.withValues(alpha: 0.68)
-                          : colors.surface2.withValues(alpha: 0.18),
-                      side: BorderSide(color: Colors.transparent),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      minimumSize: const Size(0, 48),
-                    ),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: _loadingAccountAction
-                        ? null
-                        : _terminateContract,
-                    icon: const Icon(Icons.assignment_late_outlined, size: 15),
-                    label: const Text('Terminar contrato'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: colors.orange,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      minimumSize: const Size(0, 48),
-                    ),
-                  ),
-                ],
-              );
-              if (stacked) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [note, const SizedBox(height: 8), actions],
-                );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: note),
-                  const SizedBox(width: 10),
-                  actions,
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildClientHeader(UserModel c) {
-    final isMobile = widget.isMobile;
-    return Container(
-      padding: EdgeInsets.all(isMobile ? 16 : 24),
-      decoration: BoxDecoration(
-        color: AdminThemeColors.of(context).surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AdminThemeColors.of(context).border),
-        boxShadow: [
-          BoxShadow(
-            color: AdminThemeColors.of(context).shadow,
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: isMobile
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundColor: AdminThemeColors.of(context).surface2,
-                      child: Text(
-                        c.nome.isNotEmpty
-                            ? c.nome
-                                  .substring(0, c.nome.length >= 2 ? 2 : 1)
-                                  .toUpperCase()
-                            : '?',
-                        style: GoogleFonts.montserrat(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: AdminThemeColors.of(context).lime,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        c.nome.toUpperCase(),
-                        style: GoogleFonts.montserrat(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.01,
-                          color: AdminThemeColors.of(context).text,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: c.isOnline
-                        ? AdminThemeColors.of(
-                            context,
-                          ).blue.withValues(alpha: 0.12)
-                        : AdminThemeColors.of(context).limeDim,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    c.tipoClienteDisplay,
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: c.isOnline
-                          ? AdminThemeColors.of(context).blue
-                          : AdminThemeColors.of(context).lime,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '${c.pesoAtual?.toStringAsFixed(1) ?? '-'}kg · ${c.altura?.toStringAsFixed(0) ?? '-'}cm · IMC: ${c.imc?.toStringAsFixed(1) ?? '-'}',
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          color: AdminThemeColors.of(context).muted,
-                        ),
-                      ),
-                    ),
-                    _requestProgressButton(c),
-                    TextButton.icon(
-                      onPressed: () => _resetStudentPassword(c),
-                      icon: Icon(
-                        Icons.lock_reset,
-                        size: 13,
-                        color: AdminThemeColors.of(context).orange,
-                      ),
-                      label: Text(
-                        'Reset Password',
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        backgroundColor: AdminThemeColors.of(
-                          context,
-                        ).surface2.withValues(alpha: 0.18),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 9,
-                        ),
-                        minimumSize: const Size(0, 44),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            )
-          : Row(
-              children: [
-                CircleAvatar(
-                  radius: 30,
-                  backgroundColor: AdminThemeColors.of(context).surface2,
-                  child: Text(
-                    c.nome.isNotEmpty
-                        ? c.nome
-                              .substring(0, c.nome.length >= 2 ? 2 : 1)
-                              .toUpperCase()
-                        : '?',
-                    style: GoogleFonts.montserrat(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: AdminThemeColors.of(context).lime,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 18),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              c.nome.toUpperCase(),
-                              style: GoogleFonts.montserrat(
-                                fontSize: 32,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -0.01,
-                                color: AdminThemeColors.of(context).text,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: c.isOnline
-                                  ? AdminThemeColors.of(
-                                      context,
-                                    ).blue.withValues(alpha: 0.12)
-                                  : AdminThemeColors.of(context).limeDim,
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: c.isOnline
-                                    ? AdminThemeColors.of(
-                                        context,
-                                      ).blue.withValues(alpha: 0.3)
-                                    : AdminThemeColors.of(
-                                        context,
-                                      ).lime.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Text(
-                              c.tipoClienteDisplay,
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: c.isOnline
-                                    ? AdminThemeColors.of(context).blue
-                                    : AdminThemeColors.of(context).lime,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        '${c.pesoAtual?.toStringAsFixed(1) ?? '-'}kg · ${c.altura?.toStringAsFixed(0) ?? '-'}cm · IMC: ${c.imc?.toStringAsFixed(1) ?? '-'}',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: AdminThemeColors.of(context).muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _requestProgressButton(c),
-                const SizedBox(width: 8),
-                TextButton.icon(
-                  onPressed: () => _resetStudentPassword(c),
-                  icon: Icon(
-                    Icons.lock_reset,
-                    size: 14,
-                    color: AdminThemeColors.of(context).orange,
-                  ),
-                  label: Text(
-                    'Reset Password',
-                    style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AdminThemeColors.of(context).orange,
-                    ),
-                  ),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 8,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-    );
-  }
-
   Future<void> _resetStudentPassword(UserModel c) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -5484,214 +3530,6 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
         }
       }
     }
-  }
-
-  Widget _buildTabs() {
-    final tabs = [
-      ('overview', 'Visão Geral', Icons.person),
-      ('progresso', 'Progresso', Icons.trending_up),
-      ('agenda', 'Agenda', Icons.calendar_today),
-    ];
-    final row = Row(
-      children: [
-        for (final t in tabs) ...[
-          _tabBtn(
-            t.$1,
-            widget.isMobile && t.$2 != 'Visão Geral' ? '' : t.$2,
-            t.$3,
-          ),
-          const SizedBox(width: 4),
-        ],
-      ],
-    );
-    if (widget.isMobile) {
-      return SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: row,
-      );
-    }
-    return row;
-  }
-
-  Widget _tabBtn(String id, String label, IconData icon) {
-    final active = _tab == id;
-    final isMobile = widget.isMobile;
-    final tabWidget = GestureDetector(
-      onTap: () {
-        setState(() => _tab = id);
-        ref.read(isAdminInChatProvider.notifier).state = id == 'chat';
-        if (id == 'chat') _ensurePersonalId();
-      },
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 8 : 10,
-          vertical: isMobile ? 6 : 7,
-        ),
-        decoration: BoxDecoration(
-          color: active
-              ? AdminThemeColors.of(context).limeDim
-              : AdminThemeColors.of(context).surface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: active
-                ? AdminThemeColors.of(context).lime
-                : AdminThemeColors.of(context).border,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: isMobile ? 18 : 14,
-              color: active
-                  ? AdminThemeColors.of(context).lime
-                  : AdminThemeColors.of(context).muted,
-            ),
-            if (label.isNotEmpty) ...[
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: GoogleFonts.inter(
-                  fontSize: isMobile ? 10 : 12,
-                  fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                  color: active
-                      ? AdminThemeColors.of(context).lime
-                      : AdminThemeColors.of(context).muted,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-    if (label.isEmpty) {
-      final tooltipLabels = {
-        'overview': 'Visão Geral',
-        'progresso': 'Progresso',
-        'agenda': 'Agenda',
-      };
-      return Tooltip(message: tooltipLabels[id] ?? id, child: tabWidget);
-    }
-    return tabWidget;
-  }
-
-  Widget _buildLoadProgressionChart() {
-    final c = widget.client;
-    if (!c.isOnline) return const SizedBox.shrink();
-
-    final progressionAsync = ref.watch(onlineProgressionProvider(c.uid));
-
-    return progressionAsync.when(
-      data: (prog) {
-        if (prog.isEmpty) return const SizedBox.shrink();
-        return Container(
-          padding: const EdgeInsets.all(24),
-          margin: const EdgeInsets.only(bottom: 20),
-          decoration: BoxDecoration(
-            color: AdminThemeColors.of(context).surface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AdminThemeColors.of(context).border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.trending_up,
-                    size: 16,
-                    color: AdminThemeColors.of(context).blue,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    'PROGRESSÃO (ONLINE)',
-                    style: GoogleFonts.montserrat(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.03,
-                      color: AdminThemeColors.of(context).text,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ...prog.map(
-                (p) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              p.exerciseName,
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: AdminThemeColors.of(context).text,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${p.cargaAnterior?.toStringAsFixed(1) ?? '-'} → ${p.cargaAtual?.toStringAsFixed(1) ?? '-'} kg',
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                color: AdminThemeColors.of(context).muted,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (p.progrediu)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AdminThemeColors.of(
-                              context,
-                            ).lime.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            '+${p.aumentoKg!.toStringAsFixed(1)}kg',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: AdminThemeColors.of(context).lime,
-                            ),
-                          ),
-                        )
-                      else if (p.manteve)
-                        Text(
-                          '= manteve',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: AdminThemeColors.of(context).muted,
-                          ),
-                        )
-                      else
-                        Text(
-                          'novo',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: AdminThemeColors.of(context).blue,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
-    );
   }
 
   Widget _buildOverview() {
@@ -6201,7 +4039,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
               children: progress.fotos.map((foto) {
                 return ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
+                  child: StorageImage(
                     foto,
                     width: 120,
                     height: 150,
@@ -6584,7 +4422,6 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
         );
     }
   }
-
 }
 
 class _AdminProgressComparisonDialog extends StatefulWidget {
@@ -8469,114 +6306,6 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
     );
   }
 
-  Widget _buildExerciseListItem(ExerciseCatalogModel exercise, int index) {
-    final colors = AdminThemeColors.of(context);
-    final muscles = exercise.musculosPrimarios.isEmpty
-        ? exercise.grupoMuscular
-        : exercise.musculosPrimarios.join(' · ');
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colors.border),
-        boxShadow: [
-          BoxShadow(
-            color: colors.shadow,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _showExerciseDetails(exercise),
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: colors.limeDim,
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: Text(
-                    '${index + 1}'.padLeft(2, '0'),
-                    style: GoogleFonts.montserrat(
-                      color: colors.lime,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        exercise.nome,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
-                          color: colors.text,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 5,
-                        children: [
-                          _exChip(exercise.grupoMuscular, colors.blue),
-                          _exChip(
-                            _displayCatalogValue(exercise.equipamento),
-                            colors.muted,
-                          ),
-                          if (exercise.nivel.isNotEmpty)
-                            _exChip(
-                              _displayCatalogValue(exercise.nivel),
-                              colors.orange,
-                            ),
-                        ],
-                      ),
-                      if (muscles.isNotEmpty &&
-                          muscles != exercise.grupoMuscular)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            muscles,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.inter(
-                              color: colors.muted,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  tooltip: 'Ver detalhes',
-                  onPressed: () => _showExerciseDetails(exercise),
-                  icon: Icon(Icons.info_outline_rounded, color: colors.lime),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Future<void> _showExerciseDetails(ExerciseCatalogModel exercise) async {
     await showDialog<void>(
       context: context,
@@ -9241,7 +6970,11 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
   };
 
   List<FoodModel> _filteredFoods(List<FoodModel> foods) {
+    final query = _search.trim().toLowerCase();
     final filtered = foods.where((food) {
+      final matchesQuery = query.isEmpty ||
+          food.nome.toLowerCase().contains(query);
+      if (!matchesQuery) return false;
       if (_category == 'all') return true;
       return food.categoria?.trim().toLowerCase() == _category;
     }).toList();
@@ -9420,7 +7153,13 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
 
   @override
   Widget build(BuildContext context) {
-    final foodsAsync = ref.watch(adminFoodsSearchProvider(_search));
+    final foodsPager = ref.watch(adminFoodsPagerProvider);
+    final AsyncValue<List<FoodModel>> foodsAsync =
+        foodsPager.isLoading && foodsPager.items.isEmpty
+        ? const AsyncLoading<List<FoodModel>>()
+        : foodsPager.error != null
+        ? AsyncError<List<FoodModel>>(foodsPager.error!, StackTrace.current)
+        : AsyncData<List<FoodModel>>(foodsPager.items);
 
     return AdminPageFrame(
       child: Column(
@@ -9499,7 +7238,9 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                       return SizedBox(width: w, child: _foodCard(food));
                     }).toList(),
                   );
-                  final hasMore = visibleFoods.length < filteredFoods.length;
+                  final hasMore =
+                      visibleFoods.length < filteredFoods.length ||
+                      foodsPager.hasMore;
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -9517,14 +7258,28 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                         const SizedBox(height: 10),
                         Center(
                           child: ElevatedButton.icon(
-                            onPressed: () => setState(() {
-                              _visibleFoodCount += _pageSize;
-                            }),
-                            icon: const Icon(
-                              Icons.expand_more_rounded,
-                              size: 18,
+                            onPressed: foodsPager.hasMore
+                                ? foodsPager.loadMore
+                                : () => setState(() {
+                                    _visibleFoodCount += _pageSize;
+                                  }),
+                            icon: foodsPager.isLoading
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.expand_more_rounded,
+                                    size: 18,
+                                  ),
+                            label: Text(
+                              foodsPager.isLoading
+                                  ? 'A carregar alimentos...'
+                                  : 'Mostrar mais alimentos',
                             ),
-                            label: const Text('Mostrar mais alimentos'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AdminThemeColors.of(
                                 context,
@@ -9994,13 +7749,19 @@ class _AdminPaymentsView extends ConsumerStatefulWidget {
 
 class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
   final bool _creating = false;
-  // Mantidos para compatibilidade com a tabela desktop anterior.
-  String _paymentSearch = '';
-  String _paymentStatus = 'all';
 
   @override
   Widget build(BuildContext context) {
-    final paymentsAsync = ref.watch(adminAllPaymentsProvider);
+    final paymentsPager = ref.watch(adminPaymentsPagerProvider);
+    final AsyncValue<List<PaymentModel>> paymentsAsync =
+        paymentsPager.isLoading && paymentsPager.items.isEmpty
+        ? const AsyncLoading<List<PaymentModel>>()
+        : paymentsPager.error != null
+        ? AsyncError<List<PaymentModel>>(
+            paymentsPager.error!,
+            StackTrace.current,
+          )
+        : AsyncData<List<PaymentModel>>(paymentsPager.items);
     final students =
         ref.watch(alunosListProvider).asData?.value ?? const <UserModel>[];
     final studentNames = <String, String>{
@@ -10043,6 +7804,28 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                     compact: true,
                   ),
                 ),
+                if (paymentsPager.hasMore) ...[
+                  const SizedBox(height: 16),
+                  Center(
+                    child: OutlinedButton.icon(
+                      onPressed: paymentsPager.isLoading
+                          ? null
+                          : paymentsPager.loadMore,
+                      icon: paymentsPager.isLoading
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.expand_more_rounded, size: 18),
+                      label: Text(
+                        paymentsPager.isLoading
+                            ? 'A carregar...'
+                            : 'Carregar mais pagamentos',
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
             loading: () => Center(
@@ -10077,72 +7860,6 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildPaymentsLauncher(
-    List<PaymentModel> payments,
-    Map<String, String> studentNames,
-  ) {
-    final colors = AdminThemeColors.of(context);
-    return AdminSurface(
-      padding: const EdgeInsets.all(16),
-      color: colors.surface,
-      borderRadius: BorderRadius.circular(16),
-      onTap: () => _showPaymentsModal(payments, studentNames),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: colors.limeDim,
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: Icon(Icons.receipt_long_outlined, color: colors.lime),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Histórico de pagamentos',
-                  style: GoogleFonts.inter(
-                    color: colors.text,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  payments.isEmpty
-                      ? 'Ainda não existem pagamentos registados'
-                      : '${payments.length} pagamentos · tocar para abrir',
-                  style: GoogleFonts.inter(fontSize: 12, color: colors.muted),
-                ),
-              ],
-            ),
-          ),
-          Icon(Icons.arrow_forward_ios_rounded, size: 15, color: colors.muted),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showPaymentsModal(
-    List<PaymentModel> payments,
-    Map<String, String> studentNames,
-  ) async {
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      builder: (dialogContext) => _AdminPaymentsPanel(
-        payments: payments,
-        studentNames: studentNames,
-        itemBuilder: (payment, studentName) =>
-            _paymentRow(payment, studentName: studentName, compact: true),
       ),
     );
   }
@@ -10230,201 +7947,6 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
     );
   }
 
-  Widget _buildPaymentFilters() {
-    final colors = AdminThemeColors.of(context);
-    final isMobile = MediaQuery.sizeOf(context).width < 600;
-    final search = TextField(
-      onChanged: (value) => setState(() => _paymentSearch = value),
-      style: GoogleFonts.inter(fontSize: 13, color: colors.text),
-      decoration: InputDecoration(
-        hintText: 'Pesquisar aluno ou descrição',
-        hintStyle: GoogleFonts.inter(fontSize: 12, color: colors.muted),
-        prefixIcon: Icon(Icons.search_rounded, size: 19, color: colors.muted),
-        suffixIcon: _paymentSearch.isEmpty
-            ? null
-            : IconButton(
-                onPressed: () => setState(() => _paymentSearch = ''),
-                icon: Icon(Icons.close_rounded, size: 17, color: colors.muted),
-              ),
-        filled: true,
-        fillColor: colors.surface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colors.border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colors.border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: colors.lime, width: 1.2),
-        ),
-      ),
-    );
-    final status = Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: colors.border),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _paymentStatus,
-          isExpanded: true,
-          icon: Icon(Icons.keyboard_arrow_down_rounded, color: colors.muted),
-          dropdownColor: colors.surface,
-          style: GoogleFonts.inter(fontSize: 12, color: colors.text),
-          items: const [
-            DropdownMenuItem(value: 'all', child: Text('Todos os estados')),
-            DropdownMenuItem(value: 'paid', child: Text('Pagos')),
-            DropdownMenuItem(value: 'pending', child: Text('Pendentes')),
-            DropdownMenuItem(value: 'overdue', child: Text('Em atraso')),
-            DropdownMenuItem(value: 'scheduled', child: Text('Agendados')),
-            DropdownMenuItem(value: 'failed', child: Text('Falhados')),
-            DropdownMenuItem(value: 'cancelled', child: Text('Cancelados')),
-          ],
-          onChanged: (value) {
-            if (value != null) setState(() => _paymentStatus = value);
-          },
-        ),
-      ),
-    );
-
-    if (isMobile) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [search, const SizedBox(height: 9), status],
-      );
-    }
-    return Row(
-      children: [
-        Expanded(child: search),
-        const SizedBox(width: 10),
-        SizedBox(width: 190, child: status),
-      ],
-    );
-  }
-
-  Widget _buildPaymentsTable(
-    List<PaymentModel> payments, {
-    Map<String, String> studentNames = const {},
-  }) {
-    final isMobile = MediaQuery.sizeOf(context).width < 600;
-    if (payments.isEmpty) {
-      return Container(
-        padding: EdgeInsets.all(isMobile ? 24 : 60),
-        decoration: _cardDecoration(),
-        child: Center(
-          child: Column(
-            children: [
-              Icon(
-                Icons.payment,
-                size: 48,
-                color: AdminThemeColors.of(context).muted,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _paymentSearch.isNotEmpty || _paymentStatus != 'all'
-                    ? 'Nenhum pagamento encontrado'
-                    : 'Nenhum pagamento registado',
-                style: GoogleFonts.inter(
-                  fontSize: 14,
-                  color: AdminThemeColors.of(context).muted,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _paymentSearch.isNotEmpty || _paymentStatus != 'all'
-                    ? 'Tenta alterar os filtros aplicados.'
-                    : 'Clica em "Nova cobrança" para criar uma sessão de checkout',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: AdminThemeColors.of(context).muted,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final sorted = List<PaymentModel>.from(payments)
-      ..sort((a, b) => b.data.compareTo(a.data));
-
-    if (isMobile) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: sorted
-            .map(
-              (payment) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _paymentRow(
-                  payment,
-                  studentName: studentNames[payment.userId],
-                ),
-              ),
-            )
-            .toList(),
-      );
-    }
-
-    return Container(
-      decoration: _cardDecoration(),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          // O cabeçalho de colunas é útil no desktop, mas em mobile cada
-          // pagamento já é apresentado como um cartão vertical completo.
-          if (!isMobile)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AdminThemeColors.of(context).surface2,
-                border: Border(
-                  bottom: BorderSide(
-                    color: AdminThemeColors.of(context).border,
-                  ),
-                ),
-              ),
-              child: Row(
-                children: [
-                  _tableHeader('Aluno', flex: 3),
-                  _tableHeader('Descrição', flex: 2),
-                  _tableHeader('Valor', flex: 1),
-                  _tableHeader('Data', flex: 2),
-                  _tableHeader('Estado', flex: 1),
-                  const SizedBox(width: 60),
-                ],
-              ),
-            ),
-          // Rows
-          ...sorted.map(
-            (p) => _paymentRow(p, studentName: studentNames[p.userId]),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _tableHeader(String label, {int flex = 1}) {
-    return Expanded(
-      flex: flex,
-      child: Text(
-        label,
-        style: GoogleFonts.inter(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.06,
-          color: AdminThemeColors.of(context).muted,
-        ),
-      ),
-    );
-  }
-
   bool _canCancelPayment(PaymentModel payment) {
     return payment.status == 'pending' ||
         payment.status == 'scheduled' ||
@@ -10462,6 +7984,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
       await ref
           .read(paymentRepositoryProvider)
           .cancelPaymentSubscription(paymentId: payment.id);
+      ref.read(adminPaymentsPagerProvider).refresh();
       ref.invalidate(adminAllPaymentsProvider);
       if (mounted) {
         showAppNotification(
@@ -10534,6 +8057,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
       await ref
           .read(paymentRepositoryProvider)
           .cancelPayment(paymentId: payment.id);
+      ref.read(adminPaymentsPagerProvider).refresh();
       ref.invalidate(adminAllPaymentsProvider);
       if (mounted) {
         showAppNotification(
@@ -10878,255 +8402,6 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
     );
   }
 
-  BoxDecoration _cardDecoration() {
-    return BoxDecoration(
-      color: AdminThemeColors.of(context).surface,
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: AdminThemeColors.of(context).border),
-      boxShadow: [
-        BoxShadow(
-          color: AdminThemeColors.of(context).shadow,
-          blurRadius: 8,
-          offset: const Offset(0, 2),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _showManualPaymentDialog() async {
-    final alunos = ref.read(alunosListProvider).asData?.value ?? <UserModel>[];
-    if (alunos.isEmpty) {
-      showAppNotification(
-        context,
-        'Nenhum aluno disponível.',
-        type: NotificationType.error,
-      );
-      return;
-    }
-    UserModel? aluno;
-    final valor = TextEditingController();
-    final descricao = TextEditingController(text: 'Mensalidade');
-    final inicio = TextEditingController();
-    final fim = TextEditingController();
-    final vencimento = TextEditingController();
-    String metodo = 'transferência';
-    XFile? comprovativo;
-    final data = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AdminResponsiveAlertDialog(
-          title: const Text('Registar pagamento manual'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                DropdownButtonFormField<UserModel>(
-                  isDense: true,
-                  menuMaxHeight: 320,
-                  elevation: 2,
-                  borderRadius: BorderRadius.circular(14),
-
-                  initialValue: aluno,
-                  decoration: const InputDecoration(labelText: 'Aluno'),
-                  items: alunos
-                      .map(
-                        (a) => DropdownMenuItem(value: a, child: Text(a.nome)),
-                      )
-                      .toList(),
-                  onChanged: (v) => setState(() => aluno = v),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: valor,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(labelText: 'Valor (€)'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: descricao,
-                  decoration: const InputDecoration(labelText: 'Descrição'),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  isDense: true,
-                  menuMaxHeight: 320,
-                  elevation: 2,
-                  borderRadius: BorderRadius.circular(14),
-                  initialValue: metodo,
-                  decoration: const InputDecoration(labelText: 'Método'),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'dinheiro',
-                      child: Text('Dinheiro'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'transferência',
-                      child: Text('Transferência'),
-                    ),
-                    DropdownMenuItem(value: 'outro', child: Text('Outro')),
-                  ],
-                  onChanged: (v) => setState(() => metodo = v ?? metodo),
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      final picked = await ImagePicker().pickImage(
-                        source: ImageSource.gallery,
-                      );
-                      if (picked != null) {
-                        setState(() => comprovativo = picked);
-                      }
-                    },
-                    icon: const Icon(Icons.upload_file_outlined),
-                    label: Text(
-                      comprovativo == null
-                          ? 'Adicionar comprovativo *'
-                          : 'Comprovativo: ${comprovativo!.name}',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: inicio,
-                  decoration: const InputDecoration(
-                    labelText: 'Início do período (AAAA-MM-DD)',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: fim,
-                  decoration: const InputDecoration(
-                    labelText: 'Fim do período (AAAA-MM-DD)',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: vencimento,
-                  decoration: const InputDecoration(
-                    labelText: 'Vencimento (AAAA-MM-DD)',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, {
-                'aluno': aluno,
-                'valor': valor.text,
-                'descricao': descricao.text,
-                'metodo': metodo,
-                'inicio': inicio.text,
-                'fim': fim.text,
-                'vencimento': vencimento.text,
-                'comprovativo': comprovativo,
-              }),
-              child: const Text('Guardar'),
-            ),
-          ],
-        ),
-      ),
-    );
-    valor.dispose();
-    descricao.dispose();
-    inicio.dispose();
-    fim.dispose();
-    vencimento.dispose();
-    if (data == null || data['aluno'] == null) return;
-    final amount = double.tryParse(
-      (data['valor'] as String).replaceAll(',', '.'),
-    );
-    final proof = data['comprovativo'] as XFile?;
-    if (amount == null || amount <= 0) {
-      if (mounted)
-        showAppNotification(
-          context,
-          'Indica um valor válido.',
-          type: NotificationType.error,
-        );
-      return;
-    }
-    if (proof == null) {
-      if (mounted)
-        showAppNotification(
-          context,
-          'Adiciona o comprovativo do pagamento.',
-          type: NotificationType.error,
-        );
-      return;
-    }
-    DateTime? parse(String value) => DateTime.tryParse(value.trim());
-    final periodStart = parse(data['inicio'] as String);
-    final periodEnd = parse(data['fim'] as String);
-    final dueDate = parse(data['vencimento'] as String);
-    if (periodStart == null ||
-        periodEnd == null ||
-        dueDate == null ||
-        periodStart.isAfter(periodEnd)) {
-      if (mounted)
-        showAppNotification(
-          context,
-          'Indica um período e vencimento válidos (início até fim).',
-          type: NotificationType.error,
-        );
-      return;
-    }
-    try {
-      final studentId = (data['aluno'] as UserModel).uid;
-      final proofBytes = await proof.readAsBytes();
-      final proofExtension = proof.name.contains('.')
-          ? proof.name.split('.').last.toLowerCase()
-          : 'jpg';
-      final proofUrl = await ref
-          .read(storageDataSourceProvider)
-          .uploadImage(
-            path:
-                'payment_proofs/$studentId/${DateTime.now().microsecondsSinceEpoch}.$proofExtension',
-            fileBytes: proofBytes,
-            contentType: proof.mimeType ?? 'image/jpeg',
-          );
-      await ref.read(paymentRepositoryProvider).addManualPayment({
-        'userId': studentId,
-        'valor': amount,
-        'moeda': 'eur',
-        'status': 'paid',
-        'descricao': (data['descricao'] as String).trim().isEmpty
-            ? 'Mensalidade'
-            : (data['descricao'] as String).trim(),
-        'data': DateTime.now(),
-        'paidAt': DateTime.now(),
-        'metodo': data['metodo'],
-        'periodoInicio': periodStart,
-        'periodoFim': periodEnd,
-        'dataVencimento': dueDate,
-        'comprovativoUrl': proofUrl,
-      });
-      ref.invalidate(adminAllPaymentsProvider);
-      if (mounted)
-        showAppNotification(
-          context,
-          'Pagamento registado.',
-          type: NotificationType.success,
-        );
-    } catch (_) {
-      if (mounted)
-        showAppNotification(
-          context,
-          'Não foi possível guardar o pagamento.',
-          type: NotificationType.error,
-        );
-    }
-  }
-
   void _openInvoice(String url) {
     launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   }
@@ -11337,6 +8612,7 @@ class _AdminPaymentsViewState extends ConsumerState<_AdminPaymentsView> {
                             loading = false;
                             checkoutUrl = 'created';
                           });
+                          ref.read(adminPaymentsPagerProvider).refresh();
                           ref.invalidate(adminAllPaymentsProvider);
                         } catch (e) {
                           setDialogState(() => loading = false);
@@ -12588,15 +9864,6 @@ class _AdminAgendaViewState extends ConsumerState<_AdminAgendaView> {
 
 // ─── Shared Helpers ───────────────────────────────────────────────
 
-TextStyle _adminDisplay(BuildContext context, double size) {
-  return GoogleFonts.montserrat(
-    fontSize: size,
-    fontWeight: FontWeight.w900,
-    letterSpacing: -0.01,
-    color: AdminThemeColors.of(context).text,
-  );
-}
-
 // ═══════════════════════════════════════════════════════════════════
 // Admin Settings View
 // ═══════════════════════════════════════════════════════════════════
@@ -12711,24 +9978,18 @@ class _AdminSettingsView extends ConsumerWidget {
                 onTap: () => _changePhoto(context, ref, user),
                 child: Stack(
                   children: [
-                    CircleAvatar(
+                    StorageAvatar(
+                      resource: user.fotoPerfil,
                       radius: 36,
                       backgroundColor: AdminThemeColors.of(context).surface2,
-                      backgroundImage: user.fotoPerfil != null
-                          ? NetworkImage(user.fotoPerfil!)
-                          : null,
-                      child: user.fotoPerfil == null
-                          ? Text(
-                              user.nome.isNotEmpty
-                                  ? user.nome[0].toUpperCase()
-                                  : '?',
-                              style: GoogleFonts.montserrat(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w700,
-                                color: AdminThemeColors.of(context).lime,
-                              ),
-                            )
-                          : null,
+                      fallback: Text(
+                        user.nome.isNotEmpty ? user.nome[0].toUpperCase() : '?',
+                        style: GoogleFonts.montserrat(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                          color: AdminThemeColors.of(context).lime,
+                        ),
+                      ),
                     ),
                     Positioned(
                       bottom: 0,
@@ -13136,11 +10397,11 @@ class _AdminSettingsView extends ConsumerWidget {
     if (picked == null) return;
     try {
       final bytes = await picked.readAsBytes();
-      final url = await ref
+      final storagePath = await ref
           .read(progressRepositoryProvider)
           .uploadProfilePhoto(user.uid, Uint8List.fromList(bytes));
       await ref.read(userRepositoryProvider).updateUser(user.uid, {
-        'fotoPerfil': url,
+        'fotoPerfil': storagePath,
       });
       ref.invalidate(userProfileProvider(user.uid));
     } catch (_) {}

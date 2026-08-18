@@ -102,6 +102,19 @@ void main() {
       expect(updated.timestamp, date);
     });
 
+    test('serializa paths Storage novos para áudio e anexos', () {
+      final message = MessageModel(
+        remetenteId: remetenteId,
+        texto: '',
+        timestamp: timestamp.toDate(),
+        audioUrl: 'chat_audio/room/audio.m4a',
+        attachmentUrl: 'chat_attachments/room/image.jpg',
+      );
+
+      expect(message.toMap()['audioUrl'], 'chat_audio/room/audio.m4a');
+      expect(message.toMap()['attachmentUrl'], 'chat_attachments/room/image.jpg');
+    });
+
     test('suporta mensagens de áudio sem quebrar mensagens de texto', () {
       final audioTimestamp = MockTimestamp(DateTime(2026, 7, 23, 15, 0));
       final audio = MessageModel.fromMap('audio1', {

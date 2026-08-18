@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../core/config/app_colors.dart';
 import '../../../core/config/admin_theme.dart';
 import '../../../core/config/app_constants.dart';
+import '../../../core/utils/storage_resource.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/models/message_model.dart';
 import '../../../data/models/group_model.dart';
@@ -227,7 +228,13 @@ class AdminMessagesView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final conversationsAsync = ref.watch(adminConversationsProvider);
-    final groupsAsync = ref.watch(adminGroupsProvider);
+    final groupsPager = ref.watch(adminGroupsPagerProvider);
+    final AsyncValue<List<GroupModel>> groupsAsync =
+        groupsPager.isLoading && groupsPager.items.isEmpty
+        ? const AsyncLoading<List<GroupModel>>()
+        : groupsPager.error != null
+        ? AsyncError<List<GroupModel>>(groupsPager.error!, StackTrace.current)
+        : AsyncData<List<GroupModel>>(groupsPager.items);
     final isMobile = MediaQuery.of(context).size.width < 900;
 
     return AdminPageFrame(
@@ -334,17 +341,21 @@ class AdminMessagesView extends ConsumerWidget {
                                 child: ConstrainedBox(
                                   constraints: BoxConstraints(
                                     maxWidth: 520,
-                                    maxHeight: (MediaQuery.of(context).size.height * 0.78)
-                                        .clamp(320.0, 760.0)
-                                        .toDouble(),
+                                    maxHeight:
+                                        (MediaQuery.of(context).size.height *
+                                                0.78)
+                                            .clamp(320.0, 760.0)
+                                            .toDouble(),
                                   ),
                                   child: SizedBox(
                                     width: isMobile
                                         ? MediaQuery.of(context).size.width - 24
                                         : 420,
-                                    height: (MediaQuery.of(context).size.height * 0.78)
-                                        .clamp(320.0, 760.0)
-                                        .toDouble(),
+                                    height:
+                                        (MediaQuery.of(context).size.height *
+                                                0.78)
+                                            .clamp(320.0, 760.0)
+                                            .toDouble(),
                                     child: GroupChatScreen(
                                       group: g,
                                       isAdminChat: true,
@@ -373,6 +384,24 @@ class AdminMessagesView extends ConsumerWidget {
             ),
             error: (_, __) => const SizedBox.shrink(),
           ),
+          if (groupsPager.hasMore)
+            Center(
+              child: OutlinedButton.icon(
+                onPressed: groupsPager.isLoading ? null : groupsPager.loadMore,
+                icon: groupsPager.isLoading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.expand_more_rounded, size: 18),
+                label: Text(
+                  groupsPager.isLoading
+                      ? 'A carregar...'
+                      : 'Carregar mais grupos',
+                ),
+              ),
+            ),
           // ── Conversas Individuais ──
           Text(
             'CONVERSAS',
@@ -456,10 +485,8 @@ class _AdminMessagesGroupSummaryContent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = AdminThemeColors.of(context);
-    final unreadCount = ref
-            .watch(adminGroupUnreadCountsProvider)
-            .value?[group.id] ??
-        0;
+    final unreadCount =
+        ref.watch(adminGroupUnreadCountsProvider).value?[group.id] ?? 0;
     final hasUnread = unreadCount > 0;
 
     return Row(
@@ -475,16 +502,13 @@ class _AdminMessagesGroupSummaryContent extends ConsumerWidget {
               ),
               clipBehavior: Clip.antiAlias,
               child: group.imagemUrl != null && group.imagemUrl!.isNotEmpty
-                  ? Image.network(
+                  ? StorageImage(
                       group.imagemUrl!,
                       width: 36,
                       height: 36,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Icon(
-                        Icons.group,
-                        color: theme.lime,
-                        size: 18,
-                      ),
+                      errorBuilder: (_, __, ___) =>
+                          Icon(Icons.group, color: theme.lime, size: 18),
                     )
                   : Icon(Icons.group, color: theme.lime, size: 18),
             ),
@@ -566,9 +590,7 @@ Future<void> showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setDialogState) => AdminResponsiveAlertDialog(
         backgroundColor: AdminThemeColors.of(context).surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Criar Grupo',
           style: GoogleFonts.inter(
@@ -622,39 +644,39 @@ Future<void> showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
                 SizedBox(
                   height: 200,
                   child: ListView(
-                      shrinkWrap: true,
-                      children: alunos
-                          .map(
-                            (a) => CheckboxListTile(
-                              dense: true,
-                              title: Text(
-                                a.nome,
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  color: AdminThemeColors.of(context).text,
-                                ),
+                    shrinkWrap: true,
+                    children: alunos
+                        .map(
+                          (a) => CheckboxListTile(
+                            dense: true,
+                            title: Text(
+                              a.nome,
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: AdminThemeColors.of(context).text,
                               ),
-                              subtitle: Text(
-                                a.email,
-                                style: GoogleFonts.inter(
-                                  fontSize: 11,
-                                  color: AdminThemeColors.of(context).muted,
-                                ),
-                              ),
-                              value: selectedIds.contains(a.uid),
-                              activeColor: AdminThemeColors.of(context).lime,
-                              onChanged: (v) => setDialogState(() {
-                                if (v == true) {
-                                  selectedIds.add(a.uid);
-                                } else {
-                                  selectedIds.remove(a.uid);
-                                }
-                              }),
                             ),
-                          )
-                          .toList(),
-                    ),
+                            subtitle: Text(
+                              a.email,
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: AdminThemeColors.of(context).muted,
+                              ),
+                            ),
+                            value: selectedIds.contains(a.uid),
+                            activeColor: AdminThemeColors.of(context).lime,
+                            onChanged: (v) => setDialogState(() {
+                              if (v == true) {
+                                selectedIds.add(a.uid);
+                              } else {
+                                selectedIds.remove(a.uid);
+                              }
+                            }),
+                          ),
+                        )
+                        .toList(),
                   ),
+                ),
             ],
           ),
         ),
@@ -698,6 +720,7 @@ Future<void> showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
                           'criadoPorFoto': adminPhoto,
                         'createdAt': DateTime.now(),
                       });
+                      ref.read(adminGroupsPagerProvider).refresh();
                       ref.invalidate(adminGroupsProvider);
                       if (context.mounted) Navigator.pop(ctx);
                     } catch (_) {}
@@ -773,24 +796,18 @@ class _ConversationTile extends StatelessWidget {
               // Avatar
               Stack(
                 children: [
-                  CircleAvatar(
+                  StorageAvatar(
+                    resource: aluno.fotoPerfil,
                     radius: 26,
                     backgroundColor: AdminThemeColors.of(context).surface2,
-                    backgroundImage: aluno.fotoPerfil != null
-                        ? NetworkImage(aluno.fotoPerfil!)
-                        : null,
-                    child: aluno.fotoPerfil == null
-                        ? Text(
-                            aluno.nome.isNotEmpty
-                                ? aluno.nome[0].toUpperCase()
-                                : '?',
-                            style: GoogleFonts.montserrat(
-                              color: AdminThemeColors.of(context).lime,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 18,
-                            ),
-                          )
-                        : null,
+                    fallback: Text(
+                      aluno.nome.isNotEmpty ? aluno.nome[0].toUpperCase() : '?',
+                      style: GoogleFonts.montserrat(
+                        color: AdminThemeColors.of(context).lime,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                      ),
+                    ),
                   ),
                   if (hasUnread)
                     Positioned(

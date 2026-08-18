@@ -17,6 +17,10 @@ import {
   sendUserEmail,
   sendUserPush,
 } from './notifications.js';
+import {
+  isLegacyStorageUrl,
+  storagePathFromResource,
+} from './storage_migration.js';
 
 admin.initializeApp();
 
@@ -115,11 +119,23 @@ async function issuePaymentRecovery(
   const token = randomBytes(32).toString('base64url');
   const tokenHash = hashRecoveryToken(token);
   const expiresAt = new Date(Date.now() + recoveryTokenLifetimeMs);
+  const previousTokens = await db.collection('paymentRecoveryTokens')
+    .where('paymentId', '==', paymentId)
+    .where('usedAt', '==', null)
+    .get();
+  const revokeBatch = db.batch();
+  for (const previous of previousTokens.docs) {
+    revokeBatch.update(previous.ref, {
+      revokedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+  if (!previousTokens.empty) await revokeBatch.commit();
   await db.collection('paymentRecoveryTokens').doc(tokenHash).set({
     paymentId,
     userId,
     expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    usedAt: null,
   });
   await db.collection('pagamentos').doc(paymentId).update({
     recoveryLastSentAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -182,23 +198,78 @@ export const onUserCreated = functions.auth.user().onCreate(async (user) => {
 const createStudentApp = require('express')();
 createStudentApp.use(require('express').json());
 
-// CORS para todas as rotas
-createStudentApp.use((_req: any, res: any, next: any) => {
-  res.set('Access-Control-Allow-Origin', '*');
+function applyRestrictedCors(req: any, res: any, next: any): void {
+  const origin = typeof req.headers.origin === 'string' ? req.headers.origin : '';
+  const allowed = [
+    publicAppUrl,
+    'https://gymbt-4ef87.firebaseapp.com',
+    'http://localhost:5000',
+    'http://localhost:3000',
+  ];
+  if (allowed.includes(origin)) res.set('Access-Control-Allow-Origin', origin);
+  res.set('Vary', 'Origin');
   res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
   next();
-});
+}
+
+function bearerToken(req: any): string {
+  const header = req.headers.authorization;
+  if (typeof header !== 'string' || !header.startsWith('Bearer ')) return '';
+  return header.slice('Bearer '.length).trim();
+}
+
+const httpRateLimitWindowMs = 60 * 1000;
+
+/**
+ * Persistent rate limit for privileged HTTP endpoints. In-memory limits are
+ * insufficient because Cloud Functions can serve consecutive requests on
+ * different instances.
+ */
+async function consumeHttpRateLimit(
+  callerUid: string,
+  action: 'createStudent' | 'deleteStudent',
+): Promise<void> {
+  const key = createHash('sha256')
+    .update(`${action}:${callerUid}`)
+    .digest('hex');
+  const ref = db.collection('httpRateLimits').doc(key);
+  const now = Date.now();
+
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    const lastAt = snapshot.data()?.lastAt;
+    const lastMillis = lastAt instanceof admin.firestore.Timestamp
+      ? lastAt.toMillis()
+      : 0;
+    if (lastMillis > 0 && now - lastMillis < httpRateLimitWindowMs) {
+      const error = new Error('HTTP rate limit exceeded');
+      (error as Error & { code?: string }).code = 'resource-exhausted';
+      throw error;
+    }
+    transaction.set(ref, {
+      uid: callerUid,
+      action,
+      lastAt: admin.firestore.Timestamp.fromMillis(now),
+      expiresAt: admin.firestore.Timestamp.fromMillis(
+        now + httpRateLimitWindowMs * 2,
+      ),
+    });
+  });
+}
+
+createStudentApp.use(applyRestrictedCors);
 
 createStudentApp.options('/', (_req: any, res: any) => { res.status(204).send(''); });
 
 createStudentApp.post('/', async (req: any, res: any) => {
   // Aceita ambos os formatos: {data: {...}} (onCall antigo) ou fields diretos
   const d = (req.body && req.body.data) ? req.body.data : (req.body || {});
-  const { nome, email, personalId, password, authToken } = d;
+  const { nome, email, personalId, password } = d;
   const isActive = d.isActive !== false;
+  const authToken = bearerToken(req);
 
-  console.log('createStudent body keys:', Object.keys(req.body || {}), 'nome:', nome, 'email:', email);
+  console.log('createStudent request received', { hasName: Boolean(nome), hasEmail: Boolean(email) });
 
   if (!nome || !email) {
     res.status(400).json({ error: { message: 'Nome e email obrigatórios.' } });
@@ -206,7 +277,7 @@ createStudentApp.post('/', async (req: any, res: any) => {
   }
 
   if (!authToken) {
-    res.status(401).json({ error: { message: 'Login necessário.' } });
+    res.status(401).json({ error: { message: 'Authorization Bearer obrigatório.' } });
     return;
   }
 
@@ -226,8 +297,25 @@ createStudentApp.post('/', async (req: any, res: any) => {
   }
 
   try {
+    await consumeHttpRateLimit(callerUid, 'createStudent');
+  } catch (error: any) {
+    if (error?.code === 'resource-exhausted') {
+      res.status(429).json({ error: { message: 'Tenta novamente dentro de um minuto.' } });
+    } else {
+      console.error('Could not apply create-student rate limit', error);
+      res.status(503).json({ error: { message: 'Serviço temporariamente indisponível.' } });
+    }
+    return;
+  }
+
+  try {
     const existingUser = await auth.getUserByEmail(email);
     if (existingUser) {
+      const existingProfile = await db.collection('users').doc(existingUser.uid).get();
+      if (existingProfile.data()?.role === 'admin') {
+        res.status(403).json({ error: { message: 'Não é permitido converter um administrador em aluno.' } });
+        return;
+      }
       await db.collection('users').doc(existingUser.uid).set({
         nome, email, role: 'aluno',
         ...(personalId ? { personalId } : {}),
@@ -243,10 +331,15 @@ createStudentApp.post('/', async (req: any, res: any) => {
       res.json({ uid: existingUser.uid, email, alreadyExists: true });
       return;
     }
-  } catch (_) { /* não existe */ }
+  } catch (error: any) {
+    if (error?.code !== 'auth/user-not-found') {
+      res.status(500).json({ error: { message: 'Não foi possível verificar o e-mail.' } });
+      return;
+    }
+  }
 
   try {
-    const temporaryPassword = password || (Math.random().toString(36).slice(-10) + 'A1!');
+    const temporaryPassword = password || `${randomBytes(18).toString('base64url')}A1!`;
     const userRecord = await auth.createUser({ email, password: temporaryPassword, displayName: nome });
     // Todo o aluno criado pelo admin começa com um período inicial de um mês.
     // O cálculo usa meses de calendário: 15/08 -> 15/09, incluindo a
@@ -259,8 +352,17 @@ createStudentApp.post('/', async (req: any, res: any) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       isActive: true,
       contractEndsAt: admin.firestore.Timestamp.fromDate(activationPeriod.end),
+      mustResetPassword: !password,
     });
-    res.json({ uid: userRecord.uid, email, created: true, temporaryPassword: password ? undefined : temporaryPassword });
+    if (!password) {
+      const resetLink = await auth.generatePasswordResetLink(email);
+      await sendUserEmail(
+        email,
+        'Define a tua palavra-passe — GymBT',
+        `<p>Olá ${escapeHtml(nome)},</p><p>Usa o seguinte link para definires a tua palavra-passe de acesso:</p><p><a href="${resetLink}">Definir palavra-passe</a></p>`,
+      );
+    }
+    res.json({ uid: userRecord.uid, email, created: true, passwordResetEmailSent: !password });
   } catch (e: any) {
     res.status(400).json({ error: { message: e.message || 'Erro ao criar utilizador.' } });
   }
@@ -268,26 +370,97 @@ createStudentApp.post('/', async (req: any, res: any) => {
 
 export const createStudentHttp = functions.region('europe-west1').https.onRequest(createStudentApp);
 
+async function deleteQueryDocuments(
+  collection: string,
+  field: string,
+  value: unknown,
+): Promise<void> {
+  while (true) {
+    const snapshot = await db.collection(collection).where(field, '==', value).limit(400).get();
+    if (snapshot.empty) return;
+    const batch = db.batch();
+    for (const document of snapshot.docs) batch.delete(document.ref);
+    await batch.commit();
+  }
+}
+
+async function purgeStudentData(userId: string): Promise<void> {
+  const userRef = db.collection('users').doc(userId);
+  // recursiveDelete removes all private subcollections (questionnaire, diary,
+  // progress, plans and logs), not just the profile document.
+  await db.recursiveDelete(userRef);
+
+  const directRooms = await db.collection('chat')
+    .where('participantIds', 'array-contains', userId)
+    .get();
+  for (const room of directRooms.docs) {
+    await db.recursiveDelete(room.ref);
+    await admin.storage().bucket().deleteFiles({ prefix: `chat_audio/${room.id}/` });
+    await admin.storage().bucket().deleteFiles({ prefix: `chat_attachments/${room.id}/` });
+  }
+
+  const groups = await db.collection('grupos')
+    .where('membros', 'array-contains', userId)
+    .get();
+  const groupBatch = db.batch();
+  for (const group of groups.docs) {
+    if (group.data().criadoPor === userId) {
+      groupBatch.delete(group.ref);
+    } else {
+      groupBatch.update(group.ref, {
+        membros: admin.firestore.FieldValue.arrayRemove(userId),
+      });
+    }
+  }
+  if (!groups.empty) await groupBatch.commit();
+
+  await deleteQueryDocuments('agenda', 'studentId', userId);
+  await deleteQueryDocuments('notificacoes', 'userId', userId);
+  await deleteQueryDocuments('paymentRecoveryTokens', 'userId', userId);
+
+  const payments = await db.collection('pagamentos').where('userId', '==', userId).get();
+  for (const payment of payments.docs) {
+    const stripeSubscriptionId = payment.data().stripeSubscriptionId;
+    if (stripe && stripeSubscriptionId) {
+      await stripe.subscriptions.cancel(String(stripeSubscriptionId)).catch((error) => {
+        console.warn('Could not cancel subscription during student purge', {
+          paymentId: payment.id,
+          type: error?.type,
+          code: error?.code,
+        });
+      });
+    }
+    // Paid records may be retained for legal/accounting reasons, but no longer
+    // point at an existing personal account.
+    if (payment.data().status === 'paid') {
+      await payment.ref.update({
+        userId: null,
+        anonymizedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    } else {
+      await payment.ref.delete();
+    }
+  }
+
+  await admin.storage().bucket().deleteFiles({ prefix: `users/${userId}/` });
+}
+
 // ═══ DELETE STUDENT (onRequest) ═══
 const deleteStudentApp = require('express')();
 deleteStudentApp.use(require('express').json());
-deleteStudentApp.use((_req: any, res: any, next: any) => {
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  next();
-});
+deleteStudentApp.use(applyRestrictedCors);
 deleteStudentApp.options('/', (_req: any, res: any) => { res.status(204).send(''); });
 deleteStudentApp.post('/', async (req: any, res: any) => {
   const d = (req.body && req.body.data) ? req.body.data : (req.body || {});
-  const { userId, authToken } = d;
+  const { userId } = d;
+  const authToken = bearerToken(req);
 
   if (!userId) {
     res.status(400).json({ error: { message: 'userId obrigatório.' } });
     return;
   }
   if (!authToken) {
-    res.status(401).json({ error: { message: 'Login necessário.' } });
+    res.status(401).json({ error: { message: 'Authorization Bearer obrigatório.' } });
     return;
   }
 
@@ -306,28 +479,273 @@ deleteStudentApp.post('/', async (req: any, res: any) => {
     return;
   }
 
-  // Não deixar o admin apagar-se a si próprio
+  try {
+    await consumeHttpRateLimit(callerUid, 'deleteStudent');
+  } catch (error: any) {
+    if (error?.code === 'resource-exhausted') {
+      res.status(429).json({ error: { message: 'Tenta novamente dentro de um minuto.' } });
+    } else {
+      console.error('Could not apply delete-student rate limit', error);
+      res.status(503).json({ error: { message: 'Serviço temporariamente indisponível.' } });
+    }
+    return;
+  }
+
+  // Não deixar o admin apagar-se a si próprio nem apagar outro administrador
+  // através de um endpoint destinado a alunos.
   if (userId === callerUid) {
     res.status(400).json({ error: { message: 'Não podes apagar a tua própria conta.' } });
+    return;
+  }
+  const targetDoc = await db.collection('users').doc(userId).get();
+  if (targetDoc.data()?.role === 'admin') {
+    res.status(403).json({ error: { message: 'A eliminação de administradores requer um fluxo próprio.' } });
+    return;
+  }
+
+  // Primeiro limpa os dados. Se houver uma falha transitória, a conta Auth
+  // permanece disponível para repetir a operação sem deixar uma conta órfã.
+  try {
+    await purgeStudentData(userId);
+  } catch (error) {
+    console.error('Student purge failed', { userId, error });
+    res.status(500).json({
+      error: { message: 'Não foi possível concluir a limpeza de dados. Tenta novamente.' },
+    });
     return;
   }
 
   try {
     await auth.deleteUser(userId);
   } catch (e: any) {
-    if (e.code === 'auth/user-not-found') {
-      // Utilizador já não existe no Auth — limpa só o Firestore
-    } else {
+    if (e.code !== 'auth/user-not-found') {
       res.status(400).json({ error: { message: e.message || 'Erro ao apagar utilizador.' } });
       return;
     }
   }
-
-  await db.collection('users').doc(userId).delete();
   res.json({ success: true, message: 'Aluno eliminado com sucesso.' });
 });
 
 export const deleteStudentHttp = functions.region('europe-west1').https.onRequest(deleteStudentApp);
+
+type StorageMigrationUpdate = {
+  ref: any;
+  data: Record<string, any>;
+};
+
+function migrateStorageValue(value: unknown, paths: Set<string>): unknown {
+  if (!isLegacyStorageUrl(value)) return value;
+  const path = storagePathFromResource(value);
+  if (!path) return value;
+  paths.add(path);
+  return path;
+}
+
+function migrateStorageMap(
+  source: Record<string, any>,
+  paths: Set<string>,
+): Record<string, any> {
+  const data = { ...source };
+  for (const field of [
+    'fotoPerfil',
+    'imagemUrl',
+    'criadoPorFoto',
+    'audioUrl',
+    'attachmentUrl',
+    'videoUrl',
+    'comprovativoUrl',
+  ]) {
+    if (field in data) data[field] = migrateStorageValue(data[field], paths);
+  }
+  if (Array.isArray(data.fotos)) {
+    data.fotos = data.fotos.map((value: unknown) =>
+      migrateStorageValue(value, paths));
+  }
+  for (const field of ['fotosPorPosicao', 'membrosFotos']) {
+    if (data[field] && typeof data[field] === 'object' &&
+        !Array.isArray(data[field])) {
+      data[field] = Object.fromEntries(
+        Object.entries(data[field]).map(([key, value]) => [
+          key,
+          migrateStorageValue(value, paths),
+        ]),
+      );
+    }
+  }
+  return data;
+}
+
+function hasStorageMigration(
+  before: Record<string, any>,
+  after: Record<string, any>,
+): boolean {
+  for (const field of [
+    'fotoPerfil',
+    'imagemUrl',
+    'criadoPorFoto',
+    'audioUrl',
+    'attachmentUrl',
+    'videoUrl',
+    'comprovativoUrl',
+  ]) {
+    if (before[field] !== after[field]) return true;
+  }
+  return JSON.stringify(before.fotos ?? null) !== JSON.stringify(after.fotos ?? null) ||
+    JSON.stringify(before.fotosPorPosicao ?? null) !==
+      JSON.stringify(after.fotosPorPosicao ?? null) ||
+    JSON.stringify(before.membrosFotos ?? null) !==
+      JSON.stringify(after.membrosFotos ?? null);
+}
+
+/**
+ * Migra URLs Firebase Storage legadas para paths. O fluxo é explicitamente
+ * opt-in e suporta dryRun; nunca é executado automaticamente por um trigger.
+ */
+export const backfillStoragePaths = functions.region('europe-west1').https.onCall(
+  async (data, context) => {
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+    }
+    const caller = await db.collection('users').doc(context.auth.uid).get();
+    if (caller.data()?.role !== 'admin') {
+      throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
+    }
+
+    const limit = Math.min(
+      Math.max(Number.isInteger(data?.limit) ? Number(data.limit) : 100, 1),
+      400,
+    );
+    // A migração é dry-run por defeito. Uma escrita/revogação exige a flag
+    // explícita `apply: true`, reduzindo o risco de uma chamada administrativa
+    // incompleta alterar documentos ou invalidar tokens.
+    const apply = data?.apply === true;
+    const dryRun = !apply;
+    const revokeTokens = data?.revokeTokens === true && apply;
+    const paths = new Set<string>();
+    const updates = new Map<string, StorageMigrationUpdate>();
+    let scanned = 0;
+
+    const collect = (snapshot: FirebaseFirestore.QuerySnapshot): void => {
+      for (const doc of snapshot.docs) {
+        scanned++;
+        const before = doc.data();
+        const after = migrateStorageMap(before, paths);
+        if (hasStorageMigration(before, after)) {
+          updates.set(doc.ref.path, { ref: doc.ref, data: after });
+        }
+      }
+    };
+
+    const users = await db.collection('users').limit(limit).get();
+    collect(users);
+    for (const user of users.docs) {
+      collect(await user.ref.collection('progresso').limit(limit).get());
+      collect(await user.ref.collection('progressVideos').limit(limit).get());
+    }
+
+    const groups = await db.collection('grupos').limit(limit).get();
+    collect(groups);
+    for (const group of groups.docs) {
+      collect(await group.ref.collection('mensagens').limit(limit).get());
+    }
+
+    const rooms = await db.collection('chat').limit(limit).get();
+    collect(rooms);
+    for (const room of rooms.docs) {
+      collect(await room.ref.collection('mensagens').limit(limit).get());
+    }
+
+    collect(await db.collection('pagamentos').limit(limit).get());
+
+    if (apply) {
+      const entries = [...updates.values()];
+      for (let offset = 0; offset < entries.length; offset += 400) {
+        const batch = db.batch();
+        for (const update of entries.slice(offset, offset + 400)) {
+          batch.set(update.ref, update.data, { merge: true });
+        }
+        await batch.commit();
+      }
+    }
+
+    if (revokeTokens) {
+      const bucket = admin.storage().bucket();
+      await Promise.all([...paths].map(async (path) => {
+        await bucket.file(path).setMetadata({
+          metadata: { firebaseStorageDownloadTokens: null },
+        });
+      }));
+    }
+
+    return {
+      apply,
+      dryRun,
+      revokeTokens,
+      scanned,
+      migrated: updates.size,
+      paths: paths.size,
+    };
+  },
+);
+
+export const acceptPrivacyPolicy = functions.region('europe-west1').https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+  }
+  const uid = context.auth.uid;
+  const version = typeof data?.version === 'string' ? data.version.trim() : '';
+  if (version !== 'privacy-2026-08-draft') {
+    throw new functions.https.HttpsError('failed-precondition', 'Versão da política inválida.');
+  }
+  const platform = typeof data?.platform === 'string'
+    ? data.platform.trim().slice(0, 40)
+    : 'unknown';
+  const userAgent = typeof data?.userAgent === 'string'
+    ? data.userAgent.trim().slice(0, 500)
+    : '';
+  const userRef = db.collection('users').doc(uid);
+  const auditRef = userRef.collection('privacyConsentAudit').doc(version);
+  await db.runTransaction(async (transaction) => {
+    const userSnapshot = await transaction.get(userRef);
+    if (!userSnapshot.exists || userSnapshot.data()?.role === 'admin') {
+      throw new functions.https.HttpsError('permission-denied', 'Perfil não elegível.');
+    }
+    transaction.set(userRef, {
+      privacyPolicyAcceptedAt: admin.firestore.FieldValue.serverTimestamp(),
+      privacyPolicyVersion: version,
+    }, { merge: true });
+    transaction.set(auditRef, {
+      version,
+      platform,
+      ...(userAgent ? { userAgent } : {}),
+      acceptedAt: admin.firestore.FieldValue.serverTimestamp(),
+      uid,
+    }, { merge: false });
+  });
+  return { success: true, version };
+});
+
+export const registerFcmToken = functions.region('europe-west1').https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+  const token = typeof data?.token === 'string' ? data.token.trim() : '';
+  if (token.length < 20 || token.length > 4096) {
+    throw new functions.https.HttpsError('invalid-argument', 'Token FCM inválido.');
+  }
+  await db.collection('users').doc(context.auth.uid).update({
+    fcmToken: token,
+    fcmTokenUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return { success: true };
+});
+
+export const removeFcmToken = functions.region('europe-west1').https.onCall(async (_data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+  await db.collection('users').doc(context.auth.uid).update({
+    fcmToken: admin.firestore.FieldValue.delete(),
+    fcmTokenUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return { success: true };
+});
 
 export const seedFoods = functions.region('europe-west1').https.onCall(async (data, context) => {
   if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
@@ -1075,8 +1493,47 @@ export const createPaymentRecoveryCheckoutSession = functions
     const tokenDoc = await tokenRef.get();
     const recovery = tokenDoc.data();
     const expiresAt = asDate(recovery?.expiresAt);
-    if (!tokenDoc.exists || !recovery || !expiresAt || expiresAt <= new Date()) {
+    if (!tokenDoc.exists || !recovery || recovery.revokedAt ||
+        !expiresAt || expiresAt <= new Date()) {
       throw new functions.https.HttpsError('not-found', 'Este link expirou ou não é válido.');
+    }
+    if (recovery.checkoutSessionId) {
+      try {
+        const existingSession = await stripe.checkout.sessions.retrieve(
+          String(recovery.checkoutSessionId),
+        );
+        if (existingSession.url) {
+          return { url: existingSession.url, paymentId: String(recovery.paymentId) };
+        }
+      } catch (_) {
+        // Se a sessão antiga já não existe, continua com uma nova apenas se o
+        // token ainda não foi consumido.
+      }
+    }
+    if (recovery.usedAt) {
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        'Este link já foi utilizado. Usa o checkout já criado ou pede um novo link.',
+      );
+    }
+    const lockAcquired = await db.runTransaction(async (transaction) => {
+      const latest = await transaction.get(tokenRef);
+      const latestData = latest.data() ?? {};
+      const lockDate = asDate(latestData.checkoutLockAt);
+      if (latestData.usedAt || latestData.revokedAt ||
+          (lockDate && Date.now() - lockDate.getTime() < 10 * 60 * 1000)) {
+        return false;
+      }
+      transaction.update(tokenRef, {
+        checkoutLockAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return true;
+    });
+    if (!lockAcquired) {
+      throw new functions.https.HttpsError(
+        'aborted',
+        'Este link já está a preparar um checkout. Tenta novamente dentro de instantes.',
+      );
     }
 
     const paymentRef = db.collection('pagamentos').doc(String(recovery.paymentId));
@@ -1131,12 +1588,23 @@ export const createPaymentRecoveryCheckoutSession = functions
         cancel_url: `${publicAppUrl}/?recovery=cancelled`,
       });
     } catch (error) {
+      await tokenRef.update({
+        checkoutLockAt: admin.firestore.FieldValue.delete(),
+      }).catch(() => undefined);
       throw stripeCheckoutHttpsError(error, 'recuperação');
     }
 
     if (!session.url) {
+      await tokenRef.update({
+        checkoutLockAt: admin.firestore.FieldValue.delete(),
+      }).catch(() => undefined);
       throw new functions.https.HttpsError('internal', 'O Stripe não devolveu o checkout.');
     }
+    await tokenRef.update({
+      checkoutSessionId: session.id,
+      usedAt: admin.firestore.FieldValue.serverTimestamp(),
+      checkoutLockAt: admin.firestore.FieldValue.delete(),
+    });
     await paymentRef.update({
       recoveryCheckoutSessionId: session.id,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -1157,6 +1625,13 @@ export const resendPaymentRecovery = functions
     const payment = await db.collection('pagamentos').doc(paymentId).get();
     if (!payment.exists || !payment.data()?.userId) {
       throw new functions.https.HttpsError('not-found', 'Pagamento não encontrado.');
+    }
+    const lastSentAt = asDate(payment.data()?.recoveryLastSentAt);
+    if (lastSentAt && Date.now() - lastSentAt.getTime() < 5 * 60 * 1000) {
+      throw new functions.https.HttpsError(
+        'resource-exhausted',
+        'Já foi enviado um link recentemente. Aguarda alguns minutos.',
+      );
     }
     await issuePaymentRecovery(paymentId, String(payment.data()!.userId), 'failed');
     return { success: true };
@@ -1256,21 +1731,81 @@ export const createCheckoutSession = functions.region('europe-west1').https.onCa
 
 // ──────────── FIRESTORE TRIGGERS ────────────
 
+// ═══ DASHBOARD AGGREGATES ═══
+
+/**
+ * Mantém um agregado pequeno para o dashboard administrativo. Sem este
+ * materialized view, o painel precisa de uma collectionGroup listener sobre
+ * todo o histórico de diários, o que cresce linearmente com os alunos e dias.
+ *
+ * O trigger é delta-based e idempotente para cada transição before/after:
+ * criar, editar e apagar um diário ajusta apenas os contadores afetados.
+ * Dados anteriores ao deploy precisam de um backfill operacional único.
+ */
+export const aggregateDiaryStats = functions
+  .region('europe-west1')
+  .firestore.document('users/{userId}/diario/{date}')
+  .onWrite(async (change) => {
+    const before = change.before.exists ? change.before.data() ?? {} : null;
+    const after = change.after.exists ? change.after.data() ?? {} : null;
+
+    const sessionInfo = (data: Record<string, any> | null) => {
+      if (!data || data.treinoConcluido !== true ||
+          typeof data.treinoData !== 'object' || data.treinoData == null) {
+        return { completed: false, month: null as string | null };
+      }
+      const completedAt = asDate(data.treinoData.completedAt);
+      if (!completedAt) return { completed: false, month: null as string | null };
+      const month = `${completedAt.getUTCFullYear()}-${String(
+        completedAt.getUTCMonth() + 1,
+      ).padStart(2, '0')}`;
+      return { completed: true, month };
+    };
+
+    const beforeInfo = sessionInfo(before);
+    const afterInfo = sessionInfo(after);
+    if (beforeInfo.completed === afterInfo.completed &&
+        beforeInfo.month === afterInfo.month) return null;
+
+    const aggregateRef = db.collection('adminAggregates').doc('dashboard');
+    await db.runTransaction(async (transaction) => {
+      const aggregateSnapshot = await transaction.get(aggregateRef);
+      const current = aggregateSnapshot.data() ?? {};
+      const sessionsByMonth = {
+        ...(current.sessionsByMonth ?? {}),
+      } as Record<string, number>;
+      let total = Number(current.sessoesTotal ?? 0);
+
+      if (beforeInfo.completed && beforeInfo.month) {
+        total = Math.max(0, total - 1);
+        sessionsByMonth[beforeInfo.month] = Math.max(
+          0,
+          Number(sessionsByMonth[beforeInfo.month] ?? 0) - 1,
+        );
+      }
+      if (afterInfo.completed && afterInfo.month) {
+        total += 1;
+        sessionsByMonth[afterInfo.month] =
+          Number(sessionsByMonth[afterInfo.month] ?? 0) + 1;
+      }
+
+      transaction.set(aggregateRef, {
+        sessoesTotal: total,
+        sessionsByMonth,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+    return null;
+  });
+
 // ═══ NOTIFICAÇÕES DE CHAT & BOOKING (callables v1 — compatível com eur3) ═══
 
-// Resolve o UID autenticado. A callable v1 recebe (data, context), mas
-// mantém o token no payload como fallback para clientes Web antigos.
-async function resolvedUid(data: any, context: any): Promise<string> {
+// Callable Functions já recebem o ID token no contexto autenticado. Nunca
+// aceitamos tokens enviados dentro de data: ficam expostos em payloads/logs e
+// permitem que clientes antigos contornem a semântica normal de callable.
+async function resolvedUid(_data: any, context: any): Promise<string> {
   if (context.auth?.uid) return context.auth.uid;
-  const token = data?.authToken;
-  if (!token)
-    throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
-  try {
-    const decoded = await auth.verifyIdToken(token);
-    return decoded.uid;
-  } catch (_) {
-    throw new functions.https.HttpsError('unauthenticated', 'Token inválido. Tenta sair e entrar novamente.');
-  }
+  throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
 }
 
 type ChatNotificationDetails = {
@@ -1290,10 +1825,16 @@ async function resolveChatNotificationDetails(
 
   // Salas 1:1 usam o formato chat_uid_uid.
   if (parts.length >= 3 && parts[0] === 'chat') {
-    const uid1 = parts[1];
-    const uid2 = parts.slice(2).join('_');
-    const recipientId = remetenteId === uid1 ? uid2 : uid1;
-    if (!recipientId || recipientId === remetenteId) return null;
+    const roomDoc = await db.collection('chat').doc(salaId).get();
+    const participants = roomDoc.data()?.participantIds;
+    if (!roomDoc.exists || !Array.isArray(participants) ||
+        participants.length !== 2 || !participants.includes(remetenteId)) {
+      return null;
+    }
+    const recipientId = participants.find((id: unknown) =>
+      typeof id === 'string' && id !== remetenteId,
+    );
+    if (!recipientId) return null;
     return {
       recipientIds: [recipientId],
       type: 'chat_direct',
@@ -1313,6 +1854,7 @@ async function resolveChatNotificationDetails(
   const groupName = String(groupData.nome ?? groupData.name ?? 'Grupo');
   const members = Array.isArray(groupData.membros) ? groupData.membros : [];
   const groupAdmin = groupData.criadoPor;
+  if (!members.includes(remetenteId) && groupAdmin !== remetenteId) return null;
   const recipientIds = [...members, groupAdmin]
     .filter((id: unknown): id is string =>
       typeof id === 'string' && id.length > 0 && id !== remetenteId,
@@ -1340,23 +1882,30 @@ export const sendChatNotification = functions
   .https.onCall(async (data, context) => {
     const uid = await resolvedUid(data, context);
     const salaId = typeof data?.salaId === 'string' ? data.salaId : '';
-    const remetenteId = typeof data?.remetenteId === 'string'
-      ? data.remetenteId
-      : '';
-    const texto = typeof data?.texto === 'string' ? data.texto : '';
-    if (!salaId || !remetenteId || !texto) {
+    const messageId = typeof data?.messageId === 'string' ? data.messageId : '';
+    if (!salaId || !messageId) {
       throw new functions.https.HttpsError(
         'invalid-argument',
-        'salaId, remetenteId e texto obrigatórios.',
+        'salaId e messageId são obrigatórios.',
       );
     }
-    if (remetenteId !== uid) {
-      throw new functions.https.HttpsError('permission-denied', 'ID não corresponde.');
+
+    const messageRef = salaId.startsWith('chat_')
+      ? db.collection('chat').doc(salaId).collection('mensagens').doc(messageId)
+      : db.collection('grupos').doc(salaId).collection('mensagens').doc(messageId);
+    const messageDoc = await messageRef.get();
+    const message = messageDoc.data() ?? {};
+    const remetenteId = typeof message.remetenteId === 'string'
+      ? message.remetenteId
+      : '';
+    if (!messageDoc.exists || remetenteId !== uid) {
+      throw new functions.https.HttpsError('permission-denied', 'Mensagem não autorizada.');
     }
 
     const details = await resolveChatNotificationDetails(salaId, remetenteId);
     if (!details) return { ok: true };
-    const body = texto.substring(0, 100);
+    const rawText = typeof message.texto === 'string' ? message.texto : '';
+    const body = (rawText || '[Anexo]').substring(0, 100);
     await Promise.all(
       details.recipientIds.map((recipientId) =>
         sendUserPush(recipientId, details.title, body, {
@@ -1491,8 +2040,13 @@ export const createBooking = functions
     }
 
     const date = new Date(bookingDate);
-    if (Number.isNaN(date.getTime())) {
-      throw new functions.https.HttpsError('invalid-argument', 'Data inválida.');
+    const now = new Date();
+    if (Number.isNaN(date.getTime()) || date <= now ||
+        date > new Date(now.getTime() + 366 * 24 * 60 * 60 * 1000)) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'A marcação deve ser uma data futura dentro do próximo ano.',
+      );
     }
 
     const [studentDoc, trainerDoc] = await Promise.all([
@@ -1511,8 +2065,12 @@ export const createBooking = functions
     if (contractEndsAt && contractEndsAt <= new Date()) {
       throw new functions.https.HttpsError('permission-denied', 'Contrato expirado.');
     }
-    if (!trainerDoc.exists || trainer.role !== 'admin') {
-      throw new functions.https.HttpsError('not-found', 'Personal Trainer não encontrado.');
+    if (!trainerDoc.exists || trainer.role !== 'admin' ||
+        student.personalId !== trainerId) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'O personal indicado não está associado ao aluno.',
+      );
     }
 
     const agenda = db.collection('agenda');
@@ -1574,33 +2132,36 @@ export const notifyNewBooking = functions
   .region('europe-west1')
   .https.onCall(async (data, context) => {
     const uid = await resolvedUid(data, context);
-
-    const { studentId, trainerId, bookingDate, tipo } = data;
-    if (!studentId || !trainerId || !bookingDate)
-      throw new functions.https.HttpsError('invalid-argument', 'studentId, trainerId e bookingDate obrigatórios.');
-
-    // Verifica que o aluno é o utilizador autenticado
-    if (studentId !== uid)
-      throw new functions.https.HttpsError('permission-denied', 'ID não corresponde.');
-
-    const trainerDoc = await db.collection('users').doc(trainerId).get();
-    const studentDoc = await db.collection('users').doc(studentId).get();
-
+    const bookingId = typeof data?.bookingId === 'string' ? data.bookingId.trim() : '';
+    if (!bookingId) {
+      throw new functions.https.HttpsError('invalid-argument', 'bookingId obrigatório.');
+    }
+    const bookingDoc = await db.collection('agenda').doc(bookingId).get();
+    const booking = bookingDoc.data() ?? {};
+    if (!bookingDoc.exists || booking.studentId !== uid || booking.status !== 'pending') {
+      throw new functions.https.HttpsError('permission-denied', 'Marcação não autorizada.');
+    }
+    const [studentDoc, trainerDoc] = await Promise.all([
+      db.collection('users').doc(uid).get(),
+      db.collection('users').doc(String(booking.trainerId)).get(),
+    ]);
+    if (studentDoc.data()?.personalId !== booking.trainerId ||
+        trainerDoc.data()?.role !== 'admin') {
+      throw new functions.https.HttpsError('permission-denied', 'Relação aluno-personal inválida.');
+    }
     const fcmToken = trainerDoc.data()?.fcmToken;
     if (!fcmToken) return { ok: true };
-
-    const date = new Date(bookingDate);
+    const date = asDate(booking.data) ?? new Date();
     const timeStr = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
     const dateStr = date.toLocaleDateString('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' });
-    const tipoLabel = tipo === 'online' ? '💻 Online' : '🏋️ Presencial';
-
+    const tipoLabel = booking.tipo === 'online' ? '💻 Online' : '🏋️ Presencial';
     await messaging.send({
       token: fcmToken,
       notification: {
         title: 'Nova Aula Marcada 📅',
         body: `${studentDoc.data()?.nome ?? 'Aluno'} marcou aula para ${dateStr} às ${timeStr} (${tipoLabel})`,
       },
-      data: { type: 'new_booking', studentId },
+      data: { type: 'new_booking', bookingId },
     });
     return { ok: true };
   });
@@ -1609,54 +2170,54 @@ export const notifyBookingUpdate = functions
   .region('europe-west1')
   .https.onCall(async (data, context) => {
     const uid = await resolvedUid(data, context);
-
-    const { bookingId, studentId, trainerId, newStatus, bookingDate, tipo } = data;
-    if (!bookingId || !studentId || !trainerId || !newStatus)
-      throw new functions.https.HttpsError('invalid-argument', 'bookingId, studentId, trainerId e newStatus obrigatórios.');
-
-    const callerUid = uid;
-    const callerDoc = await db.collection('users').doc(callerUid).get();
+    const bookingId = typeof data?.bookingId === 'string' ? data.bookingId.trim() : '';
+    const newStatus = typeof data?.newStatus === 'string' ? data.newStatus : '';
+    if (!bookingId || !newStatus) {
+      throw new functions.https.HttpsError('invalid-argument', 'bookingId e newStatus obrigatórios.');
+    }
+    const bookingDoc = await db.collection('agenda').doc(bookingId).get();
+    const booking = bookingDoc.data() ?? {};
+    if (!bookingDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'Marcação não encontrada.');
+    }
+    const [callerDoc, studentDoc, trainerDoc] = await Promise.all([
+      db.collection('users').doc(uid).get(),
+      db.collection('users').doc(String(booking.studentId)).get(),
+      db.collection('users').doc(String(booking.trainerId)).get(),
+    ]);
+    const callerRole = callerDoc.data()?.role;
+    const isAdminCaller = callerRole === 'admin' && uid === booking.trainerId;
+    const isStudentCaller = uid === booking.studentId;
+    if (!isAdminCaller && !isStudentCaller) {
+      throw new functions.https.HttpsError('permission-denied', 'Marcação não pertence ao utilizador.');
+    }
+    if ((newStatus === 'confirmed' || newStatus === 'cancelled') && !isAdminCaller) {
+      throw new functions.https.HttpsError('permission-denied', 'Só o personal pode alterar este estado.');
+    }
+    if (newStatus === 'completed' && !isStudentCaller) {
+      throw new functions.https.HttpsError('permission-denied', 'Só o aluno pode concluir a aula.');
+    }
+    if (!['confirmed', 'cancelled', 'completed'].includes(newStatus)) {
+      throw new functions.https.HttpsError('invalid-argument', 'Estado inválido.');
+    }
+    const recipientDoc = isAdminCaller ? studentDoc : trainerDoc;
+    const fcmToken = recipientDoc.data()?.fcmToken;
+    if (!fcmToken) return { ok: true };
     const callerName = callerDoc.data()?.nome ?? 'Utilizador';
-
-    const date = bookingDate ? new Date(bookingDate) : new Date();
+    const date = asDate(booking.data) ?? new Date();
     const timeStr = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
     const dateStr = date.toLocaleDateString('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' });
-    const tipoLabel = tipo === 'online' ? '💻 Online' : '🏋️ Presencial';
-
-    if (newStatus === 'confirmed' || newStatus === 'cancelled') {
-      // Admin updated status → notify student
-      const studentDoc = await db.collection('users').doc(studentId).get();
-      const fcmToken = studentDoc.data()?.fcmToken;
-      if (!fcmToken) return { ok: true };
-
-      const title = newStatus === 'confirmed' ? 'Aula Confirmada ✅' : 'Aula Cancelada ❌';
-      const body = newStatus === 'confirmed'
-        ? `${callerName} confirmou a tua aula de ${dateStr} às ${timeStr} (${tipoLabel})`
-        : `${callerName} cancelou a tua aula de ${dateStr} às ${timeStr}`;
-
-      await messaging.send({
-        token: fcmToken,
-        notification: { title, body },
-        data: { type: 'booking_update', bookingId, newStatus },
-      });
-    } else if (newStatus === 'completed') {
-      // Student completed → notify trainer
-      const trainerDoc = await db.collection('users').doc(trainerId).get();
-      const fcmToken = trainerDoc.data()?.fcmToken;
-      if (!fcmToken) return { ok: true };
-
-      const studentDoc = await db.collection('users').doc(studentId).get();
-      const studentName = studentDoc.data()?.nome ?? 'Aluno';
-
-      await messaging.send({
-        token: fcmToken,
-        notification: {
-          title: 'Aula Concluída 💪',
-          body: `${studentName} concluiu a aula de ${dateStr} às ${timeStr} (${tipoLabel})`,
-        },
-        data: { type: 'booking_update', bookingId, newStatus },
-      });
-    }
+    const tipoLabel = booking.tipo === 'online' ? '💻 Online' : '🏋️ Presencial';
+    const title = newStatus === 'confirmed' ? 'Aula Confirmada ✅'
+      : newStatus === 'cancelled' ? 'Aula Cancelada ❌' : 'Aula Concluída 💪';
+    const body = newStatus === 'completed'
+      ? `${studentDoc.data()?.nome ?? 'Aluno'} concluiu a aula de ${dateStr} às ${timeStr} (${tipoLabel})`
+      : `${callerName} ${newStatus === 'confirmed' ? 'confirmou' : 'cancelou'} a tua aula de ${dateStr} às ${timeStr} (${tipoLabel})`;
+    await messaging.send({
+      token: fcmToken,
+      notification: { title, body },
+      data: { type: 'booking_update', bookingId, newStatus },
+    });
     return { ok: true };
   });
 
@@ -1664,27 +2225,31 @@ export const notifyBookingCancelled = functions
   .region('europe-west1')
   .https.onCall(async (data, context) => {
     const uid = await resolvedUid(data, context);
-
-    const { bookingId, studentId, trainerId, bookingDate, tipo } = data;
-    if (!bookingId || !studentId || !trainerId)
-      throw new functions.https.HttpsError('invalid-argument', 'bookingId, studentId e trainerId obrigatórios.');
-
-    // Apenas o aluno titular ou um admin pode notificar o cancelamento
-    if (studentId !== uid) {
-      const callerDoc = await db.collection('users').doc(uid).get();
-      if (callerDoc.data()?.role !== 'admin')
-        throw new functions.https.HttpsError('permission-denied', 'ID não corresponde.');
+    const bookingId = typeof data?.bookingId === 'string' ? data.bookingId.trim() : '';
+    if (!bookingId) {
+      throw new functions.https.HttpsError('invalid-argument', 'bookingId obrigatório.');
     }
-
-    const studentDoc = await db.collection('users').doc(studentId).get();
-    const fcmToken = (await db.collection('users').doc(trainerId).get()).data()?.fcmToken;
+    const bookingDoc = await db.collection('agenda').doc(bookingId).get();
+    const booking = bookingDoc.data() ?? {};
+    if (!bookingDoc.exists || booking.status !== 'cancelled') {
+      throw new functions.https.HttpsError('failed-precondition', 'A marcação ainda não está cancelada.');
+    }
+    const [callerDoc, studentDoc, trainerDoc] = await Promise.all([
+      db.collection('users').doc(uid).get(),
+      db.collection('users').doc(String(booking.studentId)).get(),
+      db.collection('users').doc(String(booking.trainerId)).get(),
+    ]);
+    const callerRole = callerDoc.data()?.role;
+    if (uid !== booking.studentId && !(callerRole === 'admin' && uid === booking.trainerId)) {
+      throw new functions.https.HttpsError('permission-denied', 'Marcação não pertence ao utilizador.');
+    }
+    const recipientDoc = uid === booking.studentId ? trainerDoc : studentDoc;
+    const fcmToken = recipientDoc.data()?.fcmToken;
     if (!fcmToken) return { ok: true };
-
-    const date = bookingDate ? new Date(bookingDate) : new Date();
+    const date = asDate(booking.data) ?? new Date();
     const timeStr = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
     const dateStr = date.toLocaleDateString('pt-PT', { weekday: 'short', day: 'numeric', month: 'short' });
-    const tipoLabel = tipo === 'online' ? '💻 Online' : '🏋️ Presencial';
-
+    const tipoLabel = booking.tipo === 'online' ? '💻 Online' : '🏋️ Presencial';
     await messaging.send({
       token: fcmToken,
       notification: {
@@ -2025,15 +2590,33 @@ stripeApp.post('/', async (req: any, res: any) => {
     res.status(400).json({ error: `Webhook Error: ${e.message}` }); return;
   }
 
-  // Stripe pode reenviar o mesmo evento. Registar o ID antes do processamento
-  // torna o webhook idempotente e evita faturas/avisos duplicados.
+  // Stripe pode reenviar o mesmo evento. Só um evento com `processedAt` é
+  // considerado concluído: marcadores `received`, `processing` ou `failed`
+  // podem ser retomados depois de uma falha/crash do processo.
   const eventRef = db.collection('stripeEvents').doc(event.id);
   const eventAlreadyProcessed = await db.runTransaction(async (transaction) => {
     const existing = await transaction.get(eventRef);
-    if (existing.exists) return true;
+    if (existing.exists) {
+      const data = existing.data() ?? {};
+      if (data.status === 'processed' || data.processedAt) return true;
+      const processingAt = asDate(data.processingAt);
+      if (data.status === 'processing' && processingAt &&
+          Date.now() - processingAt.getTime() < 10 * 60 * 1000) {
+        return true;
+      }
+      transaction.update(eventRef, {
+        status: 'processing',
+        processingAt: admin.firestore.FieldValue.serverTimestamp(),
+        attempts: admin.firestore.FieldValue.increment(1),
+      });
+      return false;
+    }
     transaction.create(eventRef, {
       type: event.type,
+      status: 'processing',
       receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+      processingAt: admin.firestore.FieldValue.serverTimestamp(),
+      attempts: 1,
     });
     return false;
   });
@@ -2046,7 +2629,16 @@ stripeApp.post('/', async (req: any, res: any) => {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
     const { paymentId, userId } = session.metadata || {};
-    if (!paymentId) { res.status(400).json({ error: 'Missing paymentId' }); return; }
+    if (!paymentId) {
+      await eventRef.update({
+        status: 'ignored',
+        failureReason: 'missing_payment_id',
+        failedAt: admin.firestore.FieldValue.serverTimestamp(),
+        processedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      res.status(200).json({ received: true, ignored: true });
+      return;
+    }
 
     const paymentRef = db.collection('pagamentos').doc(paymentId);
     const currentPayment = await paymentRef.get();
@@ -2055,7 +2647,12 @@ stripeApp.post('/', async (req: any, res: any) => {
         paymentId,
         sessionId: session.id,
       });
-      res.status(200).json({ received: true });
+      await eventRef.update({
+        status: 'ignored',
+        ignoredAt: admin.firestore.FieldValue.serverTimestamp(),
+        processedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      res.status(200).json({ received: true, ignored: true });
       return;
     }
 
@@ -2094,8 +2691,26 @@ stripeApp.post('/', async (req: any, res: any) => {
         }, { merge: true });
       }
     } else {
+      // Checkout de recuperação é uma cobrança avulsa. Quando a conta já
+      // expirou, o período antigo não pode ser reutilizado: começa agora (ou
+      // no fim atual, caso o contrato ainda esteja ativo) e é calculado pelo
+      // servidor para que o trigger de acesso possa reativar a conta.
+      const recoveryUser = userId
+        ? (await db.collection('users').doc(userId).get()).data() ?? {}
+        : {};
+      const currentEnd = asDate(recoveryUser.contractEndsAt);
+      const periodStart = currentEnd && currentEnd > new Date()
+        ? currentEnd
+        : new Date();
+      const billingType = isBillingType(currentPayment.data()?.tipoMensalidade)
+        ? currentPayment.data()!.tipoMensalidade as BillingType
+        : 'mensal';
+      const period = calculateBillingPeriod(periodStart, billingType);
       await paymentRef.update({
         status: 'paid',
+        periodoInicio: admin.firestore.Timestamp.fromDate(period.start),
+        periodoFim: admin.firestore.Timestamp.fromDate(period.end),
+        tipoMensalidade: billingType,
         stripePaymentIntentId: typeof session.payment_intent === 'string'
           ? session.payment_intent
           : session.payment_intent?.id,
@@ -2141,6 +2756,10 @@ stripeApp.post('/', async (req: any, res: any) => {
     return;
   }
 
+  await eventRef.update({
+    status: 'processed',
+    processedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
   res.status(200).json({ received: true });
 });
 

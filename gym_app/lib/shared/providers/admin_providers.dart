@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:riverpod/legacy.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../data/datasources/firestore_datasource.dart';
+import 'package:flutter/material.dart';
 import '../../data/models/nutrition_plan_model.dart';
 import '../../data/models/workout_plan_model.dart';
 import '../../data/models/workout_log_model.dart';
 import '../../data/models/food_model.dart';
+import '../../data/models/user_model.dart';
 import '../../data/models/progress_model.dart';
 import '../../data/models/payment_model.dart';
 import '../../data/models/booking_model.dart';
@@ -18,6 +20,108 @@ import '../../core/config/app_constants.dart';
 import '../../core/config/admin_theme.dart';
 import '../../data/repositories/workout_repository.dart';
 import 'global_providers.dart';
+
+// ─── Cursor pagination ───────────────────────────────────────────
+
+/// Estado comum das listagens administrativas paginadas.
+class AdminPagedList<T> extends ChangeNotifier {
+  final Future<FirestorePage<T>> Function(
+    DocumentSnapshot<Map<String, dynamic>>? cursor,
+    int limit,
+  )
+  _loadPage;
+  final int pageSize;
+
+  final List<T> items = <T>[];
+  DocumentSnapshot<Map<String, dynamic>>? _cursor;
+  bool hasMore = true;
+  bool isLoading = false;
+  Object? error;
+
+  AdminPagedList({
+    required Future<FirestorePage<T>> Function(
+      DocumentSnapshot<Map<String, dynamic>>? cursor,
+      int limit,
+    )
+    loadPage,
+    this.pageSize = 25,
+  }) : _loadPage = loadPage;
+
+  Future<void> loadMore() async {
+    if (isLoading || !hasMore) return;
+    isLoading = true;
+    error = null;
+    notifyListeners();
+    try {
+      final page = await _loadPage(_cursor, pageSize);
+      items.addAll(page.items);
+      _cursor = page.cursor;
+      hasMore = page.hasMore && page.items.isNotEmpty;
+    } catch (value) {
+      error = value;
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> refresh() async {
+    items.clear();
+    _cursor = null;
+    hasMore = true;
+    error = null;
+    notifyListeners();
+    await loadMore();
+  }
+}
+
+final adminStudentsPagerProvider =
+    ChangeNotifierProvider<AdminPagedList<UserModel>>((ref) {
+      final source = ref.read(firestoreDataSourceProvider);
+      final controller = AdminPagedList<UserModel>(
+        pageSize: 25,
+        loadPage: (cursor, limit) =>
+            source.getAlunosPage(startAfter: cursor, limit: limit),
+      );
+      controller.loadMore();
+      return controller;
+    });
+
+final adminFoodsPagerProvider =
+    ChangeNotifierProvider<AdminPagedList<FoodModel>>((ref) {
+      final source = ref.read(firestoreDataSourceProvider);
+      final controller = AdminPagedList<FoodModel>(
+        pageSize: 30,
+        loadPage: (cursor, limit) =>
+            source.getFoodsPage(startAfter: cursor, limit: limit),
+      );
+      controller.loadMore();
+      return controller;
+    });
+
+final adminPaymentsPagerProvider =
+    ChangeNotifierProvider<AdminPagedList<PaymentModel>>((ref) {
+      final source = ref.read(firestoreDataSourceProvider);
+      final controller = AdminPagedList<PaymentModel>(
+        pageSize: 30,
+        loadPage: (cursor, limit) =>
+            source.getPaymentsPage(startAfter: cursor, limit: limit),
+      );
+      controller.loadMore();
+      return controller;
+    });
+
+final adminGroupsPagerProvider =
+    ChangeNotifierProvider<AdminPagedList<GroupModel>>((ref) {
+      final source = ref.read(firestoreDataSourceProvider);
+      final controller = AdminPagedList<GroupModel>(
+        pageSize: 25,
+        loadPage: (cursor, limit) =>
+            source.getGroupsPage(startAfter: cursor, limit: limit),
+      );
+      controller.loadMore();
+      return controller;
+    });
 
 // ─── Admin Theme Toggle ─────────────────────────────────────────
 
@@ -92,10 +196,8 @@ class AdminDashboardStats {
 final adminDashboardStatsProvider = StreamProvider<AdminDashboardStats>((ref) {
   final firestore = FirebaseFirestore.instance;
   final controller = StreamController<AdminDashboardStats>();
-  final diarySubscriptions =
-      <String, StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>{};
-  final diaryCounts = <String, (int total, int month)>{};
-  var alunoSnapshot = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+  var alunos = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+  var aggregate = <String, dynamic>{};
 
   DateTime? asDate(dynamic value) {
     if (value is Timestamp) return value.toDate();
@@ -105,95 +207,58 @@ final adminDashboardStatsProvider = StreamProvider<AdminDashboardStats>((ref) {
 
   void emit() {
     final now = DateTime.now();
-    var active = 0;
-    for (final doc in alunoSnapshot) {
+    final startOfMonth = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    final active = alunos.where((doc) {
       final lastActivity = asDate(doc.data()['ultimaAtividade']);
-      if (lastActivity != null && now.difference(lastActivity).inDays < 30) {
-        active++;
-      }
-    }
-    final totalSessions = diaryCounts.values.fold<int>(
-      0,
-      (total, entry) => total + entry.$1,
-    );
-    final monthSessions = diaryCounts.values.fold<int>(
-      0,
-      (total, entry) => total + entry.$2,
-    );
+      return lastActivity != null && now.difference(lastActivity).inDays < 30;
+    }).length;
+    final sessionsByMonth = aggregate['sessionsByMonth'];
+    final monthSessions =
+        sessionsByMonth is Map && sessionsByMonth[startOfMonth] is num
+        ? (sessionsByMonth[startOfMonth] as num).toInt()
+        : 0;
     if (!controller.isClosed) {
       controller.add(
         AdminDashboardStats(
-          totalAlunos: alunoSnapshot.length,
+          totalAlunos: alunos.length,
           activeAlunos: active,
           sessoesMes: monthSessions,
-          sessoesTotal: totalSessions,
+          sessoesTotal: (aggregate['sessoesTotal'] as num?)?.toInt() ?? 0,
         ),
       );
     }
-  }
-
-  void watchDiary(String userId) {
-    if (diarySubscriptions.containsKey(userId)) return;
-    diarySubscriptions[userId] = firestore
-        .collection(AppConstants.usersCollection)
-        .doc(userId)
-        .collection(AppConstants.diarySubcollection)
-        .snapshots()
-        .listen(
-          (snapshot) {
-            var total = 0;
-            var month = 0;
-            final startOfMonth = DateTime(
-              DateTime.now().year,
-              DateTime.now().month,
-              1,
-            );
-            for (final doc in snapshot.docs) {
-              final data = doc.data();
-              if (data['treinoConcluido'] != true) continue;
-              total++;
-              final treinoData = data['treinoData'];
-              final completedAt = treinoData is Map
-                  ? asDate(treinoData['completedAt'])
-                  : null;
-              if (completedAt != null && completedAt.isAfter(startOfMonth)) {
-                month++;
-              }
-            }
-            diaryCounts[userId] = (total, month);
-            emit();
-          },
-          onError: (_) {
-            diaryCounts[userId] = (0, 0);
-            emit();
-          },
-        );
   }
 
   final usersSubscription = firestore
       .collection(AppConstants.usersCollection)
       .where('role', isEqualTo: AppConstants.roleAluno)
       .snapshots()
-      .listen((snapshot) {
-        alunoSnapshot = snapshot.docs;
-        final ids = alunoSnapshot.map((doc) => doc.id).toSet();
-        for (final id in diarySubscriptions.keys.toList()) {
-          if (!ids.contains(id)) {
-            diarySubscriptions.remove(id)?.cancel();
-            diaryCounts.remove(id);
-          }
-        }
-        for (final id in ids) {
-          watchDiary(id);
-        }
-        emit();
-      });
+      .listen(
+        (snapshot) {
+          alunos = snapshot.docs;
+          emit();
+        },
+        onError: (Object error, StackTrace stack) {
+          if (!controller.isClosed) controller.addError(error, stack);
+        },
+      );
+  final aggregateSubscription = firestore
+      .collection('adminAggregates')
+      .doc('dashboard')
+      .snapshots()
+      .listen(
+        (snapshot) {
+          aggregate = snapshot.data() ?? <String, dynamic>{};
+          emit();
+        },
+        onError: (Object error, StackTrace stack) {
+          if (!controller.isClosed) controller.addError(error, stack);
+        },
+      );
 
   ref.onDispose(() {
     usersSubscription.cancel();
-    for (final subscription in diarySubscriptions.values) {
-      subscription.cancel();
-    }
+    aggregateSubscription.cancel();
     controller.close();
   });
   return controller.stream;

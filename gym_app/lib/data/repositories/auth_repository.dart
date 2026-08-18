@@ -74,6 +74,9 @@ class AuthRepository {
         message: 'Documento de utilizador não encontrado. Contacta o suporte.',
         code: 'no-user-doc',
       );
+    } on ServerFailure {
+      await _authDataSource.signOut();
+      rethrow;
     }
   }
 
@@ -115,9 +118,12 @@ class AuthRepository {
       final payments = await _paymentRepository.getPayments(userId);
       return payments.any((payment) => payment.isOverdue);
     } catch (_) {
-      // Sem conseguir confirmar o estado financeiro, falha fechada:
-      // o acesso não deve ser concedido com informação incompleta.
-      return true;
+      // Não confundir indisponibilidade do Firestore com uma dívida real. O
+      // login é interrompido com erro técnico e pode ser repetido, sem marcar
+      // a conta como inadimplente localmente.
+      throw const ServerFailure(
+        message: 'Não foi possível confirmar o estado dos pagamentos. Tenta novamente.',
+      );
     }
   }
 

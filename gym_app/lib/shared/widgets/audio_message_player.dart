@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import '../../core/utils/storage_resource.dart';
 
 class AudioMessagePlayer extends StatefulWidget {
   final String url;
@@ -23,11 +24,13 @@ class AudioMessagePlayer extends StatefulWidget {
 
 class _AudioMessagePlayerState extends State<AudioMessagePlayer> {
   late final AudioPlayer _player;
+  late Future<String> _resolvedUrl;
 
   @override
   void initState() {
     super.initState();
     _player = AudioPlayer();
+    _resolvedUrl = StorageResource.resolve(widget.url);
   }
 
   @override
@@ -41,7 +44,8 @@ class _AudioMessagePlayerState extends State<AudioMessagePlayer> {
       if (_player.playing) {
         await _player.pause();
       } else {
-        await _player.setUrl(widget.url);
+        final resolvedUrl = await _resolvedUrl;
+        await _player.setUrl(resolvedUrl);
         await _player.play();
       }
       if (mounted) setState(() {});

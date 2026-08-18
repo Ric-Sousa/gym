@@ -23,15 +23,14 @@ const testEnv = functionsTest({
 // createStudent foi substituída pela rota HTTP createStudentHttp. O teste
 // callable antigo não podia validar uma função onRequest e falhava por usar
 // uma exportação inexistente.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const index = require('../lib/index');
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const seedFoods = testEnv.wrap(index.seedFoods);
 
 describe('function exports', () => {
   test('exports the current HTTP student creation function', () => {
     expect(typeof index.createStudentHttp).toBe('function');
     expect(typeof index.deleteStudentHttp).toBe('function');
+    expect(typeof index.aggregateDiaryStats).toBe('function');
   });
 });
 

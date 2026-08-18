@@ -19,6 +19,7 @@ import 'features/aluno/agenda/screens/calendar_screen.dart';
 import 'features/admin/screens/admin_panel_screen.dart';
 import 'shared/providers/admin_providers.dart';
 import 'shared/providers/global_providers.dart';
+import 'core/services/fcm_service.dart';
 import 'shared/widgets/sound_preference_sync.dart';
 import 'shared/widgets/app_page_frame.dart';
 import 'shared/widgets/app_design_system.dart';
@@ -772,6 +773,9 @@ class _AlunoShellState extends ConsumerState<_AlunoShell> {
     if (userId != null && userId.isNotEmpty) {
       _fcmInitialized = true;
       final fcmService = ref.read(fcmServiceProvider);
+      fcmService.onForegroundMessage = (message) {
+        if (mounted) FCMService.showLocalNotification(context, message);
+      };
       fcmService.onNotificationOpened = (message) {
         if (!mounted) return;
         if (message.data['type'] == 'chat') {

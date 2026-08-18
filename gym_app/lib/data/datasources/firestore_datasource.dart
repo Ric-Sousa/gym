@@ -18,6 +18,19 @@ import '../models/questionnaire_response_model.dart';
 import '../models/questionnaire_config_model.dart';
 import '../../core/config/app_constants.dart';
 
+/// Página de resultados Firestore com cursor para a próxima leitura.
+class FirestorePage<T> {
+  final List<T> items;
+  final DocumentSnapshot<Map<String, dynamic>>? cursor;
+  final bool hasMore;
+
+  const FirestorePage({
+    required this.items,
+    required this.cursor,
+    required this.hasMore,
+  });
+}
+
 /// Data source para operações no Cloud Firestore.
 class FirestoreDataSource {
   final FirebaseFirestore _firestore;
@@ -220,12 +233,40 @@ class FirestoreDataSource {
     return _firestore
         .collection(AppConstants.usersCollection)
         .where('role', isEqualTo: AppConstants.roleAluno)
+        .orderBy('nome')
+        .limit(100)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
               .map((doc) => UserModel.fromMap(doc.id, doc.data()))
               .toList(),
         );
+  }
+
+  /// Lê uma página de alunos com cursor estável.
+  Future<FirestorePage<UserModel>> getAlunosPage({
+    DocumentSnapshot<Map<String, dynamic>>? startAfter,
+    int limit = 25,
+  }) async {
+    try {
+      final pageSize = limit.clamp(1, 100);
+      Query<Map<String, dynamic>> query = _firestore
+          .collection(AppConstants.usersCollection)
+          .where('role', isEqualTo: AppConstants.roleAluno)
+          .orderBy('nome')
+          .limit(pageSize);
+      if (startAfter != null) query = query.startAfterDocument(startAfter);
+      final snapshot = await query.get();
+      return FirestorePage(
+        items: snapshot.docs
+            .map((doc) => UserModel.fromMap(doc.id, doc.data()))
+            .toList(),
+        cursor: snapshot.docs.isEmpty ? startAfter : snapshot.docs.last,
+        hasMore: snapshot.docs.length == pageSize,
+      );
+    } on FirebaseException catch (e) {
+      throw ServerException(message: e.message ?? 'Erro ao listar alunos');
+    }
   }
 
   /// Lista todos os alunos.
@@ -359,13 +400,13 @@ class FirestoreDataSource {
         .collection(AppConstants.usersCollection)
         .doc(userId)
         .collection(AppConstants.diarySubcollection)
+        .orderBy('data', descending: true)
+        .limit(limit.clamp(1, 365))
         .snapshots()
         .map((snapshot) {
-          final entries = snapshot.docs
+          return snapshot.docs
               .map((doc) => DiaryModel.fromMap(doc.id, userId, doc.data()))
               .toList();
-          entries.sort((a, b) => b.data.compareTo(a.data));
-          return entries.take(limit).toList();
         });
   }
 
@@ -379,7 +420,8 @@ class FirestoreDataSource {
           .collection(AppConstants.usersCollection)
           .doc(userId)
           .collection(AppConstants.diarySubcollection)
-          .limit(limit)
+          .orderBy('data', descending: true)
+          .limit(limit.clamp(1, 365))
           .get();
       return snapshot.docs
           .map((doc) => DiaryModel.fromMap(doc.id, userId, doc.data()))
@@ -657,17 +699,38 @@ class FirestoreDataSource {
     return '${AppConstants.chatRoomPrefix}_${ids[0]}_${ids[1]}';
   }
 
+  /// Garante que a sala existe com a lista imutável de participantes.
+  /// Deve ser chamado antes de carregar anexos/áudio, porque as Storage Rules
+  /// consultam este documento antes de aceitar o upload.
+  Future<void> ensureChatRoom(
+    String salaId,
+    List<String> participantIds,
+  ) async {
+    try {
+      final normalizedParticipants = [...participantIds]..sort();
+      await _firestore.collection(AppConstants.chatCollection).doc(salaId).set({
+        'participantIds': normalizedParticipants,
+        'typing': '',
+      }, SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      throw ServerException(message: e.message ?? 'Erro ao preparar conversa');
+    }
+  }
+
   /// Stream de mensagens da sala de chat.
   Stream<List<MessageModel>> messagesStream(String salaId) {
     return _firestore
         .collection(AppConstants.chatCollection)
         .doc(salaId)
         .collection(AppConstants.messagesSubcollection)
-        .orderBy('timestamp', descending: false)
+        .orderBy('timestamp', descending: true)
+        .limit(100)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
               .map((doc) => MessageModel.fromMap(doc.id, doc.data()))
+              .toList()
+              .reversed
               .toList(),
         );
   }
@@ -685,6 +748,8 @@ class FirestoreDataSource {
           .doc(salaId);
       final snapshot = await roomRef
           .collection(AppConstants.messagesSubcollection)
+          .orderBy('timestamp', descending: true)
+          .limit(500)
           .get();
       final unread = snapshot.docs.where((doc) {
         final data = doc.data();
@@ -722,9 +787,13 @@ class FirestoreDataSource {
   /// de a mensagem existir na subcoleção e perder a notificação sonora.
   Future<void> sendMessage(
     String salaId,
-    Map<String, dynamic> messageMap,
-  ) async {
+    Map<String, dynamic> messageMap, {
+    List<String>? participantIds,
+  }) async {
     try {
+      final normalizedParticipants = participantIds == null
+          ? null
+          : ([...participantIds]..sort());
       final roomRef = _firestore
           .collection(AppConstants.chatCollection)
           .doc(salaId);
@@ -736,6 +805,8 @@ class FirestoreDataSource {
       // Usa DateTime.now() em vez de FieldValue.serverTimestamp() para
       // manter o mesmo formato esperado pelos modelos e pelas queries Web.
       batch.set(roomRef, {
+        if (normalizedParticipants != null)
+          'participantIds': normalizedParticipants,
         'lastMessage': (messageMap['texto'] as String?)?.isNotEmpty == true
             ? messageMap['texto']
             : messageMap['attachmentUrl'] != null
@@ -784,14 +855,20 @@ class FirestoreDataSource {
   Future<void> setTypingStatus(
     String salaId,
     String userId,
-    bool isTyping,
-  ) async {
+    bool isTyping, {
+    List<String>? participantIds,
+  }) async {
     try {
+      final normalizedParticipants = participantIds == null
+          ? null
+          : ([...participantIds]..sort());
       if (isTyping) {
         await _firestore
             .collection(AppConstants.chatCollection)
             .doc(salaId)
             .set({
+              if (normalizedParticipants != null)
+                'participantIds': normalizedParticipants,
               'typing': userId,
               'typingAt': DateTime.now(),
             }, SetOptions(merge: true));
@@ -801,7 +878,11 @@ class FirestoreDataSource {
         await _firestore
             .collection(AppConstants.chatCollection)
             .doc(salaId)
-            .set({'typing': ''}, SetOptions(merge: true));
+            .set({
+              if (normalizedParticipants != null)
+                'participantIds': normalizedParticipants,
+              'typing': '',
+            }, SetOptions(merge: true));
       }
     } on FirebaseException catch (_) {
       // Falha silenciosa — o indicador de digitação não é crítico
@@ -853,14 +934,20 @@ class FirestoreDataSource {
   /// Adiciona registo de progresso.
   Future<void> addProgressEntry(
     String userId,
-    Map<String, dynamic> data,
-  ) async {
+    Map<String, dynamic> data, {
+    String? entryId,
+  }) async {
     try {
-      await _firestore
+      final collection = _firestore
           .collection(AppConstants.usersCollection)
           .doc(userId)
-          .collection(AppConstants.progressSubcollection)
-          .add(data);
+          .collection(AppConstants.progressSubcollection);
+      final payload = {...data, 'userId': userId};
+      if (entryId == null || entryId.trim().isEmpty) {
+        await collection.add(payload);
+      } else {
+        await collection.doc(entryId).set(payload, SetOptions(merge: true));
+      }
     } on FirebaseException catch (e) {
       throw ServerException(message: e.message ?? 'Erro ao guardar progresso');
     }
@@ -942,11 +1029,37 @@ class FirestoreDataSource {
 
   // ───────────────────── FOODS ─────────────────────
 
+  /// Lê uma página de alimentos com cursor por nome.
+  Future<FirestorePage<FoodModel>> getFoodsPage({
+    DocumentSnapshot<Map<String, dynamic>>? startAfter,
+    int limit = 30,
+  }) async {
+    try {
+      final pageSize = limit.clamp(1, 100);
+      Query<Map<String, dynamic>> query = _firestore
+          .collection(AppConstants.foodsCollection)
+          .orderBy('nome')
+          .limit(pageSize);
+      if (startAfter != null) query = query.startAfterDocument(startAfter);
+      final snapshot = await query.get();
+      return FirestorePage(
+        items: snapshot.docs
+            .map((doc) => FoodModel.fromMap(doc.id, doc.data()))
+            .toList(),
+        cursor: snapshot.docs.isEmpty ? startAfter : snapshot.docs.last,
+        hasMore: snapshot.docs.length == pageSize,
+      );
+    } on FirebaseException catch (e) {
+      throw ServerException(message: e.message ?? 'Erro ao listar alimentos');
+    }
+  }
+
   /// Stream de todos os alimentos.
   Stream<List<FoodModel>> watchAllFoods() {
     return _firestore
         .collection(AppConstants.foodsCollection)
         .orderBy('nome')
+        .limit(100)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
@@ -1098,6 +1211,31 @@ class FirestoreDataSource {
 
   // ───────────────────── PAYMENTS ─────────────────────
 
+  /// Lê uma página de pagamentos administrativos.
+  Future<FirestorePage<PaymentModel>> getPaymentsPage({
+    DocumentSnapshot<Map<String, dynamic>>? startAfter,
+    int limit = 30,
+  }) async {
+    try {
+      final pageSize = limit.clamp(1, 100);
+      Query<Map<String, dynamic>> query = _firestore
+          .collection(AppConstants.paymentsCollection)
+          .orderBy('data', descending: true)
+          .limit(pageSize);
+      if (startAfter != null) query = query.startAfterDocument(startAfter);
+      final snapshot = await query.get();
+      return FirestorePage(
+        items: snapshot.docs
+            .map((doc) => PaymentModel.fromMap(doc.id, doc.data()))
+            .toList(),
+        cursor: snapshot.docs.isEmpty ? startAfter : snapshot.docs.last,
+        hasMore: snapshot.docs.length == pageSize,
+      );
+    } on FirebaseException catch (e) {
+      throw ServerException(message: e.message ?? 'Erro ao listar pagamentos');
+    }
+  }
+
   /// Stream de pagamentos de um utilizador.
   Stream<List<PaymentModel>> watchPayments(String userId) {
     return _firestore
@@ -1105,11 +1243,9 @@ class FirestoreDataSource {
         .where('userId', isEqualTo: userId)
         .snapshots()
         .map((snapshot) {
-          final payments = snapshot.docs
+          return snapshot.docs
               .map((doc) => PaymentModel.fromMap(doc.id, doc.data()))
               .toList();
-          payments.sort((a, b) => b.data.compareTo(a.data));
-          return payments;
         });
   }
 
@@ -1118,6 +1254,7 @@ class FirestoreDataSource {
     return _firestore
         .collection(AppConstants.paymentsCollection)
         .orderBy('data', descending: true)
+        .limit(100)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
@@ -1191,6 +1328,8 @@ class FirestoreDataSource {
     return _firestore
         .collection(AppConstants.notificationsCollection)
         .where('userId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .limit(100)
         .snapshots()
         .map((snapshot) {
           final notifications = snapshot.docs
@@ -1226,6 +1365,8 @@ class FirestoreDataSource {
       final snapshot = await _firestore
           .collection(AppConstants.notificationsCollection)
           .where('userId', isEqualTo: userId)
+          .orderBy('createdAt', descending: true)
+          .limit(500)
           .get();
       final matchingDocs = snapshot.docs.where((doc) {
         final metadata = doc.data()['metadata'];
@@ -1372,6 +1513,7 @@ class FirestoreDataSource {
     return _firestore
         .collection(AppConstants.agendaCollection)
         .where('studentId', isEqualTo: studentId)
+        .orderBy('data', descending: false)
         .snapshots()
         .map((snap) {
           final list = snap.docs
@@ -1379,8 +1521,7 @@ class FirestoreDataSource {
               .toList();
           list.sort((a, b) => a.data.compareTo(b.data));
           return list;
-        })
-        .handleError((_) => <BookingModel>[]);
+        });
   }
 
   /// Stream de marcações confirmadas/pending do trainer (ordenado client-side — sem índice composto).
@@ -1389,6 +1530,7 @@ class FirestoreDataSource {
     return _firestore
         .collection(AppConstants.agendaCollection)
         .where('trainerId', isEqualTo: trainerId)
+        .orderBy('data', descending: false)
         .snapshots()
         .map((snap) {
           final list = snap.docs
@@ -1397,8 +1539,7 @@ class FirestoreDataSource {
               .toList();
           list.sort((a, b) => a.data.compareTo(b.data));
           return list;
-        })
-        .handleError((_) => <BookingModel>[]);
+        });
   }
 
   // ─── Grupos ──────────────────────────────────────────────────
@@ -1418,17 +1559,45 @@ class FirestoreDataSource {
         });
   }
 
+  /// Lê uma página de grupos administrativos com cursor por data.
+  Future<FirestorePage<GroupModel>> getGroupsPage({
+    DocumentSnapshot<Map<String, dynamic>>? startAfter,
+    int limit = 25,
+  }) async {
+    try {
+      final pageSize = limit.clamp(1, 100);
+      Query<Map<String, dynamic>> query = _firestore
+          .collection(AppConstants.groupsCollection)
+          .orderBy('createdAt', descending: true)
+          .limit(pageSize);
+      if (startAfter != null) query = query.startAfterDocument(startAfter);
+      final snapshot = await query.get();
+      return FirestorePage(
+        items: snapshot.docs
+            .map((doc) => GroupModel.fromMap(doc.id, doc.data()))
+            .toList(),
+        cursor: snapshot.docs.isEmpty ? startAfter : snapshot.docs.last,
+        hasMore: snapshot.docs.length == pageSize,
+      );
+    } on FirebaseException catch (e) {
+      throw ServerException(message: e.message ?? 'Erro ao listar grupos');
+    }
+  }
+
   /// Stream de todos os grupos para o admin.
   Stream<List<GroupModel>> watchAllGroups() {
-    return _firestore.collection(AppConstants.groupsCollection).snapshots().map(
-      (snapshot) {
-        final groups = snapshot.docs
-            .map((doc) => GroupModel.fromMap(doc.id, doc.data()))
-            .toList();
-        groups.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        return groups;
-      },
-    );
+    return _firestore
+        .collection(AppConstants.groupsCollection)
+        .orderBy('createdAt', descending: true)
+        .limit(100)
+        .snapshots()
+        .map((snapshot) {
+          final groups = snapshot.docs
+              .map((doc) => GroupModel.fromMap(doc.id, doc.data()))
+              .toList();
+          groups.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return groups;
+        });
   }
 
   /// Obtém grupos onde o utilizador é membro.
@@ -1546,11 +1715,14 @@ class FirestoreDataSource {
         .collection(AppConstants.groupsCollection)
         .doc(groupId)
         .collection(AppConstants.groupMessagesSubcollection)
-        .orderBy('timestamp', descending: false)
+        .orderBy('timestamp', descending: true)
+        .limit(100)
         .snapshots()
         .map(
           (snap) => snap.docs
               .map((doc) => MessageModel.fromMap(doc.id, doc.data()))
+              .toList()
+              .reversed
               .toList(),
         );
   }
@@ -1567,6 +1739,7 @@ class FirestoreDataSource {
     }
     return query
         .orderBy('nome')
+        .limit(100)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs.map((doc) {
@@ -1610,6 +1783,7 @@ class FirestoreDataSource {
     }
     return query
         .orderBy('nome')
+        .limit(100)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs

@@ -136,12 +136,13 @@ class PaymentRepository {
     return FirebaseFirestore.instance
         .collection('pagamentos')
         .where('userId', isEqualTo: userId)
+        .orderBy('data', descending: true)
+        .limit(100)
         .snapshots()
         .map((snap) {
           final payments = snap.docs
               .map((doc) => PaymentModel.fromMap(doc.id, doc.data()))
               .toList();
-          payments.sort((a, b) => b.data.compareTo(a.data));
           return payments;
         });
   }

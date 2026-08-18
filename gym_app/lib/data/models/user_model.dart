@@ -7,6 +7,7 @@ class UserModel {
   final double? pesoAtual;
   final double? altura;
   final DateTime? dataNascimento;
+  /// Path privado Storage; documentos legados podem conter uma URL.
   final String? fotoPerfil;
   final String? personalId; // UID do personal trainer associado
   final DateTime? ultimaAtividade;
@@ -76,35 +77,43 @@ class UserModel {
   factory UserModel.fromMap(String uid, Map<String, dynamic> map) {
     return UserModel(
       uid: uid,
-      nome: map['nome'] as String? ?? '',
-      email: map['email'] as String? ?? '',
-      role: map['role'] as String? ?? 'aluno',
-      pesoAtual: (map['pesoAtual'] as num?)?.toDouble(),
-      altura: (map['altura'] as num?)?.toDouble(),
+      nome: map['nome'] is String ? map['nome'] as String : '',
+      email: map['email'] is String ? map['email'] as String : '',
+      role: map['role'] is String ? map['role'] as String : 'aluno',
+      pesoAtual: map['pesoAtual'] is num
+          ? (map['pesoAtual'] as num).toDouble().clamp(0, 500)
+          : null,
+      altura: map['altura'] is num
+          ? (map['altura'] as num).toDouble().clamp(0, 300)
+          : null,
       dataNascimento: _dateFromMap(map['dataNascimento']),
       fotoPerfil: map['fotoPerfil'] as String?,
       personalId: map['personalId'] as String?,
-      ultimaAtividade: map['ultimaAtividade'] != null
-          ? (map['ultimaAtividade'] as dynamic).toDate() as DateTime
+      ultimaAtividade: _dateFromMap(map['ultimaAtividade']),
+      createdAt: _dateFromMap(map['createdAt']),
+      hasPendingProgress: map['hasPendingProgress'] is bool
+          ? map['hasPendingProgress'] as bool
+          : false,
+      progressRequestedAt: _dateFromMap(map['progressRequestedAt']),
+      genero: map['genero'] is String ? map['genero'] as String : null,
+      tipoCliente: map['tipoCliente'] is String
+          ? map['tipoCliente'] as String
+          : 'presencial',
+      notificationSound: map['notificationSound'] is String
+          ? map['notificationSound'] as String
           : null,
-      createdAt: map['createdAt'] != null
-          ? (map['createdAt'] as dynamic).toDate() as DateTime
-          : null,
-      hasPendingProgress: map['hasPendingProgress'] as bool? ?? false,
-      progressRequestedAt: map['progressRequestedAt'] != null
-          ? (map['progressRequestedAt'] as dynamic).toDate() as DateTime
-          : null,
-      genero: map['genero'] as String?,
-      tipoCliente: map['tipoCliente'] as String? ?? 'presencial',
-      notificationSound: map['notificationSound'] as String?,
-      soundEnabled: map['soundEnabled'] as bool? ?? true,
-      isActive: map['isActive'] as bool? ?? true,
+      soundEnabled: map['soundEnabled'] is bool ? map['soundEnabled'] as bool : true,
+      isActive: map['isActive'] is bool ? map['isActive'] as bool : true,
       contractEndsAt: _dateFromMap(map['contractEndsAt']),
       deactivatedAt: _dateFromMap(map['deactivatedAt']),
       privacyPolicyAcceptedAt: _dateFromMap(map['privacyPolicyAcceptedAt']),
-      privacyPolicyVersion: map['privacyPolicyVersion'] as String?,
+      privacyPolicyVersion: map['privacyPolicyVersion'] is String
+          ? map['privacyPolicyVersion'] as String
+          : null,
       questionnaireCompletedAt: _dateFromMap(map['questionnaireCompletedAt']),
-      questionnaireVersion: map['questionnaireVersion'] as String?,
+      questionnaireVersion: map['questionnaireVersion'] is String
+          ? map['questionnaireVersion'] as String
+          : null,
     );
   }
 

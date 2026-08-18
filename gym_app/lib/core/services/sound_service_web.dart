@@ -1,5 +1,8 @@
 import 'dart:async';
-import 'dart:html' as html;
+import 'dart:js_interop';
+
+import 'package:web/web.dart' as web;
+
 import '../config/notification_sounds.dart';
 
 /// Implementação Web do serviço de som.
@@ -11,24 +14,18 @@ class SoundService {
   static final SoundService _instance = SoundService._();
   factory SoundService() => _instance;
   SoundService._() {
-    _interactionSubscriptions.add(
-      html.document.onMouseDown.listen((_) => _markAsUnlocked()),
-    );
-    _interactionSubscriptions.add(
-      html.document.onTouchStart.listen((_) => _markAsUnlocked()),
-    );
-    _interactionSubscriptions.add(
-      html.document.onKeyDown.listen((_) => _markAsUnlocked()),
-    );
+    _listenForInteraction('mousedown');
+    _listenForInteraction('touchstart');
+    _listenForInteraction('keydown');
   }
 
   static const _audioPoolSize = 4;
   static const _silentWavDataUri =
       'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
 
-  final List<StreamSubscription<dynamic>> _interactionSubscriptions = [];
-  final List<html.AudioElement> _audioPool = [];
-  html.AudioElement? _unlockAudio;
+  final Map<String, web.EventListener> _interactionListeners = {};
+  final List<web.HTMLAudioElement> _audioPool = [];
+  web.HTMLAudioElement? _unlockAudio;
   final List<String> _pendingAssets = [];
   String _currentAsset = defaultSoundAsset;
   bool _isUnlocked = false;
@@ -44,8 +41,7 @@ class SoundService {
     if (assetPath.trim().isNotEmpty) _currentAsset = assetPath;
   }
 
-  /// Desbloqueia a reprodução de áudio. Chamado no primeiro gesto do
-  /// utilizador em qualquer parte da app (não apenas no chat).
+  /// Desbloqueia a reprodução de áudio após o primeiro gesto do utilizador.
   void unlock() => _markAsUnlocked();
 
   void playNotificationChime() {
@@ -61,6 +57,12 @@ class SoundService {
     _pendingAssets.clear();
   }
 
+  void _listenForInteraction(String eventType) {
+    final listener = ((web.Event _) => _markAsUnlocked()).toJS;
+    _interactionListeners[eventType] = listener;
+    web.document.addEventListener(eventType, listener);
+  }
+
   void _markAsUnlocked() {
     if (_isUnlocked) return;
     _isUnlocked = true;
@@ -68,15 +70,15 @@ class SoundService {
 
     // Usa um elemento dedicado para o desbloqueio. Nunca interrompemos um
     // elemento do pool que possa estar a reproduzir uma notificação real.
-    final unlockAudio = _unlockAudio ??= html.AudioElement()
+    final unlockAudio = _unlockAudio ??= web.HTMLAudioElement()
       ..preload = 'auto'
       ..muted = true
       ..volume = 0;
     unlockAudio.style.display = 'none';
     unlockAudio.src = _silentWavDataUri;
-    final body = html.document.body;
-    if (body != null && unlockAudio.parent == null) {
-      body.children.add(unlockAudio);
+    final body = web.document.body;
+    if (body != null && unlockAudio.parentElement == null) {
+      body.append(unlockAudio);
     }
     unawaited(_safePlay(unlockAudio));
 
@@ -91,7 +93,7 @@ class SoundService {
 
   void _ensureAudioPool() {
     while (_audioPool.length < _audioPoolSize) {
-      final audio = html.AudioElement()
+      final audio = web.HTMLAudioElement()
         ..preload = 'auto'
         ..muted = false
         ..volume = 1.0;
@@ -100,17 +102,17 @@ class SoundService {
       _audioPool.add(audio);
     }
 
-    // `prepare()` can run before Flutter has attached document.body. Attach
-    // existing elements on every access so the pool cannot remain detached.
-    final body = html.document.body;
+    // `prepare()` pode correr antes de Flutter anexar o body. Anexamos os
+    // elementos existentes em cada acesso para que o pool não fique desligado.
+    final body = web.document.body;
     if (body != null) {
       for (final audio in _audioPool) {
-        if (audio.parent == null) body.children.add(audio);
+        if (audio.parentElement == null) body.append(audio);
       }
     }
   }
 
-  html.AudioElement _audioForPlayback() {
+  web.HTMLAudioElement _audioForPlayback() {
     _ensureAudioPool();
     final audio = _audioPool[_nextAudioIndex % _audioPool.length];
     _nextAudioIndex++;
@@ -125,7 +127,7 @@ class SoundService {
     if (asset.trim().isEmpty) return;
 
     if (!_isUnlocked) {
-      // The browser cannot play yet. Keep only a small, latest-event queue.
+      // O browser ainda não pode reproduzir. Mantém apenas uma fila pequena.
       if (_pendingAssets.length >= 8) _pendingAssets.removeAt(0);
       _pendingAssets.add(asset);
       return;
@@ -137,17 +139,16 @@ class SoundService {
       ..preload = 'auto'
       ..src = _assetUrl(asset);
 
-    // Setting src starts loading; calling load() immediately afterwards can
-    // abort that load in some browsers. Let the browser start it naturally.
+    // Não chamar load() imediatamente: em alguns browsers isso aborta o
+    // carregamento iniciado ao definir src.
     unawaited(_safePlay(audio));
   }
 
-  Future<void> _safePlay(html.AudioElement audio) async {
+  Future<void> _safePlay(web.HTMLAudioElement audio) async {
     try {
-      await audio.play();
+      await audio.play().toDart;
     } catch (_) {
-      // Autoplay/network/media errors are non-fatal. Most importantly, never
-      // let a rejected HTMLMediaElement promise crash Flutter Web.
+      // Erros de autoplay/rede/media são opcionais e não devem derrubar a app.
     }
   }
 }

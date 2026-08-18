@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../data/models/group_model.dart';
+import '../../core/utils/storage_resource.dart';
 
 /// Mostra os participantes conhecidos de um grupo antes de o abrir.
 ///
@@ -151,21 +152,18 @@ class _AvatarStack extends StatelessWidget {
         color: accentColor.withValues(alpha: 0.14),
         border: Border.all(color: Colors.transparent, width: 1.5),
       ),
-      child: CircleAvatar(
+      child: StorageAvatar(
+        resource: photo,
         radius: diameter / 2,
         backgroundColor: accentColor.withValues(alpha: 0.14),
-        backgroundImage:
-            photo != null && photo.isNotEmpty ? NetworkImage(photo) : null,
-        child: photo == null || photo.isEmpty
-            ? Text(
-                name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: GoogleFonts.inter(
-                  color: accentColor,
-                  fontSize: diameter * 0.38,
-                  fontWeight: FontWeight.w800,
-                ),
-              )
-            : null,
+        fallback: Text(
+          name.isNotEmpty ? name[0].toUpperCase() : '?',
+          style: GoogleFonts.inter(
+            color: accentColor,
+            fontSize: diameter * 0.38,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
       ),
     );
   }

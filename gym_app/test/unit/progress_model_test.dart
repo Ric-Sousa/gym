@@ -95,6 +95,25 @@ void main() {
       expect(progress.fotos[3], isEmpty);
     });
 
+    test('toMap preserva paths Storage novos sem os transformar em URLs', () {
+      final progress = ProgressModel(
+        id: id,
+        userId: userId,
+        data: DateTime(2026, 7, 23),
+        fotos: ['users/user123/progresso/2026_0.png'],
+        fotosPorPosicao: {
+          'Frente': 'users/user123/progresso/2026_0.png',
+        },
+      );
+
+      final map = progress.toMap();
+
+      expect(map['fotos'], ['users/user123/progresso/2026_0.png']);
+      expect(map['fotosPorPosicao'], {
+        'Frente': 'users/user123/progresso/2026_0.png',
+      });
+    });
+
     test('toMap converte para mapa corretamente', () {
       final date = DateTime(2026, 7, 23);
       final progress = ProgressModel(

@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
-import 'dart:typed_data';
 import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/student_theme.dart';
-import '../../../../core/config/app_constants.dart';
 import '../../../../core/config/app_strings.dart';
 import '../../../../data/models/progress_model.dart';
 import '../../../../data/models/payment_model.dart';
@@ -19,8 +15,8 @@ import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/app_notification.dart';
 import '../../../../core/services/sound_service.dart';
 import '../../../../core/config/notification_sounds.dart';
-import '../../../../core/utils/progress_photo_normalizer.dart';
 import '../../../../core/utils/progress_photo_resolver.dart';
+import '../../../../core/utils/storage_resource.dart';
 import '../../../../shared/widgets/image_comparison_slider.dart';
 import 'progress_submission_screen.dart';
 import 'video_progress_screen.dart';
@@ -34,8 +30,8 @@ final userProfileProvider = StreamProvider.family<UserModel, String>((
 
 final progressHistoryProvider =
     StreamProvider.family<List<ProgressModel>, String>((ref, userId) {
-  return ref.read(progressRepositoryProvider).watchHistory(userId);
-});
+      return ref.read(progressRepositoryProvider).watchHistory(userId);
+    });
 
 /// Ecrã de perfil — Kinetic Dark.
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -46,7 +42,6 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  final _picker = ImagePicker();
   Timer? _previewRestoreTimer;
   String? _selectedBeforeProgressKey;
   String? _selectedAfterProgressKey;
@@ -265,24 +260,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget _buildProfileHeader(UserModel user) {
     return Column(
       children: [
-        CircleAvatar(
+        StorageAvatar(
+          resource: user.fotoPerfil,
           radius: 50,
           backgroundColor: StudentThemeColors.of(
             context,
           ).primary.withValues(alpha: 0.15),
-          backgroundImage: user.fotoPerfil != null
-              ? NetworkImage(user.fotoPerfil!)
-              : null,
-          child: user.fotoPerfil == null
-              ? Text(
-                  user.nome.isNotEmpty ? user.nome[0].toUpperCase() : '?',
-                  style: GoogleFonts.montserrat(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w700,
-                    color: StudentThemeColors.of(context).primary,
-                  ),
-                )
-              : null,
+          fallback: Text(
+            user.nome.isNotEmpty ? user.nome[0].toUpperCase() : '?',
+            style: GoogleFonts.montserrat(
+              fontSize: 36,
+              fontWeight: FontWeight.w700,
+              color: StudentThemeColors.of(context).primary,
+            ),
+          ),
         ),
         const SizedBox(height: 12),
         Text(
@@ -1270,211 +1261,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildWeightChart(List<ProgressModel> progressList) {
-    final sorted = List<ProgressModel>.from(progressList)
-      ..sort((a, b) => a.data.compareTo(b.data));
-    final weightEntries = sorted.where((p) => p.peso != null).toList();
-
-    if (weightEntries.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      height: 200,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outline),
-      ),
-      child: LineChart(
-        LineChartData(
-          gridData: const FlGridData(show: false),
-          titlesData: const FlTitlesData(show: false),
-          borderData: FlBorderData(show: false),
-          minX: 0,
-          maxX: (weightEntries.length - 1).toDouble(),
-          minY:
-              weightEntries
-                  .map((e) => e.peso!)
-                  .reduce((a, b) => a < b ? a : b) -
-              5,
-          maxY:
-              weightEntries
-                  .map((e) => e.peso!)
-                  .reduce((a, b) => a > b ? a : b) +
-              5,
-          lineBarsData: [
-            LineChartBarData(
-              spots: weightEntries
-                  .asMap()
-                  .entries
-                  .map((e) => FlSpot(e.key.toDouble(), e.value.peso!))
-                  .toList(),
-              isCurved: true,
-              color: StudentThemeColors.of(context).primary,
-              barWidth: 3,
-              isStrokeCapRound: true,
-              dotData: const FlDotData(show: true),
-              belowBarData: BarAreaData(
-                show: true,
-                color: StudentThemeColors.of(
-                  context,
-                ).primary.withValues(alpha: 0.1),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProgressPhotos(
-    String userId,
-    AsyncValue<List<ProgressModel>> progressAsync,
-  ) {
-    final photos = progressAsync.maybeWhen(
-      data: (list) => list
-          .expand((p) => p.fotos.map((f) => (foto: f, data: p.data)))
-          .toList(),
-      orElse: () => <({String foto, DateTime data})>[],
-    );
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.outline),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.photo_library_outlined,
-                color: StudentThemeColors.of(context).primary,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                AppStrings.progressPhotos,
-                style: GoogleFonts.montserrat(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.onSurface,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            photos.isEmpty
-                ? 'As tuas fotos de evolução aparecerão aqui.'
-                : 'Toca numa foto para a veres em detalhe.',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 14),
-          if (photos.isEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceHigh,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: AppColors.outline.withValues(alpha: 0.7),
-                ),
-              ),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.photo_camera_back_outlined,
-                    size: 30,
-                    color: AppColors.textSecondary.withValues(alpha: 0.45),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Ainda não existem fotos de progresso.',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final columns = constraints.maxWidth >= 700 ? 3 : 2;
-                return GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: columns,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
-                    childAspectRatio: columns == 2 ? 1.05 : 1.0,
-                  ),
-                  itemCount: photos.length,
-                  itemBuilder: (_, index) {
-                    final photo = photos[index];
-                    return GestureDetector(
-                      onTap: () => _openPhotoViewer(photos, index),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: Image.network(
-                          photo.foto,
-                          fit: BoxFit.cover,
-                          loadingBuilder: (_, child, progress) {
-                            if (progress == null) return child;
-                            return Container(
-                              color: AppColors.surfaceHigh,
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  color: StudentThemeColors.of(context).primary,
-                                ),
-                              ),
-                            );
-                          },
-                          errorBuilder: (_, __, ___) => Container(
-                            color: AppColors.surfaceHigh,
-                            child: const Icon(
-                              Icons.broken_image,
-                              color: AppColors.error,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// Abre o visualizador de fotos em full-screen com zoom e navegação.
-  void _openPhotoViewer(
-    List<({String foto, DateTime data})> photos,
-    int initialIndex,
-  ) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            _PhotoViewer(photos: photos, initialIndex: initialIndex),
-      ),
-    );
-  }
-
   Widget _buildSoundPicker(UserModel user) {
     final currentSound = user.notificationSound ?? defaultSoundAsset;
     final selectedOption = getSoundOption(currentSound);
@@ -1708,124 +1494,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     super.dispose();
   }
 
-  Future<void> _changeProfilePhoto(String userId) async {
-    final source = await showDialog<ImageSource>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        backgroundColor: AppColors.surfaceHigh,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        titlePadding: const EdgeInsets.fromLTRB(24, 22, 24, 8),
-        contentPadding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-        title: Text(
-          'Alterar foto',
-          style: GoogleFonts.montserrat(
-            fontWeight: FontWeight.w700,
-            color: AppColors.onSurface,
-          ),
-        ),
-        children: [
-          SimpleDialogOption(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            onPressed: () => Navigator.pop(ctx, ImageSource.camera),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.camera_alt,
-                  color: StudentThemeColors.of(context).primary,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Câmara',
-                  style: GoogleFonts.inter(color: AppColors.onSurface),
-                ),
-              ],
-            ),
-          ),
-          SimpleDialogOption(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            onPressed: () => Navigator.pop(ctx, ImageSource.gallery),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.photo_library,
-                  color: StudentThemeColors.of(context).primary,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Galeria',
-                  style: GoogleFonts.inter(color: AppColors.onSurface),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (source == null) return;
-
-    final picked = await _picker.pickImage(
-      source: source,
-      imageQuality: AppConstants.imageQuality,
-      maxWidth: AppConstants.maxImageWidth.toDouble(),
-      maxHeight: AppConstants.maxImageHeight.toDouble(),
-    );
-
-    if (picked == null) return;
-
-    try {
-      final bytes = await picked.readAsBytes();
-      final url = await ref
-          .read(progressRepositoryProvider)
-          .uploadProfilePhoto(userId, Uint8List.fromList(bytes));
-      await ref.read(userRepositoryProvider).updateUser(userId, {
-        'fotoPerfil': url,
-      });
-    } catch (_) {
-      if (mounted) {
-        showAppNotification(
-          context,
-          AppStrings.uploadError,
-          type: NotificationType.error,
-        );
-      }
-    }
-  }
-
-  Future<void> _addProgressPhoto(String userId) async {
-    final picked = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: AppConstants.imageQuality,
-    );
-
-    if (picked == null) return;
-
-    try {
-      final bytes = await picked.readAsBytes();
-      final normalized = await normalizeProgressPhoto(
-        Uint8List.fromList(bytes),
-      );
-      final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-      final url = await ref
-          .read(progressRepositoryProvider)
-          .uploadProgressPhoto(userId, timestamp, normalized);
-
-      await ref.read(progressRepositoryProvider).addProgress(userId, {
-        'data': DateTime.now(),
-        'fotos': [url],
-      });
-    } catch (_) {
-      if (mounted) {
-        showAppNotification(
-          context,
-          AppStrings.uploadError,
-          type: NotificationType.error,
-        );
-      }
-    }
-  }
-
   Widget _buildVideoProgressEntry(UserModel user) {
     return Container(
       width: double.infinity,
@@ -1949,12 +1617,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         statusColors[payment.effectiveStatus] ?? AppColors.textSecondary;
     final statusLabel =
         statusLabels[payment.effectiveStatus] ?? payment.status.toUpperCase();
-    final periodLabel = payment.periodoInicio != null && payment.periodoFim != null
+    final periodLabel =
+        payment.periodoInicio != null && payment.periodoFim != null
         ? '${DateFormat('dd/MM/yyyy').format(payment.periodoInicio!)} – '
-            '${DateFormat('dd/MM/yyyy').format(payment.periodoFim!)}'
+              '${DateFormat('dd/MM/yyyy').format(payment.periodoFim!)}'
         : DateFormat('d MMM yyyy', 'pt').format(payment.data);
     final loading = _paymentLoadingId == payment.id;
-    final startsInFuture = payment.periodoInicio?.isAfter(DateTime.now()) == true;
+    final startsInFuture =
+        payment.periodoInicio?.isAfter(DateTime.now()) == true;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -2030,7 +1700,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                 ),
               ),
-              if (!payment.isPaid && payment.stripeHostedInvoiceUrl != null) ...[
+              if (!payment.isPaid &&
+                  payment.stripeHostedInvoiceUrl != null) ...[
                 const SizedBox(height: 4),
                 TextButton(
                   onPressed: loading ? null : () => _payPayment(payment),
@@ -2099,10 +1770,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (_paymentLoadingId != null) return;
     setState(() => _paymentLoadingId = payment.id);
     try {
-      final url = payment.stripeHostedInvoiceUrl ??
-          await ref.read(paymentRepositoryProvider).createPaymentCheckoutSession(
-                paymentId: payment.id,
-              );
+      final url =
+          payment.stripeHostedInvoiceUrl ??
+          await ref
+              .read(paymentRepositoryProvider)
+              .createPaymentCheckoutSession(paymentId: payment.id);
       final opened = await launchUrl(
         Uri.parse(url),
         mode: LaunchMode.externalApplication,
@@ -2338,12 +2010,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       );
       if (novoPeso != null && novoPeso != user.pesoAtual) {
         updates['pesoAtual'] = novoPeso;
-        await ref.read(progressRepositoryProvider).addProgress(user.uid, {
-          'data': DateTime.now(),
-          'peso': novoPeso,
-          'fotos': <String>[],
-          'medidas': <String, double>{},
-        });
+        await ref.read(progressRepositoryProvider).addProgress(
+          user.uid,
+          {
+            'data': DateTime.now(),
+            'peso': novoPeso,
+            'fotos': <String>[],
+            'medidas': <String, double>{},
+          },
+          entryId:
+              'weight_${DateTime.now().toIso8601String().substring(0, 10)}',
+        );
       }
       final novaAltura = double.tryParse(
         alturaController.text.replaceAll(',', '.'),
@@ -2457,7 +2134,7 @@ class _PhotoViewerState extends State<_PhotoViewer> {
                     maxScale: 4.0,
                     boundaryMargin: const EdgeInsets.all(60),
                     child: Center(
-                      child: Image.network(
+                      child: StorageImage(
                         photo.foto,
                         fit: BoxFit.contain,
                         loadingBuilder: (_, child, progress) {

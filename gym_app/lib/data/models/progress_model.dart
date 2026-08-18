@@ -5,7 +5,8 @@ class ProgressModel {
   final DateTime data;
   final double? peso;
   final Map<String, double> medidas; // cintura, quadril, braço, etc.
-  final List<String> fotos; // URLs das fotos (formato legado/compatível)
+  /// Paths privados Storage; URLs HTTP/GS antigas são lidas como legado.
+  final List<String> fotos;
   final Map<String, String> fotosPorPosicao;
 
   const ProgressModel({
@@ -23,10 +24,15 @@ class ProgressModel {
     String userId,
     Map<String, dynamic> map,
   ) {
-    final medidasRaw = map['medidas'] as Map<String, dynamic>? ?? {};
-    final medidas = medidasRaw.map(
-      (key, value) => MapEntry(key, (value as num).toDouble()),
-    );
+    final medidasRaw = map['medidas'] is Map
+        ? Map<String, dynamic>.from(map['medidas'] as Map)
+        : <String, dynamic>{};
+    final medidas = <String, double>{};
+    for (final entry in medidasRaw.entries) {
+      if (entry.value is num) {
+        medidas[entry.key] = (entry.value as num).toDouble();
+      }
+    }
 
     // Firestore devolve estes campos como List/Map dinâmicos. Não fazer um
     // cast direto para List<String>/Map<String, String>: documentos antigos
@@ -49,15 +55,31 @@ class ProgressModel {
       }
     }
 
+    final parsedDate = _parseDate(map['data']) ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final rawWeight = map['peso'];
+    final weight = rawWeight is num && rawWeight >= 0 && rawWeight <= 500
+        ? rawWeight.toDouble()
+        : null;
     return ProgressModel(
       id: id,
       userId: userId,
-      data: (map['data'] as dynamic).toDate() as DateTime,
-      peso: (map['peso'] as num?)?.toDouble(),
+      data: parsedDate,
+      peso: weight,
       medidas: medidas,
       fotos: fotos,
       fotosPorPosicao: fotosPorPosicao,
     );
+  }
+
+  static DateTime? _parseDate(dynamic value) {
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
+    try {
+      final parsed = (value as dynamic).toDate();
+      return parsed is DateTime ? parsed : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   Map<String, dynamic> toMap() {

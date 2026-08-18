@@ -40,9 +40,17 @@ class ProgressRepository {
   }
 
   /// Adiciona nova entrada de progresso.
-  Future<void> addProgress(String userId, Map<String, dynamic> data) async {
+  Future<void> addProgress(
+    String userId,
+    Map<String, dynamic> data, {
+    String? entryId,
+  }) async {
     try {
-      await _firestoreDataSource.addProgressEntry(userId, data);
+      await _firestoreDataSource.addProgressEntry(
+        userId,
+        data,
+        entryId: entryId,
+      );
     } on ServerException catch (e) {
       throw ServerFailure(message: e.message);
     }
@@ -61,6 +69,15 @@ class ProgressRepository {
         fileBytes: bytes,
         contentType: 'image/png',
       );
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
+  }
+
+  /// Remove uma fotografia de progresso se a gravação Firestore falhar.
+  Future<void> deleteProgressPhoto(String userId, String fileName) async {
+    try {
+      await _storageDataSource.deleteFile('users/$userId/progresso/$fileName.png');
     } on ServerException catch (e) {
       throw ServerFailure(message: e.message);
     }

@@ -23,6 +23,7 @@ class GroupModel {
   final DateTime createdAt;
   final String? lastMessage;
   final DateTime? lastTimestamp;
+  /// Path privado Storage; URLs antigas são resolvidas pelo widget de recurso.
   final String? imagemUrl;
   final Map<String, String> membrosNomes;
   final Map<String, String> membrosFotos;
@@ -49,15 +50,18 @@ class GroupModel {
   factory GroupModel.fromMap(String id, Map<String, dynamic> map) {
     return GroupModel(
       id: id,
-      nome: map['nome'] as String? ?? '',
-      membros: List<String>.from(map['membros'] as List? ?? []),
-      criadoPor: map['criadoPor'] as String? ?? '',
+      nome: map['nome'] is String ? map['nome'] as String : '',
+      membros: (map['membros'] is List ? map['membros'] as List : const [])
+          .whereType<String>()
+          .where((value) => value.isNotEmpty)
+          .toList(),
+      criadoPor: map['criadoPor'] is String ? map['criadoPor'] as String : '',
       createdAt: _parseTimestamp(map['createdAt']),
-      lastMessage: map['lastMessage'] as String?,
+      lastMessage: map['lastMessage'] is String ? map['lastMessage'] as String : null,
       lastTimestamp: map['lastTimestamp'] == null
           ? null
           : _parseTimestamp(map['lastTimestamp']),
-      imagemUrl: map['imagemUrl'] as String?,
+      imagemUrl: map['imagemUrl'] is String ? map['imagemUrl'] as String : null,
       membrosNomes: Map<String, String>.from(
         (map['membrosNomes'] as Map?)?.map(
               (key, value) => MapEntry(key.toString(), value.toString()),
@@ -77,8 +81,8 @@ class GroupModel {
                   _parseTimestamp(entry.value),
                 )),
       ),
-      criadoPorNome: map['criadoPorNome'] as String?,
-      criadoPorFoto: map['criadoPorFoto'] as String?,
+      criadoPorNome: map['criadoPorNome'] is String ? map['criadoPorNome'] as String : null,
+      criadoPorFoto: map['criadoPorFoto'] is String ? map['criadoPorFoto'] as String : null,
     );
   }
 

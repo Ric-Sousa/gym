@@ -24,6 +24,8 @@ class BookingModel {
 
   factory BookingModel.fromMap(String id, Map<String, dynamic> map) {
     final rawStatus = map['status'];
+    final parsedDate = _parseDate(map['data']) ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final parsedCreatedAt = _parseDate(map['createdAt']);
     final status = rawStatus is String && rawStatus.trim().isNotEmpty
         ? rawStatus
         : map['approved'] == true || map['aprovado'] == true
@@ -36,17 +38,28 @@ class BookingModel {
 
     return BookingModel(
       id: id,
-      studentId: map['studentId'] as String? ?? '',
-      trainerId: map['trainerId'] as String? ?? '',
-      data: (map['data'] as dynamic).toDate() as DateTime,
-      duracaoMinutos: map['duracaoMinutos'] as int? ?? 60,
+      studentId: map['studentId'] is String ? map['studentId'] as String : '',
+      trainerId: map['trainerId'] is String ? map['trainerId'] as String : '',
+      data: parsedDate,
+      duracaoMinutos: map['duracaoMinutos'] is num
+          ? (map['duracaoMinutos'] as num).toInt().clamp(1, 1440)
+          : 60,
       status: status,
-      notas: map['notas'] as String?,
-      tipo: map['tipo'] as String? ?? 'presencial',
-      createdAt: map['createdAt'] != null
-          ? (map['createdAt'] as dynamic).toDate() as DateTime
-          : null,
+      notas: map['notas'] is String ? map['notas'] as String : null,
+      tipo: map['tipo'] is String ? map['tipo'] as String : 'presencial',
+      createdAt: parsedCreatedAt,
     );
+  }
+
+  static DateTime? _parseDate(dynamic value) {
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
+    try {
+      final parsed = (value as dynamic).toDate();
+      return parsed is DateTime ? parsed : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   Map<String, dynamic> toMap() {

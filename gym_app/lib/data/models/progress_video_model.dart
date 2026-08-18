@@ -2,6 +2,7 @@ class ProgressVideoModel {
   final String id;
   final String userId;
   final String exerciseName;
+  /// Path privado Storage; mantém URLs antigas apenas para compatibilidade.
   final String videoUrl;
   final DateTime createdAt;
   final String uploadedBy;
@@ -29,13 +30,15 @@ class ProgressVideoModel {
     return ProgressVideoModel(
       id: id,
       userId: userId,
-      exerciseName: map['exerciseName'] as String? ?? 'Exercício',
-      videoUrl: map['videoUrl'] as String? ?? '',
+      exerciseName: map['exerciseName'] is String
+          ? map['exerciseName'] as String
+          : 'Exercício',
+      videoUrl: map['videoUrl'] is String ? map['videoUrl'] as String : '',
       createdAt:
           _date(map['createdAt']) ?? DateTime.fromMillisecondsSinceEpoch(0),
-      uploadedBy: map['uploadedBy'] as String? ?? userId,
-      status: map['status'] as String? ?? 'pending',
-      feedback: map['feedback'] as String?,
+      uploadedBy: map['uploadedBy'] is String ? map['uploadedBy'] as String : userId,
+      status: map['status'] is String ? map['status'] as String : 'pending',
+      feedback: map['feedback'] is String ? map['feedback'] as String : null,
       reviewedAt: _date(map['reviewedAt']),
     );
   }

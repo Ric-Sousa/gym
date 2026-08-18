@@ -19,6 +19,7 @@ class PaymentModel {
   final DateTime? dataVencimento;
   final DateTime? paidAt;
   final String? metodo;
+  /// Path privado Storage do comprovativo; o nome Firestore é legado.
   final String? comprovativoUrl;
   final bool subscriptionCancelAtPeriodEnd;
 

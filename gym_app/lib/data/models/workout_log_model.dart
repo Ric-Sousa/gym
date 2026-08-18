@@ -21,8 +21,10 @@ class SerieLog {
       numero: (map['numero'] as num?)?.toInt() ?? 1,
       carga: (map['carga'] as num?)?.toDouble(),
       repeticoes: (map['repeticoes'] as num?)?.toInt(),
-      concluida: map['concluida'] as bool? ?? false,
-      adicionadaManualmente: map['adicionadaManualmente'] as bool? ?? false,
+      concluida: map['concluida'] is bool ? map['concluida'] as bool : false,
+      adicionadaManualmente: map['adicionadaManualmente'] is bool
+          ? map['adicionadaManualmente'] as bool
+          : false,
     );
   }
 
@@ -84,8 +86,10 @@ class ExerciseLog {
   factory ExerciseLog.fromMap(Map<String, dynamic> map) {
     final seriesList = map['series'] as List? ?? [];
     return ExerciseLog(
-      nome: map['nome'] as String? ?? '',
-      grupoMuscular: map['grupoMuscular'] as String?,
+      nome: map['nome'] is String ? map['nome'] as String : '',
+      grupoMuscular: map['grupoMuscular'] is String
+          ? map['grupoMuscular'] as String
+          : null,
       series: seriesList
           .whereType<Map>()
           .map((s) => SerieLog.fromMap(Map<String, dynamic>.from(s)))
@@ -150,9 +154,7 @@ class WorkoutLogModel {
     return WorkoutLogModel(
       id: id,
       userId: userId,
-      data:
-          _parseDate(map['data']) ??
-          (throw const FormatException('Workout log has an invalid date')),
+      data: _parseDate(map['data']) ?? DateTime.fromMillisecondsSinceEpoch(0),
       planoSemana: map['planoSemana'] as String? ?? '',
       diaSemana: map['diaSemana'] as String? ?? '',
       subPlanoId: map['subPlanoId'] as String?,

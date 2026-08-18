@@ -9,19 +9,11 @@ void fireBookingNotification(BookingModel booking, String newStatus) {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
-      final token = await user.getIdToken(true);
-      if (token == null || token.isEmpty) return;
-
       await FirebaseFunctions.instanceFor(
         region: 'europe-west1',
       ).httpsCallable('notifyBookingUpdate').call({
         'bookingId': booking.id,
-        'studentId': booking.studentId,
-        'trainerId': booking.trainerId,
         'newStatus': newStatus,
-        'bookingDate': booking.data.toIso8601String(),
-        'tipo': booking.tipo,
-        'authToken': token,
       });
     } on FirebaseFunctionsException catch (_) {
       // Notificação é best-effort e não deve interromper a alteração da aula.

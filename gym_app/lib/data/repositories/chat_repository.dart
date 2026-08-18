@@ -20,13 +20,23 @@ class ChatRepository {
     return _firestoreDataSource.getChatRoomId(alunoId, personalId);
   }
 
+  /// Garante que uma sala direta existe antes de um upload associado.
+  Future<void> ensureChatRoom(
+    String salaId,
+    List<String> participantIds,
+  ) async {
+    try {
+      await _firestoreDataSource.ensureChatRoom(salaId, participantIds);
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
+  }
+
   /// Stream de mensagens.
   Stream<List<MessageModel>> messagesStream(String salaId) {
-    return _firestoreDataSource.messagesStream(salaId).handleError((e, stack) {
-      // ignore: avoid_print
-      print('Chat messagesStream error for $salaId: $e');
-      // Swallow errors — don't re-throw, keep stream alive.
-    });
+    // Preserva erros de permissão/rede para o provider poder expor o estado
+    // de erro, em vez de transformar uma falha numa conversa aparentemente vazia.
+    return _firestoreDataSource.messagesStream(salaId);
   }
 
   /// Marca como lidas as mensagens recebidas até [readAt].
@@ -49,10 +59,18 @@ class ChatRepository {
   }
 
   /// Envia uma mensagem.
-  Future<void> sendMessage(String salaId, MessageModel message) async {
+  Future<void> sendMessage(
+    String salaId,
+    MessageModel message, {
+    List<String>? participantIds,
+  }) async {
     if (!await _connectivityService.isConnected) throw NetworkFailure();
     try {
-      await _firestoreDataSource.sendMessage(salaId, message.toMap());
+      await _firestoreDataSource.sendMessage(
+        salaId,
+        message.toMap(),
+        participantIds: participantIds,
+      );
     } on ServerException catch (e) {
       throw ServerFailure(message: e.message);
     }
@@ -60,21 +78,21 @@ class ChatRepository {
 
   /// Stream que indica se o outro participante está a digitar.
   Stream<String?> typingStream(String salaId, String myUserId) {
-    return _firestoreDataSource.typingStream(salaId, myUserId).handleError((
-      _,
-      __,
-    ) {
-      // ignore: avoid_print
-      print('Typing stream error for $salaId');
-    });
+    return _firestoreDataSource.typingStream(salaId, myUserId);
   }
 
   /// Define ou remove o estado de digitação.
   Future<void> setTypingStatus(
     String salaId,
     String userId,
-    bool isTyping,
-  ) async {
-    await _firestoreDataSource.setTypingStatus(salaId, userId, isTyping);
+    bool isTyping, {
+    List<String>? participantIds,
+  }) async {
+    await _firestoreDataSource.setTypingStatus(
+      salaId,
+      userId,
+      isTyping,
+      participantIds: participantIds,
+    );
   }
 }

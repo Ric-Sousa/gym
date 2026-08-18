@@ -1,7 +1,7 @@
 import 'audio_recording_model.dart';
 
 import 'audio_recording_service_io.dart'
-    if (dart.library.html) 'audio_recording_service_web.dart'
+    if (dart.library.js_interop) 'audio_recording_service_web.dart'
     as impl;
 
 class AudioRecordingService {

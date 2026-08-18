@@ -1,9 +1,8 @@
-import 'dart:async';
 import 'dart:typed_data';
-import 'dart:html' as html;
 
 import 'package:http/http.dart' as http;
 import 'package:record/record.dart';
+import 'package:web/web.dart' as web;
 
 import 'audio_recording_model.dart';
 
@@ -38,7 +37,7 @@ class AudioRecordingService {
         contentType: response.headers['content-type'] ?? 'audio/webm',
       );
     } finally {
-      html.Url.revokeObjectUrl(blobUrl);
+      web.URL.revokeObjectURL(blobUrl);
     }
   }
 
@@ -53,7 +52,7 @@ class AudioRecordingService {
   Future<void> cancel() async {
     final blobUrl = await _recorder.stop();
     if (blobUrl != null && blobUrl.isNotEmpty) {
-      html.Url.revokeObjectUrl(blobUrl);
+      web.URL.revokeObjectURL(blobUrl);
     }
   }
 

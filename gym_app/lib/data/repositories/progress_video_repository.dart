@@ -37,10 +37,22 @@ class ProgressVideoRepository {
     required String contentType,
   }) async {
     try {
+      const allowedTypes = {
+        'mp4': 'video/mp4',
+        'mov': 'video/quicktime',
+        'webm': 'video/webm',
+        'avi': 'video/x-msvideo',
+      };
+      final normalizedExtension = extension.toLowerCase();
+      if (!allowedTypes.containsKey(normalizedExtension) ||
+          contentType != allowedTypes[normalizedExtension] ||
+          bytes.length > 200 * 1024 * 1024) {
+        throw ValidationException(message: 'Formato ou tamanho de vídeo inválido.');
+      }
       final videoId = '${DateTime.now().microsecondsSinceEpoch}';
       final path =
-          '${AppConstants.progressVideoPath.replaceAll('{userId}', userId).replaceAll('{videoId}', videoId)}.$extension';
-      final url = await _storage.uploadFile(
+          '${AppConstants.progressVideoPath.replaceAll('{userId}', userId).replaceAll('{videoId}', videoId)}.$normalizedExtension';
+      final storagePath = await _storage.uploadFile(
         path: path,
         fileBytes: bytes,
         contentType: contentType,
@@ -49,11 +61,16 @@ class ProgressVideoRepository {
         id: videoId,
         userId: userId,
         exerciseName: exerciseName,
-        videoUrl: url,
+        videoUrl: storagePath,
         createdAt: DateTime.now(),
         uploadedBy: uploaderId,
       );
-      await _firestore.addProgressVideo(userId, videoId, video.toMap());
+      try {
+        await _firestore.addProgressVideo(userId, videoId, video.toMap());
+      } catch (_) {
+        await _storage.deleteFile(path).catchError((_) {});
+        rethrow;
+      }
       return video;
     } on ServerException catch (e) {
       throw ServerFailure(message: e.message);

@@ -566,27 +566,22 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     if (confirmed != true) return;
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw StateError('Utilizador não autenticado.');
-      final token = await user.getIdToken(true);
-      if (token == null || token.isEmpty) {
-        throw StateError('Sessão expirada.');
+      if (FirebaseAuth.instance.currentUser == null) {
+        throw StateError('Utilizador não autenticado.');
       }
-
-      await FirebaseFunctions.instanceFor(
+      final bookingResult = await FirebaseFunctions.instanceFor(
         region: 'europe-west1',
-      ).httpsCallable('createBooking').call({
+      ).httpsCallable('createBooking').call<Map<String, dynamic>>({
         'studentId': _userId,
         'trainerId': trainerId,
         'bookingDate': slotStart.toIso8601String(),
         'duracaoMinutos': _kSlotDurationMin,
         'tipo': 'presencial',
-        'authToken': token,
       });
 
       // Notificar PT (fire-and-forget), sem deixar rejeições assíncronas no
       // console quando o token expirou ou a rede está indisponível.
-      _notifyNewBooking(trainerId, slotStart);
+      _notifyNewBooking(bookingResult.data['bookingId'] as String);
 
       if (mounted)
         showAppNotification(
@@ -616,21 +611,11 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     }
   }
 
-  Future<void> _notifyNewBooking(String trainerId, DateTime date) async {
+  Future<void> _notifyNewBooking(String bookingId) async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-      final token = await user.getIdToken(true);
-      if (token == null || token.isEmpty) return;
       await FirebaseFunctions.instanceFor(
         region: 'europe-west1',
-      ).httpsCallable('notifyNewBooking').call({
-        'studentId': _userId,
-        'trainerId': trainerId,
-        'bookingDate': date.toIso8601String(),
-        'tipo': 'presencial',
-        'authToken': token,
-      });
+      ).httpsCallable('notifyNewBooking').call({'bookingId': bookingId});
     } catch (_) {
       // Push é best-effort; a aula já foi guardada no Firestore.
     }
@@ -638,19 +623,11 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
   Future<void> _notifyBookingCancelled(BookingModel booking) async {
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-      final token = await user.getIdToken(true);
-      if (token == null || token.isEmpty) return;
+      if (FirebaseAuth.instance.currentUser == null) return;
       await FirebaseFunctions.instanceFor(
         region: 'europe-west1',
       ).httpsCallable('notifyBookingCancelled').call({
         'bookingId': booking.id,
-        'studentId': _userId,
-        'trainerId': booking.trainerId,
-        'bookingDate': booking.data.toIso8601String(),
-        'tipo': booking.tipo,
-        'authToken': token,
       });
     } catch (_) {
       // Push é best-effort; o cancelamento já foi guardado no Firestore.

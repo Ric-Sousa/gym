@@ -8,6 +8,7 @@ import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/student_theme.dart';
 import '../../../../core/config/app_constants.dart';
 import '../../../../core/config/app_strings.dart';
+import '../../../../core/utils/storage_resource.dart';
 import '../../../../core/services/sound_service.dart';
 import '../../../../data/models/app_notification_model.dart';
 import '../../../../data/models/diary_model.dart';
@@ -874,7 +875,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                 shape: BoxShape.circle,
               ),
               child: foto != null
-                  ? Image.network(foto, fit: BoxFit.cover)
+                  ? StorageImage(foto, fit: BoxFit.cover)
                   : Center(
                       child: Text(
                         nome.isNotEmpty ? nome[0].toUpperCase() : '?',

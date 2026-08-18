@@ -19,7 +19,7 @@ Future<MessageModel> createUploadedImageMessage({
   final contentType = file.mimeType ?? 'image/$extension';
   final path =
       'chat_attachments/$chatId/${senderId}_${const Uuid().v4()}.$extension';
-  final url = await storage.uploadFile(
+  final storagePath = await storage.uploadFile(
     path: path,
     fileBytes: bytes,
     contentType: contentType,
@@ -29,8 +29,19 @@ Future<MessageModel> createUploadedImageMessage({
     remetenteId: senderId,
     texto: '',
     timestamp: DateTime.now(),
-    attachmentUrl: url,
+    attachmentUrl: storagePath,
     attachmentName: file.name,
     attachmentType: contentType,
+    storagePath: path,
   );
+}
+
+/// Remove o upload quando a mensagem não chega a ser persistida.
+Future<void> cleanupUploadedMessage(
+  StorageDataSource storage,
+  MessageModel? message,
+) async {
+  final path = message?.storagePath;
+  if (path == null || path.isEmpty) return;
+  await storage.deleteFile(path).catchError((_) {});
 }

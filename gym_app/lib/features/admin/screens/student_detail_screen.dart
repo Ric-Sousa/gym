@@ -6,6 +6,7 @@ import '../../../../core/config/app_colors.dart';
 import '../../../../core/config/admin_theme.dart';
 import '../../../../core/config/app_constants.dart';
 import '../../../../core/config/app_strings.dart';
+import '../../../../core/utils/storage_resource.dart';
 import '../../../../data/models/user_model.dart';
 import '../../../../shared/providers/admin_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
@@ -122,24 +123,18 @@ class _StudentDetailScreenState extends ConsumerState<StudentDetailScreen>
                   final compact = constraints.maxWidth < 560;
                   final identity = Row(
                     children: [
-                      CircleAvatar(
+                      StorageAvatar(
+                        resource: aluno.fotoPerfil,
                         radius: 30,
-                        backgroundColor: adminColors.lime.withValues(
-                          alpha: 0.14,
+                        backgroundColor: adminColors.lime.withValues(alpha: 0.14),
+                        fallback: Text(
+                          initials,
+                          style: GoogleFonts.montserrat(
+                            color: adminColors.lime,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
-                        backgroundImage: aluno.fotoPerfil != null
-                            ? NetworkImage(aluno.fotoPerfil!)
-                            : null,
-                        child: aluno.fotoPerfil == null
-                            ? Text(
-                                initials,
-                                style: GoogleFonts.montserrat(
-                                  color: adminColors.lime,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              )
-                            : null,
                       ),
                       const SizedBox(width: 14),
                       Expanded(

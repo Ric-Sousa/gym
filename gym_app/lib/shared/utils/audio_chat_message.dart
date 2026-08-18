@@ -13,7 +13,7 @@ Future<MessageModel> createUploadedAudioMessage({
   final timestamp = DateTime.now();
   final path =
       'chat_audio/$chatId/${senderId}_${const Uuid().v4()}.${audio.extension}';
-  final url = await storage.uploadFile(
+  final storagePath = await storage.uploadFile(
     path: path,
     fileBytes: audio.bytes,
     contentType: audio.contentType,
@@ -22,7 +22,8 @@ Future<MessageModel> createUploadedAudioMessage({
     remetenteId: senderId,
     texto: '',
     timestamp: timestamp,
-    audioUrl: url,
+    audioUrl: storagePath,
     audioDurationMs: audio.durationMs,
+    storagePath: path,
   );
 }

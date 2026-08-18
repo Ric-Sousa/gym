@@ -2,19 +2,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gym_app/core/errors/exceptions.dart';
 import 'package:gym_app/core/errors/failures.dart';
 import 'package:gym_app/core/config/app_constants.dart';
+import 'package:gym_app/core/utils/storage_resource.dart';
 
 void main() {
   group('AuthException.fromFirebaseCode', () {
     test('mapeia user-not-found', () {
       final ex = AuthException.fromFirebaseCode('user-not-found');
       expect(ex.code, 'user-not-found');
-      expect(ex.message, contains('não encontrado'));
+      expect(ex.message, 'Credenciais inválidas.');
     });
 
     test('mapeia wrong-password', () {
       final ex = AuthException.fromFirebaseCode('wrong-password');
       expect(ex.code, 'wrong-password');
-      expect(ex.message, contains('incorreta'));
+      expect(ex.message, 'Credenciais inválidas.');
     });
 
     test('mapeia email-already-in-use', () {
@@ -144,6 +145,23 @@ void main() {
     test('DocumentNotFoundFailure usa mensagem padrão', () {
       const f = DocumentNotFoundFailure();
       expect(f.message, 'Documento não encontrado');
+    });
+  });
+
+  group('StorageResource', () {
+    test('distingue paths privados de URLs legadas', () {
+      expect(StorageResource.isPrivatePath('users/user-1/profile.jpg'), isTrue);
+      expect(StorageResource.isPath('chat_audio/room/audio.m4a'), isTrue);
+      expect(StorageResource.isLegacyUrl('https://example.com/file.jpg'), isTrue);
+      expect(StorageResource.isLegacyUrl('gs://bucket/file.jpg'), isTrue);
+      expect(StorageResource.isPrivatePath('https://example.com/file.jpg'), isFalse);
+    });
+
+    test('rejeita paths ambíguos ou com traversal', () {
+      expect(StorageResource.isPrivatePath(''), isFalse);
+      expect(StorageResource.isPrivatePath('/users/user/file.jpg'), isFalse);
+      expect(StorageResource.isPrivatePath('../private/file.jpg'), isFalse);
+      expect(StorageResource.isPrivatePath('users/user/file.jpg?token=x'), isFalse);
     });
   });
 

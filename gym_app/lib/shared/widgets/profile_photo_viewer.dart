@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/utils/storage_resource.dart';
 
 /// Abre uma visualização imersiva da foto de perfil.
 ///
@@ -52,10 +53,10 @@ Future<void> showProfilePhotoViewer({
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: photoUrl != null && photoUrl.trim().isNotEmpty
-                        ? Image.network(
+                        ? StorageImage(
                             photoUrl,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _FallbackAvatar(
+                            error: _FallbackAvatar(
                               initial: initial,
                               accentColor: accentColor,
                             ),

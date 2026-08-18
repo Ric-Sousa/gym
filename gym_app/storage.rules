@@ -1,51 +1,116 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Progression videos are private to their student and admin, with a
-    // conservative size/type guard at the Storage boundary.
-    match /users/{uid}/progress_videos/{videoId} {
-      allow read: if request.auth != null &&
-        (request.auth.uid == uid ||
-         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin');
-      allow write: if request.auth != null &&
-        (request.auth.uid == uid ||
-         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin') &&
-        request.resource.size < 200 * 1024 * 1024 &&
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuth() &&
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin';
+    }
+
+    function isRoomMember(roomId) {
+      return isAuth() &&
+        firestore.get(/databases/(default)/documents/chat/$(roomId)).data.get('participantIds', []) is list &&
+        request.auth.uid in firestore.get(/databases/(default)/documents/chat/$(roomId)).data.participantIds;
+    }
+
+    function isGroupMember(groupId) {
+      return isAuth() &&
+        firestore.get(/databases/(default)/documents/grupos/$(groupId)).data.get('membros', []) is list &&
+        request.auth.uid in firestore.get(/databases/(default)/documents/grupos/$(groupId)).data.membros;
+    }
+
+    function validImage(maxBytes) {
+      return request.resource != null &&
+        request.resource.size <= maxBytes &&
+        request.resource.contentType is string &&
+        request.resource.contentType.matches('image/(jpeg|png|webp|heic)');
+    }
+
+    function validChatImage() {
+      return validImage(25 * 1024 * 1024);
+    }
+
+    function validAudio() {
+      return request.resource != null &&
+        request.resource.size <= 25 * 1024 * 1024 &&
+        request.resource.contentType is string &&
+        request.resource.contentType.matches('audio/(mp4|mpeg|ogg|webm|wav|x-m4a)');
+    }
+
+    function validVideo() {
+      return request.resource != null &&
+        request.resource.size <= 200 * 1024 * 1024 &&
+        request.resource.contentType is string &&
         request.resource.contentType.matches('video/(mp4|quicktime|webm|x-msvideo)');
     }
 
-    // Existing application uploads.
-    match /users/{uid}/{allPaths=**} {
-      allow read: if request.auth != null &&
-        (request.auth.uid == uid ||
-         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin');
-      allow write: if request.auth != null &&
-        (request.auth.uid == uid ||
-         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin');
+    // Profile photo: only the profile owner or an admin may read/write it.
+    match /users/{uid}/profile.jpg {
+      allow read: if isAuth() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if isAuth() &&
+        (request.auth.uid == uid || isAdmin()) &&
+        validImage(5 * 1024 * 1024);
+      allow delete: if isAuth() && (request.auth.uid == uid || isAdmin());
     }
-    match /chat_audio/{allPaths=**} {
-      allow read, write: if request.auth != null;
+
+    // Progress photos are private health data and must be image files.
+    match /users/{uid}/progresso/{fileName} {
+      allow read: if isAuth() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if isAuth() &&
+        (request.auth.uid == uid || isAdmin()) &&
+        validImage(10 * 1024 * 1024);
+      allow delete: if isAuth() && (request.auth.uid == uid || isAdmin());
     }
-    match /chat_attachments/{allPaths=**} {
-      allow read, write: if request.auth != null;
+
+    // Progress videos have their own MIME and size boundary. There is no
+    // recursive users catch-all that could bypass this rule.
+    match /users/{uid}/progress_videos/{fileName} {
+      allow read: if isAuth() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if isAuth() &&
+        (request.auth.uid == uid || isAdmin()) &&
+        validVideo();
+      allow delete: if isAuth() && (request.auth.uid == uid || isAdmin());
     }
+
+    // Direct-chat attachments. The room document is the source of truth for
+    // membership; knowing a room ID alone is not sufficient.
+    match /chat_attachments/{roomId}/{fileName} {
+      allow read: if isRoomMember(roomId) || isAdmin();
+      allow create, update: if isRoomMember(roomId) && validChatImage();
+      // Só o autor pode limpar um upload que ficou órfão antes da mensagem
+      // Firestore ser criada; o outro participante não pode apagar anexos.
+      allow delete: if isRoomMember(roomId) &&
+        fileName.matches(request.auth.uid + '_.*');
+    }
+
+    match /chat_audio/{roomId}/{fileName} {
+      allow read: if isRoomMember(roomId) || isAdmin();
+      allow create, update: if isRoomMember(roomId) && validAudio();
+      allow delete: if isRoomMember(roomId) &&
+        fileName.matches(request.auth.uid + '_.*');
+    }
+
+    // Group images use a separate non-overlapping path. Group membership is
+    // required for reads; only admins manage the shared group image.
+    match /chat_attachments/group_images/{groupId}/{fileName} {
+      allow read: if isGroupMember(groupId) || isAdmin();
+      allow create, update: if isAdmin() && validChatImage();
+      allow delete: if isAdmin();
+    }
+
     match /faturas/{uid}/{allPaths=**} {
-      allow read: if request.auth != null &&
-        (request.auth.uid == uid ||
-         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin');
+      allow read: if isAuth() && (request.auth.uid == uid || isAdmin());
       allow write: if false;
     }
 
-    // Comprovativos de pagamentos manuais: apenas o admin escreve; o aluno
-    // associado e o admin podem consultar o comprovativo.
-    match /payment_proofs/{uid}/{allPaths=**} {
-      allow read: if request.auth != null &&
-        (request.auth.uid == uid ||
-         firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin');
-      allow write: if request.auth != null &&
-        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin' &&
-        request.resource.size < 10 * 1024 * 1024 &&
-        request.resource.contentType.matches('image/(jpeg|png|webp|heic)');
+    // Manual payment proofs are written only by admins and are image files.
+    match /payment_proofs/{uid}/{fileName} {
+      allow read: if isAuth() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if isAdmin() && validImage(10 * 1024 * 1024);
+      allow delete: if false;
     }
   }
 }

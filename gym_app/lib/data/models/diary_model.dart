@@ -19,15 +19,30 @@ class MealEntry {
   });
 
   factory MealEntry.fromMap(Map<String, dynamic> map) {
-    final consumoRaw = map['consumoPorAlimento'] as Map<String, dynamic>?;
+    final consumoRaw = map['consumoPorAlimento'] is Map
+        ? Map<String, dynamic>.from(map['consumoPorAlimento'] as Map)
+        : null;
     return MealEntry(
-      tipo: map['tipo'] as String? ?? '',
-      descricao: map['descricao'] as String? ?? '',
-      calorias: (map['calorias'] as num?)?.toDouble() ?? 0.0,
-      hora: map['hora'] as String? ?? '',
-      alimentos: List<String>.from(map['alimentos'] as List? ?? []),
+      tipo: map['tipo'] is String ? map['tipo'] as String : '',
+      descricao: map['descricao'] is String ? map['descricao'] as String : '',
+      calorias: map['calorias'] is num
+          ? (map['calorias'] as num).toDouble().clamp(0, 100000)
+          : 0.0,
+      hora: map['hora'] is String ? map['hora'] as String : '',
+      alimentos: (map['alimentos'] is List ? map['alimentos'] as List : const [])
+          .whereType<String>()
+          .toList(),
       consumoPorAlimento:
-          consumoRaw?.map((k, v) => MapEntry(k, (v as num).toDouble())) ?? {},
+          consumoRaw == null
+              ? <String, double>{}
+              : Map<String, double>.fromEntries(
+                  consumoRaw.entries.where((entry) => entry.value is num).map(
+                    (entry) => MapEntry(
+                      entry.key,
+                      (entry.value as num).toDouble(),
+                    ),
+                  ),
+                ),
     );
   }
 
@@ -89,18 +104,25 @@ class DiaryModel {
     String userId,
     Map<String, dynamic> map,
   ) {
-    final refeicoesList = map['refeicoes'] as List? ?? [];
+    final refeicoesList = map['refeicoes'] is List ? map['refeicoes'] as List : const [];
+    int safeInt(String key, {int fallback = 0}) {
+      final value = map[key];
+      return value is num ? value.toInt() : fallback;
+    }
     return DiaryModel(
       data: data,
       userId: userId,
-      agua: map['agua'] as int? ?? 0,
-      passos: map['passos'] as int? ?? 0,
-      avaliacao: map['avaliacao'] as int? ?? 0,
-      treinoConcluido: map['treinoConcluido'] as bool? ?? false,
+      agua: safeInt('agua').clamp(0, 20000),
+      passos: safeInt('passos').clamp(0, 200000),
+      avaliacao: safeInt('avaliacao').clamp(0, 5),
+      treinoConcluido: map['treinoConcluido'] is bool
+          ? map['treinoConcluido'] as bool
+          : false,
       refeicoes: refeicoesList
-          .map((r) => MealEntry.fromMap(r as Map<String, dynamic>))
+          .whereType<Map>()
+          .map((r) => MealEntry.fromMap(Map<String, dynamic>.from(r)))
           .toList(),
-      treinoData: map['treinoData'] != null
+      treinoData: map['treinoData'] is Map
           ? Map<String, dynamic>.from(map['treinoData'] as Map)
           : null,
     );

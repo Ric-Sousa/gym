@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/config/admin_theme.dart';
 import '../../../core/config/app_strings.dart';
+import '../../../core/utils/storage_resource.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/models/workout_plan_model.dart';
 import '../../../data/models/exercise_catalog_model.dart';
@@ -1804,7 +1805,7 @@ class _GlobalWorkoutPlansScreenState
       clipBehavior: Clip.antiAlias,
       child: photoUrl == null || photoUrl.isEmpty
           ? fallback()
-          : Image.network(
+          : StorageImage(
               photoUrl,
               fit: BoxFit.cover,
               errorBuilder: (_, _, _) => fallback(),

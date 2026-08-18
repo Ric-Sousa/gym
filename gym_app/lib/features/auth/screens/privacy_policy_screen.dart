@@ -1,10 +1,10 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/config/app_colors.dart';
 import '../../../data/models/user_model.dart';
-import '../../../shared/providers/global_providers.dart';
 import '../providers/auth_provider.dart';
 
 class PrivacyPolicyScreen extends ConsumerStatefulWidget {
@@ -26,10 +26,12 @@ class _PrivacyPolicyScreenState extends ConsumerState<PrivacyPolicyScreen> {
     if (!_accepted) return;
     setState(() => _saving = true);
     try {
-      await ref.read(userRepositoryProvider).updateUser(widget.user.uid, {
-        'privacyPolicyAcceptedAt': FieldValue.serverTimestamp(),
-        'privacyPolicyVersion': PrivacyPolicyScreen.version,
-      });
+      await FirebaseFunctions.instanceFor(region: 'europe-west1')
+          .httpsCallable('acceptPrivacyPolicy')
+          .call({
+            'version': PrivacyPolicyScreen.version,
+            'platform': kIsWeb ? 'web' : defaultTargetPlatform.name,
+          });
       await ref.read(authProvider.notifier).refreshUser();
     } catch (_) {
       if (!mounted) return;

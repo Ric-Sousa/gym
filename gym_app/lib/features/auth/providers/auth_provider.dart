@@ -5,6 +5,7 @@ import '../../../core/errors/exceptions.dart';
 import '../../../core/errors/failures.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/repositories/auth_repository.dart';
+import '../../../core/services/fcm_service.dart';
 import '../screens/privacy_policy_screen.dart';
 import '../../../shared/providers/global_providers.dart';
 
@@ -63,6 +64,7 @@ class AuthState {
 /// Notifier de autenticação.
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthRepository _authRepository;
+  final FCMService _fcmService;
   StreamSubscription<User?>? _authSubscription;
   StreamSubscription<UserModel>? _profileSubscription;
   Timer? _accessTimer;
@@ -70,7 +72,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   bool _allowPaymentReturn =
       Uri.base.queryParameters['pagamento'] == 'sucesso';
 
-  AuthNotifier(this._authRepository) : super(const AuthState()) {
+  AuthNotifier(this._authRepository, this._fcmService) : super(const AuthState()) {
     if (_allowPaymentReturn) {
       // O webhook pode demorar alguns segundos a marcar o pagamento e a
       // renovar o contrato. Não expulsar a sessão durante esse retorno.
@@ -201,6 +203,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   /// Termina sessão.
   Future<void> signOut() async {
+    await _fcmService.removeToken();
     await _profileSubscription?.cancel();
     _profileSubscription = null;
     _accessTimer?.cancel();
@@ -251,6 +254,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
 final authProvider = StateNotifierProvider.autoDispose<AuthNotifier, AuthState>(
   (ref) {
     final authRepository = ref.watch(authRepositoryProvider);
-    return AuthNotifier(authRepository);
+    return AuthNotifier(authRepository, ref.watch(fcmServiceProvider));
   },
 );
