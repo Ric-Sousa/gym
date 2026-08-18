@@ -621,9 +621,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                                           ),
                                           border: Border.all(
                                             color: notification.read
-                                                ? AppColors.outline.withValues(
-                                                    alpha: 0.35,
-                                                  )
+                                                ? Colors.transparent
                                                 : StudentThemeColors.of(context)
                                                       .primary
                                                       .withValues(alpha: 0.35),
@@ -1079,9 +1077,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
             decoration: BoxDecoration(
               color: AppColors.surfaceHigh.withValues(alpha: 0.85),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: AppColors.outline.withValues(alpha: 0.5),
-              ),
+              border: Border.all(color: Colors.transparent),
               boxShadow: [
                 BoxShadow(
                   color: StudentThemeColors.of(
@@ -1241,7 +1237,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
         decoration: BoxDecoration(
           color: AppColors.surfaceHigh.withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.outline.withValues(alpha: 0.5)),
+          border: Border.all(color: Colors.transparent),
         ),
         child: Center(
           child: CircularProgressIndicator(
@@ -1346,7 +1342,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
         decoration: BoxDecoration(
           color: AppColors.surfaceHigh.withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
+          border: Border.all(color: Colors.transparent),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1444,7 +1440,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
         decoration: BoxDecoration(
           color: AppColors.surfaceHigh.withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
+          border: Border.all(color: Colors.transparent),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1664,10 +1660,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
           decoration: BoxDecoration(
             color: AppColors.surfaceHigh,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            border: Border.all(
-              color: AppColors.outline.withValues(alpha: 0.5),
-              width: 1,
-            ),
+            border: Border.all(color: Colors.transparent),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -2025,7 +2018,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
         decoration: BoxDecoration(
           color: AppColors.surfaceHigh.withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.outline.withValues(alpha: 0.4)),
+          border: Border.all(color: Colors.transparent),
         ),
         child: child,
       ),
@@ -2056,9 +2049,7 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
             decoration: BoxDecoration(
               color: AppColors.surfaceHigh.withValues(alpha: 0.85),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: AppColors.outline.withValues(alpha: 0.4),
-              ),
+              border: Border.all(color: Colors.transparent),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

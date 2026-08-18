@@ -782,9 +782,7 @@ class _ConversationTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: AdminThemeColors.of(context).surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AdminThemeColors.of(context).border.withValues(alpha: 0.7),
-        ),
+        border: Border.all(color: AdminThemeColors.of(context).border),
       ),
       child: InkWell(
         onTap: onTap,

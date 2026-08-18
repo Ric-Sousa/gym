@@ -10,7 +10,9 @@ class AppMenuDropdown<T> extends StatelessWidget {
   final List<T> options;
   final String Function(T option) labelBuilder;
   final ValueChanged<T> onChanged;
-  final String label;
+  final String? label;
+  final String? hint;
+  final Widget? prefixIcon;
   final Color accentColor;
   final Color fieldColor;
   final Color menuColor;
@@ -24,7 +26,9 @@ class AppMenuDropdown<T> extends StatelessWidget {
     required this.options,
     required this.labelBuilder,
     required this.onChanged,
-    required this.label,
+    this.label,
+    this.hint,
+    this.prefixIcon,
     required this.accentColor,
     required this.fieldColor,
     required this.menuColor,
@@ -44,6 +48,7 @@ class AppMenuDropdown<T> extends StatelessWidget {
             ? constraints.maxWidth
             : 240.0;
         return MenuAnchor(
+          animated: true,
           crossAxisUnconstrained: false,
           alignmentOffset: const Offset(0, 4),
           style: MenuStyle(
@@ -72,6 +77,8 @@ class AppMenuDropdown<T> extends StatelessWidget {
                     width: fieldWidth - 28,
                     child: Text(
                       labelBuilder(option),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
                       style: GoogleFonts.inter(
                         fontSize: compact ? 12 : 13,
@@ -97,6 +104,8 @@ class AppMenuDropdown<T> extends StatelessWidget {
               isEmpty: selectedLabel == null,
               decoration: InputDecoration(
                 labelText: label,
+                hintText: hint,
+                prefixIcon: prefixIcon,
                 filled: true,
                 fillColor: fieldColor,
                 isDense: true,
@@ -130,13 +139,25 @@ class AppMenuDropdown<T> extends StatelessWidget {
                   color: labelColor,
                   fontSize: compact ? 12 : 14,
                 ),
-              ),
-              child: Text(
-                selectedLabel ?? '',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.inter(
+                hintStyle: GoogleFonts.inter(
+                  color: labelColor,
                   fontSize: compact ? 12 : 13,
-                  color: textColor,
+                ),
+              ),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 160),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                child: Text(
+                  selectedLabel ?? '',
+                  key: ValueKey(selectedLabel),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(
+                    fontSize: compact ? 12 : 13,
+                    color: textColor,
+                  ),
                 ),
               ),
             ),
@@ -410,9 +431,7 @@ class AppSurface extends StatelessWidget {
       decoration: BoxDecoration(
         color: color ?? Theme.of(context).colorScheme.surface,
         borderRadius: borderRadius,
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.55),
-        ),
+        border: Border.all(color: Colors.transparent),
         boxShadow: elevated
             ? [
                 BoxShadow(
@@ -784,9 +803,7 @@ class StudentNavigationRail extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 22, 14, 18),
       decoration: BoxDecoration(
         color: scheme.surface,
-        border: Border(
-          right: BorderSide(color: scheme.outline.withValues(alpha: 0.6)),
-        ),
+        border: Border(right: BorderSide.none),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1044,7 +1061,7 @@ class StudentFloatingDock extends StatelessWidget {
             decoration: BoxDecoration(
               color: scheme.surface.withValues(alpha: 0.97),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: scheme.outline.withValues(alpha: 0.7)),
+              border: Border.all(color: Colors.transparent),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.3),
@@ -1133,9 +1150,7 @@ class AdminWorkspaceHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(32, 20, 28, 18),
       decoration: BoxDecoration(
         color: colors.surface,
-        border: Border(
-          bottom: BorderSide(color: colors.border.withValues(alpha: 0.75)),
-        ),
+        border: Border(bottom: BorderSide(color: colors.border)),
         boxShadow: [
           BoxShadow(
             color: colors.shadow,

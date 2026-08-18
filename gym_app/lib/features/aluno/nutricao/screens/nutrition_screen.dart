@@ -679,7 +679,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
       decoration: BoxDecoration(
         color: AppColors.surfaceLow,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outline),
+        border: Border.all(color: Colors.transparent),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -875,9 +875,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
                           decoration: BoxDecoration(
                             color: AppColors.surfaceLowest,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: AppColors.outline.withValues(alpha: 0.6),
-                            ),
+                            border: Border.all(color: Colors.transparent),
                           ),
                           child: Column(
                             children: [
@@ -1116,11 +1114,11 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
                 fillColor: AppColors.surfaceHigh,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.surfaceLow),
+                  borderSide: BorderSide.none,
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.surfaceLow),
+                  borderSide: BorderSide.none,
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -1519,7 +1517,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: selected ? AppColors.water : AppColors.outline,
+              color: selected ? AppColors.water : Colors.transparent,
               width: selected ? 1.5 : 1,
             ),
           ),

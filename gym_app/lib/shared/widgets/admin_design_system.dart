@@ -72,7 +72,7 @@ ThemeData buildWorkspaceTheme(ThemeData baseTheme, AdminThemeColors colors) {
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
-        side: BorderSide(color: colors.border.withValues(alpha: 0.55)),
+        side: BorderSide(color: colors.border),
       ),
     ),
     inputDecorationTheme: baseTheme.inputDecorationTheme.copyWith(
@@ -352,13 +352,7 @@ class AdminSurface extends StatelessWidget {
       decoration: BoxDecoration(
         color: surfaceColor,
         borderRadius: borderRadius,
-        border: compact || borderless
-            ? null
-            : Border.all(
-                color: colors.border.withValues(
-                  alpha: emphasized ? 0.72 : 0.48,
-                ),
-              ),
+        border: compact || borderless ? null : Border.all(color: colors.border),
       ),
       child: child,
     );

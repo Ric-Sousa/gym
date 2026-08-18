@@ -295,13 +295,7 @@ class _ProgressSubmissionScreenState
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 420) {
-          return Column(
-            children: [
-              first,
-              const SizedBox(height: 8),
-              second,
-            ],
-          );
+          return Column(children: [first, const SizedBox(height: 8), second]);
         }
         return Row(
           children: [
@@ -343,7 +337,7 @@ class _ProgressSubmissionScreenState
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.outline),
+        border: Border.all(color: Colors.transparent),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -485,7 +479,7 @@ class _ProgressSubmissionScreenState
         decoration: BoxDecoration(
           color: hasPhoto ? AppColors.surfaceHigh : AppColors.background,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.outline),
+          border: Border.all(color: Colors.transparent),
         ),
         clipBehavior: Clip.antiAlias,
         child: Stack(
@@ -527,9 +521,7 @@ class _ProgressSubmissionScreenState
                   borderRadius: const BorderRadius.vertical(
                     bottom: Radius.circular(15),
                   ),
-                  border: const Border(
-                    top: BorderSide(color: AppColors.outline),
-                  ),
+                  border: const Border(top: BorderSide.none),
                 ),
                 child: Text(
                   _photoPositions[index],

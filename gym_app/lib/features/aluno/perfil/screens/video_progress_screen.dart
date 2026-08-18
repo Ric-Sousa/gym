@@ -14,8 +14,8 @@ import '../../../../core/utils/storage_resource.dart';
 
 final progressVideosProvider =
     StreamProvider.family<List<ProgressVideoModel>, String>((ref, userId) {
-  return ref.read(progressVideoRepositoryProvider).watchVideos(userId);
-});
+      return ref.read(progressVideoRepositoryProvider).watchVideos(userId);
+    });
 
 class VideoProgressScreen extends ConsumerStatefulWidget {
   final String userId;
@@ -182,7 +182,7 @@ class _VideoProgressScreenState extends ConsumerState<VideoProgressScreen> {
     decoration: BoxDecoration(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: AppColors.outline),
+      border: Border.all(color: Colors.transparent),
     ),
     child: Row(
       children: [
@@ -208,7 +208,7 @@ class _VideoProgressScreenState extends ConsumerState<VideoProgressScreen> {
     decoration: BoxDecoration(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: AppColors.outline),
+      border: Border.all(color: Colors.transparent),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -258,7 +258,7 @@ class _VideoProgressScreenState extends ConsumerState<VideoProgressScreen> {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.outline),
+        border: Border.all(color: Colors.transparent),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

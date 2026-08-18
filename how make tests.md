@@ -11,7 +11,7 @@ cd gym_app/functions && npm test
 flutter run -d chrome
 
 # Deploy para web
-flutter build web
+flutter build web --release
 firebase deploy --only hosting
 
 # Stripe
