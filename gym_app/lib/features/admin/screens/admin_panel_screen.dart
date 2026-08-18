@@ -3715,13 +3715,6 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(width: 6),
-              Icon(Icons.chevron_right_rounded, size: 16, color: colors.border),
-              const SizedBox(width: 6),
-              Text(
-                'Ficha do cliente',
-                style: GoogleFonts.inter(fontSize: 12, color: colors.text),
-              ),
             ],
           ),
         ),
