@@ -52,4 +52,26 @@ void main() {
     expect(pager.error, isNull);
     expect(pager.items, ['ok']);
   });
+
+  test('mantem a ordenacao local ao acrescentar paginas', () async {
+    var calls = 0;
+    final pager = AdminPagedList<String>(
+      pageSize: 2,
+      comparator: (a, b) => a.compareTo(b),
+      loadPage: (_, _) async {
+        calls++;
+        return FirestorePage<String>(
+          items: calls == 1 ? const ['Marta', 'Ana'] : const ['Bruno'],
+          cursor: null,
+          hasMore: calls == 1,
+        );
+      },
+    );
+
+    await pager.loadMore();
+    expect(pager.items, ['Ana', 'Marta']);
+
+    await pager.loadMore();
+    expect(pager.items, ['Ana', 'Bruno', 'Marta']);
+  });
 }

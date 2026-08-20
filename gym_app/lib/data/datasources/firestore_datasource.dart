@@ -233,14 +233,18 @@ class FirestoreDataSource {
     return _firestore
         .collection(AppConstants.usersCollection)
         .where('role', isEqualTo: AppConstants.roleAluno)
-        .orderBy('nome')
-        .limit(100)
         .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
+        .map((snapshot) {
+          final alunos = snapshot.docs
               .map((doc) => UserModel.fromMap(doc.id, doc.data()))
-              .toList(),
-        );
+              .toList();
+          // Ordenar no cliente evita que esta leitura essencial dependa do
+          // índice composto `role + nome` estar já criado/ativo no Firestore.
+          alunos.sort(
+            (a, b) => a.nome.toLowerCase().compareTo(b.nome.toLowerCase()),
+          );
+          return alunos;
+        });
   }
 
   /// Lê uma página de alunos com cursor estável.
@@ -253,7 +257,6 @@ class FirestoreDataSource {
       Query<Map<String, dynamic>> query = _firestore
           .collection(AppConstants.usersCollection)
           .where('role', isEqualTo: AppConstants.roleAluno)
-          .orderBy('nome')
           .limit(pageSize);
       if (startAfter != null) query = query.startAfterDocument(startAfter);
       final snapshot = await query.get();

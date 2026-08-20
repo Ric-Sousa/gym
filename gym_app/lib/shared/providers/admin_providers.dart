@@ -29,7 +29,8 @@ class AdminPagedList<T> extends ChangeNotifier {
     DocumentSnapshot<Map<String, dynamic>>? cursor,
     int limit,
   )
-  _loadPage;
+  loadPage;
+  final Comparator<T>? comparator;
   final int pageSize;
 
   final List<T> items = <T>[];
@@ -38,14 +39,7 @@ class AdminPagedList<T> extends ChangeNotifier {
   bool isLoading = false;
   Object? error;
 
-  AdminPagedList({
-    required Future<FirestorePage<T>> Function(
-      DocumentSnapshot<Map<String, dynamic>>? cursor,
-      int limit,
-    )
-    loadPage,
-    this.pageSize = 25,
-  }) : _loadPage = loadPage;
+  AdminPagedList({required this.loadPage, this.comparator, this.pageSize = 25});
 
   Future<void> loadMore() async {
     if (isLoading || !hasMore) return;
@@ -53,8 +47,9 @@ class AdminPagedList<T> extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
-      final page = await _loadPage(_cursor, pageSize);
+      final page = await loadPage(_cursor, pageSize);
       items.addAll(page.items);
+      if (comparator != null) items.sort(comparator);
       _cursor = page.cursor;
       hasMore = page.hasMore && page.items.isNotEmpty;
     } catch (value) {
@@ -82,6 +77,8 @@ final adminStudentsPagerProvider =
         pageSize: 25,
         loadPage: (cursor, limit) =>
             source.getAlunosPage(startAfter: cursor, limit: limit),
+        comparator: (a, b) =>
+            a.nome.toLowerCase().compareTo(b.nome.toLowerCase()),
       );
       controller.loadMore();
       return controller;
