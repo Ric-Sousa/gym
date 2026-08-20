@@ -7450,9 +7450,19 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
               children: [
                 Icon(Icons.cloud_done_outlined, size: 13, color: colors.muted),
                 const SizedBox(width: 5),
-                Text(
-                  food.origem!,
-                  style: GoogleFonts.inter(color: colors.muted, fontSize: 10),
+                Expanded(
+                  child: Tooltip(
+                    message: food.origem!,
+                    child: Text(
+                      food.origem!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        color: colors.muted,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),

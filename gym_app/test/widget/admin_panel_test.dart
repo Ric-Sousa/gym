@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:gym_app/data/models/user_model.dart';
 import 'package:gym_app/data/models/booking_model.dart';
+import 'package:gym_app/data/models/food_model.dart';
 import 'package:gym_app/data/models/questionnaire_config_model.dart';
 import 'package:gym_app/features/auth/providers/auth_provider.dart';
 import 'package:gym_app/features/admin/screens/admin_panel_screen.dart';
@@ -27,8 +28,12 @@ void main() {
     when(() => mockFcm.dispose()).thenReturn(null);
   });
 
-  Future<void> _pumpLargeAdmin(WidgetTester tester) async {
-    tester.view.physicalSize = const Size(4800, 3600);
+  Future<void> _pumpLargeAdmin(
+    WidgetTester tester, {
+    Size viewport = const Size(4800, 3600),
+    AdminPagedList<FoodModel>? foodsPager,
+  }) async {
+    tester.view.physicalSize = viewport;
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -59,6 +64,8 @@ void main() {
           questionnaireConfigProvider.overrideWith(
             (ref) => Stream.value(QuestionnaireConfig.defaultConfig()),
           ),
+          if (foodsPager != null)
+            adminFoodsPagerProvider.overrideWith((ref) => foodsPager),
         ],
         child: const AdminPanelScreen(),
       ),
@@ -152,6 +159,45 @@ void main() {
     testWidgets('sidebar has Agenda navigation item', (tester) async {
       await _pumpLargeAdmin(tester);
       expect(find.text('Agenda'), findsOneWidget);
+    });
+
+    testWidgets('fonte longa do alimento não provoca overflow no cartão', (
+      tester,
+    ) async {
+      const source =
+          'Fonte: Base de Dados da Composição de Alimentos. Instituto Nacional de Saúde Doutor Ricardo Jorge, I. P. - INSA. v7.1 - 2026';
+      final foodsPager = AdminPagedList<FoodModel>(
+        loadPage: (_, __) async => const FirestorePage<FoodModel>(
+          items: [
+            FoodModel(
+              id: 'insa_v71_test',
+              nome: 'Abacate, Hass',
+              caloriasPor100g: 176,
+              proteinasPor100g: 1.1,
+              hidratosPor100g: 2.3,
+              gordurasPor100g: 17.4,
+              categoria: 'fruta',
+              origem: source,
+            ),
+          ],
+          cursor: null,
+          hasMore: false,
+        ),
+      );
+      await foodsPager.loadMore();
+
+      await _pumpLargeAdmin(
+        tester,
+        viewport: const Size(1500, 900),
+        foodsPager: foodsPager,
+      );
+      await tester.tap(find.text('Alimentos'));
+      await tester.pumpAndSettle();
+
+      final sourceText = tester.widget<Text>(find.text(source));
+      expect(sourceText.maxLines, 1);
+      expect(sourceText.overflow, TextOverflow.ellipsis);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('navigating to Agenda view renders AGENDA title', (
