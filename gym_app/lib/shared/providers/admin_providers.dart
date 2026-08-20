@@ -190,11 +190,15 @@ class AdminDashboardStats {
   });
 }
 
-final adminDashboardStatsProvider = StreamProvider<AdminDashboardStats>((ref) {
-  final firestore = FirebaseFirestore.instance;
-  final controller = StreamController<AdminDashboardStats>();
-  var alunos = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-  var aggregate = <String, dynamic>{};
+/// Calcula as métricas sem depender do estado dos listeners do Firestore.
+/// O agregado de sessões é opcional: enquanto ainda não existir ou não estiver
+/// acessível, as métricas de clientes continuam válidas e estáveis.
+AdminDashboardStats calculateAdminDashboardStats({
+  required Iterable<Map<String, dynamic>> alunos,
+  required Map<String, dynamic> aggregate,
+  DateTime? now,
+}) {
+  final referenceTime = now ?? DateTime.now();
 
   DateTime? asDate(dynamic value) {
     if (value is Timestamp) return value.toDate();
@@ -202,28 +206,47 @@ final adminDashboardStatsProvider = StreamProvider<AdminDashboardStats>((ref) {
     return value == null ? null : DateTime.tryParse(value.toString());
   }
 
+  final startOfMonth =
+      '${referenceTime.year}-${referenceTime.month.toString().padLeft(2, '0')}';
+  final alunoList = alunos.toList(growable: false);
+  final active = alunoList.where((data) {
+    final lastActivity = asDate(data['ultimaAtividade']);
+    return lastActivity != null &&
+        referenceTime.difference(lastActivity).inDays < 30;
+  }).length;
+  final sessionsByMonth = aggregate['sessionsByMonth'];
+  final monthSessions =
+      sessionsByMonth is Map && sessionsByMonth[startOfMonth] is num
+      ? (sessionsByMonth[startOfMonth] as num).toInt()
+      : 0;
+  final totalSessions = aggregate['sessoesTotal'];
+
+  return AdminDashboardStats(
+    totalAlunos: alunoList.length,
+    activeAlunos: active,
+    sessoesMes: monthSessions,
+    sessoesTotal: totalSessions is num ? totalSessions.toInt() : 0,
+  );
+}
+
+final adminDashboardStatsProvider = StreamProvider<AdminDashboardStats>((ref) {
+  final firestore = FirebaseFirestore.instance;
+  final controller = StreamController<AdminDashboardStats>();
+  var alunos = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+  var aggregate = <String, dynamic>{};
+  var usersLoaded = false;
+  var aggregateResolved = false;
+
   void emit() {
-    final now = DateTime.now();
-    final startOfMonth = '${now.year}-${now.month.toString().padLeft(2, '0')}';
-    final active = alunos.where((doc) {
-      final lastActivity = asDate(doc.data()['ultimaAtividade']);
-      return lastActivity != null && now.difference(lastActivity).inDays < 30;
-    }).length;
-    final sessionsByMonth = aggregate['sessionsByMonth'];
-    final monthSessions =
-        sessionsByMonth is Map && sessionsByMonth[startOfMonth] is num
-        ? (sessionsByMonth[startOfMonth] as num).toInt()
-        : 0;
-    if (!controller.isClosed) {
-      controller.add(
-        AdminDashboardStats(
-          totalAlunos: alunos.length,
-          activeAlunos: active,
-          sessoesMes: monthSessions,
-          sessoesTotal: (aggregate['sessoesTotal'] as num?)?.toInt() ?? 0,
-        ),
-      );
-    }
+    // O listener do agregado pode responder antes da query de utilizadores.
+    // Não emitir zeros transitórios evita que os cartões pisquem no arranque.
+    if (!usersLoaded || !aggregateResolved || controller.isClosed) return;
+    controller.add(
+      calculateAdminDashboardStats(
+        alunos: alunos.map((doc) => doc.data()),
+        aggregate: aggregate,
+      ),
+    );
   }
 
   final usersSubscription = firestore
@@ -233,6 +256,7 @@ final adminDashboardStatsProvider = StreamProvider<AdminDashboardStats>((ref) {
       .listen(
         (snapshot) {
           alunos = snapshot.docs;
+          usersLoaded = true;
           emit();
         },
         onError: (Object error, StackTrace stack) {
@@ -246,10 +270,16 @@ final adminDashboardStatsProvider = StreamProvider<AdminDashboardStats>((ref) {
       .listen(
         (snapshot) {
           aggregate = snapshot.data() ?? <String, dynamic>{};
+          aggregateResolved = true;
           emit();
         },
-        onError: (Object error, StackTrace stack) {
-          if (!controller.isClosed) controller.addError(error, stack);
+        onError: (Object error, StackTrace _) {
+          // O agregado é uma otimização materializada e não pode invalidar as
+          // métricas já carregadas. Mantemos o último valor conhecido (ou zero
+          // para sessões) e deixamos o listener do Firestore recuperar.
+          debugPrint('Falha ao atualizar o agregado do dashboard: $error');
+          aggregateResolved = true;
+          emit();
         },
       );
 

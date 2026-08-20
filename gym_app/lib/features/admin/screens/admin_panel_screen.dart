@@ -711,6 +711,9 @@ class _AdminDashboardState extends ConsumerState<_AdminDashboard> {
           ),
           const SizedBox(height: 24),
           statsAsync.when(
+            // Se uma atualização falhar depois de já termos dados, conserva os
+            // últimos números em vez de voltar aos cartões com "...".
+            skipError: true,
             data: (stats) => _buildStats(stats),
             loading: () => _buildStatsLoading(),
             error: (_, __) => _buildStatsLoading(),
