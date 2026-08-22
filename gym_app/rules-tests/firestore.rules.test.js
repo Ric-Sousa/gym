@@ -6,9 +6,13 @@ const {
   initializeTestEnvironment,
 } = require('@firebase/rules-unit-testing');
 const {
+  collection,
   doc,
+  getDocs,
   getDoc,
+  query,
   setDoc,
+  where,
   updateDoc,
   writeBatch,
   Timestamp,
@@ -176,6 +180,20 @@ describe('Firestore Rules — isolamento de chat direto', () => {
 
 describe('Firestore Rules — grupos', () => {
   beforeEach(seedBaseData);
+
+  test('a consulta do aluno devolve apenas grupos onde é membro', async () => {
+    const studentA = testEnv.authenticatedContext(STUDENT_A).firestore();
+    const groups = await assertSucceeds(
+      getDocs(
+        query(
+          collection(studentA, 'grupos'),
+          where('membros', 'array-contains', STUDENT_A),
+        ),
+      ),
+    );
+
+    expect(groups.docs.map((group) => group.id)).toEqual([GROUP_ID]);
+  });
 
   test('um membro não pode adicionar-se, remover membros ou alterar a composição', async () => {
     const studentA = testEnv.authenticatedContext(STUDENT_A).firestore();

@@ -1516,7 +1516,6 @@ class FirestoreDataSource {
     return _firestore
         .collection(AppConstants.agendaCollection)
         .where('studentId', isEqualTo: studentId)
-        .orderBy('data', descending: false)
         .snapshots()
         .map((snap) {
           final list = snap.docs
@@ -1533,7 +1532,6 @@ class FirestoreDataSource {
     return _firestore
         .collection(AppConstants.agendaCollection)
         .where('trainerId', isEqualTo: trainerId)
-        .orderBy('data', descending: false)
         .snapshots()
         .map((snap) {
           final list = snap.docs

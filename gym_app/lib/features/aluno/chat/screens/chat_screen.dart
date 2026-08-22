@@ -26,7 +26,6 @@ import '../../../../shared/utils/chat_attachment.dart';
 import '../../../../shared/utils/new_message_detector.dart';
 import 'group_chat_screen.dart';
 
-
 final chatMessagesProvider = StreamProvider.family<List<MessageModel>, String>((
   ref,
   salaId,
@@ -37,8 +36,11 @@ final chatMessagesProvider = StreamProvider.family<List<MessageModel>, String>((
 
 /// Provider estável dos grupos do aluno. Não criar providers dentro de build:
 /// cada rebuild recriava a consulta e podia entrar num ciclo de listeners.
-final alunoGroupsProvider =
-    StreamProvider.family<List<GroupModel>, String>((ref, userId) {
+final alunoGroupsProvider = StreamProvider.family<List<GroupModel>, String>((
+  ref,
+  userId,
+) {
+  if (userId.isEmpty) return Stream.value(const <GroupModel>[]);
   return ref.read(groupRepositoryProvider).watchMyGroups(userId);
 });
 
@@ -192,12 +194,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // Só escreve no Firestore uma vez ate ser limpo
     if (!_typingSent) {
       _typingSent = true;
-      ref.read(chatRepositoryProvider).setTypingStatus(
-        salaId,
-        userId,
-        true,
-        participantIds: _directParticipantIds(userId),
-      );
+      ref
+          .read(chatRepositoryProvider)
+          .setTypingStatus(
+            salaId,
+            userId,
+            true,
+            participantIds: _directParticipantIds(userId),
+          );
     }
 
     // Após 2.5s sem teclar, limpa o indicador
@@ -269,12 +273,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       }
     }
     try {
-      await ref.read(chatRepositoryProvider).markMessagesAsRead(
-        salaId,
-        userId,
-        readAt,
-        persistConversationCursor: isAdmin,
-      );
+      await ref
+          .read(chatRepositoryProvider)
+          .markMessagesAsRead(
+            salaId,
+            userId,
+            readAt,
+            persistConversationCursor: isAdmin,
+          );
     } catch (_) {
       if (_lastRequestedDirectReadAt == readAt) {
         _lastRequestedDirectReadAt = null;
@@ -368,11 +374,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               onTap: partnerPhoto == null || partnerPhoto.trim().isEmpty
                   ? null
                   : () => showProfilePhotoViewer(
-                        context: context,
-                        photoUrl: partnerPhoto,
-                        name: otherName,
-                        accentColor: StudentThemeColors.of(context).primary,
-                      ),
+                      context: context,
+                      photoUrl: partnerPhoto,
+                      name: otherName,
+                      accentColor: StudentThemeColors.of(context).primary,
+                    ),
               child: StorageAvatar(
                 resource: partnerPhoto,
                 radius: 16,
@@ -743,9 +749,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ),
               ),
               const SizedBox(height: 8),
-              ScrollReveal(
-                child: _buildPTChatTile(personalId),
-              ),
+              ScrollReveal(child: _buildPTChatTile(personalId)),
               const SizedBox(height: 24),
             ],
             // ── Grupos ──
@@ -843,9 +847,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   ),
                 ),
               ),
-              error: (_, __) => _buildEmptyGroupsState(
-                message: 'Não existem grupos disponíveis.',
-              ),
+              error: (error, __) {
+                debugPrint('Erro ao carregar grupos do aluno: $error');
+                return _buildEmptyGroupsState(
+                  message: 'Não foi possível carregar os grupos.',
+                  onRetry: () => ref.invalidate(alunoGroupsProvider(userId)),
+                );
+              },
             ),
             if (!hasPT) ...[
               const SizedBox(height: 24),
@@ -886,7 +894,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 
-  Widget _buildEmptyGroupsState({required String message}) {
+  Widget _buildEmptyGroupsState({
+    required String message,
+    VoidCallback? onRetry,
+  }) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -913,13 +924,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           ),
           const SizedBox(height: 4),
           Text(
-            'O teu PT pode criar grupos para troca de horários.',
+            onRetry == null
+                ? 'O teu PT pode criar grupos para troca de horários.'
+                : 'Verifica a ligação e tenta novamente.',
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
               fontSize: 11,
               color: AppColors.textSecondary.withValues(alpha: 0.6),
             ),
           ),
+          if (onRetry != null) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: const Text('Tentar novamente'),
+            ),
+          ],
         ],
       ),
     );
@@ -927,10 +948,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   Widget _buildPTChatTile(String personalId) {
     final userId = ref.watch(authProvider).user?.uid ?? '';
-    final roomId = ref.read(chatRepositoryProvider).getChatRoomId(
-      userId,
-      personalId,
-    );
+    final roomId = ref
+        .read(chatRepositoryProvider)
+        .getChatRoomId(userId, personalId);
     final messagesAsync = ref.watch(chatMessagesProvider(roomId));
     final unreadCount = countUnreadMessages(
       messagesAsync.asData?.value ?? const <MessageModel>[],
@@ -1063,136 +1083,142 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   Widget _groupTile(GroupModel group) {
-    final userId = ref.watch(authProvider).user?.uid ?? '';
-    final messagesAsync = ref.watch(groupMessagesStreamProvider(group.id));
-    final unreadCount = countUnreadMessages(
-      messagesAsync.asData?.value ?? const <MessageModel>[],
-      userId,
-      readAt: group.lastReadAtByUser[userId],
-    );
-    final hasUnread = unreadCount > 0;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) =>
-                  GroupChatScreen(group: group, trackChatPresence: false),
-            ),
-          ),
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: hasUnread
-                    ? StudentThemeColors.of(context).primary.withValues(alpha: 0.45)
-                    : AppColors.outline,
+    return Consumer(
+      builder: (context, ref, child) {
+        final userId = ref.watch(authProvider).user?.uid ?? '';
+        final messagesAsync = ref.watch(groupMessagesStreamProvider(group.id));
+        final unreadCount = countUnreadMessages(
+          messagesAsync.asData?.value ?? const <MessageModel>[],
+          userId,
+          readAt: group.lastReadAtByUser[userId],
+        );
+        final hasUnread = unreadCount > 0;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Material(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      GroupChatScreen(group: group, trackChatPresence: false),
+                ),
               ),
-            ),
-            child: Row(
-              children: [
-                Stack(
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: hasUnread
+                        ? StudentThemeColors.of(
+                            context,
+                          ).primary.withValues(alpha: 0.45)
+                        : AppColors.outline,
+                  ),
+                ),
+                child: Row(
                   children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: StudentThemeColors.of(
-                          context,
-                        ).primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(
-                        Icons.group,
-                        color: StudentThemeColors.of(context).primary,
-                        size: 22,
-                      ),
-                    ),
-                    if (hasUnread)
-                      Positioned(
-                        top: -1,
-                        right: -1,
-                        child: Container(
-                          width: 14,
-                          height: 14,
+                    Stack(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
                           decoration: BoxDecoration(
+                            color: StudentThemeColors.of(
+                              context,
+                            ).primary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.group,
                             color: StudentThemeColors.of(context).primary,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: AppColors.surface,
-                              width: 2,
-                            ),
+                            size: 22,
                           ),
                         ),
+                        if (hasUnread)
+                          Positioned(
+                            top: -1,
+                            right: -1,
+                            child: Container(
+                              width: 14,
+                              height: 14,
+                              decoration: BoxDecoration(
+                                color: StudentThemeColors.of(context).primary,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: AppColors.surface,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            group.nome,
+                            style: GoogleFonts.inter(
+                              fontWeight: hasUnread
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                              fontSize: 14,
+                              color: AppColors.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          GroupMembersPreview(
+                            group: group,
+                            textColor: AppColors.onSurface,
+                            mutedColor: AppColors.textSecondary,
+                            accentColor: StudentThemeColors.of(context).primary,
+                            compact: true,
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            _newMessagesLabel(unreadCount),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: hasUnread
+                                  ? FontWeight.w700
+                                  : FontWeight.w400,
+                              color: hasUnread
+                                  ? StudentThemeColors.of(context).primary
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
                       ),
+                    ),
+                    if (group.lastTimestamp != null)
+                      Text(
+                        _formatGroupTime(group.lastTimestamp!),
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          color: AppColors.textSecondary.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textSecondary,
+                      size: 20,
+                    ),
                   ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        group.nome,
-                        style: GoogleFonts.inter(
-                          fontWeight: hasUnread
-                              ? FontWeight.w800
-                              : FontWeight.w600,
-                          fontSize: 14,
-                          color: AppColors.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      GroupMembersPreview(
-                        group: group,
-                        textColor: AppColors.onSurface,
-                        mutedColor: AppColors.textSecondary,
-                        accentColor: StudentThemeColors.of(context).primary,
-                        compact: true,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        _newMessagesLabel(unreadCount),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: hasUnread
-                              ? FontWeight.w700
-                              : FontWeight.w400,
-                          color: hasUnread
-                              ? StudentThemeColors.of(context).primary
-                              : AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (group.lastTimestamp != null)
-                  Text(
-                    _formatGroupTime(group.lastTimestamp!),
-                    style: GoogleFonts.inter(
-                      fontSize: 10,
-                      color: AppColors.textSecondary.withValues(alpha: 0.6),
-                    ),
-                  ),
-                const SizedBox(width: 4),
-                const Icon(
-                  Icons.chevron_right,
-                  color: AppColors.textSecondary,
-                  size: 20,
-                ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -1217,10 +1243,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         maxWidth: 1800,
       );
       if (file == null) return;
-      await ref.read(chatRepositoryProvider).ensureChatRoom(
-        salaId,
-        participants,
-      );
+      await ref
+          .read(chatRepositoryProvider)
+          .ensureChatRoom(salaId, participants);
       final message = await createUploadedImageMessage(
         storage: ref.read(storageDataSourceProvider),
         senderId: userId,
@@ -1228,11 +1253,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         file: file,
       );
       uploadedMessage = message;
-      await ref.read(chatRepositoryProvider).sendMessage(
-        salaId,
-        message,
-        participantIds: participants,
-      );
+      await ref
+          .read(chatRepositoryProvider)
+          .sendMessage(salaId, message, participantIds: participants);
       // A trigger notifica anexos após a mensagem ser persistida.
     } catch (error) {
       await cleanupUploadedMessage(
@@ -1259,10 +1282,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (participants == null) return;
     MessageModel? uploadedMessage;
     try {
-      await ref.read(chatRepositoryProvider).ensureChatRoom(
-        salaId,
-        participants,
-      );
+      await ref
+          .read(chatRepositoryProvider)
+          .ensureChatRoom(salaId, participants);
       final message = await createUploadedAudioMessage(
         storage: ref.read(storageDataSourceProvider),
         senderId: userId,
@@ -1270,11 +1292,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         audio: audio,
       );
       uploadedMessage = message;
-      await ref.read(chatRepositoryProvider).sendMessage(
-        salaId,
-        message,
-        participantIds: participants,
-      );
+      await ref
+          .read(chatRepositoryProvider)
+          .sendMessage(salaId, message, participantIds: participants);
       // A trigger notifica áudio após a mensagem ser persistida.
     } catch (error) {
       await cleanupUploadedMessage(
@@ -1305,17 +1325,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
 
     try {
-      await ref.read(chatRepositoryProvider).sendMessage(
-        salaId,
-        message,
-        participantIds: participants,
-      );
+      await ref
+          .read(chatRepositoryProvider)
+          .sendMessage(salaId, message, participantIds: participants);
       _typingDebounce?.cancel();
       _clearTypingStatus();
       _textController.clear();
       _scrollToBottom();
       // A trigger notifyChatMessageCreated notifica a mensagem efetivamente persistida.
-
     } catch (e) {
       debugPrint('❌ Erro ao enviar mensagem: $e');
       if (mounted) {
@@ -1327,7 +1344,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       }
     }
   }
-
 }
 
 class _MessageBubble extends StatelessWidget {
@@ -1442,9 +1458,10 @@ class _MessageBubble extends StatelessWidget {
                       else if (message.isAttachment)
                         Builder(
                           builder: (context) {
-                            final imageWidth = (MediaQuery.sizeOf(context).width * 0.52)
-                                .clamp(140.0, 210.0)
-                                .toDouble();
+                            final imageWidth =
+                                (MediaQuery.sizeOf(context).width * 0.52)
+                                    .clamp(140.0, 210.0)
+                                    .toDouble();
                             final imageHeight = imageWidth * 0.81;
                             return ClipRRect(
                               borderRadius: BorderRadius.circular(10),

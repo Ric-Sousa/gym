@@ -19,6 +19,7 @@ import '../../data/models/questionnaire_config_model.dart';
 import '../../core/config/app_constants.dart';
 import '../../core/config/admin_theme.dart';
 import '../../data/repositories/workout_repository.dart';
+import '../../features/auth/providers/auth_provider.dart';
 import 'global_providers.dart';
 
 // ─── Cursor pagination ───────────────────────────────────────────
@@ -229,7 +230,12 @@ AdminDashboardStats calculateAdminDashboardStats({
   );
 }
 
-final adminDashboardStatsProvider = StreamProvider<AdminDashboardStats>((ref) {
+final adminDashboardStatsProvider = StreamProvider.autoDispose<AdminDashboardStats>((
+  ref,
+) {
+  final isAdmin = ref.watch(authProvider.select((state) => state.isAdmin));
+  if (!isAdmin) return const Stream.empty();
+
   final firestore = FirebaseFirestore.instance;
   final controller = StreamController<AdminDashboardStats>();
   var alunos = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
