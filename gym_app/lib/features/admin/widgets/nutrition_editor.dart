@@ -24,6 +24,9 @@ class NutritionEditor extends ConsumerStatefulWidget {
 
 class _NutritionEditorState extends ConsumerState<NutritionEditor> {
   static const _readDay = 'Segunda-feira';
+  final Set<String> _animatingFoods = <String>{};
+  List<FoodModel>? _availableFoods;
+  Future<List<FoodModel>>? _availableFoodsFuture;
 
   @override
   Widget build(BuildContext context) {
@@ -447,77 +450,10 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
                       )
                     else
                       ...meal.alimentos.map(
-                        (food) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 7),
-                          child: Column(
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.circle,
-                                    size: 7,
-                                    color: colors.lime,
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      food.nome,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: GoogleFonts.inter(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                        color: colors.text,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    food.quantidade,
-                                    style: GoogleFonts.montserrat(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w800,
-                                      color: colors.lime,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    '${food.calorias.toStringAsFixed(0)} kcal',
-                                    style: GoogleFonts.montserrat(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: colors.muted,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: Wrap(
-                                  spacing: 6,
-                                  runSpacing: 5,
-                                  children: [
-                                    _macroBadge(
-                                      'Proteína',
-                                      food.proteinas,
-                                      colors.blue,
-                                    ),
-                                    _macroBadge(
-                                      'Carboidratos',
-                                      food.hidratos,
-                                      colors.orange,
-                                    ),
-                                    _macroBadge(
-                                      'Gordura',
-                                      food.gorduras,
-                                      colors.purple,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
+                        (food) => _animatedFoodRow(
+                          plan: plan,
+                          meal: meal,
+                          food: food,
                         ),
                       ),
                     Align(
@@ -530,7 +466,7 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
                           color: colors.lime,
                         ),
                         label: Text(
-                          'Adicionar alimento da base de dados',
+                          'Adicionar alimento',
                           style: GoogleFonts.inter(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -544,6 +480,111 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
                           ),
                         ),
                       ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _animatedFoodRow({
+    required NutritionPlanModel plan,
+    required PlannedMeal meal,
+    required Alimento food,
+  }) {
+    final key = '${meal.tipo}:${food.nome}:${food.quantidade}:${food.calorias}';
+    return AnimatedSize(
+      key: ValueKey(key),
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+      child: AnimatedOpacity(
+        opacity: _animatingFoods.contains(key) ? 0 : 1,
+        duration: const Duration(milliseconds: 180),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 7),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.circle,
+                    size: 7,
+                    color: AdminThemeColors.of(context).lime,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      food.nome,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AdminThemeColors.of(context).text,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    food.quantidade,
+                    style: GoogleFonts.montserrat(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: AdminThemeColors.of(context).lime,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${food.calorias.toStringAsFixed(0)} kcal',
+                    style: GoogleFonts.montserrat(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: AdminThemeColors.of(context).muted,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () =>
+                        _removeAlimentoFromMeal(plan, meal.tipo, food),
+                    tooltip: 'Remover alimento',
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                    icon: Icon(
+                      Icons.close_rounded,
+                      size: 17,
+                      color: AdminThemeColors.of(context).muted,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 5,
+                  children: [
+                    _macroBadge(
+                      'Proteína',
+                      food.proteinas,
+                      AdminThemeColors.of(context).blue,
+                    ),
+                    _macroBadge(
+                      'Carboidratos',
+                      food.hidratos,
+                      AdminThemeColors.of(context).orange,
+                    ),
+                    _macroBadge(
+                      'Gordura',
+                      food.gorduras,
+                      AdminThemeColors.of(context).purple,
                     ),
                   ],
                 ),
@@ -902,7 +943,16 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
   ) async {
     List<FoodModel> foods;
     try {
-      foods = await ref.read(nutritionRepositoryProvider).getAvailableFoods();
+      final cachedFoods = _availableFoods;
+      if (cachedFoods != null) {
+        foods = cachedFoods;
+      } else {
+        final future = _availableFoodsFuture ??= ref
+            .read(nutritionRepositoryProvider)
+            .getAvailableFoods();
+        foods = await future;
+        _availableFoods = foods;
+      }
     } catch (_) {
       if (mounted) {
         showAppNotification(
@@ -1016,19 +1066,46 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
                         );
                         return;
                       }
-                      final matches = await ref
-                          .read(nutritionRepositoryProvider)
-                          .searchFoods(trimmed);
+                      final matches = (await _loadAvailableFoods())
+                          .where(
+                            (food) => food.nome.toLowerCase().contains(
+                              trimmed.toLowerCase(),
+                            ),
+                          )
+                          .toList();
                       if (ctx.mounted) {
                         setDialogState(() => visibleFoods = matches);
                       }
                     },
-                    style: GoogleFonts.inter(color: colors.text),
+                    style: GoogleFonts.inter(
+                      color: colors.text,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
                     decoration: InputDecoration(
                       hintText: 'Ex.: peito de frango, arroz...',
+                      hintStyle: GoogleFonts.inter(
+                        color: colors.muted,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
                       prefixIcon: Icon(
                         Icons.search_rounded,
-                        color: colors.muted,
+                        color: colors.lime,
+                      ),
+                      filled: true,
+                      fillColor: colors.surface2,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 16,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(color: colors.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(color: colors.lime, width: 2),
                       ),
                     ),
                   ),
@@ -1064,15 +1141,35 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
                     ),
                     style: GoogleFonts.montserrat(
                       color: colors.text,
-                      fontSize: 20,
+                      fontSize: 24,
                       fontWeight: FontWeight.w800,
                     ),
                     decoration: InputDecoration(
                       hintText: '100',
+                      hintStyle: GoogleFonts.montserrat(
+                        color: colors.muted,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w700,
+                      ),
                       suffixText: 'g',
-                      suffixStyle: GoogleFonts.inter(
+                      suffixStyle: GoogleFonts.montserrat(
                         color: colors.lime,
+                        fontSize: 18,
                         fontWeight: FontWeight.w800,
+                      ),
+                      filled: true,
+                      fillColor: colors.surface2,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 15,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(color: colors.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(color: colors.lime, width: 2),
                       ),
                       prefixIcon: Icon(
                         Icons.scale_outlined,
@@ -1149,6 +1246,41 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
         )
         .toList();
     await _saveToAllDays({'refeicoes': updated.map((m) => m.toMap()).toList()});
+  }
+
+  Future<List<FoodModel>> _loadAvailableFoods() async {
+    final cachedFoods = _availableFoods;
+    if (cachedFoods != null) return cachedFoods;
+    final future = _availableFoodsFuture ??= ref
+        .read(nutritionRepositoryProvider)
+        .getAvailableFoods();
+    final foods = await future;
+    _availableFoods = foods;
+    return foods;
+  }
+
+  Future<void> _removeAlimentoFromMeal(
+    NutritionPlanModel plan,
+    String mealTipo,
+    Alimento alimento,
+  ) async {
+    final key =
+        '${mealTipo}:${alimento.nome}:${alimento.quantidade}:${alimento.calorias}';
+    if (mounted) setState(() => _animatingFoods.add(key));
+    await Future<void>.delayed(const Duration(milliseconds: 220));
+    final updated = plan.refeicoes
+        .map(
+          (meal) => meal.tipo == mealTipo
+              ? PlannedMeal(
+                  tipo: meal.tipo,
+                  alimentos: [...meal.alimentos]..remove(alimento),
+                  instrucoes: meal.instrucoes,
+                )
+              : meal,
+        )
+        .toList();
+    await _saveToAllDays({'refeicoes': updated.map((m) => m.toMap()).toList()});
+    if (mounted) setState(() => _animatingFoods.remove(key));
   }
 
   Future<void> _addMeal(NutritionPlanModel plan) async {

@@ -1585,7 +1585,8 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
   List<UserModel> _filteredClients(List<UserModel> alunos) {
     final search = _search.trim().toLowerCase();
     return alunos.where((aluno) {
-      final matchesSearch = search.isEmpty ||
+      final matchesSearch =
+          search.isEmpty ||
           aluno.nome.toLowerCase().contains(search) ||
           aluno.email.toLowerCase().contains(search);
       final matchesFilter = switch (_filter) {
@@ -6975,8 +6976,8 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
   List<FoodModel> _filteredFoods(List<FoodModel> foods) {
     final query = _search.trim().toLowerCase();
     final filtered = foods.where((food) {
-      final matchesQuery = query.isEmpty ||
-          food.nome.toLowerCase().contains(query);
+      final matchesQuery =
+          query.isEmpty || food.nome.toLowerCase().contains(query);
       if (!matchesQuery) return false;
       if (_category == 'all') return true;
       return food.categoria?.trim().toLowerCase() == _category;
@@ -7380,7 +7381,20 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
+              IconButton(
+                onPressed: () => _confirmDeleteFood(food),
+                tooltip: 'Remover alimento',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                icon: Icon(
+                  Icons.delete_outline_rounded,
+                  size: 18,
+                  color: colors.muted,
+                ),
+              ),
+              const SizedBox(width: 2),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                 decoration: BoxDecoration(
@@ -7503,6 +7517,70 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
         ],
       ),
     );
+  }
+
+  Future<void> _confirmDeleteFood(FoodModel food) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AdminResponsiveAlertDialog(
+        backgroundColor: AdminThemeColors.of(context).surface,
+        title: Text(
+          'Remover alimento?',
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w700,
+            color: AdminThemeColors.of(context).text,
+          ),
+        ),
+        content: Text(
+          'O alimento "${food.nome}" será removido da biblioteca. Os planos existentes não serão alterados.',
+          style: GoogleFonts.inter(color: AdminThemeColors.of(context).muted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Cancelar',
+              style: GoogleFonts.inter(
+                color: AdminThemeColors.of(context).muted,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text(
+              'Remover',
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || food.id.isEmpty) return;
+
+    try {
+      await ref.read(nutritionRepositoryProvider).deleteFood(food.id);
+      ref.invalidate(adminFoodsProvider);
+      await ref.read(adminFoodsPagerProvider).refresh();
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Alimento removido.',
+          type: NotificationType.success,
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        showAppNotification(
+          context,
+          'Não foi possível remover o alimento.',
+          type: NotificationType.error,
+        );
+      }
+    }
   }
 
   Future<void> _showAddFoodDialog() async {

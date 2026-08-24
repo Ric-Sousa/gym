@@ -107,4 +107,13 @@ class NutritionRepository {
       throw ServerFailure(message: e.message);
     }
   }
+
+  /// Remove alimento da base de dados.
+  Future<void> deleteFood(String foodId) async {
+    try {
+      await _firestoreDataSource.deleteFood(foodId);
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
+  }
 }

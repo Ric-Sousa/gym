@@ -605,117 +605,127 @@ class _AlunoHomeScreenState extends ConsumerState<AlunoHomeScreen> {
                                     ),
                                     const SizedBox(height: 12),
                                     ...notifications.map(
-                                      (notification) => Container(
-                                        margin: const EdgeInsets.only(
-                                          bottom: 10,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: notification.read
-                                              ? AppColors.surfaceHigh
-                                                    .withValues(alpha: 0.58)
-                                              : StudentThemeColors.of(context)
-                                                    .primary
-                                                    .withValues(alpha: 0.10),
-                                          borderRadius: BorderRadius.circular(
-                                            16,
-                                          ),
-                                          border: Border.all(
-                                            color: notification.read
-                                                ? Colors.transparent
-                                                : StudentThemeColors.of(context)
-                                                      .primary
-                                                      .withValues(alpha: 0.35),
-                                          ),
-                                        ),
-                                        child: ListTile(
-                                          contentPadding:
-                                              const EdgeInsets.fromLTRB(
-                                                12,
-                                                8,
-                                                10,
-                                                8,
-                                              ),
-                                          onTap: () => _openNotification(
-                                            userId,
-                                            notification,
-                                          ),
-                                          leading: CircleAvatar(
-                                            backgroundColor:
-                                                StudentThemeColors.of(
-                                                  context,
-                                                ).primaryContainer,
-                                            child: Icon(
-                                              _notificationIcon(
-                                                notification.type,
-                                              ),
-                                              color: StudentThemeColors.of(
+                                      (notification) => Material(
+                                        color: notification.read
+                                            ? AppColors.surfaceHigh.withValues(
+                                                alpha: 0.58,
+                                              )
+                                            : StudentThemeColors.of(
                                                 context,
-                                              ).primary,
+                                              ).primary.withValues(alpha: 0.10),
+                                        borderRadius: BorderRadius.circular(16),
+                                        clipBehavior: Clip.antiAlias,
+                                        child: Container(
+                                          margin: const EdgeInsets.only(
+                                            bottom: 10,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(
+                                              16,
+                                            ),
+                                            border: Border.all(
+                                              color: notification.read
+                                                  ? Colors.transparent
+                                                  : StudentThemeColors.of(
+                                                      context,
+                                                    ).primary.withValues(
+                                                      alpha: 0.35,
+                                                    ),
                                             ),
                                           ),
-                                          title: Text(
-                                            notification.title,
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: GoogleFonts.inter(
-                                              fontWeight: notification.read
-                                                  ? FontWeight.w600
-                                                  : FontWeight.w800,
-                                              color: AppColors.onSurface,
+                                          child: ListTile(
+                                            contentPadding:
+                                                const EdgeInsets.fromLTRB(
+                                                  12,
+                                                  8,
+                                                  10,
+                                                  8,
+                                                ),
+                                            onTap: () => _openNotification(
+                                              userId,
+                                              notification,
                                             ),
-                                          ),
-                                          subtitle: Padding(
-                                            padding: const EdgeInsets.only(
-                                              top: 5,
+                                            leading: CircleAvatar(
+                                              backgroundColor:
+                                                  StudentThemeColors.of(
+                                                    context,
+                                                  ).primaryContainer,
+                                              child: Icon(
+                                                _notificationIcon(
+                                                  notification.type,
+                                                ),
+                                                color: StudentThemeColors.of(
+                                                  context,
+                                                ).primary,
+                                              ),
                                             ),
-                                            child: Text(
-                                              notification.body,
-                                              maxLines: 3,
+                                            title: Text(
+                                              notification.title,
+                                              maxLines: 2,
                                               overflow: TextOverflow.ellipsis,
                                               style: GoogleFonts.inter(
-                                                color: AppColors.textSecondary,
-                                                fontSize: 12,
-                                                height: 1.35,
+                                                fontWeight: notification.read
+                                                    ? FontWeight.w600
+                                                    : FontWeight.w800,
+                                                color: AppColors.onSurface,
                                               ),
                                             ),
-                                          ),
-                                          trailing: Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.center,
-                                            children: [
-                                              if (notification.unreadCount > 1)
-                                                Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 7,
-                                                        vertical: 3,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color:
-                                                        StudentThemeColors.of(
-                                                          context,
-                                                        ).primary,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          10,
+                                            subtitle: Padding(
+                                              padding: const EdgeInsets.only(
+                                                top: 5,
+                                              ),
+                                              child: Text(
+                                                notification.body,
+                                                maxLines: 3,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: GoogleFonts.inter(
+                                                  color:
+                                                      AppColors.textSecondary,
+                                                  fontSize: 12,
+                                                  height: 1.35,
+                                                ),
+                                              ),
+                                            ),
+                                            trailing: Column(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                if (notification.unreadCount >
+                                                    1)
+                                                  Container(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          horizontal: 7,
+                                                          vertical: 3,
                                                         ),
-                                                  ),
-                                                  child: Text(
-                                                    '${notification.unreadCount}',
-                                                    style: GoogleFonts.inter(
-                                                      color: Colors.white,
-                                                      fontSize: 10,
-                                                      fontWeight:
-                                                          FontWeight.w800,
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          StudentThemeColors.of(
+                                                            context,
+                                                          ).primary,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            10,
+                                                          ),
+                                                    ),
+                                                    child: Text(
+                                                      '${notification.unreadCount}',
+                                                      style: GoogleFonts.inter(
+                                                        color: Colors.white,
+                                                        fontSize: 10,
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                      ),
                                                     ),
                                                   ),
+                                                const SizedBox(height: 4),
+                                                const Icon(
+                                                  Icons.chevron_right_rounded,
+                                                  color:
+                                                      AppColors.textSecondary,
                                                 ),
-                                              const SizedBox(height: 4),
-                                              const Icon(
-                                                Icons.chevron_right_rounded,
-                                                color: AppColors.textSecondary,
-                                              ),
-                                            ],
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ),

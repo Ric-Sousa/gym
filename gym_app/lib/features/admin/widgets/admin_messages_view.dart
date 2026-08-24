@@ -576,12 +576,14 @@ String _adminMessagesLabel(int count) {
 /// Diálogo para criar um novo grupo.
 Future<void> showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
   final nomeCtrl = TextEditingController();
-  // Aguarda os alunos do Firestore — o FutureProvider inline não bloqueava
+  // O stream dos alunos já está ativo no painel; reutilizá-lo evita uma leitura
+  // adicional e permite abrir o modal imediatamente.
   List<UserModel> alunos;
   try {
     alunos = await ref.read(userRepositoryProvider).getAllAlunos();
-  } catch (_) {
-    alunos = []; // fallback se Firestore falhar
+  } catch (error) {
+    debugPrint('[groups] erro ao carregar alunos para criação: $error');
+    alunos = const <UserModel>[];
   }
   final selectedIds = <String>{};
 
@@ -591,18 +593,46 @@ Future<void> showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
       builder: (ctx, setDialogState) => AdminResponsiveAlertDialog(
         backgroundColor: AdminThemeColors.of(context).surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          'Criar Grupo',
-          style: GoogleFonts.inter(
-            fontWeight: FontWeight.w700,
-            color: AdminThemeColors.of(context).text,
-          ),
+        title: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: AdminThemeColors.of(context).limeDim,
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(
+                Icons.groups_rounded,
+                color: AdminThemeColors.of(context).lime,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Criar grupo',
+                style: GoogleFonts.inter(
+                  fontWeight: FontWeight.w800,
+                  color: AdminThemeColors.of(context).text,
+                ),
+              ),
+            ),
+          ],
         ),
         content: SizedBox(
           width: double.infinity,
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Text(
+                'Cria um espaço para os teus alunos comunicarem.',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: AdminThemeColors.of(context).muted,
+                ),
+              ),
+              const SizedBox(height: 18),
               TextField(
                 controller: nomeCtrl,
                 style: GoogleFonts.inter(
@@ -616,21 +646,58 @@ Future<void> showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
                   ),
                   filled: true,
                   fillColor: AdminThemeColors.of(context).bg,
+                  prefixIcon: Icon(
+                    Icons.edit_rounded,
+                    color: AdminThemeColors.of(context).lime,
+                    size: 19,
+                  ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(13),
                     borderSide: BorderSide(
                       color: AdminThemeColors.of(context).border,
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(13),
+                    borderSide: BorderSide(
+                      color: AdminThemeColors.of(context).border,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(13),
+                    borderSide: BorderSide(
+                      color: AdminThemeColors.of(context).lime,
+                      width: 1.5,
                     ),
                   ),
                 ),
               ),
               const SizedBox(height: 12),
-              Text(
-                'Seleciona os membros:',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  color: AdminThemeColors.of(context).muted,
-                ),
+              Row(
+                children: [
+                  Icon(
+                    Icons.people_alt_outlined,
+                    size: 18,
+                    color: AdminThemeColors.of(context).lime,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Seleciona os membros',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AdminThemeColors.of(context).text,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${selectedIds.length} selecionado(s)',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AdminThemeColors.of(context).muted,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
               if (alunos.isEmpty)
@@ -641,9 +708,17 @@ Future<void> showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
                   ),
                 )
               else
-                SizedBox(
-                  height: 200,
+                Container(
+                  height: 210,
+                  decoration: BoxDecoration(
+                    color: AdminThemeColors.of(context).bg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: AdminThemeColors.of(context).border,
+                    ),
+                  ),
                   child: ListView(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
                     shrinkWrap: true,
                     children: alunos
                         .map(
@@ -700,6 +775,9 @@ Future<void> showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
                       );
                       final adminUser = ref.read(authProvider).user;
                       final adminPhoto = adminUser?.fotoPerfil;
+                      debugPrint(
+                        '[groups] criar grupo: admin=${FirebaseAuth.instance.currentUser?.uid}, membros=${selectedIds.join(',')}',
+                      );
                       await ref.read(groupRepositoryProvider).createGroup({
                         'nome': nomeCtrl.text.trim(),
                         'membros': selectedIds.toList(),

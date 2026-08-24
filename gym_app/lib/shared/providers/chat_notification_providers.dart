@@ -72,22 +72,25 @@ final stableAlunoChatNotificationProvider =
             .doc(roomId)
             .collection(AppConstants.messagesSubcollection)
             .snapshots()
-            .listen((snapshot) {
-              if (initial) {
-                initial = false;
-                seenIds.addAll(snapshot.docs.map((doc) => doc.id));
-                return;
-              }
-              for (final change in snapshot.docChanges) {
-                if (change.type == DocumentChangeType.added &&
-                    seenIds.add(change.doc.id)) {
-                  emit(change.doc);
+            .listen(
+              (snapshot) {
+                if (initial) {
+                  initial = false;
+                  seenIds.addAll(snapshot.docs.map((doc) => doc.id));
+                  return;
                 }
-              }
-            }, onError: (_) {
-              // O SDK do Firestore gere a reconexão de listeners. Não
-              // reiniciar manualmente em loop quando há erro de rede/permissão.
-            });
+                for (final change in snapshot.docChanges) {
+                  if (change.type == DocumentChangeType.added &&
+                      seenIds.add(change.doc.id)) {
+                    emit(change.doc);
+                  }
+                }
+              },
+              onError: (_) {
+                // O SDK do Firestore gere a reconexão de listeners. Não
+                // reiniciar manualmente em loop quando há erro de rede/permissão.
+              },
+            );
       };
 
       start();
@@ -198,25 +201,28 @@ final stableAlunoGroupNotificationProvider =
             .collection(AppConstants.groupsCollection)
             .where('membros', arrayContains: userId)
             .snapshots()
-            .listen((snapshot) {
-              final currentIds = snapshot.docs.map((doc) => doc.id).toSet();
-              if (groupsInitial) {
-                initialGroupIds.addAll(currentIds);
-                groupsInitial = false;
-              }
-              for (final oldId in subscriptions.keys.toList()) {
-                if (!currentIds.contains(oldId)) {
-                  subscriptions.remove(oldId)?.cancel();
-                  seenIdsByGroup.remove(oldId);
+            .listen(
+              (snapshot) {
+                final currentIds = snapshot.docs.map((doc) => doc.id).toSet();
+                if (groupsInitial) {
+                  initialGroupIds.addAll(currentIds);
+                  groupsInitial = false;
                 }
-              }
-              for (final groupId in currentIds) {
-                watchGroup(groupId);
-              }
-            }, onError: (_) {
-              // O SDK do Firestore gere a reconexão de listeners. Não
-              // reiniciar manualmente em loop quando há erro de rede/permissão.
-            });
+                for (final oldId in subscriptions.keys.toList()) {
+                  if (!currentIds.contains(oldId)) {
+                    subscriptions.remove(oldId)?.cancel();
+                    seenIdsByGroup.remove(oldId);
+                  }
+                }
+                for (final groupId in currentIds) {
+                  watchGroup(groupId);
+                }
+              },
+              onError: (_) {
+                // O SDK do Firestore gere a reconexão de listeners. Não
+                // reiniciar manualmente em loop quando há erro de rede/permissão.
+              },
+            );
       };
 
       start();
@@ -254,43 +260,46 @@ final stableAdminChatNotificationProvider =
             .where(FieldPath.documentId, isGreaterThanOrEqualTo: 'chat_')
             .where(FieldPath.documentId, isLessThanOrEqualTo: 'chat_\uf8ff')
             .snapshots()
-            .listen((snapshot) {
-              for (final change in snapshot.docChanges) {
-                final data = change.doc.data();
-                if (data == null) continue;
-                final parts = change.doc.id.split('_');
-                if (parts.length < 3 ||
-                    (parts[1] != adminId && parts[2] != adminId)) {
-                  continue;
-                }
-                final senderId = data['lastSenderId'] as String? ?? '';
-                final messageId = data['lastMessageId'] as String? ?? '';
-                final timestamp = _timestampFrom(data, 'lastTimestamp');
-                if (timestamp == null) continue;
+            .listen(
+              (snapshot) {
+                for (final change in snapshot.docChanges) {
+                  final data = change.doc.data();
+                  if (data == null) continue;
+                  final parts = change.doc.id.split('_');
+                  if (parts.length < 3 ||
+                      (parts[1] != adminId && parts[2] != adminId)) {
+                    continue;
+                  }
+                  final senderId = data['lastSenderId'] as String? ?? '';
+                  final messageId = data['lastMessageId'] as String? ?? '';
+                  final timestamp = _timestampFrom(data, 'lastTimestamp');
+                  if (timestamp == null) continue;
 
-                final roomId = change.doc.id;
-                final cursor = messageId.isNotEmpty
-                    ? messageId
-                    : '${timestamp.microsecondsSinceEpoch}:$senderId';
-                final previous = lastCursorByRoom[roomId];
-                lastCursorByRoom[roomId] = cursor;
-                if (initial || previous == cursor || senderId == adminId) {
-                  continue;
+                  final roomId = change.doc.id;
+                  final cursor = messageId.isNotEmpty
+                      ? messageId
+                      : '${timestamp.microsecondsSinceEpoch}:$senderId';
+                  final previous = lastCursorByRoom[roomId];
+                  lastCursorByRoom[roomId] = cursor;
+                  if (initial || previous == cursor || senderId == adminId) {
+                    continue;
+                  }
+                  if (!controller.isClosed) {
+                    controller.add(
+                      StableChatNotification(
+                        roomId: roomId,
+                        timestamp: timestamp,
+                      ),
+                    );
+                  }
                 }
-                if (!controller.isClosed) {
-                  controller.add(
-                    StableChatNotification(
-                      roomId: roomId,
-                      timestamp: timestamp,
-                    ),
-                  );
-                }
-              }
-              initial = false;
-            }, onError: (_) {
-              // O SDK do Firestore gere a reconexão de listeners. Não
-              // reiniciar manualmente em loop quando há erro de rede/permissão.
-            });
+                initial = false;
+              },
+              onError: (_) {
+                // O SDK do Firestore gere a reconexão de listeners. Não
+                // reiniciar manualmente em loop quando há erro de rede/permissão.
+              },
+            );
       };
 
       start();
@@ -398,25 +407,28 @@ final stableAdminGroupNotificationProvider =
         groupsSubscription = firestore
             .collection(AppConstants.groupsCollection)
             .snapshots()
-            .listen((snapshot) {
-              final currentIds = snapshot.docs.map((doc) => doc.id).toSet();
-              if (initialGroupsSnapshot) {
-                initialGroupIds.addAll(currentIds);
-                initialGroupsSnapshot = false;
-              }
-              for (final oldId in subscriptions.keys.toList()) {
-                if (!currentIds.contains(oldId)) {
-                  subscriptions.remove(oldId)?.cancel();
-                  seenIdsByGroup.remove(oldId);
+            .listen(
+              (snapshot) {
+                final currentIds = snapshot.docs.map((doc) => doc.id).toSet();
+                if (initialGroupsSnapshot) {
+                  initialGroupIds.addAll(currentIds);
+                  initialGroupsSnapshot = false;
                 }
-              }
-              for (final groupId in currentIds) {
-                watchGroup(groupId);
-              }
-            }, onError: (_) {
-              // O SDK do Firestore gere a reconexão de listeners. Não
-              // reiniciar manualmente em loop quando há erro de rede/permissão.
-            });
+                for (final oldId in subscriptions.keys.toList()) {
+                  if (!currentIds.contains(oldId)) {
+                    subscriptions.remove(oldId)?.cancel();
+                    seenIdsByGroup.remove(oldId);
+                  }
+                }
+                for (final groupId in currentIds) {
+                  watchGroup(groupId);
+                }
+              },
+              onError: (_) {
+                // O SDK do Firestore gere a reconexão de listeners. Não
+                // reiniciar manualmente em loop quando há erro de rede/permissão.
+              },
+            );
       };
 
       start();

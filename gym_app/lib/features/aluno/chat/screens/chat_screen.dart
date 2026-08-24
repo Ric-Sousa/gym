@@ -41,7 +41,13 @@ final alunoGroupsProvider = StreamProvider.family<List<GroupModel>, String>((
   userId,
 ) {
   if (userId.isEmpty) return Stream.value(const <GroupModel>[]);
-  return ref.read(groupRepositoryProvider).watchMyGroups(userId);
+  debugPrint('[groups] iniciar consulta: uid=$userId');
+  return ref.read(groupRepositoryProvider).watchMyGroups(userId).handleError((
+    error,
+    stack,
+  ) {
+    debugPrint('[groups] erro na consulta para uid=$userId: $error');
+  });
 });
 
 String _newMessagesLabel(int count) {
