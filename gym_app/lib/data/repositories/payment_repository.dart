@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import '../datasources/firestore_datasource.dart';
 import '../models/payment_model.dart';
@@ -133,17 +132,6 @@ class PaymentRepository {
   /// (userId + data) e evitar tentativas repetidas do listener Web quando
   /// esse índice não está criado no Firestore.
   Stream<List<PaymentModel>> watchPayments(String userId) {
-    return FirebaseFirestore.instance
-        .collection('pagamentos')
-        .where('userId', isEqualTo: userId)
-        .orderBy('data', descending: true)
-        .limit(100)
-        .snapshots()
-        .map((snap) {
-          final payments = snap.docs
-              .map((doc) => PaymentModel.fromMap(doc.id, doc.data()))
-              .toList();
-          return payments;
-        });
+    return _firestore.watchPayments(userId);
   }
 }

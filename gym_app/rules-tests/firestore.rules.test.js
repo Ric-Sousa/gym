@@ -7,6 +7,7 @@ const {
 } = require('@firebase/rules-unit-testing');
 const {
   collection,
+  deleteDoc,
   doc,
   getDocs,
   getDoc,
@@ -87,6 +88,41 @@ async function seedBaseData() {
     status: 'pending',
     tipo: 'presencial',
   });
+  batch.set(doc(db, 'agenda', 'booking-2'), {
+    studentId: STUDENT_B,
+    trainerId: ADMIN_ID,
+    data: Timestamp.fromMillis(Date.now() + 2 * 60 * 60 * 1000),
+    duracaoMinutos: 60,
+    status: 'pending',
+    tipo: 'presencial',
+  });
+  batch.set(doc(db, 'pagamentos', 'payment-a'), {
+    userId: STUDENT_A,
+    data: Timestamp.now(),
+    valor: 35,
+    status: 'pending',
+  });
+  batch.set(doc(db, 'pagamentos', 'payment-b'), {
+    userId: STUDENT_B,
+    data: Timestamp.now(),
+    valor: 35,
+    status: 'pending',
+  });
+  batch.set(doc(db, 'notificacoes', 'notification-a'), {
+    userId: STUDENT_A,
+    createdAt: Timestamp.now(),
+    read: false,
+    title: 'Teste',
+  });
+  batch.set(doc(db, 'notificacoes', 'notification-b'), {
+    userId: STUDENT_B,
+    createdAt: Timestamp.now(),
+    read: false,
+    title: 'Teste',
+  });
+  batch.set(doc(db, 'alimentos', 'food-1'), {
+    nome: 'Arroz',
+  });
     await batch.commit();
   });
 }
@@ -120,6 +156,36 @@ describe('Firestore Rules — isolamento de chat direto', () => {
     await assertFails(getDoc(doc(studentB, 'chat', ROOM_A)));
     await assertFails(
       getDoc(doc(studentB, 'chat', ROOM_A, 'mensagens', 'message-1')),
+    );
+  });
+
+  test('student can read their canonical legacy room before migrating it', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'chat', ROOM_A), {
+        lastMessage: 'Legacy room without participants',
+      });
+    });
+
+    const studentA = testEnv.authenticatedContext(STUDENT_A).firestore();
+    const studentB = testEnv.authenticatedContext(STUDENT_B).firestore();
+    await assertSucceeds(getDoc(doc(studentA, 'chat', ROOM_A)));
+    await assertSucceeds(
+      getDoc(doc(studentA, 'chat', ROOM_A, 'mensagens', 'message-1')),
+    );
+    await assertFails(getDoc(doc(studentB, 'chat', ROOM_A)));
+    await assertFails(
+      getDoc(doc(studentB, 'chat', ROOM_A, 'mensagens', 'message-1')),
+    );
+  });
+
+  test('student can read orphaned messages from their canonical room', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await deleteDoc(doc(context.firestore(), 'chat', ROOM_A));
+    });
+
+    const studentA = testEnv.authenticatedContext(STUDENT_A).firestore();
+    await assertSucceeds(
+      getDoc(doc(studentA, 'chat', ROOM_A, 'mensagens', 'message-1')),
     );
   });
 
@@ -314,6 +380,15 @@ describe('Firestore Rules — grupos', () => {
       }),
     );
   });
+
+  test('admin can list all groups', async () => {
+    const admin = testEnv.authenticatedContext(ADMIN_ID).firestore();
+    const groups = await assertSucceeds(
+      getDocs(query(collection(admin, 'grupos'))),
+    );
+
+    expect(groups.docs.map((group) => group.id)).toEqual([GROUP_ID]);
+  });
 });
 
 describe('Firestore Rules — agenda e schema de dados', () => {
@@ -334,6 +409,45 @@ describe('Firestore Rules — agenda e schema de dados', () => {
     await assertSucceeds(updateDoc(doc(studentA, 'agenda', 'booking-1'), {
       status: 'cancelled',
     }));
+  });
+
+  test('consultas do aluno exigem o filtro que prova a propriedade', async () => {
+    const studentA = testEnv.authenticatedContext(STUDENT_A).firestore();
+
+    const bookings = await assertSucceeds(getDocs(query(
+      collection(studentA, 'agenda'),
+      where('studentId', '==', STUDENT_A),
+    )));
+    expect(bookings.docs.map((item) => item.id)).toEqual(['booking-1']);
+    await assertFails(getDocs(query(collection(studentA, 'agenda'))));
+
+    const payments = await assertSucceeds(getDocs(query(
+      collection(studentA, 'pagamentos'),
+      where('userId', '==', STUDENT_A),
+    )));
+    expect(payments.docs.map((item) => item.id)).toEqual(['payment-a']);
+    await assertFails(getDocs(query(collection(studentA, 'pagamentos'))));
+
+    const notifications = await assertSucceeds(getDocs(query(
+      collection(studentA, 'notificacoes'),
+      where('userId', '==', STUDENT_A),
+    )));
+    expect(notifications.docs.map((item) => item.id)).toEqual([
+      'notification-a',
+    ]);
+    await assertFails(getDocs(query(collection(studentA, 'notificacoes'))));
+  });
+
+  test('o aluno acede diretamente às mensagens, mas não lista todos os chats', async () => {
+    const studentA = testEnv.authenticatedContext(STUDENT_A).firestore();
+    const messages = await assertSucceeds(getDocs(collection(
+      studentA,
+      'chat',
+      ROOM_A,
+      'mensagens',
+    )));
+    expect(messages.docs).toHaveLength(1);
+    await assertFails(getDocs(collection(studentA, 'chat')));
   });
 
   test('diário rejeita valores absurdos e aceita schema mínimo', async () => {

@@ -116,6 +116,7 @@ final adminGroupsPagerProvider =
         pageSize: 25,
         loadPage: (cursor, limit) =>
             source.getGroupsPage(startAfter: cursor, limit: limit),
+        comparator: (a, b) => b.createdAt.compareTo(a.createdAt),
       );
       controller.loadMore();
       return controller;

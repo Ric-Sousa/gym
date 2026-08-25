@@ -17,7 +17,9 @@ const rules = fs.readFileSync(
   'utf8',
 );
 
-const PROJECT_ID = 'gymbt-storage-rules-test';
+// Storage rules that call firestore.get() must use the same emulator project
+// as the Firestore suite and the Firebase CLI process.
+const PROJECT_ID = 'gymbt-rules-test';
 const ADMIN_ID = 'admin-1';
 const STUDENT_A = 'student-a';
 const STUDENT_B = 'student-b';
@@ -129,6 +131,55 @@ describe('Storage Rules — chat', () => {
         bytes(25 * 1024 * 1024 + 1),
         { contentType: 'audio/mp4' },
       ),
+    );
+  });
+});
+
+describe('Storage Rules — grupos', () => {
+  beforeEach(seedBaseData);
+
+  test('membros podem enviar anexos e audio sem acesso de terceiros', async () => {
+    const studentA = storageFor(STUDENT_A);
+    const studentB = storageFor(STUDENT_B);
+    const admin = storageFor(ADMIN_ID);
+    const attachmentPath =
+      `group_chat_attachments/${GROUP_ID}/${STUDENT_A}_image.jpg`;
+    const audioPath = `group_chat_audio/${GROUP_ID}/${STUDENT_A}_voice.m4a`;
+
+    await assertSucceeds(
+      uploadBytes(ref(studentA, attachmentPath), bytes(32), {
+        contentType: 'image/jpeg',
+      }),
+    );
+    await assertSucceeds(
+      uploadBytes(ref(studentA, audioPath), bytes(32), {
+        contentType: 'audio/mp4',
+      }),
+    );
+    await assertSucceeds(getBytes(ref(studentA, attachmentPath)));
+    await assertFails(getBytes(ref(studentB, attachmentPath)));
+    await assertFails(
+      uploadBytes(
+        ref(
+          studentB,
+          `group_chat_attachments/${GROUP_ID}/${STUDENT_B}_image.jpg`,
+        ),
+        bytes(32),
+        { contentType: 'image/jpeg' },
+      ),
+    );
+    await assertSucceeds(
+      uploadBytes(
+        ref(admin, `group_chat_attachments/${GROUP_ID}/${ADMIN_ID}_image.jpg`),
+        bytes(32),
+        { contentType: 'image/jpeg' },
+      ),
+    );
+    await assertSucceeds(
+      require('firebase/storage').deleteObject(ref(studentA, attachmentPath)),
+    );
+    await assertFails(
+      require('firebase/storage').deleteObject(ref(studentB, audioPath)),
     );
   });
 });

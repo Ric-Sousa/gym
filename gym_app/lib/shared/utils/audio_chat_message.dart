@@ -9,10 +9,12 @@ Future<MessageModel> createUploadedAudioMessage({
   required String senderId,
   required String chatId,
   required RecordedAudio audio,
+  bool isGroupChat = false,
 }) async {
   final timestamp = DateTime.now();
+  final root = isGroupChat ? 'group_chat_audio' : 'chat_audio';
   final path =
-      'chat_audio/$chatId/${senderId}_${const Uuid().v4()}.${audio.extension}';
+      '$root/$chatId/${senderId}_${const Uuid().v4()}.${audio.extension}';
   final storagePath = await storage.uploadFile(
     path: path,
     fileBytes: audio.bytes,

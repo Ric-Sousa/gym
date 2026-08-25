@@ -11,14 +11,15 @@ Future<MessageModel> createUploadedImageMessage({
   required String senderId,
   required String chatId,
   required XFile file,
+  bool isGroupChat = false,
 }) async {
   final bytes = Uint8List.fromList(await file.readAsBytes());
   final extension = file.name.contains('.')
       ? file.name.split('.').last.toLowerCase()
       : 'jpg';
   final contentType = file.mimeType ?? 'image/$extension';
-  final path =
-      'chat_attachments/$chatId/${senderId}_${const Uuid().v4()}.$extension';
+  final root = isGroupChat ? 'group_chat_attachments' : 'chat_attachments';
+  final path = '$root/$chatId/${senderId}_${const Uuid().v4()}.$extension';
   final storagePath = await storage.uploadFile(
     path: path,
     fileBytes: bytes,

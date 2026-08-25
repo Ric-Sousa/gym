@@ -93,6 +93,24 @@ service firebase.storage {
         fileName.matches(request.auth.uid + '_.*');
     }
 
+    // Group-message uploads have distinct paths so their authorization cannot
+    // accidentally be evaluated against a direct-chat room with the same ID.
+    match /group_chat_attachments/{groupId}/{fileName} {
+      allow read: if isGroupMember(groupId) || isAdmin();
+      allow create, update: if (isGroupMember(groupId) || isAdmin()) &&
+        validChatImage();
+      allow delete: if (isGroupMember(groupId) || isAdmin()) &&
+        fileName.matches(request.auth.uid + '_.*');
+    }
+
+    match /group_chat_audio/{groupId}/{fileName} {
+      allow read: if isGroupMember(groupId) || isAdmin();
+      allow create, update: if (isGroupMember(groupId) || isAdmin()) &&
+        validAudio();
+      allow delete: if (isGroupMember(groupId) || isAdmin()) &&
+        fileName.matches(request.auth.uid + '_.*');
+    }
+
     // Group images use a separate non-overlapping path. Group membership is
     // required for reads; only admins manage the shared group image.
     match /chat_attachments/group_images/{groupId}/{fileName} {

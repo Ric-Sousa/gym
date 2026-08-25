@@ -67,6 +67,25 @@ service cloud.firestore {
       );
     }
 
+    function legacyDirectRoomForCurrentUser(salaId) {
+      return isAuth() &&
+        isActiveOwner(request.auth.uid) &&
+        userDoc(request.auth.uid).data.get('role', '') == 'aluno' &&
+        userDoc(request.auth.uid).data.get('personalId', '') is string &&
+        userDoc(request.auth.uid).data.get('personalId', '') != '' &&
+        (
+          salaId == 'chat_' + request.auth.uid + '_' +
+            userDoc(request.auth.uid).data.get('personalId', '') ||
+          salaId == 'chat_' + userDoc(request.auth.uid).data.get('personalId', '') +
+            '_' + request.auth.uid
+        ) &&
+        (
+          !exists(/databases/$(database)/documents/chat/$(salaId)) ||
+          !get(/databases/$(database)/documents/chat/$(salaId)).data.keys()
+            .hasAny(['participantIds'])
+        );
+    }
+
     function directRoomMember(data) {
       return isAuth() && validDirectParticipants(data) &&
         (
@@ -348,7 +367,8 @@ service cloud.firestore {
     // Direct one-to-one chat. Every room must contain exactly the two
     // participants. A student is additionally tied to their assigned admin.
     match /chat/{salaId} {
-      allow read: if isAdmin() || directRoomMember(resource.data);
+      allow read: if isAdmin() || legacyDirectRoomForCurrentUser(salaId) ||
+        directRoomMember(resource.data);
       allow create: if validDirectRoomForCurrentUser(request.resource.data) &&
         request.resource.data.keys().hasOnly([
           'participantIds', 'lastMessage', 'lastTimestamp', 'lastSenderId',
@@ -413,9 +433,10 @@ service cloud.firestore {
       allow delete: if false;
 
       match /mensagens/{msgId} {
-        allow read: if isAdmin() || directRoomMember(
-          get(/databases/$(database)/documents/chat/$(salaId)).data
-        );
+        allow read: if isAdmin() || legacyDirectRoomForCurrentUser(salaId) ||
+          directRoomMember(
+            get(/databases/$(database)/documents/chat/$(salaId)).data
+          );
         allow create: if directRoomMemberAfter(salaId) &&
           validMessage(request.resource.data);
         allow update: if (
@@ -435,7 +456,10 @@ service cloud.firestore {
     }
 
     match /alimentos/{docId} {
-      allow read: if isAdmin() || (isAuth() && userDoc(request.auth.uid).data.get('role', '') == 'aluno');
+      allow read: if isAdmin() || (
+        isActiveOwner(request.auth.uid) &&
+        userDoc(request.auth.uid).data.get('role', '') == 'aluno'
+      );
       allow write: if isAdmin();
     }
 
@@ -484,9 +508,10 @@ service cloud.firestore {
     match /grupos/{groupId} {
       // Membership is checked directly on every returned group document.
       // The student query uses array-contains with the authenticated UID.
-      allow read: if request.auth != null &&
-        resource.data.get('membros', []) is list &&
-        request.auth.uid in resource.data.membros;
+      allow read: if isAdmin() || (
+        isActiveOwner(request.auth.uid) &&
+        request.auth.uid in resource.data.membros
+      );
       allow create: if isAdmin();
       allow update: if isAdmin() || (
         groupMember(groupId) &&

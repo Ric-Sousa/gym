@@ -33,120 +33,26 @@ final alunoUnreadCountProvider = StreamProvider.family<int, String>((
 ) {
   if (userId.isEmpty) return Stream.value(0);
 
+  final personalId = ref.watch(
+    authProvider.select((state) => state.user?.personalId ?? ''),
+  );
+  if (personalId.isEmpty || personalId == userId) return Stream.value(0);
+
+  final participantIds = [userId, personalId]..sort();
+  final roomId =
+      '${AppConstants.chatRoomPrefix}_${participantIds[0]}_${participantIds[1]}';
   final firestore = FirebaseFirestore.instance;
-  final controller = StreamController<int>();
-  final counts = <String, int>{};
-  final initializedRooms = <String>{};
-  final roomSubscriptions =
-      <String, StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>{};
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? roomsSubscription;
-  var activeRoomIds = <String>{};
-  var initialRoomsDiscovered = false;
-  var initialValueEmitted = false;
-
-  void emitTotal() {
-    if (!controller.isClosed) {
-      controller.add(
-        counts.values.fold<int>(0, (total, value) => total + value),
-      );
-    }
-  }
-
-  void emitWhenReady() {
-    if (!initialRoomsDiscovered ||
-        !activeRoomIds.every(initializedRooms.contains)) {
-      return;
-    }
-    initialValueEmitted = true;
-    emitTotal();
-  }
-
-  void watchRoom(String roomId) {
-    if (roomSubscriptions.containsKey(roomId)) return;
-    roomSubscriptions[roomId] = firestore
-        .collection(AppConstants.chatCollection)
-        .doc(roomId)
-        .collection(AppConstants.messagesSubcollection)
-        .snapshots()
-        .listen(
-          (snap) {
-            initializedRooms.add(roomId);
-            counts[roomId] = snap.docs.where((message) {
-              final data = message.data();
-              return data['lida'] != true && data['remetenteId'] != userId;
-            }).length;
-            if (initialValueEmitted) {
-              emitTotal();
-            } else {
-              emitWhenReady();
-            }
-          },
-          onError: (_) {
-            initializedRooms.add(roomId);
-            counts[roomId] = 0;
-            if (initialValueEmitted) {
-              emitTotal();
-            } else {
-              emitWhenReady();
-            }
-          },
-        );
-  }
-
-  roomsSubscription = firestore
+  return firestore
       .collection(AppConstants.chatCollection)
-      .where(FieldPath.documentId, isGreaterThanOrEqualTo: 'chat_')
-      .where(FieldPath.documentId, isLessThanOrEqualTo: 'chat_\uf8ff')
+      .doc(roomId)
+      .collection(AppConstants.messagesSubcollection)
       .snapshots()
-      .listen(
-        (snap) {
-          final currentIds = snap.docs
-              .where((doc) => doc.id.contains(userId))
-              .map((doc) => doc.id)
-              .toSet();
-          activeRoomIds = currentIds;
-
-          for (final oldId in roomSubscriptions.keys.toList()) {
-            if (!currentIds.contains(oldId)) {
-              roomSubscriptions.remove(oldId)?.cancel();
-              counts.remove(oldId);
-              initializedRooms.remove(oldId);
-            }
-          }
-          for (final roomId in currentIds) {
-            watchRoom(roomId);
-          }
-
-          if (!initialRoomsDiscovered) {
-            initialRoomsDiscovered = true;
-            if (currentIds.isEmpty) {
-              initialValueEmitted = true;
-              emitTotal();
-            } else {
-              emitWhenReady();
-            }
-          } else if (initialValueEmitted) {
-            emitTotal();
-          }
-        },
-        onError: (_) {
-          if (!initialRoomsDiscovered) {
-            initialRoomsDiscovered = true;
-            initialValueEmitted = true;
-          }
-          emitTotal();
-        },
+      .map(
+        (snapshot) => snapshot.docs.where((message) {
+          final data = message.data();
+          return data['lida'] != true && data['remetenteId'] != userId;
+        }).length,
       );
-
-  ref.onDispose(() {
-    roomsSubscription?.cancel();
-    for (final subscription in roomSubscriptions.values) {
-      subscription.cancel();
-    }
-    controller.close();
-  });
-
-  return controller.stream;
 });
 
 /// Conta mensagens novas dos grupos do aluno.

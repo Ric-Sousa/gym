@@ -1253,14 +1253,17 @@ class FirestoreDataSource {
 
   /// Stream de pagamentos de um utilizador.
   Stream<List<PaymentModel>> watchPayments(String userId) {
+    if (userId.isEmpty) return Stream.value(const []);
     return _firestore
         .collection(AppConstants.paymentsCollection)
         .where('userId', isEqualTo: userId)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs
+          final payments = snapshot.docs
               .map((doc) => PaymentModel.fromMap(doc.id, doc.data()))
               .toList();
+          payments.sort((a, b) => b.data.compareTo(a.data));
+          return payments;
         });
   }
 
@@ -1343,15 +1346,13 @@ class FirestoreDataSource {
     return _firestore
         .collection(AppConstants.notificationsCollection)
         .where('userId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
-        .limit(100)
         .snapshots()
         .map((snapshot) {
           final notifications = snapshot.docs
               .map((doc) => AppNotificationModel.fromMap(doc.id, doc.data()))
               .toList();
           notifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          return notifications;
+          return notifications.take(100).toList(growable: false);
         });
   }
 
@@ -1380,8 +1381,6 @@ class FirestoreDataSource {
       final snapshot = await _firestore
           .collection(AppConstants.notificationsCollection)
           .where('userId', isEqualTo: userId)
-          .orderBy('createdAt', descending: true)
-          .limit(500)
           .get();
       final matchingDocs = snapshot.docs.where((doc) {
         final metadata = doc.data()['metadata'];
@@ -1562,17 +1561,11 @@ class FirestoreDataSource {
     if (userId.trim().isEmpty) {
       return Stream.value(const <GroupModel>[]);
     }
-    print(
-      '[groups] Firestore listen: collection=${AppConstants.groupsCollection}, uid=$userId',
-    );
     return _firestore
         .collection(AppConstants.groupsCollection)
         .where('membros', arrayContains: userId)
         .snapshots()
         .map((snapshot) {
-          print(
-            '[groups] snapshot recebido: uid=$userId, count=${snapshot.docs.length}, ids=${snapshot.docs.map((doc) => doc.id).join(',')}',
-          );
           final groups = snapshot.docs
               .map((doc) => GroupModel.fromMap(doc.id, doc.data()))
               .toList();
@@ -1590,7 +1583,6 @@ class FirestoreDataSource {
       final pageSize = limit.clamp(1, 100);
       Query<Map<String, dynamic>> query = _firestore
           .collection(AppConstants.groupsCollection)
-          .orderBy('createdAt', descending: true)
           .limit(pageSize);
       if (startAfter != null) query = query.startAfterDocument(startAfter);
       final snapshot = await query.get();
@@ -1610,7 +1602,6 @@ class FirestoreDataSource {
   Stream<List<GroupModel>> watchAllGroups() {
     return _firestore
         .collection(AppConstants.groupsCollection)
-        .orderBy('createdAt', descending: true)
         .limit(100)
         .snapshots()
         .map((snapshot) {
@@ -1628,11 +1619,12 @@ class FirestoreDataSource {
       final snap = await _firestore
           .collection(AppConstants.groupsCollection)
           .where('membros', arrayContains: userId)
-          .orderBy('createdAt', descending: true)
           .get();
-      return snap.docs
+      final groups = snap.docs
           .map((doc) => GroupModel.fromMap(doc.id, doc.data()))
           .toList();
+      groups.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return groups;
     } on FirebaseException catch (e) {
       throw ServerException(message: e.message ?? 'Erro ao obter grupos');
     }
@@ -1643,11 +1635,12 @@ class FirestoreDataSource {
     try {
       final snap = await _firestore
           .collection(AppConstants.groupsCollection)
-          .orderBy('createdAt', descending: true)
           .get();
-      return snap.docs
+      final groups = snap.docs
           .map((doc) => GroupModel.fromMap(doc.id, doc.data()))
           .toList();
+      groups.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return groups;
     } on FirebaseException catch (e) {
       throw ServerException(message: e.message ?? 'Erro ao listar grupos');
     }

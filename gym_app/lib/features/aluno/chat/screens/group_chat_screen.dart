@@ -1959,6 +1959,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
         senderId: _userId,
         chatId: _group.id,
         file: file,
+        isGroupChat: true,
       );
       uploadedMessage = message;
       await ref
@@ -1991,6 +1992,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen>
         senderId: _userId,
         chatId: _group.id,
         audio: audio,
+        isGroupChat: true,
       );
       uploadedMessage = message;
       await ref
