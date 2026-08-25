@@ -166,12 +166,26 @@ service cloud.firestore {
         data.get('lida', false) == false;
     }
 
+    // Used by reads inside a group message subcollection, where `resource`
+    // refers to the message rather than the parent group document.
     function groupMember(groupId) {
       return isAuth() && isActiveOwner(request.auth.uid) &&
         userDoc(request.auth.uid).data.get('role', '') == 'aluno' &&
         get(/databases/$(database)/documents/grupos/$(groupId)).data.get('membros', []) is list &&
         request.auth.uid in get(/databases/$(database)/documents/grupos/$(groupId)).data.membros;
     }
+
+    // Keep the membership check on the document being queried. This lets
+    // Firestore prove that a query with `where('membros', array-contains,
+    // request.auth.uid)` cannot return another student's group.
+    function groupMemberDocument() {
+      // Firestore evaluates this rule for every candidate returned by the
+      // array-contains query. Membership is the complete authorization check.
+      return request.auth != null &&
+        resource.data.membros is list &&
+        resource.data.membros.hasAny([request.auth.uid]);
+    }
+
 
     // Global workout plan library.
     match /planosTreino/{planId} {
@@ -421,7 +435,7 @@ service cloud.firestore {
     }
 
     match /alimentos/{docId} {
-      allow read: if isAdmin() || isActiveOwner(request.auth.uid);
+      allow read: if isAdmin() || (isAuth() && userDoc(request.auth.uid).data.get('role', '') == 'aluno');
       allow write: if isAdmin();
     }
 
@@ -468,10 +482,12 @@ service cloud.firestore {
     }
 
     match /grupos/{groupId} {
-      allow read: if isAdmin() || groupMember(groupId);
+      // Membership is checked directly on every returned group document.
+      // The student query uses array-contains with the authenticated UID.
+      allow read: if request.auth != null &&
+        resource.data.get('membros', []) is list &&
+        request.auth.uid in resource.data.membros;
       allow create: if isAdmin();
-      // Only admins may change membership or group metadata. Members may only
-      // persist their own read cursor; the membership list is immutable to them.
       allow update: if isAdmin() || (
         groupMember(groupId) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([

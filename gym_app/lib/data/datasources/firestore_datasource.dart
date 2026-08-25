@@ -1110,6 +1110,18 @@ class FirestoreDataSource {
     }
   }
 
+  /// Remove um alimento da biblioteca.
+  Future<void> deleteFood(String foodId) async {
+    try {
+      await _firestore
+          .collection(AppConstants.foodsCollection)
+          .doc(foodId)
+          .delete();
+    } on FirebaseException catch (e) {
+      throw ServerException(message: e.message ?? 'Erro ao remover alimento');
+    }
+  }
+
   // ───────────────────── WORKOUT LOGS ─────────────────────
 
   /// Stream do registo de treino de um dia específico.
@@ -1516,7 +1528,6 @@ class FirestoreDataSource {
     return _firestore
         .collection(AppConstants.agendaCollection)
         .where('studentId', isEqualTo: studentId)
-        .orderBy('data', descending: false)
         .snapshots()
         .map((snap) {
           final list = snap.docs
@@ -1533,7 +1544,6 @@ class FirestoreDataSource {
     return _firestore
         .collection(AppConstants.agendaCollection)
         .where('trainerId', isEqualTo: trainerId)
-        .orderBy('data', descending: false)
         .snapshots()
         .map((snap) {
           final list = snap.docs
@@ -1549,11 +1559,20 @@ class FirestoreDataSource {
 
   /// Stream dos grupos onde o utilizador é membro.
   Stream<List<GroupModel>> watchMyGroups(String userId) {
+    if (userId.trim().isEmpty) {
+      return Stream.value(const <GroupModel>[]);
+    }
+    print(
+      '[groups] Firestore listen: collection=${AppConstants.groupsCollection}, uid=$userId',
+    );
     return _firestore
         .collection(AppConstants.groupsCollection)
         .where('membros', arrayContains: userId)
         .snapshots()
         .map((snapshot) {
+          print(
+            '[groups] snapshot recebido: uid=$userId, count=${snapshot.docs.length}, ids=${snapshot.docs.map((doc) => doc.id).join(',')}',
+          );
           final groups = snapshot.docs
               .map((doc) => GroupModel.fromMap(doc.id, doc.data()))
               .toList();

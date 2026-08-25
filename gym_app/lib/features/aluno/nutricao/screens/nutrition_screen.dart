@@ -791,13 +791,47 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
                       ),
                       // ── Alimentos adicionados pelo aluno ────
                       ...(_addedAlimentos['${diaSemana}_${meal.tipo}'] ?? [])
-                          .map(
-                            (alimento) => _buildAlimentoRow(
-                              diaSemana,
-                              meal.tipo,
-                              alimento,
-                            ),
-                          ),
+                          .asMap()
+                          .entries
+                          .map((entry) {
+                            final alimento = entry.value;
+                            final alimentoIndex = entry.key;
+                            return Dismissible(
+                              key: ValueKey(
+                                '${diaSemana}_${meal.tipo}_aluno_${alimento.nome}_$alimentoIndex',
+                              ),
+                              direction: DismissDirection.endToStart,
+                              background: Container(
+                                margin: const EdgeInsets.symmetric(vertical: 3),
+                                padding: const EdgeInsets.only(right: 18),
+                                alignment: Alignment.centerRight,
+                                decoration: BoxDecoration(
+                                  color: AppColors.error.withValues(alpha: 0.9),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  'Eliminar',
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                              confirmDismiss: (_) =>
+                                  _confirmRemoveAlimento(alimento),
+                              onDismissed: (_) => _removeAddedAlimento(
+                                diaSemana,
+                                meal.tipo,
+                                alimentoIndex,
+                              ),
+                              child: _buildAlimentoRow(
+                                diaSemana,
+                                meal.tipo,
+                                alimento,
+                              ),
+                            );
+                          }),
                       const SizedBox(height: 4),
                       // ── Botão Adicionar alimento ───────────
                       Padding(
@@ -1167,6 +1201,58 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
         ],
       ),
     );
+  }
+
+  Future<bool> _confirmRemoveAlimento(Alimento alimento) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
+        actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+        title: const Text('Eliminar alimento?'),
+        content: Text(
+          'O alimento ${alimento.nome} adicionado por ti será eliminado.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
+  void _removeAddedAlimento(
+    String diaSemana,
+    String mealTipo,
+    int alimentoIndex,
+  ) {
+    final mealKey = '${diaSemana}_$mealTipo';
+    final alimentos = _addedAlimentos[mealKey];
+    if (alimentos == null ||
+        alimentoIndex < 0 ||
+        alimentoIndex >= alimentos.length) {
+      return;
+    }
+
+    final alimento = alimentos[alimentoIndex];
+    final alimentoKey = '${diaSemana}_${mealTipo}_${alimento.nome}';
+    final controller = _gramasControllers.remove(alimentoKey);
+
+    setState(() {
+      alimentos.removeAt(alimentoIndex);
+      if (alimentos.isEmpty) _addedAlimentos.remove(mealKey);
+      _consumoPorAlimento.remove(alimentoKey);
+      _modoPorAlimento.remove(alimentoKey);
+    });
+    controller?.dispose();
   }
 
   Future<void> _markMealDone(
