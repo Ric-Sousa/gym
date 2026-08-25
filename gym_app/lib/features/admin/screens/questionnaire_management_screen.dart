@@ -8,6 +8,7 @@ import '../../../shared/providers/global_providers.dart';
 import '../../../shared/widgets/admin_design_system.dart';
 import '../../../shared/widgets/admin_responsive_dialog.dart';
 import '../../../shared/widgets/app_design_system.dart';
+import '../../../shared/widgets/focused_text_field.dart';
 
 class QuestionnaireManagementScreen extends ConsumerWidget {
   const QuestionnaireManagementScreen({super.key});
@@ -539,20 +540,23 @@ class _TopicDialogState extends State<_TopicDialog> {
       ],
       child: Column(
         children: [
-          TextFormField(
+          FocusedTextFormField(
             initialValue: _title,
             autofocus: true,
             onChanged: (value) => _title = value,
+            focusedFillColor: AdminThemeColors.of(context).surface2,
             decoration: const InputDecoration(
               labelText: 'Nome do tópico',
               hintText: 'Ex.: Saúde e rotina',
             ),
           ),
           const SizedBox(height: 14),
-          TextFormField(
+          FocusedTextFormField(
+            key: const ValueKey('admin-topic-description-field'),
             initialValue: _description,
             maxLines: 2,
             onChanged: (value) => _description = value,
+            focusedFillColor: AdminThemeColors.of(context).surface2,
             decoration: const InputDecoration(
               labelText: 'Descrição (opcional)',
             ),
@@ -712,9 +716,10 @@ class _QuestionDialogState extends State<_QuestionDialog> {
                   ),
                 ),
                 Expanded(
-                  child: TextFormField(
-                    key: ValueKey('question-option-field-${draft.id}'),
+                  child: FocusedTextFormField(
+                    fieldKey: ValueKey('question-option-field-${draft.id}'),
                     initialValue: draft.text,
+                    focusedFillColor: colors.surface2,
                     onChanged: (value) {
                       draft.text = value;
                       if (_optionsError != null) {
@@ -906,10 +911,11 @@ class _QuestionDialogState extends State<_QuestionDialog> {
       ],
       child: Column(
         children: [
-          TextFormField(
+          FocusedTextFormField(
             initialValue: _label,
             autofocus: true,
             onChanged: (value) => setState(() => _label = value),
+            focusedFillColor: AdminThemeColors.of(context).surface2,
             decoration: const InputDecoration(labelText: 'Pergunta'),
           ),
           const SizedBox(height: 14),
@@ -936,9 +942,10 @@ class _QuestionDialogState extends State<_QuestionDialog> {
           ],
           if (_type == 'binary') ...[
             const SizedBox(height: 14),
-            TextFormField(
+            FocusedTextFormField(
               initialValue: _detail,
               onChanged: (value) => _detail = value,
+              focusedFillColor: AdminThemeColors.of(context).surface2,
               decoration: const InputDecoration(
                 labelText: 'Campo extra quando responder Sim (opcional)',
                 hintText: 'Descreve aqui...',
@@ -947,9 +954,10 @@ class _QuestionDialogState extends State<_QuestionDialog> {
           ],
           if (_type == 'text') ...[
             const SizedBox(height: 14),
-            TextFormField(
+            FocusedTextFormField(
               initialValue: _hint,
               onChanged: (value) => setState(() => _hint = value),
+              focusedFillColor: AdminThemeColors.of(context).surface2,
               decoration: const InputDecoration(
                 labelText: 'Texto de ajuda (opcional)',
               ),

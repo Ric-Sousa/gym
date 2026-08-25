@@ -3,10 +3,45 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gym_app/features/auth/providers/auth_provider.dart';
 import 'package:gym_app/features/aluno/perfil/screens/profile_screen.dart';
+import 'package:gym_app/shared/widgets/focused_text_field.dart';
+import 'package:gym_app/core/config/app_colors.dart';
 
 import 'test_helpers.dart';
 
 void main() {
+  testWidgets('campo do aluno fica cinza quando recebe foco', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark(),
+        home: Scaffold(
+          body: FocusedTextField(
+            key: const ValueKey('student-focused-field'),
+            focusedFillColor: AppColors.surfaceHighest,
+            decoration: const InputDecoration(labelText: 'Campo'),
+          ),
+        ),
+      ),
+    );
+
+    final decoratorFinder = find.byType(InputDecorator);
+    final before = tester.widget<InputDecorator>(decoratorFinder);
+    expect(before.isFocused, isFalse);
+    expect(
+      (before.decoration as InputDecoration).fillColor,
+      isNot(AppColors.surfaceHighest),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('student-focused-field')));
+    await tester.pumpAndSettle();
+
+    final after = tester.widget<InputDecorator>(decoratorFinder);
+    expect(after.isFocused, isTrue);
+    expect(
+      (after.decoration as InputDecoration).fillColor,
+      AppColors.surfaceHighest,
+    );
+  });
+
   group('ProfileScreen', () {
     Widget _wrapProfile() {
       return ProviderScope(

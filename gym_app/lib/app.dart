@@ -110,6 +110,7 @@ class PersonalFitApp extends ConsumerWidget {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.adminLightSurface,
+        hoverColor: AppColors.adminLightSurface2,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 18,
           vertical: 16,
@@ -475,6 +476,7 @@ class PersonalFitApp extends ConsumerWidget {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.surface,
+        hoverColor: AppColors.surfaceHighest,
         isDense: false,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 18,

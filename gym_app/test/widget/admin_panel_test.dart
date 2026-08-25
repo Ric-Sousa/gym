@@ -12,6 +12,7 @@ import 'package:gym_app/features/admin/screens/admin_panel_screen.dart';
 import 'package:gym_app/shared/providers/global_providers.dart';
 import 'package:gym_app/shared/providers/admin_providers.dart';
 import 'package:gym_app/core/services/fcm_service.dart';
+import 'package:gym_app/core/config/admin_theme.dart';
 
 import 'test_helpers.dart';
 
@@ -205,6 +206,44 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('input focado usa fundo cinza do estado selecionado', (
+      tester,
+    ) async {
+      final foodsPager = AdminPagedList<FoodModel>(
+        loadPage: (_, __) async => const FirestorePage<FoodModel>(
+          items: [FoodModel(nome: 'Arroz', caloriasPor100g: 130)],
+          cursor: null,
+          hasMore: false,
+        ),
+      );
+      await foodsPager.loadMore();
+      await _pumpLargeAdmin(
+        tester,
+        viewport: const Size(1500, 900),
+        foodsPager: foodsPager,
+      );
+      await tester.tap(find.text('Alimentos'));
+      await tester.pumpAndSettle();
+
+      final searchField = find.byType(TextField).first;
+      final beforeFocused = tester.widget<InputDecorator>(
+        find.byType(InputDecorator).first,
+      );
+      expect(beforeFocused.isFocused, isFalse);
+
+      await tester.tap(searchField);
+      await tester.pumpAndSettle();
+
+      final afterFocused = tester.widget<InputDecorator>(
+        find.byType(InputDecorator).first,
+      );
+      expect(afterFocused.isFocused, isTrue);
+      await expectLater(
+        find.byType(AdminPanelScreen),
+        matchesGoldenFile('goldens/admin_focused_text_input.png'),
+      );
+    });
+
     testWidgets('pesquisa alimentos em todo o catálogo e separa os tipos', (
       tester,
     ) async {
@@ -303,6 +342,44 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Agenda'), findsWidgets);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('campo de tópico fica cinza quando recebe foco', (
+      tester,
+    ) async {
+      await _pumpLargeAdmin(tester);
+
+      await tester.tap(find.text('Questionário'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Novo tópico'));
+      await tester.pumpAndSettle();
+
+      final descriptionField = find.byKey(
+        const ValueKey('admin-topic-description-field'),
+      );
+      final decoratorFinder = find.descendant(
+        of: descriptionField,
+        matching: find.byType(InputDecorator),
+      );
+      expect(decoratorFinder, findsOneWidget);
+
+      final before = tester.widget<InputDecorator>(decoratorFinder);
+      expect(before.isFocused, isFalse);
+      expect(
+        (before.decoration as InputDecoration).fillColor,
+        AdminThemeColors.dark.surface,
+      );
+
+      await tester.tap(descriptionField);
+      await tester.pumpAndSettle();
+
+      final after = tester.widget<InputDecorator>(decoratorFinder);
+      expect(after.isFocused, isTrue);
+      expect(
+        (after.decoration as InputDecoration).fillColor,
+        AdminThemeColors.dark.surface2,
+      );
       expect(tester.takeException(), isNull);
     });
 

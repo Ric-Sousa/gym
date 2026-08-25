@@ -16,6 +16,7 @@ import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/app_notification.dart';
 import '../../../../shared/widgets/app_design_system.dart';
+import '../../../../shared/widgets/focused_text_field.dart';
 
 final nutritionPlanProvider =
     StreamProvider.family<NutritionPlanModel?, (String, String)>((ref, params) {
@@ -1103,8 +1104,9 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
           // Input de gramas / unidades
           SizedBox(
             width: 62,
-            child: TextFormField(
+            child: FocusedTextFormField(
               controller: controller,
+              focusedFillColor: AppColors.surfaceHighest,
               keyboardType: TextInputType.number,
               style: GoogleFonts.montserrat(
                 color: AppColors.onSurface,
@@ -1534,8 +1536,9 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
                     ],
                   ),
                   const SizedBox(height: 18),
-                  TextField(
+                  FocusedTextField(
                     controller: controller,
+                    focusedFillColor: AppColors.surfaceHighest,
                     keyboardType: TextInputType.number,
                     onChanged: (value) {
                       final parsed = int.tryParse(value);
@@ -2011,7 +2014,8 @@ class _FoodSearchSheetState extends ConsumerState<_FoodSearchSheet> {
               ],
             ),
             const SizedBox(height: 16),
-            TextField(
+            FocusedTextField(
+              focusedFillColor: AppColors.surfaceHighest,
               decoration: InputDecoration(
                 hintText: 'Pesquisar alimento...',
                 hintStyle: GoogleFonts.inter(

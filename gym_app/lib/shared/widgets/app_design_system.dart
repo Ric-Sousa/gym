@@ -107,7 +107,9 @@ class AppMenuDropdown<T> extends StatelessWidget {
                 hintText: hint,
                 prefixIcon: prefixIcon,
                 filled: true,
-                fillColor: fieldColor,
+                fillColor: controller.isOpen ? menuColor : fieldColor,
+                hoverColor: menuColor,
+                focusColor: menuColor,
                 isDense: true,
                 contentPadding: EdgeInsets.symmetric(
                   horizontal: compact ? 12 : 14,
@@ -445,11 +447,17 @@ class AppSurface extends StatelessWidget {
       child: child,
     );
 
-    final animatedContent = ScrollReveal(child: content);
+    final clippedContent = ClipRRect(
+      borderRadius: borderRadius,
+      clipBehavior: Clip.antiAlias,
+      child: content,
+    );
+    final animatedContent = ScrollReveal(child: clippedContent);
     if (onTap == null) return animatedContent;
     return Material(
       color: Colors.transparent,
       borderRadius: borderRadius,
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         borderRadius: borderRadius,

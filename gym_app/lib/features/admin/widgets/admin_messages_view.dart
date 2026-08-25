@@ -659,6 +659,7 @@ Future<void> showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
                   ),
                   filled: true,
                   fillColor: AdminThemeColors.of(context).bg,
+                  hoverColor: AdminThemeColors.of(context).surface2,
                   prefixIcon: Icon(
                     Icons.edit_rounded,
                     color: AdminThemeColors.of(context).lime,

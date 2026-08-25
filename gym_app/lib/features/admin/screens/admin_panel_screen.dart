@@ -457,7 +457,10 @@ class _AdminSidebar extends StatelessWidget {
     return Container(
       width: isMobile ? double.infinity : 224,
       margin: EdgeInsets.zero,
-      decoration: BoxDecoration(color: colors.surface),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Column(
         children: [
           logoSection,
@@ -1521,6 +1524,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                 ),
           filled: true,
           fillColor: colors.surface,
+          hoverColor: colors.surface2,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(13),
             borderSide: BorderSide.none,
@@ -7070,6 +7074,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
         prefixIcon: Icon(icon, size: 17, color: colors.lime),
         filled: true,
         fillColor: colors.surface,
+        hoverColor: colors.surface2,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
           vertical: 11,
@@ -7245,8 +7250,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
           spacing: 14,
           runSpacing: 14,
           children: foods.map((food) {
-            final width =
-                (constraints.maxWidth - 14 * (cols - 1)) / cols;
+            final width = (constraints.maxWidth - 14 * (cols - 1)) / cols;
             return SizedBox(width: width, child: _foodCard(food));
           }).toList(),
         ),
@@ -7325,14 +7329,10 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                   .take(_pageSize)
                   .toList(growable: false);
               final simpleFoods = visibleFoods
-                  .where(
-                    (food) => FoodSearch.kindOf(food) == FoodKind.simple,
-                  )
+                  .where((food) => FoodSearch.kindOf(food) == FoodKind.simple)
                   .toList(growable: false);
               final compoundFoods = visibleFoods
-                  .where(
-                    (food) => FoodSearch.kindOf(food) == FoodKind.compound,
-                  )
+                  .where((food) => FoodSearch.kindOf(food) == FoodKind.compound)
                   .toList(growable: false);
               return LayoutBuilder(
                 builder: (_, constraints) {
@@ -7522,10 +7522,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                   ? colors.lime
                   : colors.orange;
               return Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: kindColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),

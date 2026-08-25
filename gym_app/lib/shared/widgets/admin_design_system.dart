@@ -79,6 +79,8 @@ ThemeData buildWorkspaceTheme(ThemeData baseTheme, AdminThemeColors colors) {
       isDense: true,
       filled: true,
       fillColor: colors.surface,
+      hoverColor: colors.surface2,
+      focusColor: colors.surface2,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(13),

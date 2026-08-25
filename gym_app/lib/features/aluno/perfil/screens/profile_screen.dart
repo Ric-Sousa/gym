@@ -12,6 +12,7 @@ import '../../../../data/models/payment_model.dart';
 import '../../../../data/models/user_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
+import '../../../../shared/widgets/focused_text_field.dart';
 import '../../../../shared/widgets/app_notification.dart';
 import '../../../../core/services/sound_service.dart';
 import '../../../../core/config/notification_sounds.dart';
@@ -1829,8 +1830,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(
+              FocusedTextField(
                 controller: nomeController,
+                focusedFillColor: AppColors.surfaceHighest,
                 decoration: InputDecoration(
                   labelText: 'Nome',
                   labelStyle: GoogleFonts.inter(
@@ -1857,8 +1859,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 style: GoogleFonts.inter(color: AppColors.onSurface),
               ),
               const SizedBox(height: 12),
-              TextField(
+              FocusedTextField(
                 controller: pesoController,
+                focusedFillColor: AppColors.surfaceHighest,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   labelText: 'Peso (kg)',
@@ -1886,8 +1889,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 style: GoogleFonts.inter(color: AppColors.onSurface),
               ),
               const SizedBox(height: 12),
-              TextField(
+              FocusedTextField(
                 controller: alturaController,
+                focusedFillColor: AppColors.surfaceHighest,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   labelText: 'Altura (cm)',

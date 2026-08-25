@@ -17,6 +17,7 @@ import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/empty_state.dart';
 import '../../../../shared/widgets/app_notification.dart';
+import '../../../../shared/widgets/focused_text_field.dart';
 
 final workoutPlansProvider =
     StreamProvider.family<List<WorkoutPlanModel>, String>((ref, userId) {
@@ -2432,8 +2433,9 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
   }) {
     return SizedBox(
       height: 48,
-      child: TextField(
+      child: FocusedTextField(
         controller: controller,
+        focusedFillColor: AppColors.surfaceHighest,
         keyboardType: keyboardType,
         readOnly: readOnly,
         textAlign: TextAlign.center,
@@ -2833,7 +2835,9 @@ class _InlineExercisePreviewState extends State<_InlineExercisePreview> {
     try {
       final resolvedUrl = await StorageResource.resolve(resource);
       if (!mounted) return;
-      final controller = VideoPlayerController.networkUrl(Uri.parse(resolvedUrl));
+      final controller = VideoPlayerController.networkUrl(
+        Uri.parse(resolvedUrl),
+      );
       _controller = controller;
       await controller.initialize();
       if (mounted) {
@@ -2969,7 +2973,9 @@ class _VideoPlayerSheetState extends State<_VideoPlayerSheet> {
     try {
       final resolvedUrl = await StorageResource.resolve(widget.videoUrl);
       if (!mounted) return;
-      final controller = VideoPlayerController.networkUrl(Uri.parse(resolvedUrl));
+      final controller = VideoPlayerController.networkUrl(
+        Uri.parse(resolvedUrl),
+      );
       _controller = controller;
       await controller.initialize();
       if (mounted) {

@@ -10,6 +10,7 @@ import '../../../../core/utils/progress_photo_normalizer.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/widgets/app_notification.dart';
+import '../../../../shared/widgets/focused_text_field.dart';
 
 /// Ecrã para o aluno submeter progresso (fotos + peso).
 /// Aberto quando a personal trainer solicita avaliação mensal.
@@ -239,11 +240,12 @@ class _ProgressSubmissionScreenState
   Widget _buildMeasurementsStep() {
     return Column(
       children: [
-        TextField(
+        FocusedTextField(
           controller: _pesoController,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           style: GoogleFonts.inter(color: AppColors.onSurface),
-          decoration: InputDecoration(
+          focusedFillColor: AppColors.surfaceHighest,
+          decoration: const InputDecoration(
             labelText: 'Peso (kg)',
             hintText: 'Ex: 75.5',
             suffixText: 'kg',
@@ -278,10 +280,11 @@ class _ProgressSubmissionScreenState
           _medidaField(_coxaEController, 'Coxa E'),
         ),
         const SizedBox(height: 8),
-        TextField(
+        FocusedTextField(
           controller: _gorduraController,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           style: GoogleFonts.inter(color: AppColors.onSurface),
+          focusedFillColor: AppColors.surfaceHighest,
           decoration: const InputDecoration(
             labelText: '% Gordura Corporal',
             suffixText: '%',
@@ -309,10 +312,11 @@ class _ProgressSubmissionScreenState
   }
 
   Widget _medidaField(TextEditingController ctrl, String label) {
-    return TextField(
+    return FocusedTextField(
       controller: ctrl,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       style: GoogleFonts.inter(color: AppColors.onSurface),
+      focusedFillColor: AppColors.surfaceHighest,
       decoration: InputDecoration(labelText: label, suffixText: 'cm'),
     );
   }
@@ -640,8 +644,9 @@ class _ProgressSubmissionScreenState
       // O pedido de progresso identifica a submissão. Se o upload Firestore
       // ou a atualização do perfil falhar, repetir o fluxo reutiliza o mesmo
       // ID e sobrescreve os mesmos ficheiros em vez de criar uma entrada nova.
-      final requestKey = authState.user?.progressRequestedAt?.millisecondsSinceEpoch
-          .toString() ??
+      final requestKey =
+          authState.user?.progressRequestedAt?.millisecondsSinceEpoch
+              .toString() ??
           DateTime.now().toIso8601String().substring(0, 10).replaceAll('-', '');
       final timestamp = 'submission_$requestKey';
 
@@ -728,7 +733,9 @@ class _ProgressSubmissionScreenState
       if (!progressEntryCommitted) {
         final cleanupUserId = ref.read(authProvider).user?.uid ?? '';
         for (final fileName in uploadedFileNames) {
-          await progressRepo.deleteProgressPhoto(cleanupUserId, fileName).catchError((_) {});
+          await progressRepo
+              .deleteProgressPhoto(cleanupUserId, fileName)
+              .catchError((_) {});
         }
       }
       if (mounted) {

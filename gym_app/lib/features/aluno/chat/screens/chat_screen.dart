@@ -574,7 +574,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         Expanded(
           child: Container(
             decoration: BoxDecoration(
-              color: AppColors.surface,
+              color: _isFocused ? AppColors.surfaceHighest : AppColors.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: _isFocused
@@ -595,26 +595,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                     ]
                   : null,
             ),
-            child: TextField(
-              controller: _textController,
-              focusNode: _focusNode,
-              maxLines: 4,
-              minLines: 1,
-              textCapitalization: TextCapitalization.sentences,
-              style: GoogleFonts.inter(
-                color: AppColors.onSurface,
-                fontSize: 14,
-              ),
-              decoration: InputDecoration(
-                hintText: AppStrings.typeMessage,
-                hintStyle: GoogleFonts.inter(
-                  color: AppColors.outlineVariant,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: TextField(
+                controller: _textController,
+                focusNode: _focusNode,
+                maxLines: 4,
+                minLines: 1,
+                textCapitalization: TextCapitalization.sentences,
+                style: GoogleFonts.inter(
+                  color: AppColors.onSurface,
                   fontSize: 14,
                 ),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
+                decoration: InputDecoration(
+                  hintText: AppStrings.typeMessage,
+                  hintStyle: GoogleFonts.inter(
+                    color: AppColors.outlineVariant,
+                    fontSize: 14,
+                  ),
+                  border: InputBorder.none,
+                  filled: true,
+                  fillColor: _isFocused
+                      ? AppColors.surfaceHighest
+                      : AppColors.surface,
+                  hoverColor: AppColors.surfaceHighest,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                 ),
               ),
             ),

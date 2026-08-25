@@ -10,6 +10,7 @@ import '../../../../data/models/progress_video_model.dart';
 import '../../../../data/models/user_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
+import '../../../../shared/widgets/focused_text_field.dart';
 import '../../../../core/utils/storage_resource.dart';
 
 final progressVideosProvider =
@@ -57,7 +58,8 @@ class _VideoProgressScreenState extends ConsumerState<VideoProgressScreen> {
           ? picked.name.split('.').last.toLowerCase()
           : 'mp4';
       const allowedExtensions = {'mp4', 'mov', 'webm', 'avi'};
-      if (!allowedExtensions.contains(extension) || bytes.length > 200 * 1024 * 1024) {
+      if (!allowedExtensions.contains(extension) ||
+          bytes.length > 200 * 1024 * 1024) {
         throw StateError('Formato ou tamanho de vídeo não suportado.');
       }
       final contentType = switch (extension) {
@@ -97,8 +99,9 @@ class _VideoProgressScreenState extends ConsumerState<VideoProgressScreen> {
         contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
         actionsPadding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
         title: Text(status == 'approved' ? 'Aprovar vídeo' : 'Rejeitar vídeo'),
-        content: TextField(
+        content: FocusedTextField(
           controller: feedbackController,
+          focusedFillColor: AppColors.surfaceHighest,
           maxLines: 4,
           decoration: const InputDecoration(labelText: 'Feedback (opcional)'),
         ),
@@ -221,8 +224,9 @@ class _VideoProgressScreenState extends ConsumerState<VideoProgressScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        TextField(
+        FocusedTextField(
           controller: _exerciseController,
+          focusedFillColor: AppColors.surfaceHighest,
           decoration: const InputDecoration(
             labelText: 'Exercício',
             prefixIcon: Icon(Icons.fitness_center_outlined),
@@ -432,7 +436,8 @@ class _ProgressVideoPlayerState extends State<_ProgressVideoPlayer> {
         FutureBuilder<void>(
           future: _initialization,
           builder: (context, snapshot) => FilledButton.icon(
-            onPressed: snapshot.connectionState == ConnectionState.done &&
+            onPressed:
+                snapshot.connectionState == ConnectionState.done &&
                     _controller != null
                 ? () => setState(() {
                     _controller!.value.isPlaying

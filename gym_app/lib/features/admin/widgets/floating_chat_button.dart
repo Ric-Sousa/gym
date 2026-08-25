@@ -1643,6 +1643,9 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
                                           fillColor: AdminThemeColors.of(
                                             context,
                                           ).surface,
+                                          hoverColor: AdminThemeColors.of(
+                                            context,
+                                          ).surface2,
                                           border: OutlineInputBorder(
                                             borderRadius: BorderRadius.circular(
                                               24,

@@ -1095,6 +1095,7 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
                       ),
                       filled: true,
                       fillColor: colors.surface2,
+                      hoverColor: colors.surface,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 14,
                         vertical: 16,
@@ -1159,6 +1160,7 @@ class _NutritionEditorState extends ConsumerState<NutritionEditor> {
                       ),
                       filled: true,
                       fillColor: colors.surface2,
+                      hoverColor: colors.surface,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 14,
                         vertical: 15,
