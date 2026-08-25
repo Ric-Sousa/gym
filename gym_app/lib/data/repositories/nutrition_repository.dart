@@ -1,5 +1,6 @@
 import '../../core/errors/exceptions.dart';
 import '../../core/errors/failures.dart';
+import '../../core/utils/food_search.dart';
 import '../datasources/firestore_datasource.dart';
 import '../models/nutrition_plan_model.dart';
 import '../models/food_model.dart';
@@ -93,11 +94,11 @@ class NutritionRepository {
     for (final food in externalFoods) {
       if (names.add(_normaliseName(food))) merged.add(food);
     }
-    return merged;
+    return FoodSearch.filterAndRank(merged, query);
   }
 
   static String _normaliseName(FoodModel food) =>
-      food.nome.trim().toLowerCase();
+      FoodSearch.normalize(food.nome);
 
   /// Adiciona alimento à base de dados.
   Future<void> addFood(Map<String, dynamic> data) async {

@@ -67,6 +67,10 @@ void main() {
           ),
           if (foodsPager != null)
             adminFoodsPagerProvider.overrideWith((ref) => foodsPager),
+          if (foodsPager != null)
+            adminFoodCatalogProvider.overrideWith(
+              (ref) => Future.value(foodsPager.items),
+            ),
         ],
         child: const AdminPanelScreen(),
       ),
@@ -201,6 +205,66 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('pesquisa alimentos em todo o catálogo e separa os tipos', (
+      tester,
+    ) async {
+      final foodsPager = AdminPagedList<FoodModel>(
+        loadPage: (_, __) async => const FirestorePage<FoodModel>(
+          items: [
+            FoodModel(nome: 'Ovo de galinha inteiro', caloriasPor100g: 143),
+            FoodModel(nome: 'Ovos mexidos com queijo', caloriasPor100g: 210),
+            FoodModel(nome: 'Arroz agulha', caloriasPor100g: 130),
+          ],
+          cursor: null,
+          hasMore: false,
+        ),
+      );
+      await foodsPager.loadMore();
+      await _pumpLargeAdmin(tester, foodsPager: foodsPager);
+      await tester.tap(find.text('Alimentos'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField).first, 'ovos');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Alimentos simples'), findsOneWidget);
+      expect(find.text('Alimentos compostos'), findsOneWidget);
+      expect(find.text('Ovo de galinha inteiro'), findsOneWidget);
+      expect(find.text('Ovos mexidos com queijo'), findsOneWidget);
+      expect(find.text('Arroz agulha'), findsNothing);
+    });
+
+    testWidgets('catálogo usa paginação anterior e seguinte', (tester) async {
+      final items = List<FoodModel>.generate(
+        25,
+        (index) => FoodModel(
+          nome: 'Alimento ${index.toString().padLeft(2, '0')}',
+          caloriasPor100g: 100 + index.toDouble(),
+          tipo: 'simples',
+        ),
+      );
+      final foodsPager = AdminPagedList<FoodModel>(
+        loadPage: (_, __) async => FirestorePage<FoodModel>(
+          items: items,
+          cursor: null,
+          hasMore: false,
+        ),
+      );
+      await foodsPager.loadMore();
+      await _pumpLargeAdmin(tester, foodsPager: foodsPager);
+      await tester.tap(find.text('Alimentos'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Página 1 de 2'), findsOneWidget);
+      final next = find.widgetWithText(ElevatedButton, 'Seguinte');
+      await tester.ensureVisible(next);
+      await tester.tap(next);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Página 2 de 2'), findsOneWidget);
+      expect(find.text('Alimento 24'), findsOneWidget);
+    });
+
     testWidgets('navigating to Agenda view renders AGENDA title', (
       tester,
     ) async {
@@ -212,9 +276,7 @@ void main() {
       expect(find.text('AGENDA'), findsWidgets);
     });
 
-    testWidgets('agenda apresenta horários das 06:00 às 23:00', (
-      tester,
-    ) async {
+    testWidgets('agenda apresenta horários das 06:00 às 23:00', (tester) async {
       await _pumpLargeAdmin(tester);
       await tester.tap(find.text('Agenda'));
       await tester.pumpAndSettle();
@@ -262,41 +324,42 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('editor de menu adiciona opções e permite pré-visualizar uma escolha', (
-      tester,
-    ) async {
-      await _pumpLargeAdmin(tester);
+    testWidgets(
+      'editor de menu adiciona opções e permite pré-visualizar uma escolha',
+      (tester) async {
+        await _pumpLargeAdmin(tester);
 
-      await tester.tap(find.text('Questionário'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Adicionar pergunta').first);
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Questionário'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Adicionar pergunta').first);
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Texto livre'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Menu com opções').last);
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Texto livre'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Menu com opções').last);
+        await tester.pumpAndSettle();
 
-      expect(find.text('Opção 1'), findsOneWidget);
-      expect(find.text('Pré-visualização para o aluno'), findsOneWidget);
+        expect(find.text('Opção 1'), findsOneWidget);
+        expect(find.text('Pré-visualização para o aluno'), findsOneWidget);
 
-      await tester.tap(find.text('Adicionar opção'));
-      await tester.pumpAndSettle();
-      expect(find.text('Opção 2'), findsOneWidget);
+        await tester.tap(find.text('Adicionar opção'));
+        await tester.pumpAndSettle();
+        expect(find.text('Opção 2'), findsOneWidget);
 
-      final optionFields = find.byType(TextFormField);
-      await tester.enterText(optionFields.at(1), 'Sim');
-      await tester.enterText(optionFields.at(2), 'Não');
-      await tester.pumpAndSettle();
+        final optionFields = find.byType(TextFormField);
+        await tester.enterText(optionFields.at(1), 'Sim');
+        await tester.enterText(optionFields.at(2), 'Não');
+        await tester.pumpAndSettle();
 
-      final menus = find.byKey(const ValueKey('admin-question-preview-menu'));
-      await tester.tap(menus);
-      await tester.pumpAndSettle();
-      expect(find.text('Sim'), findsWidgets);
-      await tester.tap(find.text('Sim').last);
-      await tester.pumpAndSettle();
+        final menus = find.byKey(const ValueKey('admin-question-preview-menu'));
+        await tester.tap(menus);
+        await tester.pumpAndSettle();
+        expect(find.text('Sim'), findsWidgets);
+        await tester.tap(find.text('Sim').last);
+        await tester.pumpAndSettle();
 
-      expect(tester.takeException(), isNull);
-    });
+        expect(tester.takeException(), isNull);
+      },
+    );
   });
 }

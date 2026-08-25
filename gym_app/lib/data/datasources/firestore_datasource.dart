@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/errors/exceptions.dart';
+import '../../core/utils/food_search.dart';
 import '../models/user_model.dart';
 import '../models/diary_model.dart';
 import '../models/nutrition_plan_model.dart';
@@ -1090,10 +1091,7 @@ class FirestoreDataSource {
   Future<List<FoodModel>> searchFoods(String query) async {
     try {
       final allFoods = await getAllFoods();
-      final lowerQuery = query.toLowerCase();
-      return allFoods
-          .where((f) => f.nome.toLowerCase().contains(lowerQuery))
-          .toList();
+      return FoodSearch.filterAndRank(allFoods, query);
     } on FirebaseException catch (e) {
       throw ServerException(
         message: e.message ?? 'Erro ao pesquisar alimentos',

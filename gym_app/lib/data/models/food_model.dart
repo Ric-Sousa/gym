@@ -8,6 +8,8 @@ class FoodModel {
   final double? gordurasPor100g;
   final String? categoria; // 'proteína', 'hidrato', 'gordura', 'vegetal', etc.
   final String? origem;
+  /// `simples` ou `composto`; null usa a classificação automática.
+  final String? tipo;
 
   const FoodModel({
     this.id = '',
@@ -18,6 +20,7 @@ class FoodModel {
     this.gordurasPor100g,
     this.categoria,
     this.origem,
+    this.tipo,
   });
 
   factory FoodModel.fromMap(String id, Map<String, dynamic> map) {
@@ -30,6 +33,7 @@ class FoodModel {
       gordurasPor100g: (map['gordurasPor100g'] as num?)?.toDouble(),
       categoria: map['categoria'] as String?,
       origem: map['origem'] as String?,
+      tipo: map['tipo'] as String?,
     );
   }
 
@@ -42,6 +46,7 @@ class FoodModel {
       if (gordurasPor100g != null) 'gordurasPor100g': gordurasPor100g,
       if (categoria != null) 'categoria': categoria,
       if (origem != null) 'origem': origem,
+      if (tipo != null) 'tipo': tipo,
     };
   }
 
@@ -59,6 +64,7 @@ class FoodModel {
     double? gordurasPor100g,
     String? categoria,
     String? origem,
+    String? tipo,
   }) {
     return FoodModel(
       id: id ?? this.id,
@@ -69,6 +75,7 @@ class FoodModel {
       gordurasPor100g: gordurasPor100g ?? this.gordurasPor100g,
       categoria: categoria ?? this.categoria,
       origem: origem ?? this.origem,
+      tipo: tipo ?? this.tipo,
     );
   }
 }

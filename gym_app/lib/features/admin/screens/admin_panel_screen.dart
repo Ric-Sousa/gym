@@ -15,6 +15,7 @@ import '../../../core/config/app_colors.dart';
 import '../../../core/services/fcm_service.dart';
 import '../../../core/utils/progress_photo_resolver.dart';
 import '../../../core/utils/storage_resource.dart';
+import '../../../core/utils/food_search.dart';
 import '../../../data/models/user_model.dart';
 import '../../../data/models/food_model.dart';
 import '../../../data/models/progress_model.dart';
@@ -6950,8 +6951,9 @@ class _AdminFoodLibrary extends ConsumerStatefulWidget {
 class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
   String _search = '';
   String _category = 'all';
+  String _kind = 'all';
   String _sort = 'name_asc';
-  int _visibleFoodCount = _pageSize;
+  int _currentFoodPage = 0;
 
   static const _pageSize = 24;
 
@@ -6968,20 +6970,34 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
   };
 
   static const _sortLabels = <String, String>{
-    'name_asc': 'Nome A–Z',
+    'name_asc': 'Relevância / A–Z',
     'calories_asc': 'Menos kcal',
     'calories_desc': 'Mais kcal',
   };
 
+  static const _kindLabels = <String, String>{
+    'all': 'Simples e compostos',
+    'simples': 'Apenas simples',
+    'composto': 'Apenas compostos',
+  };
+
   List<FoodModel> _filteredFoods(List<FoodModel> foods) {
-    final query = _search.trim().toLowerCase();
-    final filtered = foods.where((food) {
-      final matchesQuery =
-          query.isEmpty || food.nome.toLowerCase().contains(query);
-      if (!matchesQuery) return false;
+    final query = _search.trim();
+    final candidates = foods.where((food) {
       if (_category == 'all') return true;
       return food.categoria?.trim().toLowerCase() == _category;
     }).toList();
+    final kindFiltered = candidates.where((food) {
+      if (_kind == 'all') return true;
+      return FoodSearch.kindOf(food).value == _kind;
+    });
+    final filtered = query.isEmpty
+        ? kindFiltered.toList()
+        : FoodSearch.filterAndRank(kindFiltered, query);
+
+    // A ordem devolvida pela pesquisa representa a relevância: alimento-base
+    // primeiro, variantes simples depois e pratos compostos no fim.
+    if (query.isNotEmpty && _sort == 'name_asc') return filtered;
 
     filtered.sort((a, b) {
       switch (_sort) {
@@ -6990,6 +7006,10 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
         case 'calories_desc':
           return b.caloriasPor100g.compareTo(a.caloriasPor100g);
         default:
+          final byKind = FoodSearch.kindOf(
+            a,
+          ).index.compareTo(FoodSearch.kindOf(b).index);
+          if (byKind != 0) return byKind;
           return a.nome.toLowerCase().compareTo(b.nome.toLowerCase());
       }
     });
@@ -7001,9 +7021,12 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
     if (foods == null) return 'A carregar alimentos...';
 
     final filteredCount = _filteredFoods(foods).length;
-    final visibleCount = _visibleFoodCount < filteredCount
-        ? _visibleFoodCount
-        : filteredCount;
+    final pageCount = filteredCount == 0
+        ? 0
+        : (filteredCount / _pageSize).ceil();
+    final page = pageCount == 0 ? 0 : _currentFoodPage.clamp(0, pageCount - 1);
+    final firstVisible = filteredCount == 0 ? 0 : page * _pageSize + 1;
+    final lastVisible = ((page + 1) * _pageSize).clamp(0, filteredCount);
     final completeCount = foods
         .where(
           (food) =>
@@ -7014,9 +7037,9 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
         .length;
     final countSuffix = ' · $completeCount com dados completos';
     if (filteredCount == foods.length) {
-      return '$visibleCount visíveis de $filteredCount alimentos no total$countSuffix';
+      return '$firstVisible–$lastVisible de $filteredCount alimentos$countSuffix';
     }
-    return '$visibleCount visíveis · $filteredCount filtrados · ${foods.length} no total$countSuffix';
+    return '$firstVisible–$lastVisible · $filteredCount filtrados · ${foods.length} no total$countSuffix';
   }
 
   Widget _foodDropdown({
@@ -7088,8 +7111,8 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
     final colors = AdminThemeColors.of(context);
     return LayoutBuilder(
       builder: (_, constraints) {
-        final stacked = constraints.maxWidth < 620;
-        final fieldWidth = stacked ? constraints.maxWidth : 190.0;
+        final stacked = constraints.maxWidth < 720;
+        final fieldWidth = stacked ? constraints.maxWidth : 180.0;
         final searchWidth = stacked
             ? constraints.maxWidth
             : (constraints.maxWidth < 370 ? constraints.maxWidth : 360.0);
@@ -7103,7 +7126,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
               child: TextField(
                 onChanged: (v) => setState(() {
                   _search = v;
-                  _visibleFoodCount = _pageSize;
+                  _currentFoodPage = 0;
                 }),
                 style: GoogleFonts.inter(fontSize: 13, color: colors.text),
                 decoration: InputDecoration(
@@ -7132,7 +7155,20 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                 icon: Icons.category_outlined,
                 onChanged: (value) => setState(() {
                   _category = value ?? 'all';
-                  _visibleFoodCount = _pageSize;
+                  _currentFoodPage = 0;
+                }),
+              ),
+            ),
+            SizedBox(
+              width: fieldWidth,
+              child: _foodDropdown(
+                value: _kind,
+                label: 'Tipo',
+                options: _kindLabels,
+                icon: Icons.account_tree_outlined,
+                onChanged: (value) => setState(() {
+                  _kind = value ?? 'all';
+                  _currentFoodPage = 0;
                 }),
               ),
             ),
@@ -7145,7 +7181,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                 icon: Icons.swap_vert_rounded,
                 onChanged: (value) => setState(() {
                   _sort = value ?? 'name_asc';
-                  _visibleFoodCount = _pageSize;
+                  _currentFoodPage = 0;
                 }),
               ),
             ),
@@ -7155,15 +7191,72 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
     );
   }
 
+  Widget _foodSection({
+    required String title,
+    required String description,
+    required List<FoodModel> foods,
+    required BoxConstraints constraints,
+  }) {
+    if (foods.isEmpty) return const SizedBox.shrink();
+    final colors = AdminThemeColors.of(context);
+    final cols = constraints.maxWidth > 900
+        ? 4
+        : (constraints.maxWidth > 600
+              ? 3
+              : (constraints.maxWidth > 400 ? 2 : 1));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              title,
+              style: GoogleFonts.montserrat(
+                color: colors.text,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: colors.lime.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '${foods.length}',
+                style: GoogleFonts.inter(
+                  color: colors.lime,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 3),
+        Text(
+          description,
+          style: GoogleFonts.inter(color: colors.muted, fontSize: 11),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 14,
+          runSpacing: 14,
+          children: foods.map((food) {
+            final width =
+                (constraints.maxWidth - 14 * (cols - 1)) / cols;
+            return SizedBox(width: width, child: _foodCard(food));
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final foodsPager = ref.watch(adminFoodsPagerProvider);
-    final AsyncValue<List<FoodModel>> foodsAsync =
-        foodsPager.isLoading && foodsPager.items.isEmpty
-        ? const AsyncLoading<List<FoodModel>>()
-        : foodsPager.error != null
-        ? AsyncError<List<FoodModel>>(foodsPager.error!, StackTrace.current)
-        : AsyncData<List<FoodModel>>(foodsPager.items);
+    final foodsAsync = ref.watch(adminFoodCatalogProvider);
 
     return AdminPageFrame(
       child: Column(
@@ -7211,7 +7304,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                         Text(
                           foods.isEmpty
                               ? 'Adiciona os primeiros alimentos à biblioteca.'
-                              : 'Altera a categoria ou a ordenação para ver outros alimentos.',
+                              : 'Pesquisa outro nome ou altera os filtros para ver outros alimentos.',
                           textAlign: TextAlign.center,
                           style: GoogleFonts.inter(
                             fontSize: 12,
@@ -7224,77 +7317,85 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                 );
               }
 
+              final totalPages = (filteredFoods.length / _pageSize).ceil();
+              final pageIndex = _currentFoodPage.clamp(0, totalPages - 1);
+              final firstIndex = pageIndex * _pageSize;
               final visibleFoods = filteredFoods
-                  .take(_visibleFoodCount)
-                  .toList();
+                  .skip(firstIndex)
+                  .take(_pageSize)
+                  .toList(growable: false);
+              final simpleFoods = visibleFoods
+                  .where(
+                    (food) => FoodSearch.kindOf(food) == FoodKind.simple,
+                  )
+                  .toList(growable: false);
+              final compoundFoods = visibleFoods
+                  .where(
+                    (food) => FoodSearch.kindOf(food) == FoodKind.compound,
+                  )
+                  .toList(growable: false);
               return LayoutBuilder(
                 builder: (_, constraints) {
-                  final cols = constraints.maxWidth > 900
-                      ? 4
-                      : (constraints.maxWidth > 600
-                            ? 3
-                            : (constraints.maxWidth > 400 ? 2 : 1));
-                  final cards = Wrap(
-                    spacing: 14,
-                    runSpacing: 14,
-                    children: visibleFoods.map((food) {
-                      final w = (constraints.maxWidth - 14 * (cols - 1)) / cols;
-                      return SizedBox(width: w, child: _foodCard(food));
-                    }).toList(),
-                  );
-                  final hasMore =
-                      visibleFoods.length < filteredFoods.length ||
-                      foodsPager.hasMore;
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      cards,
-                      if (hasMore) ...[
-                        const SizedBox(height: 22),
-                        Text(
-                          'A mostrar ${visibleFoods.length} de ${filteredFoods.length} alimentos',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.inter(
-                            color: AdminThemeColors.of(context).muted,
-                            fontSize: 11,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Center(
-                          child: ElevatedButton.icon(
-                            onPressed: foodsPager.hasMore
-                                ? foodsPager.loadMore
-                                : () => setState(() {
-                                    _visibleFoodCount += _pageSize;
-                                  }),
-                            icon: foodsPager.isLoading
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
+                      _foodSection(
+                        title: 'Alimentos simples',
+                        description:
+                            'Ingredientes e alimentos-base, apresentados primeiro na pesquisa.',
+                        foods: simpleFoods,
+                        constraints: constraints,
+                      ),
+                      if (simpleFoods.isNotEmpty && compoundFoods.isNotEmpty)
+                        const SizedBox(height: 28),
+                      _foodSection(
+                        title: 'Alimentos compostos',
+                        description:
+                            'Pratos e combinações preparados com vários alimentos.',
+                        foods: compoundFoods,
+                        constraints: constraints,
+                      ),
+                      if (totalPages > 1) ...[
+                        const SizedBox(height: 26),
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 12,
+                          runSpacing: 8,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: pageIndex == 0
+                                  ? null
+                                  : () => setState(
+                                      () => _currentFoodPage = pageIndex - 1,
                                     ),
-                                  )
-                                : const Icon(
-                                    Icons.expand_more_rounded,
-                                    size: 18,
-                                  ),
-                            label: Text(
-                              foodsPager.isLoading
-                                  ? 'A carregar alimentos...'
-                                  : 'Mostrar mais alimentos',
+                              icon: const Icon(
+                                Icons.chevron_left_rounded,
+                                size: 18,
+                              ),
+                              label: const Text('Anterior'),
                             ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AdminThemeColors.of(
-                                context,
-                              ).lime,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 18,
-                                vertical: 12,
+                            Text(
+                              'Página ${pageIndex + 1} de $totalPages',
+                              style: GoogleFonts.inter(
+                                color: AdminThemeColors.of(context).muted,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                          ),
+                            ElevatedButton.icon(
+                              onPressed: pageIndex >= totalPages - 1
+                                  ? null
+                                  : () => setState(
+                                      () => _currentFoodPage = pageIndex + 1,
+                                    ),
+                              icon: const Icon(
+                                Icons.chevron_right_rounded,
+                                size: 18,
+                              ),
+                              label: const Text('Seguinte'),
+                            ),
+                          ],
                         ),
                       ],
                     ],
@@ -7412,6 +7513,34 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          Builder(
+            builder: (_) {
+              final kind = FoodSearch.kindOf(food);
+              final kindColor = kind == FoodKind.simple
+                  ? colors.lime
+                  : colors.orange;
+              return Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: kindColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  kind.label.toUpperCase(),
+                  style: GoogleFonts.inter(
+                    color: kindColor,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 16),
           Container(
@@ -7564,7 +7693,8 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
     try {
       await ref.read(nutritionRepositoryProvider).deleteFood(food.id);
       ref.invalidate(adminFoodsProvider);
-      await ref.read(adminFoodsPagerProvider).refresh();
+      ref.invalidate(adminFoodCatalogProvider);
+      ref.invalidate(adminFoodsPagerProvider);
       if (mounted) {
         showAppNotification(
           context,
@@ -7590,6 +7720,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
     final carbCtrl = TextEditingController();
     final gordCtrl = TextEditingController();
     String selectedCat = 'proteina';
+    String selectedKind = FoodKind.simple.value;
 
     final categories = [
       'proteina',
@@ -7777,6 +7908,40 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                   onChanged: (v) =>
                       setDialogState(() => selectedCat = v ?? 'proteina'),
                 ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  isDense: true,
+                  initialValue: selectedKind,
+                  dropdownColor: AdminThemeColors.of(context).surface,
+                  style: GoogleFonts.inter(
+                    color: AdminThemeColors.of(context).text,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'Tipo de alimento',
+                    helperText:
+                        'Simples: ingrediente/base. Composto: prato ou combinação.',
+                    helperMaxLines: 2,
+                    labelStyle: GoogleFonts.inter(
+                      color: AdminThemeColors.of(context).muted,
+                    ),
+                    filled: true,
+                    fillColor: AdminThemeColors.of(context).bg,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  items: FoodKind.values
+                      .map(
+                        (kind) => DropdownMenuItem(
+                          value: kind.value,
+                          child: Text(kind.label),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setDialogState(
+                    () => selectedKind = value ?? FoodKind.simple.value,
+                  ),
+                ),
               ],
             ),
           ),
@@ -7808,8 +7973,11 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                       gordCtrl.text.replaceAll(',', '.'),
                     ),
                     'categoria': selectedCat,
+                    'tipo': selectedKind,
                   });
                   ref.invalidate(adminFoodsProvider);
+                  ref.invalidate(adminFoodCatalogProvider);
+                  ref.invalidate(adminFoodsPagerProvider);
                   if (mounted) Navigator.pop(ctx);
                 } catch (_) {}
               },

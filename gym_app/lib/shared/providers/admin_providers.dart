@@ -319,6 +319,13 @@ final adminFoodsProvider = StreamProvider<List<FoodModel>>((ref) {
   return ref.read(nutritionRepositoryProvider).watchAllFoods();
 });
 
+/// Catálogo administrativo completo. Ao contrário do pager visual, esta
+/// leitura inclui todos os documentos para que a pesquisa nunca dependa das
+/// páginas que o utilizador já abriu.
+final adminFoodCatalogProvider = FutureProvider<List<FoodModel>>((ref) {
+  return ref.read(nutritionRepositoryProvider).getAllFoods();
+});
+
 final adminFoodsSearchProvider = StreamProvider.family<List<FoodModel>, String>(
   (ref, query) {
     // Mantém este provider dependente do stream local para atualizar a lista
