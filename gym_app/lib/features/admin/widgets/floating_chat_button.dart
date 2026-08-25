@@ -373,7 +373,7 @@ class _FloatingChatButtonState extends ConsumerState<FloatingChatButton> {
     showDialog(
       context: context,
       barrierDismissible: true,
-      barrierColor: Colors.black.withValues(alpha: 0.3),
+      barrierColor: Colors.black.withValues(alpha: 0.18),
       builder: (dialogContext) {
         return Align(
           alignment: Alignment.bottomRight,
@@ -464,8 +464,16 @@ class _ChatPopoverState extends ConsumerState<_ChatPopover> {
           color: AdminThemeColors.of(context).surface,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(color: AdminThemeColors.of(context).border),
-          boxShadow: const [],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 28,
+              spreadRadius: 0,
+              offset: const Offset(0, 10),
+            ),
+          ],
         ),
+        clipBehavior: Clip.antiAlias,
         child: FadeSlideSwitcher(
           duration: const Duration(milliseconds: 220),
           child: _selectedConversation == null && _selectedGroup == null
