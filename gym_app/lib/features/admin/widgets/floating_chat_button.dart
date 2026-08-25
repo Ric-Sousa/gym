@@ -174,8 +174,7 @@ class FloatingChatButton extends ConsumerStatefulWidget {
   const FloatingChatButton({super.key, this.onViewProfile});
 
   @override
-  ConsumerState<FloatingChatButton> createState() =>
-      _FloatingChatButtonState();
+  ConsumerState<FloatingChatButton> createState() => _FloatingChatButtonState();
 }
 
 class _FloatingChatButtonState extends ConsumerState<FloatingChatButton> {
@@ -231,103 +230,107 @@ class _FloatingChatButtonState extends ConsumerState<FloatingChatButton> {
 
           final content = Column(
             mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          // Unread badge chip above the button — black, minimalist
-          if (unreadCount > 0)
-            GestureDetector(
-              onTap: () => _openChatModal(context, ref),
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: _badgeBlack,
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: const [],
-                ),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: compact ? 240 : 300),
-                  child: Text(
-                    chatPreview != null && chatPreview.isNotEmpty
-                        ? '$unreadCount · $chatPreview'
-                        : '$unreadCount ${unreadCount == 1 ? 'nova mensagem' : 'novas mensagens'}',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // Unread badge chip above the button — black, minimalist
+              if (unreadCount > 0)
+                GestureDetector(
+                  onTap: () => _openChatModal(context, ref),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
                     ),
-                  ),
-                ),
-              ),
-            ),
-          // Main floating button
-          Material(
-            elevation: 0,
-            shadowColor: AdminThemeColors.of(context).shadowElevated,
-            borderRadius: BorderRadius.circular(30),
-            child: InkWell(
-              onTap: () => _openChatModal(context, ref),
-              borderRadius: BorderRadius.circular(30),
-              child: Container(
-                width: buttonSize,
-                height: buttonSize,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AdminThemeColors.of(context).lime,
-                      AdminThemeColors.of(context).lime.withValues(alpha: 0.8),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: const [],
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Icon(
-                      Icons.chat_bubble_rounded,
-                      color: Colors.white,
-                      size: compact ? 23 : 28,
+                    decoration: BoxDecoration(
+                      color: _badgeBlack,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: const [],
                     ),
-                    // Badge count on button — black
-                    if (unreadCount > 0)
-                      Positioned(
-                        top: compact ? 6 : 10,
-                        right: compact ? 6 : 10,
-                        child: Container(
-                          width: compact ? 18 : 20,
-                          height: compact ? 18 : 20,
-                          decoration: BoxDecoration(
-                            color: _badgeBlack,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.transparent),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            unreadCount > 99 ? '99+' : '$unreadCount',
-                            style: GoogleFonts.inter(
-                              color: Colors.white,
-                              fontSize: compact ? 8 : 9,
-                              fontWeight: FontWeight.w800,
-                              height: 1,
-                            ),
-                          ),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: compact ? 240 : 300,
+                      ),
+                      child: Text(
+                        chatPreview != null && chatPreview.isNotEmpty
+                            ? '$unreadCount · $chatPreview'
+                            : '$unreadCount ${unreadCount == 1 ? 'nova mensagem' : 'novas mensagens'}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                  ],
+                    ),
+                  ),
+                ),
+              // Main floating button
+              Material(
+                elevation: 0,
+                shadowColor: AdminThemeColors.of(context).shadowElevated,
+                borderRadius: BorderRadius.circular(30),
+                child: InkWell(
+                  onTap: () => _openChatModal(context, ref),
+                  borderRadius: BorderRadius.circular(30),
+                  child: Container(
+                    width: buttonSize,
+                    height: buttonSize,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AdminThemeColors.of(context).lime,
+                          AdminThemeColors.of(
+                            context,
+                          ).lime.withValues(alpha: 0.8),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: const [],
+                    ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Icon(
+                          Icons.chat_bubble_rounded,
+                          color: Colors.white,
+                          size: compact ? 23 : 28,
+                        ),
+                        // Badge count on button — black
+                        if (unreadCount > 0)
+                          Positioned(
+                            top: compact ? 6 : 10,
+                            right: compact ? 6 : 10,
+                            child: Container(
+                              width: compact ? 18 : 20,
+                              height: compact ? 18 : 20,
+                              decoration: BoxDecoration(
+                                color: _badgeBlack,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.transparent),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                unreadCount > 99 ? '99+' : '$unreadCount',
+                                style: GoogleFonts.inter(
+                                  color: Colors.white,
+                                  fontSize: compact ? 8 : 9,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-        ],
-      );
+            ],
+          );
 
           final positionedContent = compact
               ? GestureDetector(
@@ -1161,6 +1164,7 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
       await markAdminConversationAsRead(
         roomId: widget.conversation.roomId,
         adminId: adminId,
+        participantId: widget.conversation.aluno.uid,
         readAt: readAt,
       );
       _readRetryCount = 0;
@@ -1223,10 +1227,9 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
     MessageModel? uploadedMessage;
     try {
       final participants = [adminId, widget.conversation.aluno.uid];
-      await ref.read(chatRepositoryProvider).ensureChatRoom(
-        widget.conversation.roomId,
-        participants,
-      );
+      await ref
+          .read(chatRepositoryProvider)
+          .ensureChatRoom(widget.conversation.roomId, participants);
       final message = await createUploadedAudioMessage(
         storage: ref.read(storageDataSourceProvider),
         senderId: adminId,
@@ -1269,10 +1272,9 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
       );
       if (file == null) return;
       final participants = [adminId, widget.conversation.aluno.uid];
-      await ref.read(chatRepositoryProvider).ensureChatRoom(
-        widget.conversation.roomId,
-        participants,
-      );
+      await ref
+          .read(chatRepositoryProvider)
+          .ensureChatRoom(widget.conversation.roomId, participants);
       final message = await createUploadedImageMessage(
         storage: ref.read(storageDataSourceProvider),
         senderId: adminId,
@@ -1338,7 +1340,6 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
     }
   }
 
-
   void _showPhotoZoom(BuildContext context, UserModel aluno) {
     if (aluno.fotoPerfil == null || aluno.fotoPerfil!.trim().isEmpty) return;
     showProfilePhotoViewer(
@@ -1388,9 +1389,7 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
                   radius: 16,
                   backgroundColor: AdminThemeColors.of(context).limeDim,
                   fallback: Text(
-                    aluno.nome.isNotEmpty
-                        ? aluno.nome[0].toUpperCase()
-                        : '?',
+                    aluno.nome.isNotEmpty ? aluno.nome[0].toUpperCase() : '?',
                     style: GoogleFonts.montserrat(
                       color: AdminThemeColors.of(context).lime,
                       fontWeight: FontWeight.w700,

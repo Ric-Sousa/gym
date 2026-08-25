@@ -179,12 +179,14 @@ final adminConversationsProvider = StreamProvider<List<ConversationPreview>>((
 Future<void> markAdminConversationAsRead({
   required String roomId,
   required String adminId,
+  required String participantId,
   required DateTime readAt,
 }) async {
-  if (roomId.isEmpty || adminId.isEmpty) return;
+  if (roomId.isEmpty || adminId.isEmpty || participantId.isEmpty) return;
 
   final firestore = FirebaseFirestore.instance;
   final roomRef = firestore.collection(AppConstants.chatCollection).doc(roomId);
+  final roomSnapshot = await roomRef.get();
 
   // Não filtrar por `where('lida', isEqualTo: false)`: mensagens antigas
   // podem não ter esse campo e o modelo trata-as como não lidas. Ler a sala
@@ -217,7 +219,18 @@ Future<void> markAdminConversationAsRead({
   // Persiste também o cursor da sala. Assim a lista de conversas e o badge
   // continuam a considerar lidas as mensagens antigas depois de uma nova
   // subscrição ou de um snapshot que chegue fora de ordem.
-  await roomRef.set({'lastReadAt': readAt}, SetOptions(merge: true));
+  final roomData = roomSnapshot.data();
+  final existingParticipants = roomData?['participantIds'];
+  final hasValidParticipants =
+      existingParticipants is List &&
+      existingParticipants.length == 2 &&
+      existingParticipants.contains(adminId) &&
+      existingParticipants.contains(participantId);
+  final participants = [adminId, participantId]..sort();
+  await roomRef.set({
+    if (!hasValidParticipants) 'participantIds': participants,
+    'lastReadAt': readAt,
+  }, SetOptions(merge: true));
 }
 
 /// View de mensagens do admin — lista de conversas + gestão de grupos.

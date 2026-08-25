@@ -60,6 +60,13 @@ service cloud.firestore {
         );
     }
 
+    function directRoomIdMatchesParticipants(salaId, data) {
+      return validDirectParticipants(data) && (
+        salaId == 'chat_' + data.participantIds[0] + '_' + data.participantIds[1] ||
+        salaId == 'chat_' + data.participantIds[1] + '_' + data.participantIds[0]
+      );
+    }
+
     function directRoomMember(data) {
       return isAuth() && validDirectParticipants(data) &&
         (
@@ -343,6 +350,24 @@ service cloud.firestore {
             'participantIds', 'lastMessage', 'lastTimestamp', 'lastSenderId',
             'lastMessageId', 'typing', 'typingAt', 'lastReadAt'
           ])
+        ) || (
+          !resource.data.keys().hasAny(['participantIds']) &&
+          validDirectRoomForCurrentUser(request.resource.data) &&
+          directRoomIdMatchesParticipants(salaId, request.resource.data) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'participantIds', 'lastMessage', 'lastTimestamp', 'lastSenderId',
+            'lastMessageId', 'typing', 'typingAt'
+          ]) && (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'lastMessage', 'lastTimestamp', 'lastSenderId', 'lastMessageId'
+            ]) || (
+              request.resource.data.get('lastSenderId', '') == request.auth.uid &&
+              request.resource.data.get('lastMessage', '') is string &&
+              request.resource.data.get('lastMessage', '').size() <= 1000 &&
+              request.resource.data.get('lastTimestamp', null) is timestamp &&
+              request.resource.data.get('lastMessageId', '') is string
+            )
+          )
         ) || (
           isAdmin() &&
           validDirectParticipants(resource.data) &&

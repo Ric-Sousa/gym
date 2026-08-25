@@ -150,6 +150,7 @@ describe('Firestore Rules — isolamento de chat direto', () => {
     await assertSucceeds(
       updateDoc(doc(admin, 'chat', 'legacy-room'), {
         participantIds: [ADMIN_ID, STUDENT_A],
+        lastReadAt: Timestamp.now(),
       }),
     );
   });
@@ -171,6 +172,78 @@ describe('Firestore Rules — isolamento de chat direto', () => {
     batch.set(messageRef, directMessage(STUDENT_A, { texto: 'Olá' }));
 
     await assertSucceeds(batch.commit());
+  });
+
+  test('student can send in their own legacy room and migrate participants atomically', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'chat', ROOM_A), {
+        lastMessage: 'Legacy room without participants',
+      });
+    });
+
+    const studentA = testEnv.authenticatedContext(STUDENT_A).firestore();
+    const roomRef = doc(studentA, 'chat', ROOM_A);
+    const messageRef = doc(roomRef, 'mensagens', 'legacy-message-new');
+    const batch = writeBatch(studentA);
+    const timestamp = Timestamp.now();
+
+    batch.set(roomRef, {
+      participantIds: [ADMIN_ID, STUDENT_A],
+      lastMessage: 'Nova mensagem',
+      lastTimestamp: timestamp,
+      lastSenderId: STUDENT_A,
+      lastMessageId: 'legacy-message-new',
+      typing: '',
+    }, { merge: true });
+    batch.set(messageRef, directMessage(STUDENT_A, {
+      texto: 'Nova mensagem',
+      timestamp,
+    }));
+
+    await assertSucceeds(batch.commit());
+  });
+
+  test('student can prepare their own legacy room before uploading an attachment', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'chat', ROOM_A), {
+        lastMessage: 'Legacy room without participants',
+      });
+    });
+
+    const studentA = testEnv.authenticatedContext(STUDENT_A).firestore();
+    await assertSucceeds(setDoc(doc(studentA, 'chat', ROOM_A), {
+      participantIds: [ADMIN_ID, STUDENT_A],
+      typing: '',
+    }, { merge: true }));
+  });
+
+  test('student cannot claim another student legacy room', async () => {
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'chat', ROOM_A), {
+        lastMessage: 'Legacy room without participants',
+      });
+    });
+
+    const studentB = testEnv.authenticatedContext(STUDENT_B).firestore();
+    const roomRef = doc(studentB, 'chat', ROOM_A);
+    const messageRef = doc(roomRef, 'mensagens', 'hijacked-message');
+    const batch = writeBatch(studentB);
+    const timestamp = Timestamp.now();
+
+    batch.set(roomRef, {
+      participantIds: [ADMIN_ID, STUDENT_B],
+      lastMessage: 'Tentativa indevida',
+      lastTimestamp: timestamp,
+      lastSenderId: STUDENT_B,
+      lastMessageId: 'hijacked-message',
+      typing: '',
+    }, { merge: true });
+    batch.set(messageRef, directMessage(STUDENT_B, {
+      texto: 'Tentativa indevida',
+      timestamp,
+    }));
+
+    await assertFails(batch.commit());
   });
 });
 
