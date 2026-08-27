@@ -67,6 +67,7 @@ class ChatScreen extends ConsumerStatefulWidget {
   final String? chatPartnerId;
   final String? chatPartnerName;
   final String? chatPartnerPhoto;
+  final String? chatPartnerUid;
 
   /// The shell controls presence for its IndexedStack tab. Standalone routes
   /// (for example a direct PT chat) manage their own presence.
@@ -77,6 +78,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.chatPartnerId,
     this.chatPartnerName,
     this.chatPartnerPhoto,
+    this.chatPartnerUid,
     this.trackChatPresence = true,
   });
 
@@ -340,7 +342,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       return _buildChatList(userId);
     }
 
-    final otherId = widget.chatPartnerId!;
+    final otherId = widget.chatPartnerUid ?? widget.chatPartnerId!;
     if (otherId == userId) {
       return _buildChatList(userId);
     }
@@ -485,6 +487,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                 ? userName[0].toUpperCase()
                                 : '?')
                           : otherInitials,
+                      senderPhoto: isMine
+                          ? authState.user?.fotoPerfil
+                          : partnerPhoto,
                     ),
                   );
                 }
@@ -999,6 +1004,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 chatPartnerId: personalId,
                 chatPartnerName: 'Sara Gameiro',
                 chatPartnerPhoto: personalPhoto,
+                chatPartnerUid: personalId,
                 // A aba Chat do shell já controla a presença. Não a desligar
                 // ao fechar esta rota enquanto a aba continua visível.
                 trackChatPresence: false,
@@ -1383,6 +1389,7 @@ class _MessageBubble extends StatelessWidget {
   final bool showName;
   final String senderName;
   final String senderInitials;
+  final String? senderPhoto;
 
   const _MessageBubble({
     required this.message,
@@ -1390,17 +1397,19 @@ class _MessageBubble extends StatelessWidget {
     required this.showName,
     required this.senderName,
     required this.senderInitials,
+    this.senderPhoto,
   });
 
   @override
   Widget build(BuildContext context) {
     final time = DateFormat('HH:mm').format(message.timestamp);
-    final avatar = CircleAvatar(
+    final avatar = StorageAvatar(
+      resource: senderPhoto,
       radius: 14,
       backgroundColor: isMine
           ? StudentThemeColors.of(context).primary.withValues(alpha: 0.2)
           : AppColors.secondary.withValues(alpha: 0.2),
-      child: Text(
+      fallback: Text(
         senderInitials,
         style: GoogleFonts.montserrat(
           fontSize: 10,
