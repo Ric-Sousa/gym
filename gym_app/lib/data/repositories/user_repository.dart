@@ -23,12 +23,32 @@ class UserRepository {
     }
   }
 
+  /// Obtém apenas os dados públicos usados no chat.
+  Future<UserModel> getChatProfile(String uid) async {
+    try {
+      return await _firestoreDataSource.getChatProfile(uid);
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    } on DocumentNotFoundException {
+      throw const DocumentNotFoundFailure();
+    }
+  }
+
   /// Stream do utilizador.
   Stream<UserModel> userStream(String uid) {
     return _firestoreDataSource.userStream(uid).handleError((e) {
       if (e is ServerException) throw ServerFailure(message: e.message);
       throw const ServerFailure(message: 'Erro ao carregar utilizador');
     });
+  }
+
+  /// Atualiza o perfil público mínimo usado pelos chats.
+  Future<void> updateChatProfile(String uid, Map<String, dynamic> data) async {
+    try {
+      await _firestoreDataSource.updateChatProfile(uid, data);
+    } on ServerException catch (e) {
+      throw ServerFailure(message: e.message);
+    }
   }
 
   /// Atualiza perfil do utilizador.

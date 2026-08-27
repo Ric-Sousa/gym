@@ -10972,6 +10972,12 @@ class _AdminSettingsView extends ConsumerWidget {
       await ref.read(userRepositoryProvider).updateUser(user.uid, {
         'fotoPerfil': storagePath,
       });
+      await ref.read(userRepositoryProvider).updateChatProfile(user.uid, {
+        'nome': user.nome,
+        'email': user.email,
+        'role': user.role,
+        'fotoPerfil': storagePath,
+      });
       ref.invalidate(userProfileProvider(user.uid));
       await ref.read(authProvider.notifier).refreshUser();
     } catch (_) {}

@@ -211,6 +211,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Perfil mínimo público para avatares e nomes no chat. Não duplicar dados
+    // privados de users nesta coleção.
+    match /chatProfiles/{uid} {
+      allow read: if isAuth();
+      allow create, update: if isAdmin() || isOwner(uid);
+      allow delete: if isAdmin() || isOwner(uid);
+    }
+
     match /users/{uid} {
       allow read: if isAdmin() || isOwner(uid);
 

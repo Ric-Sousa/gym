@@ -29,7 +29,11 @@ import 'group_chat_screen.dart';
 
 final personalProfileProvider = StreamProvider.family<UserModel?, String>((ref, uid) {
   if (uid.isEmpty) return Stream.value(null);
-  return ref.read(userRepositoryProvider).userStream(uid).map<UserModel?>((user) => user);
+  return Stream.fromFuture(
+    ref.read(userRepositoryProvider).getChatProfile(uid),
+  ).handleError((error) {
+    debugPrint('[chat-avatar] erro ao carregar perfil público $uid: $error');
+  }).map<UserModel?>((user) => user);
 });
 
 final chatMessagesProvider = StreamProvider.family<List<MessageModel>, String>((
@@ -101,6 +105,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   DateTime? _pendingDirectReadAt;
   bool _markingDirectAsRead = false;
   String? _fetchedPartnerPhoto;
+  UserModel? _fetchedPartner;
 
   List<String>? _directParticipantIds(String userId) {
     final partnerId = widget.chatPartnerId;
@@ -131,15 +136,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   /// If no photo was passed, fetch the partner's UserModel to get it.
   Future<void> _fetchPartnerPhotoIfNeeded() async {
-    if (widget.chatPartnerPhoto != null) return;
-    final partnerId = widget.chatPartnerId;
+    final partnerId = widget.chatPartnerUid ?? widget.chatPartnerId;
+    if (widget.chatPartnerPhoto != null && widget.chatPartnerPhoto!.trim().isNotEmpty) return;
     if (partnerId == null || partnerId.isEmpty) return;
+    debugPrint('[chat-avatar] a procurar perfil do participante: uid=$partnerId');
 
     try {
-      final user = await ref.read(userRepositoryProvider).getUser(partnerId);
-      if (mounted) setState(() => _fetchedPartnerPhoto = user.fotoPerfil);
-    } catch (_) {
-      // Silencioso — mostra iniciais como fallback.
+      final user = await ref.read(userRepositoryProvider).getChatProfile(partnerId);
+      debugPrint('[chat-avatar] perfil carregado: uid=$partnerId, foto=${user.fotoPerfil}');
+      if (mounted) {
+        setState(() {
+          _fetchedPartner = user;
+          _fetchedPartnerPhoto = user.fotoPerfil;
+        });
+      }
+    } catch (error) {
+      debugPrint('[chat-avatar] falha ao carregar perfil público $partnerId: $error');
     }
   }
 
@@ -167,6 +179,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       _lastRequestedDirectReadAt = null;
       _pendingDirectReadAt = null;
       _fetchedPartnerPhoto = null;
+      _fetchedPartner = null;
       resetDetector();
       _fetchPartnerPhotoIfNeeded();
     }
@@ -364,18 +377,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
     // Nome e iniciais da outra pessoa (admin ve aluno, aluno ve admin)
     final partnerName = widget.chatPartnerName;
-    final partnerProfile = isStudent
-        ? ref.watch(personalProfileProvider(otherId)).asData?.value
-        : null;
-    final partnerPhoto = widget.chatPartnerPhoto ??
-        _fetchedPartnerPhoto ??
-        partnerProfile?.fotoPerfil;
+    final partnerProfileAsync = ref.watch(personalProfileProvider(otherId));
+    final partnerProfile = partnerProfileAsync.asData?.value ?? _fetchedPartner;
+    final resolvedPartnerPhoto = (widget.chatPartnerPhoto?.trim().isNotEmpty ?? false)
+        ? widget.chatPartnerPhoto
+        : (_fetchedPartnerPhoto?.trim().isNotEmpty ?? false)
+            ? _fetchedPartnerPhoto
+            : partnerProfile?.fotoPerfil;
+    debugPrint('[chat-avatar] conversa: current=$userId, partner=$otherId, foto=$resolvedPartnerPhoto');
+    final partnerPhoto = resolvedPartnerPhoto;
     final otherName = partnerName != null && partnerName.isNotEmpty
         ? partnerName
         : adminName;
-    final otherInitials = partnerName != null && partnerName.isNotEmpty
-        ? partnerName[0].toUpperCase()
-        : 'SG';
+    final otherInitials = otherName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .take(2)
+        .map((part) => part[0].toUpperCase())
+        .join();
     final otherSubtitle = isStudent ? 'Personal Trainer' : 'Aluno';
 
     return Scaffold(
@@ -533,12 +553,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         ),
                         child: Row(
                           children: [
-                            CircleAvatar(
+                            StorageAvatar(
+                              resource: partnerPhoto,
                               radius: 10,
-                              backgroundColor: StudentThemeColors.of(
-                                context,
-                              ).primary.withValues(alpha: 0.15),
-                              child: Text(
+                              backgroundColor: StudentThemeColors.of(context).primary.withValues(alpha: 0.15),
+                              fallback: Text(
                                 otherInitials,
                                 style: GoogleFonts.montserrat(
                                   fontSize: 7,
@@ -745,11 +764,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   Widget _buildChatList(String userId) {
     final authState = ref.watch(authProvider);
-    final personalId = authState.user?.personalId;
-    final personalPhoto = personalId == null || personalId.isEmpty
+    final currentUser = authState.user;
+    final personalId = currentUser?.personalId?.trim();
+    final personalProfileAsync = personalId == null || personalId.isEmpty
         ? null
-        : ref.watch(personalProfileProvider(personalId)).asData?.value?.fotoPerfil;
+        : ref.watch(personalProfileProvider(personalId));
+    final personalProfile = personalProfileAsync?.asData?.value;
+    final personalPhoto = personalProfile?.fotoPerfil;
     final hasPT = personalId != null && personalId.isNotEmpty;
+    if (hasPT) {
+      debugPrint(
+        '[chat-avatar] lista: aluno=$userId, personalId=$personalId, '
+        'foto=${personalPhoto ?? "<a carregar>"}',
+      );
+    }
 
     final groupsAsync = ref.watch(alunoGroupsProvider(userId));
     final groupCount = groupsAsync.asData?.value.length ?? 0;
@@ -782,7 +810,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ),
               ),
               const SizedBox(height: 8),
-              ScrollReveal(child: _buildPTChatTile(personalId, personalPhoto)),
+              ScrollReveal(
+                child: _buildPTChatTile(personalId, personalPhoto),
+              ),
               const SizedBox(height: 24),
             ],
             // ── Grupos ──
@@ -981,6 +1011,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   Widget _buildPTChatTile(String personalId, String? personalPhoto) {
     final userId = ref.watch(authProvider).user?.uid ?? '';
+    final livePersonalProfile = ref.watch(personalProfileProvider(personalId)).asData?.value;
+    final resolvedPersonalPhoto = livePersonalProfile?.fotoPerfil ?? personalPhoto;
+    final personalName = livePersonalProfile?.nome.trim().isNotEmpty == true
+        ? livePersonalProfile!.nome
+        : 'Sara Gameiro';
+    final personalInitials = personalName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .take(2)
+        .map((part) => part[0].toUpperCase())
+        .join();
     final roomId = ref
         .read(chatRepositoryProvider)
         .getChatRoomId(userId, personalId);
@@ -1002,8 +1044,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             MaterialPageRoute(
               builder: (_) => ChatScreen(
                 chatPartnerId: personalId,
-                chatPartnerName: 'Sara Gameiro',
-                chatPartnerPhoto: personalPhoto,
+                chatPartnerName: personalName,
+                chatPartnerPhoto: resolvedPersonalPhoto,
                 chatPartnerUid: personalId,
                 // A aba Chat do shell já controla a presença. Não a desligar
                 // ao fechar esta rota enquanto a aba continua visível.
@@ -1027,31 +1069,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             children: [
               Stack(
                 children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          StudentThemeColors.of(context).primary,
-                          StudentThemeColors.of(context).primaryDim,
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: StorageAvatar(
-                      resource: personalPhoto,
-                      radius: 22,
-                      backgroundColor: Colors.transparent,
-                      fallback: const Text(
-                        'SG',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                        ),
+                  StorageAvatar(
+                    resource: resolvedPersonalPhoto,
+                    radius: 22,
+                    backgroundColor: Colors.transparent,
+                    fallback: Text(
+                      personalInitials,
+                      style: TextStyle(
+                        color: StudentThemeColors.of(context).primary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 16,
                       ),
                     ),
                   ),
@@ -1080,7 +1107,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Sara Gameiro',
+                      personalName,
                       style: GoogleFonts.inter(
                         fontWeight: hasUnread
                             ? FontWeight.w800

@@ -57,6 +57,34 @@ class FirestoreDataSource {
     }
   }
 
+  /// Obtém o perfil mínimo público usado pelos chats.
+  Future<UserModel> getChatProfile(String uid) async {
+    try {
+      final doc = await _firestore.collection('chatProfiles').doc(uid).get();
+      if (!doc.exists || doc.data() == null) throw DocumentNotFoundException();
+      return UserModel.fromMap(uid, doc.data()!);
+    } on FirebaseException catch (e) {
+      throw ServerException(message: e.message ?? 'Erro ao obter perfil do chat');
+    }
+  }
+
+  /// Atualiza o perfil público mínimo usado pelos chats.
+  Future<void> updateChatProfile(
+    String uid,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      await _firestore.collection('chatProfiles').doc(uid).set(
+        data,
+        SetOptions(merge: true),
+      );
+    } on FirebaseException catch (e) {
+      throw ServerException(
+        message: e.message ?? 'Erro ao atualizar perfil do chat',
+      );
+    }
+  }
+
   /// Atualiza campos do utilizador.
   Future<void> updateUser(String uid, Map<String, dynamic> data) async {
     try {
