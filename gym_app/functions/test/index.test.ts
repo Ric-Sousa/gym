@@ -27,7 +27,7 @@ const index = require('../lib/index');
 const seedFoods = testEnv.wrap(index.seedFoods);
 
 describe('function exports', () => {
-  test('exports the current HTTP student creation function', () => {
+  test('exports callable and legacy HTTP student creation functions', () => {
     expect(typeof index.createStudent).toBe('function');
     expect(typeof index.createStudentHttp).toBe('function');
     expect(typeof index.deleteStudentHttp).toBe('function');

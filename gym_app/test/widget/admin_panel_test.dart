@@ -41,12 +41,16 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     final trainerId = adminAuthState.user!.uid;
+    final studentsPager = AdminPagedList<UserModel>(
+      loadPage: (_, __) async => const FirestorePage<UserModel>(items: []),
+    )..hasMore = false;
     await tester.pumpWidget(
       createTestApp(
         overrides: [
           authProvider.overrideWith((ref) => MockAuthNotifier(adminAuthState)),
           fcmServiceProvider.overrideWith((ref) => mockFcm),
           alunosListProvider.overrideWith((ref) => Stream.value(<UserModel>[])),
+          adminStudentsPagerProvider.overrideWith((ref) => studentsPager),
           adminDashboardStatsProvider.overrideWith(
             (ref) => Stream.value(
               const AdminDashboardStats(
@@ -151,6 +155,27 @@ void main() {
     testWidgets('sidebar shows logout icon', (tester) async {
       await _pumpLargeAdmin(tester);
       expect(find.byIcon(Icons.logout), findsOneWidget);
+    });
+
+    testWidgets('new student dialog allows choosing presencial or online', (
+      tester,
+    ) async {
+      await _pumpLargeAdmin(tester);
+
+      await tester.tap(find.text('Clientes'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('NOVO CLIENTE'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tipo de acompanhamento'), findsOneWidget);
+      expect(find.text('Presencial'), findsOneWidget);
+
+      await tester.tap(find.text('Presencial'));
+      await tester.pumpAndSettle();
+      expect(find.text('Online'), findsOneWidget);
+      await tester.tap(find.text('Online'));
+      await tester.pumpAndSettle();
+      expect(find.text('Online'), findsOneWidget);
     });
 
     // ─── Agenda Tests ──────────────────────────────────────
