@@ -4969,6 +4969,7 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
   static const int _exercisePageSize = 36;
   int _currentExercisePage = 0;
   final ScrollController _exerciseScrollController = ScrollController();
+  final Set<String> _exerciseRevealAnimated = <String>{};
 
   @override
   void dispose() {
@@ -6022,38 +6023,29 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
                     )
                   : LayoutBuilder(
                       builder: (context, constraints) {
-                        final columns = constraints.maxWidth > 760
+                        final columns = constraints.maxWidth >= 980
                             ? 3
-                            : (constraints.maxWidth > 430 ? 2 : 1);
-                        final width =
-                            (constraints.maxWidth - ((columns - 1) * 12)) /
-                            columns;
-                        return ListView(
+                            : (constraints.maxWidth >= 620 ? 2 : 1);
+                        return GridView.builder(
                           controller: _exerciseScrollController,
                           primary: false,
                           padding: const EdgeInsets.only(right: 5, bottom: 4),
-                          children: [
-                            Wrap(
-                              spacing: 12,
-                              runSpacing: 12,
-                              children: visible
-                                  .asMap()
-                                  .entries
-                                  .map(
-                                    (entry) => _buildExerciseReveal(
-                                      exercise: entry.value,
-                                      index: entry.key,
-                                      child: _buildModernGridItem(
-                                        entry.value,
-                                        rangeStart + entry.key,
-                                        width,
-                                        colors,
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: columns,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            mainAxisExtent: 174,
+                          ),
+                          itemCount: visible.length,
+                          itemBuilder: (context, index) => _buildExerciseReveal(
+                            exercise: visible[index],
+                            index: index,
+                            child: _buildModernGridItem(
+                              visible[index],
+                              rangeStart + index,
+                              colors,
                             ),
-                          ],
+                          ),
                         );
                       },
                     ),
@@ -6136,10 +6128,12 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
     required int index,
     required Widget child,
   }) {
+    // Não recria animações durante cada frame do scroll.
+    if (!_exerciseRevealAnimated.add(exercise.id)) return child;
     final staggerIndex = index > 5 ? 5 : index;
     return ScrollReveal(
       key: ValueKey('exercise_reveal_${exercise.id}'),
-      delay: Duration(milliseconds: staggerIndex * 18),
+      delay: Duration(milliseconds: staggerIndex * 12),
       child: child,
     );
   }
@@ -6202,86 +6196,103 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
         ),
       ),
     );
-  }
-
-  Widget _buildModernGridItem(
+  }  Widget _buildModernGridItem(
     ExerciseCatalogModel exercise,
     int index,
-    double width,
     AdminThemeColors colors,
   ) {
-    return SizedBox(
-      width: width,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colors.border),
-        ),
+    final radius = BorderRadius.circular(16);
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: radius,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.14),
+            blurRadius: 10,
+            spreadRadius: 1,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => _showExerciseDetails(exercise),
-          borderRadius: BorderRadius.circular(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.fitness_center_rounded,
+          borderRadius: radius,
+          hoverColor: colors.surface2,
+          highlightColor: colors.surface2.withValues(alpha: 0.75),
+          splashColor: colors.lime.withValues(alpha: 0.12),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.fitness_center_rounded,
+                      color: colors.lime,
+                      size: 18,
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${index + 1}'.padLeft(2, '0'),
+                      style: GoogleFonts.montserrat(
+                        color: colors.muted,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  exercise.nome,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    color: colors.text,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  exercise.grupoMuscular,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    color: colors.blue,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${_displayCatalogValue(exercise.equipamento)} · ${_displayCatalogValue(exercise.categoria)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(color: colors.muted, fontSize: 11),
+                ),
+                const Spacer(),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Icon(
+                    Icons.info_outline_rounded,
                     color: colors.lime,
                     size: 18,
                   ),
-                  const Spacer(),
-                  Text(
-                    '${index + 1}'.padLeft(2, '0'),
-                    style: GoogleFonts.montserrat(
-                      color: colors.muted,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                exercise.nome,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(
-                  color: colors.text,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
                 ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                exercise.grupoMuscular,
-                style: GoogleFonts.inter(
-                  color: colors.blue,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                '${_displayCatalogValue(exercise.equipamento)} · ${_displayCatalogValue(exercise.categoria)}',
-                style: GoogleFonts.inter(color: colors.muted, fontSize: 11),
-              ),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Icon(
-                  Icons.info_outline_rounded,
-                  color: colors.lime,
-                  size: 18,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+
 
   Widget _buildViewModeToggle() {
     final colors = AdminThemeColors.of(context);
@@ -6985,6 +6996,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
   String _kind = 'all';
   String _sort = 'name_asc';
   int _currentFoodPage = 0;
+  bool _isFoodListView = false;
 
   static const _pageSize = 24;
 
@@ -7223,14 +7235,70 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
     );
   }
 
+  Widget _foodListSection({
+    required String title,
+    required String description,
+    required List<FoodModel> foods,
+  }) {
+    final colors = AdminThemeColors.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Text(title, style: GoogleFonts.montserrat(color: colors.text, fontSize: 15, fontWeight: FontWeight.w800)),
+          const SizedBox(width: 8),
+          Text('${foods.length}', style: GoogleFonts.inter(color: colors.lime, fontSize: 11, fontWeight: FontWeight.w800)),
+        ]),
+        const SizedBox(height: 3),
+        Text(description, style: GoogleFonts.inter(color: colors.muted, fontSize: 11)),
+        const SizedBox(height: 10),
+        ...foods.map((food) => _foodListTile(food)),
+      ],
+    );
+  }
+
+  Widget _foodListTile(FoodModel food) {
+    final colors = AdminThemeColors.of(context);
+    final category = food.categoria ?? 'Geral';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 7),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: colors.border),
+      ),
+      child: ListTile(
+        dense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 2),
+        leading: Icon(Icons.restaurant_rounded, color: colors.lime, size: 20),
+        title: Text(food.nome, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.inter(color: colors.text, fontSize: 13, fontWeight: FontWeight.w700)),
+        subtitle: Text('${category.toUpperCase()} · ${FoodSearch.kindOf(food).label}', style: GoogleFonts.inter(color: colors.muted, fontSize: 10)),
+        onTap: () => _showFoodDetails(food),
+        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+          IconButton(onPressed: () => _showFoodDetails(food), tooltip: 'Ver detalhes nutricionais', icon: Icon(Icons.info_outline_rounded, color: colors.lime, size: 18)),
+          Text('${food.caloriasPor100g.toStringAsFixed(0)} kcal', style: GoogleFonts.montserrat(color: colors.text, fontSize: 12, fontWeight: FontWeight.w700)),
+          IconButton(onPressed: () => _confirmDeleteFood(food), tooltip: 'Remover alimento', icon: Icon(Icons.delete_outline_rounded, color: colors.muted, size: 18)),
+        ]),
+      ),
+    );
+  }
+
   Widget _foodSection({
     required String title,
     required String description,
     required List<FoodModel> foods,
     required BoxConstraints constraints,
+    required bool listView,
   }) {
     if (foods.isEmpty) return const SizedBox.shrink();
     final colors = AdminThemeColors.of(context);
+    if (listView) {
+      return _foodListSection(
+        title: title,
+        description: description,
+        foods: foods,
+      );
+    }
     final cols = constraints.maxWidth > 900
         ? 4
         : (constraints.maxWidth > 600
@@ -7288,6 +7356,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
   @override
   Widget build(BuildContext context) {
     final foodsAsync = ref.watch(adminFoodCatalogProvider);
+    final compact = MediaQuery.sizeOf(context).width < 760;
 
     return AdminPageFrame(
       child: Column(
@@ -7304,6 +7373,33 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
             ),
           ),
           const SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment<bool>(
+                    value: false,
+                    icon: Icon(Icons.grid_view_rounded, size: 16),
+                    label: Text('Grade'),
+                  ),
+                  ButtonSegment<bool>(
+                    value: true,
+                    icon: Icon(Icons.view_list_rounded, size: 16),
+                    label: Text('Lista'),
+                  ),
+                ],
+                selected: {_isFoodListView || compact},
+                onSelectionChanged: compact
+                    ? null
+                    : (selection) => setState(
+                        () => _isFoodListView = selection.first,
+                      ),
+                showSelectedIcon: false,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
           _foodFilters(),
           const SizedBox(height: 24),
           foodsAsync.when(
@@ -7372,6 +7468,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                             'Ingredientes e alimentos-base, apresentados primeiro na pesquisa.',
                         foods: simpleFoods,
                         constraints: constraints,
+                        listView: _isFoodListView || compact,
                       ),
                       if (simpleFoods.isNotEmpty && compoundFoods.isNotEmpty)
                         const SizedBox(height: 28),
@@ -7381,6 +7478,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                             'Pratos e combinações preparados com vários alimentos.',
                         foods: compoundFoods,
                         constraints: constraints,
+                        listView: _isFoodListView || compact,
                       ),
                       if (totalPages > 1) ...[
                         const SizedBox(height: 26),
@@ -7446,6 +7544,53 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _showFoodDetails(FoodModel food) async {
+    final colors = AdminThemeColors.of(context);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(food.nome, style: GoogleFonts.montserrat(fontWeight: FontWeight.w800)),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${(food.categoria ?? 'Geral').toUpperCase()} · ${FoodSearch.kindOf(food).label}', style: GoogleFonts.inter(color: colors.muted, fontSize: 12)),
+              const SizedBox(height: 18),
+              _nutritionDetailRow('Calorias', '${food.caloriasPor100g.toStringAsFixed(0)} kcal', colors.orange),
+              _nutritionDetailRow('Proteínas', _formatNutrition(food.proteinasPor100g), colors.blue),
+              _nutritionDetailRow('Carboidratos', _formatNutrition(food.hidratosPor100g), colors.orange),
+              _nutritionDetailRow('Gorduras', _formatNutrition(food.gordurasPor100g), colors.purple),
+              const SizedBox(height: 8),
+              Text('Valores por 100 g/ml', style: GoogleFonts.inter(color: colors.muted, fontSize: 11)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Fechar')),
+        ],
+      ),
+    );
+  }
+
+  String _formatNutrition(double? value) => value == null ? 'Não informado' : '${value.toStringAsFixed(1)} g';
+
+  Widget _nutritionDetailRow(String label, String value, Color color) {
+    final colors = AdminThemeColors.of(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(color: colors.bg, borderRadius: BorderRadius.circular(10)),
+      child: Row(children: [
+        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 10),
+        Expanded(child: Text(label, style: GoogleFonts.inter(color: colors.text, fontSize: 13, fontWeight: FontWeight.w600))),
+        Text(value, style: GoogleFonts.montserrat(color: colors.text, fontSize: 13, fontWeight: FontWeight.w800)),
+      ]),
     );
   }
 
