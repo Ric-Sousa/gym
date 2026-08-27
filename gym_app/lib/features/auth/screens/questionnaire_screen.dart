@@ -265,13 +265,23 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
       final firebaseUser = FirebaseAuth.instance.currentUser;
       if (firebaseUser == null) throw StateError('Sem sessão ativa.');
 
-      await firebaseUser.getIdToken(true);
+      // A callable pode reutilizar uma instância criada antes do login. Forçar
+      // a renovação aqui não basta se o SDK ainda não terminou de propagar o
+      // token; passar o token explicitamente torna a autenticação determinística
+      // no Flutter Web e mantém a verificação no servidor.
+      final idToken = await firebaseUser.getIdToken(true);
       final authNotifier = ref.read(authProvider.notifier);
-      await FirebaseFunctions.instanceFor(region: 'europe-west1')
-          .httpsCallable('submitQuestionnaire')
-          .call({'version': version, 'answers': answers});
-      await authNotifier.refreshUser();
+      await FirebaseFunctions.instanceFor(
+        region: 'europe-west1',
+      ).httpsCallable('submitQuestionnaire').call({
+        'version': version,
+        'answers': answers,
+        if (idToken != null && idToken.isNotEmpty) 'authToken': idToken,
+      });
       authNotifier.markQuestionnaireCompleted(version);
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
