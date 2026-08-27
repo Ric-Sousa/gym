@@ -42,7 +42,11 @@ void main() {
 
     final trainerId = adminAuthState.user!.uid;
     final studentsPager = AdminPagedList<UserModel>(
-      loadPage: (_, __) async => const FirestorePage<UserModel>(items: []),
+      loadPage: (_, __) async => const FirestorePage<UserModel>(
+        items: [],
+        cursor: null,
+        hasMore: false,
+      ),
     )..hasMore = false;
     await tester.pumpWidget(
       createTestApp(
@@ -164,7 +168,7 @@ void main() {
 
       await tester.tap(find.text('Clientes'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('NOVO CLIENTE'));
+      await tester.tap(find.text('Novo cliente'));
       await tester.pumpAndSettle();
 
       expect(find.text('Tipo de acompanhamento'), findsOneWidget);

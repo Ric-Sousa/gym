@@ -20,10 +20,10 @@ const testEnv = functionsTest({
   region: 'europe-west1',
 });
 
-// createStudent foi substituída pela rota HTTP createStudentHttp. O teste
-// callable antigo não podia validar uma função onRequest e falhava por usar
-// uma exportação inexistente.
+// O cliente atual usa a callable createStudent para o SDK anexar a sessão
+// Firebase. A rota HTTP mantém compatibilidade com versões anteriores.
 const index = require('../lib/index');
+const createStudent = testEnv.wrap(index.createStudent);
 const seedFoods = testEnv.wrap(index.seedFoods);
 
 describe('function exports', () => {
@@ -44,6 +44,19 @@ describe('seedFoods', () => {
       expect(e.code).toBe('unauthenticated');
       expect(e.message).toBe('Login necessário.');
     }
+  });
+});
+
+describe('createStudent', () => {
+  test('rejects unauthenticated calls', async () => {
+    await expect(createStudent({
+      nome: 'Aluno Teste',
+      email: 'aluno@example.com',
+      tipoCliente: 'online',
+    })).rejects.toMatchObject({
+      code: 'unauthenticated',
+      message: 'Login necessário.',
+    });
   });
 });
 
