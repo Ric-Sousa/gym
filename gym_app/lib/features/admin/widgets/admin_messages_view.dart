@@ -20,6 +20,7 @@ import '../../../shared/providers/admin_providers.dart';
 import '../../../shared/providers/admin_chat_unread_providers.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/aluno/chat/screens/group_chat_screen.dart';
+import 'floating_chat_button.dart';
 
 /// Converte valores de timestamp vindos do Firestore sem deixar uma falha
 /// de formato interromper a lista inteira de conversas.
@@ -465,7 +466,13 @@ class AdminMessagesView extends ConsumerWidget {
                         key: ValueKey('admin-page-conversation-${c.roomId}'),
                         child: _ConversationTile(
                           preview: c,
-                          onTap: () => onSelect(c.aluno),
+                          onTap: () {
+                            final adminId = ref.read(authProvider).user?.uid ?? '';
+                            final roomId = ref
+                                .read(chatRepositoryProvider)
+                                .getChatRoomId(c.aluno.uid, adminId);
+                            onSelect(c.aluno);
+                          },
                         ),
                       ),
                     )

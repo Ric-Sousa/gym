@@ -1794,9 +1794,10 @@ class FirestoreDataSource {
     if (!includeInactive) {
       query = query.where('ativo', isEqualTo: true);
     }
+    // O catálogo pode conter centenas de exercícios importados. O limite de
+    // 100 fazia a biblioteca administrativa ocultar silenciosamente o resto.
     return query
         .orderBy('nome')
-        .limit(100)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
