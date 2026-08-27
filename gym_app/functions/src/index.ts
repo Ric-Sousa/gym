@@ -377,18 +377,34 @@ export const createStudentHttp = functions.region('europe-west1').https.onReques
 // signed-in user's ID token. Keep createStudentHttp above for backwards
 // compatibility with already deployed clients.
 export const createStudent = functions.region('europe-west1').https.onCall(async (request) => {
-  if (!request.auth) {
+  const d = request.data ?? {};
+  let callerUid = request.auth?.uid;
+
+  // In some Flutter Web sessions the callable SDK does not attach the Auth
+  // header even though FirebaseAuth still has a valid signed-in user. Accept a
+  // token in the callable payload as a fallback and verify it server-side.
+  if (!callerUid && typeof d.authToken === 'string' && d.authToken.length > 0) {
+    try {
+      const decoded = await auth.verifyIdToken(d.authToken);
+      callerUid = decoded.uid;
+    } catch (_) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Sessão inválida. Inicia sessão novamente.',
+      );
+    }
+  }
+
+  if (!callerUid) {
     throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
   }
 
-  const d = request.data ?? {};
   const nome = typeof d.nome === 'string' ? d.nome.trim() : '';
   const email = typeof d.email === 'string' ? d.email.trim().toLowerCase() : '';
   const password = typeof d.password === 'string' && d.password.length > 0
     ? d.password
     : undefined;
   const tipoCliente = d.tipoCliente === 'online' ? 'online' : 'presencial';
-  const callerUid = request.auth.uid;
 
   if (!nome || !email) {
     throw new functions.https.HttpsError('invalid-argument', 'Nome e email obrigatórios.');

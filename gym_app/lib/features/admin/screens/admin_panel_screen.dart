@@ -2097,10 +2097,32 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                       }
                       setDialogState(() => loading = true);
                       try {
+                        final firebaseUser = FirebaseAuth.instance.currentUser;
+                        if (firebaseUser == null) {
+                          setDialogState(() => loading = false);
+                          showAppNotification(
+                            context,
+                            'A sessão expirou. Inicia sessão novamente.',
+                            type: NotificationType.error,
+                          );
+                          return;
+                        }
+                        final authToken = await firebaseUser.getIdToken();
+                        if (!mounted || !ctx.mounted) return;
+                        if (authToken == null || authToken.isEmpty) {
+                          setDialogState(() => loading = false);
+                          showAppNotification(
+                            context,
+                            'Não foi possível validar a sessão. Inicia sessão novamente.',
+                            type: NotificationType.error,
+                          );
+                          return;
+                        }
                         final params = <String, dynamic>{
                           'nome': nomeCtrl.text.trim(),
                           'email': emailCtrl.text.trim(),
                           'tipoCliente': tipoCliente,
+                          'authToken': authToken,
                         };
                         if (pw.isNotEmpty) params['password'] = pw;
 
@@ -2120,7 +2142,16 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                           'alreadyExists': data['alreadyExists'] == true,
                           'created': data['created'] == true,
                         });
+                      } on FirebaseAuthException {
+                        if (!mounted || !ctx.mounted) return;
+                        setDialogState(() => loading = false);
+                        showAppNotification(
+                          context,
+                          'Não foi possível validar a sessão. Inicia sessão novamente.',
+                          type: NotificationType.error,
+                        );
                       } on FirebaseFunctionsException catch (e) {
+                        if (!mounted || !ctx.mounted) return;
                         setDialogState(() => loading = false);
                         final message = e.message ?? 'Erro desconhecido';
                         if (e.code == 'unauthenticated') {
@@ -2150,6 +2181,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                           );
                         }
                       } catch (e) {
+                        if (!mounted || !ctx.mounted) return;
                         setDialogState(() => loading = false);
                         showAppNotification(
                           context,
