@@ -194,18 +194,6 @@ service cloud.firestore {
         request.auth.uid in get(/databases/$(database)/documents/grupos/$(groupId)).data.membros;
     }
 
-    // Keep the membership check on the document being queried. This lets
-    // Firestore prove that a query with `where('membros', array-contains,
-    // request.auth.uid)` cannot return another student's group.
-    function groupMemberDocument() {
-      // Firestore evaluates this rule for every candidate returned by the
-      // array-contains query. Membership is the complete authorization check.
-      return request.auth != null &&
-        resource.data.membros is list &&
-        resource.data.membros.hasAny([request.auth.uid]);
-    }
-
-
     // Global workout plan library.
     match /planosTreino/{planId} {
       allow read, write: if isAdmin();

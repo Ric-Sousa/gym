@@ -24,6 +24,7 @@ const testEnv = functionsTest({
 // Firebase. A rota HTTP mantém compatibilidade com versões anteriores.
 const index = require('../lib/index');
 const createStudent = testEnv.wrap(index.createStudent);
+const submitQuestionnaire = testEnv.wrap(index.submitQuestionnaire);
 const seedFoods = testEnv.wrap(index.seedFoods);
 
 describe('function exports', () => {
@@ -32,6 +33,7 @@ describe('function exports', () => {
     expect(typeof index.createStudentHttp).toBe('function');
     expect(typeof index.deleteStudentHttp).toBe('function');
     expect(typeof index.aggregateDiaryStats).toBe('function');
+    expect(typeof index.submitQuestionnaire).toBe('function');
   });
 });
 
@@ -56,6 +58,18 @@ describe('createStudent', () => {
     })).rejects.toMatchObject({
       code: 'unauthenticated',
       message: 'Login necessário.',
+    });
+  });
+});
+
+describe('submitQuestionnaire', () => {
+  test('rejects unauthenticated calls', async () => {
+    await expect(submitQuestionnaire({
+      version: 'questionnaire-2026-08-health-v2',
+      answers: { nome: 'Aluno Teste' },
+    })).rejects.toMatchObject({
+      code: 'unauthenticated',
+      message: 'Login necessÃ¡rio.',
     });
   });
 });

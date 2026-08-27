@@ -1,3 +1,5 @@
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,7 +9,6 @@ import '../../../data/models/questionnaire_response_model.dart';
 import '../../../data/models/questionnaire_config_model.dart';
 import '../../../data/models/user_model.dart';
 import '../../../shared/providers/admin_providers.dart';
-import '../../../shared/providers/global_providers.dart';
 import '../../../shared/widgets/app_design_system.dart';
 import '../providers/auth_provider.dart';
 
@@ -161,23 +162,6 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
     }
   }
 
-  DateTime? _parseDate(String value) {
-    final parts = value.trim().split('/');
-    if (parts.length != 3) return null;
-    final day = int.tryParse(parts[0]);
-    final month = int.tryParse(parts[1]);
-    final year = int.tryParse(parts[2]);
-    if (day == null || month == null || year == null) return null;
-    try {
-      final date = DateTime(year, month, day);
-      return date.day == day && date.month == month && date.year == year
-          ? date
-          : null;
-    } catch (_) {
-      return null;
-    }
-  }
-
   bool _validateConfiguredStep(QuestionnaireConfig config) {
     if (_step >= config.topics.length) return false;
     final missing = <String>[];
@@ -277,35 +261,29 @@ class _QuestionnaireScreenState extends ConsumerState<QuestionnaireScreen> {
           };
     final config = _activeConfig;
     try {
-      await ref
-          .read(userRepositoryProvider)
-          .saveQuestionnaire(
-            widget.user.uid,
-            QuestionnaireResponse(
-              version:
-                  config?.versionId ?? QuestionnaireResponse.currentVersion,
-              completedAt: DateTime.now(),
-              answers: answers,
-            ),
-            nome: answers['nome'],
-            genero: answers['genero'] ?? _choices['genero'],
-            peso: double.tryParse(answers['peso']?.replaceAll(',', '.') ?? ''),
-            altura: double.tryParse(
-              answers['altura']?.replaceAll(',', '.') ?? '',
-            ),
-            dataNascimento: _parseDate(answers['birthDate'] ?? ''),
-          );
-      await ref.read(authProvider.notifier).refreshUser();
-    } catch (_) {
+      final version = config?.versionId ?? QuestionnaireResponse.currentVersion;
+      final firebaseUser = FirebaseAuth.instance.currentUser;
+      if (firebaseUser == null) throw StateError('Sem sessão ativa.');
+
+      await firebaseUser.getIdToken(true);
+      final authNotifier = ref.read(authProvider.notifier);
+      await FirebaseFunctions.instanceFor(region: 'europe-west1')
+          .httpsCallable('submitQuestionnaire')
+          .call({'version': version, 'answers': answers});
+      await authNotifier.refreshUser();
+      authNotifier.markQuestionnaireCompleted(version);
+    } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Não foi possível guardar as respostas. Tenta novamente.',
-          ),
-        ),
-      );
+      final message =
+          error is FirebaseFunctionsException &&
+              error.message != null &&
+              error.message!.trim().isNotEmpty
+          ? error.message!
+          : 'Não foi possível guardar as respostas. Tenta novamente.';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 

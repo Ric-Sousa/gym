@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "test": "jest --runInBand",
-    "test:emulator": "cd .. && npx firebase-tools emulators:exec --only firestore,storage \"npm test --prefix rules-tests -- --runInBand\""
+    "test:emulator": "cd .. && npx firebase-tools emulators:exec --project gymbt-rules-test --config firebase.rules-test.json --only firestore,storage \"npm test --prefix rules-tests -- --runInBand\""
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^3.0.4",

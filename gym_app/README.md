@@ -81,7 +81,7 @@ npm install
 npm run test:emulator
 
 # Alternativa equivalente a partir da raiz:
-# npx firebase-tools emulators:exec --only firestore,storage "npm test --prefix rules-tests -- --runInBand"
+# npx firebase-tools emulators:exec --project gymbt-rules-test --config firebase.rules-test.json --only firestore,storage "npm test --prefix rules-tests -- --runInBand"
 ```
 
 A suite valida isolamento de salas de chat, autoria de mensagens, composição
@@ -95,8 +95,15 @@ limites/privacidade dos uploads.
 cd gym_app/functions
 npm run build
 cd ..
-firebase deploy --only functions,firestore:rules,storage,hosting
+firebase deploy --only "functions:NOME_DA_FUNCAO"
+firebase deploy --only "firestore:rules,firestore:indexes,storage"
+flutter build web --release
+firebase deploy --only hosting
 ```
+
+As funções devem ser publicadas explicitamente pelo nome. Evitar um deploy
+global de `functions`, porque podem existir funções legadas em produção que
+já não pertencem ao bundle local e seriam propostas para remoção.
 
 Antes do primeiro deploy desta versão, executar também um backfill administrativo dos diários existentes para `adminAggregates/dashboard`; o trigger `aggregateDiaryStats` mantém automaticamente apenas alterações posteriores.
 

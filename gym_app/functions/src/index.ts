@@ -862,6 +862,127 @@ export const acceptPrivacyPolicy = functions.region('europe-west1').https.onCall
   return { success: true, version };
 });
 
+export const submitQuestionnaire = functions.region('europe-west1').https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Login necessÃ¡rio.');
+  }
+
+  const uid = context.auth.uid;
+  const version = typeof data?.version === 'string' ? data.version.trim() : '';
+  const rawAnswers = data?.answers;
+  if (!rawAnswers || typeof rawAnswers !== 'object' || Array.isArray(rawAnswers)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Respostas invÃ¡lidas.');
+  }
+
+  const answerEntries = Object.entries(rawAnswers);
+  if (answerEntries.length === 0 || answerEntries.length > 100) {
+    throw new functions.https.HttpsError('invalid-argument', 'Respostas invÃ¡lidas.');
+  }
+  const answers: Record<string, string> = {};
+  for (const [key, value] of answerEntries) {
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(key) ||
+        typeof value !== 'string' || value.length > 2000) {
+      throw new functions.https.HttpsError('invalid-argument', 'Respostas invÃ¡lidas.');
+    }
+    answers[key] = value.trim();
+  }
+
+  const configSnapshot = await db.collection('questionnaireConfig').doc('active').get();
+  const config = configSnapshot.data();
+  const activeVersion = typeof config?.version === 'string'
+    ? config.version
+    : 'questionnaire-2026-08-health-v2';
+  if (version !== activeVersion) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'A ficha foi atualizada. Recarrega a pÃ¡gina antes de concluir.',
+    );
+  }
+
+  const missing = new Set<string>();
+  const topics = Array.isArray(config?.topics) ? config.topics : [];
+  if (topics.length > 0) {
+    for (const topic of topics) {
+      const questions = Array.isArray(topic?.questions) ? topic.questions : [];
+      for (const question of questions) {
+        const id = typeof question?.id === 'string' ? question.id : '';
+        if (!id) continue;
+        if (question.required !== false && !answers[id]) missing.add(id);
+        const hasDetail = question.type === 'binary' &&
+          typeof question.detailLabel === 'string' &&
+          question.detailLabel.trim().length > 0;
+        if (hasDetail && answers[id]?.toLowerCase() === 'sim') {
+          const detailId = typeof question.detailId === 'string' && question.detailId
+            ? question.detailId
+            : `${id}_details`;
+          if (!answers[detailId]) missing.add(detailId);
+        }
+      }
+    }
+  } else {
+    const requiredAnswers = [
+      'birthDate', 'nome', 'genero', 'peso', 'altura',
+      'profession', 'activity', 'sedentary', 'meals', 'water', 'sleep',
+      'pathologiesHas', 'familyPathologiesHas', 'surgeryHas',
+      'medicationHas', 'supplementsHas', 'allergiesHas',
+      'dislikedFoods', 'preferredFoods', 'outsideMeals', 'objective',
+    ];
+    for (const id of requiredAnswers) {
+      if (!answers[id]) missing.add(id);
+    }
+  }
+  if (missing.size > 0) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Preenche todos os campos obrigatÃ³rios da ficha.',
+    );
+  }
+
+  const userRef = db.collection('users').doc(uid);
+  const userSnapshot = await userRef.get();
+  if (!userSnapshot.exists || userSnapshot.data()?.role !== 'aluno') {
+    throw new functions.https.HttpsError('permission-denied', 'Perfil nÃ£o elegÃ­vel.');
+  }
+
+  const profileUpdates: Record<string, unknown> = {
+    questionnaireCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+    questionnaireVersion: version,
+  };
+  if (answers.nome) profileUpdates.nome = answers.nome.slice(0, 120);
+  if (answers.genero === 'masculino' || answers.genero === 'feminino') {
+    profileUpdates.genero = answers.genero;
+  }
+  const peso = Number(answers.peso?.replace(',', '.'));
+  if (Number.isFinite(peso) && peso > 0 && peso <= 500) profileUpdates.pesoAtual = peso;
+  const altura = Number(answers.altura?.replace(',', '.'));
+  if (Number.isFinite(altura) && altura > 0 && altura <= 300) profileUpdates.altura = altura;
+  const dateMatch = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(answers.birthDate ?? '');
+  if (dateMatch) {
+    const birthDate = new Date(Date.UTC(
+      Number(dateMatch[3]),
+      Number(dateMatch[2]) - 1,
+      Number(dateMatch[1]),
+    ));
+    if (birthDate.getUTCFullYear() === Number(dateMatch[3]) &&
+        birthDate.getUTCMonth() === Number(dateMatch[2]) - 1 &&
+        birthDate.getUTCDate() === Number(dateMatch[1]) &&
+        birthDate <= new Date()) {
+      profileUpdates.dataNascimento = admin.firestore.Timestamp.fromDate(birthDate);
+    }
+  }
+
+  const batch = db.batch();
+  batch.set(userRef.collection('questionario').doc('resposta'), {
+    version,
+    completedAt: admin.firestore.FieldValue.serverTimestamp(),
+    answers,
+  });
+  batch.set(userRef, profileUpdates, { merge: true });
+  await batch.commit();
+
+  return { success: true, version };
+});
+
 export const registerFcmToken = functions.region('europe-west1').https.onCall(async (data, context) => {
   if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
   const token = typeof data?.token === 'string' ? data.token.trim() : '';
