@@ -863,11 +863,27 @@ export const acceptPrivacyPolicy = functions.region('europe-west1').https.onCall
 });
 
 export const submitQuestionnaire = functions.region('europe-west1').https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Login necessÃ¡rio.');
+  let uid = context.auth?.uid;
+
+  // O SDK callable pode não anexar o contexto Auth em algumas sessões Web.
+  // Aceitar o token enviado pelo cliente como fallback, sempre validado pelo
+  // Admin SDK, evita que a conclusão fique presa num refresh silencioso.
+  if (!uid && typeof data?.authToken === 'string' && data.authToken.length > 0) {
+    try {
+      uid = (await auth.verifyIdToken(data.authToken)).uid;
+    } catch (_) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Sessão inválida. Inicia sessão novamente.',
+      );
+    }
   }
 
-  const uid = context.auth.uid;
+  if (!uid) {
+    throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+  }
+
+  const userId = uid;
   const version = typeof data?.version === 'string' ? data.version.trim() : '';
   const rawAnswers = data?.answers;
   if (!rawAnswers || typeof rawAnswers !== 'object' || Array.isArray(rawAnswers)) {
@@ -938,7 +954,7 @@ export const submitQuestionnaire = functions.region('europe-west1').https.onCall
     );
   }
 
-  const userRef = db.collection('users').doc(uid);
+  const userRef = db.collection('users').doc(userId);
   const userSnapshot = await userRef.get();
   if (!userSnapshot.exists || userSnapshot.data()?.role !== 'aluno') {
     throw new functions.https.HttpsError('permission-denied', 'Perfil nÃ£o elegÃ­vel.');
