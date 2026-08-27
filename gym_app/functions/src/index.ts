@@ -266,6 +266,7 @@ createStudentApp.post('/', async (req: any, res: any) => {
   // Aceita ambos os formatos: {data: {...}} (onCall antigo) ou fields diretos
   const d = (req.body && req.body.data) ? req.body.data : (req.body || {});
   const { nome, email, personalId, password } = d;
+  const tipoCliente = d.tipoCliente === 'online' ? 'online' : 'presencial';
   const isActive = d.isActive !== false;
   const authToken = bearerToken(req);
 
@@ -319,6 +320,7 @@ createStudentApp.post('/', async (req: any, res: any) => {
       await db.collection('users').doc(existingUser.uid).set({
         nome, email, role: 'aluno',
         ...(personalId ? { personalId } : {}),
+        tipoCliente,
         isActive,
         ...(isActive ? {
           deactivatedAt: admin.firestore.FieldValue.delete(),
@@ -348,6 +350,7 @@ createStudentApp.post('/', async (req: any, res: any) => {
     await db.collection('users').doc(userRecord.uid).set({
       nome, email, role: 'aluno',
       personalId: personalId || null,
+      tipoCliente,
       pesoAtual: null, altura: null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       isActive: true,
@@ -369,6 +372,124 @@ createStudentApp.post('/', async (req: any, res: any) => {
 });
 
 export const createStudentHttp = functions.region('europe-west1').https.onRequest(createStudentApp);
+
+// The Flutter client uses a callable so Firebase can attach and refresh the
+// signed-in user's ID token. Keep createStudentHttp above for backwards
+// compatibility with already deployed clients.
+export const createStudent = functions.region('europe-west1').https.onCall(async (request) => {
+  if (!request.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+  }
+
+  const d = request.data ?? {};
+  const nome = typeof d.nome === 'string' ? d.nome.trim() : '';
+  const email = typeof d.email === 'string' ? d.email.trim().toLowerCase() : '';
+  const password = typeof d.password === 'string' && d.password.length > 0
+    ? d.password
+    : undefined;
+  const tipoCliente = d.tipoCliente === 'online' ? 'online' : 'presencial';
+  const callerUid = request.auth.uid;
+
+  if (!nome || !email) {
+    throw new functions.https.HttpsError('invalid-argument', 'Nome e email obrigatórios.');
+  }
+
+  const callerDoc = await db.collection('users').doc(callerUid).get();
+  if (callerDoc.data()?.role !== 'admin') {
+    throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
+  }
+
+  try {
+    await consumeHttpRateLimit(callerUid, 'createStudent');
+  } catch (error: any) {
+    if (error?.code === 'resource-exhausted') {
+      throw new functions.https.HttpsError(
+        'resource-exhausted',
+        'Tenta novamente dentro de um minuto.',
+      );
+    }
+    console.error('Could not apply create-student rate limit', error);
+    throw new functions.https.HttpsError(
+      'unavailable',
+      'Serviço temporariamente indisponível.',
+    );
+  }
+
+  try {
+    const existingUser = await auth.getUserByEmail(email);
+    const existingProfile = await db.collection('users').doc(existingUser.uid).get();
+    if (existingProfile.data()?.role === 'admin') {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Não é permitido converter um administrador em aluno.',
+      );
+    }
+    await db.collection('users').doc(existingUser.uid).set({
+      nome,
+      email,
+      role: 'aluno',
+      personalId: callerUid,
+      tipoCliente,
+      isActive: true,
+      deactivatedAt: admin.firestore.FieldValue.delete(),
+      contractEndsAt: admin.firestore.FieldValue.delete(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return { uid: existingUser.uid, email, alreadyExists: true };
+  } catch (error: any) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    if (error?.code !== 'auth/user-not-found') {
+      console.error('Could not check existing student email', error);
+      throw new functions.https.HttpsError(
+        'internal',
+        'Não foi possível verificar o e-mail.',
+      );
+    }
+  }
+
+  try {
+    const temporaryPassword = password || `${randomBytes(18).toString('base64url')}A1!`;
+    const userRecord = await auth.createUser({
+      email,
+      password: temporaryPassword,
+      displayName: nome,
+    });
+    const activationPeriod = calculateBillingPeriod(new Date(), 'mensal');
+    await db.collection('users').doc(userRecord.uid).set({
+      nome,
+      email,
+      role: 'aluno',
+      personalId: callerUid,
+      tipoCliente,
+      pesoAtual: null,
+      altura: null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      isActive: true,
+      contractEndsAt: admin.firestore.Timestamp.fromDate(activationPeriod.end),
+      mustResetPassword: !password,
+    });
+    if (!password) {
+      const resetLink = await auth.generatePasswordResetLink(email);
+      await sendUserEmail(
+        email,
+        'Define a tua palavra-passe — GymBT',
+        `<p>Olá ${escapeHtml(nome)},</p><p>Usa o seguinte link para definires a tua palavra-passe de acesso:</p><p><a href="${resetLink}">Definir palavra-passe</a></p>`,
+      );
+    }
+    return {
+      uid: userRecord.uid,
+      email,
+      created: true,
+      passwordResetEmailSent: !password,
+    };
+  } catch (error: any) {
+    console.error('Could not create student', error);
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      error?.message || 'Erro ao criar utilizador.',
+    );
+  }
+});
 
 async function deleteQueryDocuments(
   collection: string,

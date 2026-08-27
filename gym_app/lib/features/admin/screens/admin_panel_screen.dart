@@ -1891,6 +1891,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
     final nomeCtrl = TextEditingController();
     final emailCtrl = TextEditingController();
     final passwordCtrl = TextEditingController();
+    String tipoCliente = 'presencial';
     bool obscurePassword = true;
     bool loading = false;
 
@@ -1992,6 +1993,43 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                   ),
                 ),
                 const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: tipoCliente,
+                  decoration: InputDecoration(
+                    labelText: 'Tipo de acompanhamento',
+                    labelStyle: GoogleFonts.inter(
+                      color: AdminThemeColors.of(context).muted,
+                    ),
+                    filled: true,
+                    fillColor: AdminThemeColors.of(context).bg,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                        color: AdminThemeColors.of(context).border,
+                      ),
+                    ),
+                  ),
+                  dropdownColor: AdminThemeColors.of(context).surface,
+                  style: GoogleFonts.inter(
+                    color: AdminThemeColors.of(context).text,
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'presencial',
+                      child: Text('Presencial'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'online',
+                      child: Text('Online'),
+                    ),
+                  ],
+                  onChanged: loading
+                      ? null
+                      : (value) => setDialogState(
+                          () => tipoCliente = value ?? 'presencial',
+                        ),
+                ),
+                const SizedBox(height: 8),
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(
@@ -2061,63 +2099,23 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                       }
                       setDialogState(() => loading = true);
                       try {
-                        // Obtém token fresco para verificação manual na Cloud Function
-                        final token = await FirebaseAuth.instance.currentUser
-                            ?.getIdToken(true);
                         final adminId =
                             FirebaseAuth.instance.currentUser?.uid ?? '';
-                        final body = <String, dynamic>{
+                        final params = <String, dynamic>{
                           'nome': nomeCtrl.text.trim(),
                           'email': emailCtrl.text.trim(),
                           'personalId': adminId,
+                          'tipoCliente': tipoCliente,
                         };
-                        if (pw.isNotEmpty) body['password'] = pw;
+                        if (pw.isNotEmpty) params['password'] = pw;
 
-                        final response = await http.post(
-                          Uri.parse(
-                            'https://europe-west1-gymbt-4ef87.cloudfunctions.net/createStudentHttp',
-                          ),
-                          headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'Bearer ${token ?? ''}',
-                          },
-                          body: json.encode(body),
+                        final response = await FirebaseFunctions.instanceFor(
+                          region: 'europe-west1',
+                        ).httpsCallable('createStudent').call<Map<String, dynamic>>(
+                          params,
                         );
                         if (!mounted) return;
-                        if (response.statusCode != 200) {
-                          final errData =
-                              json.decode(response.body)
-                                  as Map<String, dynamic>;
-                          final err = errData['error'] as Map<String, dynamic>?;
-                          final msg =
-                              err?['message'] as String? ?? 'Erro desconhecido';
-                          setDialogState(() => loading = false);
-                          if (msg.contains('unauthenticated') ||
-                              msg.contains('Login necessário') ||
-                              msg.contains('Token inválido')) {
-                            showAppNotification(
-                              context,
-                              'Erro de autenticação. Tenta sair e entrar novamente.',
-                              type: NotificationType.error,
-                            );
-                          } else if (msg.contains('weak-password') ||
-                              msg.contains('Password should be')) {
-                            showAppNotification(
-                              context,
-                              'Password muito fraca. Usa pelo menos 6 caracteres.',
-                              type: NotificationType.error,
-                            );
-                          } else {
-                            showAppNotification(
-                              context,
-                              'Erro ao criar aluno: $msg',
-                              type: NotificationType.error,
-                            );
-                          }
-                          return;
-                        }
-                        final data =
-                            json.decode(response.body) as Map<String, dynamic>;
+                        final data = response.data;
                         setDialogState(() => loading = false);
                         Future.microtask(
                           () => Navigator.pop(ctx, {
@@ -2128,6 +2126,35 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                             'created': data['created'] == true,
                           }),
                         );
+                      } on FirebaseFunctionsException catch (e) {
+                        setDialogState(() => loading = false);
+                        final message = e.message ?? 'Erro desconhecido';
+                        if (e.code == 'unauthenticated') {
+                          showAppNotification(
+                            context,
+                            'A sessão expirou. Inicia sessão novamente.',
+                            type: NotificationType.error,
+                          );
+                        } else if (e.code == 'resource-exhausted') {
+                          showAppNotification(
+                            context,
+                            message,
+                            type: NotificationType.error,
+                          );
+                        } else if (message.contains('weak-password') ||
+                            message.contains('Password should be')) {
+                          showAppNotification(
+                            context,
+                            'Password muito fraca. Usa pelo menos 6 caracteres.',
+                            type: NotificationType.error,
+                          );
+                        } else {
+                          showAppNotification(
+                            context,
+                            'Erro ao criar aluno: $message',
+                            type: NotificationType.error,
+                          );
+                        }
                       } catch (e) {
                         setDialogState(() => loading = false);
                         showAppNotification(
