@@ -67,6 +67,8 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
   bool _showPlanDetails = false;
   int? _expandedPlanIndex;
   final Map<String, bool> _expandedExercises = {};
+  List<WorkoutLogModel> _previousLogs = const [];
+  bool _loadingPreviousLogs = false;
 
   @override
   void dispose() {
@@ -112,11 +114,33 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
         return ExerciseLog.fromExercise(e.nome, e.series, e.grupoMuscular);
       }).toList(),
     );
+    _loadPreviousLogs();
+  }
+
+  Future<void> _loadPreviousLogs() async {
+    final userId = ref.read(authProvider).user?.uid ?? '';
+    if (userId.isEmpty || _activeLog == null) return;
+    setState(() => _loadingPreviousLogs = true);
+    try {
+      final logs = await ref
+          .read(workoutLogRepositoryProvider)
+          .getHistory(userId, limit: 30);
+      if (!mounted) return;
+      setState(() {
+        _previousLogs = logs
+            .where((log) => log.completedAt != null && log.id != _activeLog?.id)
+            .toList();
+        _loadingPreviousLogs = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingPreviousLogs = false);
+    }
   }
 
   void _restoreFromLog(WorkoutLogModel log) {
     _initialized = true;
     _activeLog = log;
+    _loadPreviousLogs();
   }
 
   Future<void> _saveLog({bool readOnly = false}) async {
@@ -177,10 +201,12 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
     bool readOnly = false,
   }) {
     if (readOnly) return;
+    var completed = false;
     setState(() {
       final updatedSeries = exercise.series.toList();
       final s = updatedSeries[serieIdx];
       updatedSeries[serieIdx] = s.copyWith(concluida: !s.concluida);
+      completed = updatedSeries[serieIdx].concluida;
       final updatedExercises = _activeLog!.exercicios.toList();
       final exIdx = updatedExercises.indexOf(exercise);
       updatedExercises[exIdx] = ExerciseLog(
@@ -191,6 +217,9 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       _activeLog = _activeLog!.copyWith(exercicios: updatedExercises);
     });
     _saveLog(readOnly: readOnly);
+    if (completed) {
+      _startRestTimer(_restDurationFor(exercise), exercise.nome);
+    }
   }
 
   void _updateSerieData(
@@ -227,6 +256,19 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       _activeLog = _activeLog!.copyWith(exercicios: updatedExercises);
     });
     _saveLog(readOnly: readOnly);
+  }
+
+  int _restDurationFor(ExerciseLog exercise) {
+    final plan = ref.read(
+      workoutPlansProvider(ref.read(authProvider).user?.uid ?? ''),
+    );
+    return plan.asData?.value
+            .expand((p) => p.dias)
+            .expand((d) => d.exercicios)
+            .where((e) => e.nome == exercise.nome)
+            .map((e) => e.descanso)
+            .firstOrNull ??
+        60;
   }
 
   void _startRestTimer(
@@ -319,6 +361,8 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       ref.invalidate(todayWorkoutLogProvider(userId));
 
       if (mounted) {
+        await _showWorkoutSummary(finalLog);
+
         _closeWorkoutExecution();
         showAppNotification(
           context,
@@ -336,6 +380,74 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
       }
     }
   }
+
+  Future<void> _showWorkoutSummary(WorkoutLogModel current) async {
+    final previous = _previousLogs
+        .where(
+          (log) =>
+              log.planoSemana == current.planoSemana &&
+              log.diaSemana == current.diaSemana,
+        )
+        .firstOrNull;
+    if (previous == null || !mounted) return;
+
+    final improvements = <String>[];
+    for (final exercise in current.exercicios) {
+      final old = previous.exercicios
+          .where((item) => item.nome == exercise.nome)
+          .firstOrNull;
+      if (old == null) continue;
+      final currentLoad = exercise.cargaMaxima;
+      final oldLoad = old.cargaMaxima;
+      if (currentLoad != null && oldLoad != null && currentLoad > oldLoad) {
+        improvements.add(
+          '${exercise.nome}: ${_formatLoad(oldLoad)} kg → ${_formatLoad(currentLoad)} kg',
+        );
+      } else if (exercise.seriesConcluidas > old.seriesConcluidas) {
+        improvements.add(
+          '${exercise.nome}: ${old.seriesConcluidas} → ${exercise.seriesConcluidas} séries concluídas',
+        );
+      }
+    }
+    if (improvements.isEmpty) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Evolução desde o último treino'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: improvements
+              .map(
+                (item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.trending_up,
+                        color: AppColors.success,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(item)),
+                    ],
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Continuar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatLoad(double value) =>
+      value % 1 == 0 ? value.toInt().toString() : value.toStringAsFixed(1);
 
   void _showVideoPlayer(String url, String exerciseName) {
     showModalBottomSheet(
@@ -1568,6 +1680,11 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
                 }),
               ],
             ),
+            if (_loadingPreviousLogs && !readOnly)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: LinearProgressIndicator(minHeight: 2),
+              ),
             // Rest timer overlay
             if (_isResting && !readOnly) _buildRestTimerOverlay(),
             // Mantém a mesma estrutura visual, mas sem qualquer ação de registo.
@@ -1837,33 +1954,39 @@ class _WorkoutScreenState extends ConsumerState<WorkoutScreen>
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _referenceMetricBox(
-                    '${exerciseLog.totalSeries}',
-                    'séries',
-                    AppColors.secondary,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _referenceMetricBox(
-                    '${plannedExercise.descanso}s',
-                    'descanso',
-                    AppColors.info,
-                    onTap: readOnly
-                        ? null
-                        : () => _startRestTimer(
-                            plannedExercise.descanso,
-                            plannedExercise.nome,
+          AnimatedSize(
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeInOut,
+            child: expanded
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _referenceMetricBox(
+                            '${exerciseLog.totalSeries}',
+                            'séries',
+                            AppColors.secondary,
                           ),
-                  ),
-                ),
-              ],
-            ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: _referenceMetricBox(
+                            '${plannedExercise.descanso}s',
+                            'descanso',
+                            AppColors.info,
+                            onTap: readOnly
+                                ? null
+                                : () => _startRestTimer(
+                                    plannedExercise.descanso,
+                                    plannedExercise.nome,
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
           ),
           if (expanded) ...[
             Padding(
