@@ -43,6 +43,7 @@ import '../../admin/widgets/floating_chat_button.dart';
 import '../../admin/widgets/admin_messages_view.dart';
 import '../../../features/aluno/chat/screens/chat_screen.dart';
 import '../../../features/aluno/perfil/screens/profile_screen.dart';
+import '../../../features/aluno/perfil/screens/video_progress_screen.dart';
 
 // ─── Enums & Local Providers ──────────────────────────────────────
 
@@ -58,6 +59,7 @@ enum AdminView {
   agenda,
   questionnaire,
   settings,
+  progressVideos,
 }
 
 final alunosListProvider = StreamProvider<List<UserModel>>((ref) {
@@ -371,13 +373,20 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
         );
       case AdminView.settings:
         return const _AdminSettingsView();
+      case AdminView.progressVideos:
+        return _AdminProgressVideosView(
+          onSelectClient: (aluno) => setState(() {
+            _selectedClient = aluno;
+            _openSelectedClientChat = false;
+          }),
+        );
     }
   }
 }
 
 // ─── Sidebar ──────────────────────────────────────────────────────
 
-class _AdminSidebar extends StatelessWidget {
+class _AdminSidebar extends ConsumerWidget {
   final AdminView currentView;
   final bool isClientDetail;
   final bool isMobile;
@@ -396,7 +405,7 @@ class _AdminSidebar extends StatelessWidget {
   final VoidCallback onToggleTheme;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final logoSection = Column(
       children: [
         const SizedBox(height: 22),
@@ -538,6 +547,30 @@ class _AdminSidebar extends StatelessWidget {
                     active: currentView == AdminView.agenda,
                     onTap: () => onNavigate(AdminView.agenda),
                   ),
+                  _NavCategory(label: 'PROGRESSO'),
+                  _NavItem(
+                    icon: Icons.videocam_outlined,
+                    activeIcon: Icons.videocam,
+                    label: 'Vídeos pendentes',
+                    active: currentView == AdminView.progressVideos,
+                    trailing: ref
+                        .watch(adminPendingProgressVideosProvider)
+                        .when(
+                          data: (items) => items.isEmpty
+                              ? null
+                              : Text(
+                                  '${items.length}',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: AdminThemeColors.of(context).lime,
+                                  ),
+                                ),
+                          loading: () => null,
+                          error: (_, __) => null,
+                        ),
+                    onTap: () => onNavigate(AdminView.progressVideos),
+                  ),
                   _NavCategory(label: 'DEFINIÇÕES'),
                   _NavItem(
                     icon: Icons.settings_outlined,
@@ -612,12 +645,13 @@ class _NavCategory extends StatelessWidget {
   }
 }
 
-class _NavItem extends StatelessWidget {
+class _NavItem extends ConsumerWidget {
   final IconData icon;
   final IconData activeIcon;
   final String label;
   final bool active;
   final VoidCallback onTap;
+  final Widget? trailing;
 
   const _NavItem({
     required this.icon,
@@ -625,10 +659,11 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.active,
     required this.onTap,
+    this.trailing,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       child: Material(
@@ -665,6 +700,7 @@ class _NavItem extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (trailing != null) trailing!,
                 if (active)
                   Container(
                     width: 4,
@@ -685,6 +721,81 @@ class _NavItem extends StatelessWidget {
 }
 
 // ─── Dashboard View ───────────────────────────────────────────────
+
+class _AdminProgressVideosView extends ConsumerWidget {
+  final ValueChanged<UserModel> onSelectClient;
+
+  const _AdminProgressVideosView({required this.onSelectClient});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = AdminThemeColors.of(context);
+    final videosAsync = ref.watch(adminPendingProgressVideosProvider);
+    return AdminPageFrame(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AdminPageHeader(
+            title: 'VÍDEOS PENDENTES',
+            subtitle: 'Vídeos enviados pelos alunos para revisão',
+            icon: Icons.videocam_outlined,
+          ),
+          const SizedBox(height: 24),
+          videosAsync.when(
+            loading: () =>
+                Center(child: CircularProgressIndicator(color: colors.lime)),
+            error: (_, __) => Text(
+              'Não foi possível carregar os vídeos.',
+              style: GoogleFonts.inter(color: colors.muted),
+            ),
+            data: (items) => items.isEmpty
+                ? AdminSurface(
+                    child: Padding(
+                      padding: const EdgeInsets.all(40),
+                      child: Center(
+                        child: Text(
+                          'Não existem vídeos pendentes.',
+                          style: GoogleFonts.inter(color: colors.muted),
+                        ),
+                      ),
+                    ),
+                  )
+                : Column(
+                    children: items.map((item) {
+                      final aluno = item.$1;
+                      final video = item.$2;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: AdminSurface(
+                          child: ListTile(
+                            leading: Icon(
+                              Icons.videocam_outlined,
+                              color: colors.lime,
+                            ),
+                            title: Text(
+                              video.exerciseName,
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.w700,
+                                color: colors.text,
+                              ),
+                            ),
+                            subtitle: Text(
+                              '${aluno.nome} · ${DateFormat('dd/MM/yyyy HH:mm').format(video.createdAt)}',
+                              style: GoogleFonts.inter(color: colors.muted),
+                            ),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () => onSelectClient(aluno),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _AdminDashboard extends ConsumerStatefulWidget {
   final Function(UserModel) onSelectClient;
@@ -3020,6 +3131,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
                 child: switch (_tab) {
                   'overview' => _buildOverview(),
                   'progresso' => _buildProgressTab(),
+                  'videos' => _buildVideosTab(c),
                   'chat' => SizedBox(
                     key: ValueKey('chat_${c.uid}'),
                     height: 620,
@@ -3468,6 +3580,7 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
     const tabs = [
       ('overview', 'Resumo', Icons.grid_view_rounded),
       ('progresso', 'Progresso', Icons.trending_up_rounded),
+      ('videos', 'Vídeos', Icons.videocam_outlined),
       ('agenda', 'Agenda', Icons.calendar_today_rounded),
     ];
     return Container(
@@ -3861,6 +3974,17 @@ class _ClientDetailViewState extends ConsumerState<_ClientDetailView> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildVideosTab(UserModel client) {
+    return SizedBox(
+      height: 700,
+      child: VideoProgressScreen(
+        userId: client.uid,
+        isAdmin: true,
+        student: client,
       ),
     );
   }
@@ -7341,7 +7465,11 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
               IconButton(
                 onPressed: () => _showFoodDetails(food),
                 tooltip: 'Ver detalhes nutricionais',
-                icon: Icon(Icons.info_outline_rounded, color: colors.lime, size: 18),
+                icon: Icon(
+                  Icons.info_outline_rounded,
+                  color: colors.lime,
+                  size: 18,
+                ),
               ),
               Flexible(
                 child: Text(
@@ -7358,7 +7486,11 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
               IconButton(
                 onPressed: () => _confirmDeleteFood(food),
                 tooltip: 'Remover alimento',
-                icon: Icon(Icons.delete_outline_rounded, color: colors.muted, size: 18),
+                icon: Icon(
+                  Icons.delete_outline_rounded,
+                  color: colors.muted,
+                  size: 18,
+                ),
               ),
             ],
           ),

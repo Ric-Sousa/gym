@@ -10,6 +10,7 @@ import '../../data/models/workout_log_model.dart';
 import '../../data/models/food_model.dart';
 import '../../data/models/user_model.dart';
 import '../../data/models/progress_model.dart';
+import '../../data/models/progress_video_model.dart';
 import '../../data/models/payment_model.dart';
 import '../../data/models/booking_model.dart';
 import '../../data/models/exercise_catalog_model.dart';
@@ -21,6 +22,10 @@ import '../../core/config/admin_theme.dart';
 import '../../data/repositories/workout_repository.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import 'global_providers.dart';
+
+final adminStudentsProvider = StreamProvider<List<UserModel>>((ref) {
+  return ref.read(userRepositoryProvider).watchAllAlunos();
+});
 
 // ─── Cursor pagination ───────────────────────────────────────────
 
@@ -166,6 +171,66 @@ final adminProgressProvider =
     StreamProvider.family<List<ProgressModel>, String>((ref, userId) {
       return ref.read(progressRepositoryProvider).watchHistory(userId);
     });
+
+/// Vídeos de progressão pendentes, agregados a partir dos alunos visíveis.
+final adminPendingProgressVideosProvider =
+    StreamProvider<List<(UserModel, ProgressVideoModel)>>((ref) {
+      final alunosAsync = ref.watch(adminStudentsProvider);
+      final alunos = alunosAsync.asData?.value ?? const <UserModel>[];
+      if (alunos.isEmpty) return Stream.value(const []);
+
+      final streams = alunos.map((aluno) {
+        return ref
+            .read(progressVideoRepositoryProvider)
+            .watchVideos(aluno.uid)
+            .map(
+              (videos) => videos
+                  .where((video) => video.isPending)
+                  .map((video) => (aluno, video))
+                  .toList(),
+            );
+      }).toList();
+
+      return _combinePendingVideoStreams(streams);
+    });
+
+Stream<List<(UserModel, ProgressVideoModel)>> _combinePendingVideoStreams(
+  List<Stream<List<(UserModel, ProgressVideoModel)>>> streams,
+) async* {
+  if (streams.isEmpty) {
+    yield const [];
+    return;
+  }
+  final latest = List<List<(UserModel, ProgressVideoModel)>>.filled(
+    streams.length,
+    const [],
+  );
+  final controller = StreamController<List<(UserModel, ProgressVideoModel)>>();
+  final subscriptions =
+      <StreamSubscription<List<(UserModel, ProgressVideoModel)>>>[];
+  void emit() {
+    final result = latest.expand((items) => items).toList()
+      ..sort((a, b) => b.$2.createdAt.compareTo(a.$2.createdAt));
+    controller.add(result);
+  }
+
+  for (var i = 0; i < streams.length; i++) {
+    subscriptions.add(
+      streams[i].listen((items) {
+        latest[i] = items;
+        emit();
+      }, onError: controller.addError),
+    );
+  }
+  try {
+    yield* controller.stream;
+  } finally {
+    for (final subscription in subscriptions) {
+      await subscription.cancel();
+    }
+    await controller.close();
+  }
+}
 
 /// Provider de logs de treino para gráfico de progressão de cargas (admin).
 final adminWorkoutLogsProvider =
