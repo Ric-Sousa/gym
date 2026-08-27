@@ -7433,7 +7433,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
             crossAxisCount: cols,
             crossAxisSpacing: 14,
             mainAxisSpacing: 14,
-            mainAxisExtent: 190,
+            mainAxisExtent: 270,
           ),
           itemBuilder: (_, index) => _foodCard(foods[index]),
         ),
@@ -7852,9 +7852,9 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
               );
             },
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
             decoration: BoxDecoration(
               color: colors.bg,
               borderRadius: BorderRadius.circular(12),
@@ -7883,7 +7883,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
               ],
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Wrap(
             spacing: 7,
             runSpacing: 7,

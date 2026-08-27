@@ -362,7 +362,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
     // Nome e iniciais da outra pessoa (admin ve aluno, aluno ve admin)
     final partnerName = widget.chatPartnerName;
-    final partnerPhoto = widget.chatPartnerPhoto ?? _fetchedPartnerPhoto;
+    final partnerProfile = isStudent
+        ? ref.watch(personalProfileProvider(otherId)).asData?.value
+        : null;
+    final partnerPhoto = widget.chatPartnerPhoto ??
+        _fetchedPartnerPhoto ??
+        partnerProfile?.fotoPerfil;
     final otherName = partnerName != null && partnerName.isNotEmpty
         ? partnerName
         : adminName;
@@ -736,6 +741,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Widget _buildChatList(String userId) {
     final authState = ref.watch(authProvider);
     final personalId = authState.user?.personalId;
+    final personalPhoto = personalId == null || personalId.isEmpty
+        ? null
+        : ref.watch(personalProfileProvider(personalId)).asData?.value?.fotoPerfil;
     final hasPT = personalId != null && personalId.isNotEmpty;
 
     final groupsAsync = ref.watch(alunoGroupsProvider(userId));
@@ -769,7 +777,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ),
               ),
               const SizedBox(height: 8),
-              ScrollReveal(child: _buildPTChatTile(personalId)),
+              ScrollReveal(child: _buildPTChatTile(personalId, personalPhoto)),
               const SizedBox(height: 24),
             ],
             // ── Grupos ──
@@ -966,8 +974,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 
-  Widget _buildPTChatTile(String personalId) {
-    final personalPhoto = ref.watch(personalProfileProvider(personalId)).asData?.value?.fotoPerfil;
+  Widget _buildPTChatTile(String personalId, String? personalPhoto) {
     final userId = ref.watch(authProvider).user?.uid ?? '';
     final roomId = ref
         .read(chatRepositoryProvider)
