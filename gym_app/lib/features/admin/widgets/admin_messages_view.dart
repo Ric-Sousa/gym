@@ -20,7 +20,6 @@ import '../../../shared/providers/admin_providers.dart';
 import '../../../shared/providers/admin_chat_unread_providers.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/aluno/chat/screens/group_chat_screen.dart';
-import 'floating_chat_button.dart';
 
 /// Converte valores de timestamp vindos do Firestore sem deixar uma falha
 /// de formato interromper a lista inteira de conversas.
@@ -265,10 +264,21 @@ class AdminMessagesView extends ConsumerWidget {
             title: 'Mensagens',
             subtitle: 'Acompanha conversas individuais e grupos de alunos.',
             icon: Icons.forum_outlined,
-            action: ElevatedButton.icon(
-              onPressed: () => showCreateGroupDialog(context, ref),
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('Novo grupo'),
+            action: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => showStartStudentChatDialog(context, ref, onSelect),
+                  icon: const Icon(Icons.chat_outlined, size: 16),
+                  label: const Text('Nova conversa'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () => showCreateGroupDialog(context, ref),
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Novo grupo'),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 26),
@@ -467,10 +477,6 @@ class AdminMessagesView extends ConsumerWidget {
                         child: _ConversationTile(
                           preview: c,
                           onTap: () {
-                            final adminId = ref.read(authProvider).user?.uid ?? '';
-                            final roomId = ref
-                                .read(chatRepositoryProvider)
-                                .getChatRoomId(c.aluno.uid, adminId);
                             onSelect(c.aluno);
                           },
                         ),
@@ -591,6 +597,116 @@ class _AdminMessagesGroupSummaryContent extends ConsumerWidget {
 String _adminMessagesLabel(int count) {
   if (count == 1) return '1 mensagem nova';
   return '$count mensagens novas';
+}
+
+/// Permite ao administrador abrir uma conversa mesmo sem mensagem anterior.
+Future<void> showStartStudentChatDialog(
+  BuildContext context,
+  WidgetRef ref,
+  void Function(UserModel) onSelect,
+) async {
+  final students = await ref.read(userRepositoryProvider).getAllAlunos();
+  if (!context.mounted) return;
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) {
+      final colors = AdminThemeColors.of(dialogContext);
+      return Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 460, maxHeight: 560),
+          padding: const EdgeInsets.fromLTRB(22, 22, 22, 14),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: colors.border),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.22),
+                blurRadius: 28,
+                offset: const Offset(0, 12),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: colors.limeDim,
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    child: Icon(Icons.chat_rounded, color: colors.lime, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Nova conversa', style: GoogleFonts.inter(color: colors.text, fontSize: 18, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 2),
+                        Text('Escolhe um aluno para iniciar o chat.', style: GoogleFonts.inter(color: colors.muted, fontSize: 11)),
+                      ],
+                    ),
+                  ),
+                  IconButton(onPressed: () => Navigator.pop(dialogContext), icon: Icon(Icons.close_rounded, color: colors.muted)),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Flexible(
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 360,
+                  child: students.isEmpty
+                      ? const Center(child: Text('Nenhum aluno disponível.'))
+                      : ListView.separated(
+                          itemCount: students.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (_, index) {
+                            final student = students[index];
+                            return Material(
+                              color: Colors.transparent,
+                              borderRadius: BorderRadius.circular(12),
+                              clipBehavior: Clip.antiAlias,
+                              child: ListTile(
+                              leading: StorageAvatar(
+                                resource: student.fotoPerfil,
+                                radius: 20,
+                                fallback: Text(student.nome.isEmpty ? '?' : student.nome[0].toUpperCase()),
+                              ),
+                              title: Text(student.nome, style: GoogleFonts.inter(color: colors.text, fontWeight: FontWeight.w700)),
+                              subtitle: Text(student.email, style: GoogleFonts.inter(color: colors.muted, fontSize: 11)),
+                              trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: colors.muted),
+                              onTap: () {
+                                Navigator.pop(dialogContext);
+                                onSelect(student);
+                              },
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: Text('Cancelar', style: GoogleFonts.inter(color: colors.muted, fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 /// Diálogo para criar um novo grupo.
@@ -738,7 +854,11 @@ Future<void> showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
                       color: AdminThemeColors.of(context).border,
                     ),
                   ),
-                  child: ListView(
+                  child: Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(14),
+                    clipBehavior: Clip.antiAlias,
+                    child: ListView(
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     shrinkWrap: true,
                     children: alunos
@@ -771,6 +891,7 @@ Future<void> showCreateGroupDialog(BuildContext context, WidgetRef ref) async {
                           ),
                         )
                         .toList(),
+                    ),
                   ),
                 ),
             ],

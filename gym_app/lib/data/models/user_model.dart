@@ -247,8 +247,8 @@ class UserModel {
 
   /// Texto amigável para o género.
   String get generoDisplay {
-    if (genero == 'masculino') return '💪 Masculino';
-    if (genero == 'feminino') return '🌸 Feminino';
+    if (genero == 'masculino') return 'Masculino';
+    if (genero == 'feminino') return 'Feminino';
     return 'Não definido';
   }
 

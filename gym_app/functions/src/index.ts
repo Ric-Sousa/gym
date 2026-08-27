@@ -2434,6 +2434,39 @@ export const notifyBookingStatusChange = functions
 
 // ──────────── SCHEDULED ────────────
 
+/** Cancela pedidos de marcação pendentes há pelo menos 24 horas. */
+export const cancelStaleBookingRequests = functions.pubsub
+  .schedule('every 15 minutes')
+  .timeZone('Europe/Lisbon')
+  .onRun(async () => {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const snapshot = await db.collection('agenda')
+      .where('status', '==', 'pending')
+      .where('createdAt', '<=', admin.firestore.Timestamp.fromDate(cutoff))
+      .get();
+
+    let cancelled = 0;
+    for (const doc of snapshot.docs) {
+      const result = await db.runTransaction(async (transaction) => {
+        const latest = await transaction.get(doc.ref);
+        const data = latest.data() ?? {};
+        const createdAt = asDate(data.createdAt);
+        if (!latest.exists || data.status !== 'pending' || !createdAt || createdAt > cutoff) {
+          return false;
+        }
+        transaction.update(doc.ref, {
+          status: 'cancelled',
+          cancellationReason: 'admin_no_response_24h',
+          cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return true;
+      });
+      if (result) cancelled++;
+    }
+    console.log(`Cancelled ${cancelled} stale booking request(s).`);
+    return null;
+  });
+
 export const sendPaymentRecoveryReminders = functions.pubsub
   .schedule('every day 09:00')
   .timeZone('Europe/Lisbon')

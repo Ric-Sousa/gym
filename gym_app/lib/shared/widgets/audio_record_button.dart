@@ -29,6 +29,45 @@ class AudioRecordButton extends StatefulWidget {
   State<AudioRecordButton> createState() => _AudioRecordButtonState();
 }
 
+class _AudioWavePainter extends CustomPainter {
+  final double progress;
+  final Color color;
+  final int bars;
+
+  const _AudioWavePainter({
+    required this.progress,
+    required this.color,
+    required this.bars,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+    final centerY = size.height / 2;
+    final count = bars < 3 ? 3 : bars;
+    final spacing = size.width / (count + 1);
+    for (var i = 0; i < count; i++) {
+      final movement = ((i * 0.37 + progress) % 1.0);
+      final amplitude = 1.5 + movement * 9;
+      canvas.drawLine(
+        Offset(spacing * (i + 1), centerY - amplitude),
+        Offset(spacing * (i + 1), centerY + amplitude),
+        paint,
+      );
+    }
+    if (size.width > 0) {
+      canvas.drawLine(Offset.zero.translate(0, centerY), Offset(size.width, centerY), paint..color = color.withValues(alpha: 0.28));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _AudioWavePainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.color != color || oldDelegate.bars != bars;
+}
+
 class _AudioRecordButtonState extends State<AudioRecordButton>
     with SingleTickerProviderStateMixin {
   final _service = AudioRecordingService();
@@ -177,21 +216,16 @@ class _AudioRecordButtonState extends State<AudioRecordButton>
   Widget _waveform({required int bars}) {
     return AnimatedBuilder(
       animation: _waveController,
-      builder: (_, __) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: List.generate(bars, (index) {
-          final factor =
-              0.35 + (((index % 3) + _waveController.value) % 3) * 0.16;
-          return Container(
-            width: 2.5,
-            height: 10 + factor * 18,
-            margin: const EdgeInsets.symmetric(horizontal: 1.1),
-            decoration: BoxDecoration(
-              color: widget.recordingColor,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          );
-        }),
+      builder: (_, __) => SizedBox(
+        width: 90,
+        height: 32,
+        child: CustomPaint(
+          painter: _AudioWavePainter(
+            progress: _waveController.value,
+            color: widget.recordingColor,
+            bars: bars,
+          ),
+        ),
       ),
     );
   }
@@ -205,8 +239,7 @@ class _AudioRecordButtonState extends State<AudioRecordButton>
               constraints.hasBoundedWidth && constraints.maxWidth < 170;
           final waveform = _waveform(bars: compact ? 3 : 7);
           return Material(
-            color: widget.recordingColor.withValues(alpha: 0.14),
-            borderRadius: BorderRadius.circular(18),
+            color: Colors.transparent,
             child: Row(
               mainAxisSize: widget.fullWidth
                   ? MainAxisSize.max

@@ -7247,11 +7247,14 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
         title: Text(food.nome, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.inter(color: colors.text, fontSize: 13, fontWeight: FontWeight.w700)),
         subtitle: Text('${category.toUpperCase()} · ${FoodSearch.kindOf(food).label}', style: GoogleFonts.inter(color: colors.muted, fontSize: 10)),
         onTap: () => _showFoodDetails(food),
-        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-          IconButton(onPressed: () => _showFoodDetails(food), tooltip: 'Ver detalhes nutricionais', icon: Icon(Icons.info_outline_rounded, color: colors.lime, size: 18)),
-          Text('${food.caloriasPor100g.toStringAsFixed(0)} kcal', style: GoogleFonts.montserrat(color: colors.text, fontSize: 12, fontWeight: FontWeight.w700)),
-          IconButton(onPressed: () => _confirmDeleteFood(food), tooltip: 'Remover alimento', icon: Icon(Icons.delete_outline_rounded, color: colors.muted, size: 18)),
-        ]),
+        trailing: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 150),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            IconButton(onPressed: () => _showFoodDetails(food), tooltip: 'Ver detalhes nutricionais', icon: Icon(Icons.info_outline_rounded, color: colors.lime, size: 18)),
+            Flexible(child: Text('${food.caloriasPor100g.toStringAsFixed(0)} kcal', maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.montserrat(color: colors.text, fontSize: 12, fontWeight: FontWeight.w700))),
+            IconButton(onPressed: () => _confirmDeleteFood(food), tooltip: 'Remover alimento', icon: Icon(Icons.delete_outline_rounded, color: colors.muted, size: 18)),
+          ]),
+        ),
       ),
     );
   }
@@ -7314,13 +7317,17 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
           style: GoogleFonts.inter(color: colors.muted, fontSize: 11),
         ),
         const SizedBox(height: 12),
-        Wrap(
-          spacing: 14,
-          runSpacing: 14,
-          children: foods.map((food) {
-            final width = (constraints.maxWidth - 14 * (cols - 1)) / cols;
-            return SizedBox(width: width, child: _foodCard(food));
-          }).toList(),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: foods.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: cols,
+            crossAxisSpacing: 14,
+            mainAxisSpacing: 14,
+            mainAxisExtent: 190,
+          ),
+          itemBuilder: (_, index) => _foodCard(foods[index]),
         ),
       ],
     );
@@ -7362,7 +7369,7 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                     label: Text('Lista'),
                   ),
                 ],
-                selected: {_isFoodListView || compact},
+                selected: {_isFoodListView || compact ? true : false},
                 onSelectionChanged: compact
                     ? null
                     : (selection) => setState(
@@ -10805,6 +10812,7 @@ class _AdminSettingsView extends ConsumerWidget {
         'fotoPerfil': storagePath,
       });
       ref.invalidate(userProfileProvider(user.uid));
+      await ref.read(authProvider.notifier).refreshUser();
     } catch (_) {}
   }
 }

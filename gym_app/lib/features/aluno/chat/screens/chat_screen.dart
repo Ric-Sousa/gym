@@ -11,6 +11,7 @@ import '../../../../core/config/app_strings.dart';
 import '../../../../core/utils/storage_resource.dart';
 import '../../../../data/models/message_model.dart';
 import '../../../../data/models/group_model.dart';
+import '../../../../data/models/user_model.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/providers/global_providers.dart';
 import '../../../../shared/providers/admin_chat_unread_providers.dart';
@@ -25,6 +26,11 @@ import '../../../../shared/utils/audio_chat_message.dart';
 import '../../../../shared/utils/chat_attachment.dart';
 import '../../../../shared/utils/new_message_detector.dart';
 import 'group_chat_screen.dart';
+
+final personalProfileProvider = StreamProvider.family<UserModel?, String>((ref, uid) {
+  if (uid.isEmpty) return Stream.value(null);
+  return ref.read(userRepositoryProvider).userStream(uid).map<UserModel?>((user) => user);
+});
 
 final chatMessagesProvider = StreamProvider.family<List<MessageModel>, String>((
   ref,
@@ -961,6 +967,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   Widget _buildPTChatTile(String personalId) {
+    final personalPhoto = ref.watch(personalProfileProvider(personalId)).asData?.value?.fotoPerfil;
     final userId = ref.watch(authProvider).user?.uid ?? '';
     final roomId = ref
         .read(chatRepositoryProvider)
@@ -984,7 +991,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               builder: (_) => ChatScreen(
                 chatPartnerId: personalId,
                 chatPartnerName: 'Sara Gameiro',
-                chatPartnerPhoto: null,
+                chatPartnerPhoto: personalPhoto,
                 // A aba Chat do shell já controla a presença. Não a desligar
                 // ao fechar esta rota enquanto a aba continua visível.
                 trackChatPresence: false,
@@ -1021,8 +1028,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       ),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Center(
-                      child: Text(
+                    child: StorageAvatar(
+                      resource: personalPhoto,
+                      radius: 22,
+                      backgroundColor: Colors.transparent,
+                      fallback: const Text(
                         'SG',
                         style: TextStyle(
                           color: Colors.white,

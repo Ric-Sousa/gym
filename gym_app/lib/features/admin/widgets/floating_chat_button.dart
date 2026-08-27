@@ -577,6 +577,32 @@ class _ConversationListView extends ConsumerWidget {
                 ),
               ),
               IconButton(
+                tooltip: 'Nova conversa',
+                onPressed: () => showStartStudentChatDialog(
+                  context,
+                  ref,
+                  (student) {
+                    final adminId = ref.read(authProvider).user?.uid ?? '';
+                    final roomId = ref
+                        .read(chatRepositoryProvider)
+                        .getChatRoomId(student.uid, adminId);
+                    final conversation = ConversationPreview(
+                      aluno: student,
+                      roomId: roomId,
+                    );
+                    onSelectConversation(conversation);
+                  },
+                ),
+                icon: Icon(
+                  Icons.person_add_alt_1_outlined,
+                  size: 20,
+                  color: AdminThemeColors.of(context).lime,
+                ),
+                splashRadius: 18,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+              IconButton(
                 tooltip: 'Criar grupo',
                 onPressed: () => showCreateGroupDialog(context, ref),
                 icon: Icon(
@@ -1333,6 +1359,11 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
     final participants = [adminId, widget.conversation.aluno.uid];
 
     try {
+      // A conversa pode ter sido iniciada pelo admin e ainda não ter uma sala.
+      // Garante os participantes antes da primeira mensagem.
+      await ref
+          .read(chatRepositoryProvider)
+          .ensureChatRoom(widget.conversation.roomId, participants);
       await ref
           .read(chatRepositoryProvider)
           .sendMessage(
@@ -1538,7 +1569,14 @@ class _ChatDetailViewState extends ConsumerState<_ChatDetailView>
                     items.add(_DateSeparatorAdmin(date: msgDate));
                   }
                   final isMine = msg.remetenteId == myId;
-                  items.add(_ChatBubble(msg: msg, isMine: isMine));
+                  items.add(
+                    _ChatBubble(
+                      msg: msg,
+                      isMine: isMine,
+                      senderPhoto: isMine ? authState.user?.fotoPerfil : widget.conversation.aluno.fotoPerfil,
+                      senderName: isMine ? (authState.user?.nome ?? 'Administrador') : widget.conversation.aluno.nome,
+                    ),
+                  );
                 }
 
                 return ListView.builder(
@@ -1876,8 +1914,15 @@ class _DateSeparatorAdmin extends StatelessWidget {
 class _ChatBubble extends StatelessWidget {
   final MessageModel msg;
   final bool isMine;
+  final String? senderPhoto;
+  final String senderName;
 
-  const _ChatBubble({required this.msg, required this.isMine});
+  const _ChatBubble({
+    required this.msg,
+    required this.isMine,
+    required this.senderPhoto,
+    required this.senderName,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1888,7 +1933,20 @@ class _ChatBubble extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Align(
         alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            if (!isMine) ...[
+              StorageAvatar(
+                resource: senderPhoto,
+                radius: 15,
+                fallback: Text(senderName.isEmpty ? '?' : senderName[0].toUpperCase()),
+              ),
+              const SizedBox(width: 6),
+            ],
+            Flexible(
+              child: Container(
           constraints: const BoxConstraints(maxWidth: 280),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
@@ -1982,6 +2040,17 @@ class _ChatBubble extends StatelessWidget {
               ),
             ],
           ),
+              ),
+            ),
+            if (isMine) ...[
+              const SizedBox(width: 6),
+              StorageAvatar(
+                resource: senderPhoto,
+                radius: 15,
+                fallback: Text(senderName.isEmpty ? '?' : senderName[0].toUpperCase()),
+              ),
+            ],
+          ],
         ),
       ),
     );

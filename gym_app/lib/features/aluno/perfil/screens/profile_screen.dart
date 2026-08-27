@@ -396,9 +396,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ],
             ),
-            const Divider(color: AppColors.outline),
+            const SizedBox(height: 18),
             _buildQuickMetrics(user),
-            const SizedBox(height: 14),
+            const SizedBox(height: 18),
             _infoRow('Nome', user.nome),
             _infoRow('E-mail', user.email),
             _infoRow('Género', user.generoDisplay),
@@ -417,10 +417,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _infoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceHigh.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(10),
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
@@ -429,6 +434,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               fontSize: 14,
             ),
           ),
+          const SizedBox(width: 16),
           Flexible(
             child: Text(
               value,
@@ -1551,7 +1557,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     return paymentsAsync.when(
       data: (payments) {
-        if (payments.isEmpty) return const SizedBox.shrink();
+        final now = DateTime.now();
+        final currentMonthPayments = payments.where((payment) {
+          final date = payment.data;
+          return date.year == now.year && date.month == now.month;
+        }).toList();
+        if (currentMonthPayments.isEmpty) return const SizedBox.shrink();
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1565,7 +1576,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            ...payments.map((p) => _paymentCard(p)),
+            ...currentMonthPayments.map((p) => _paymentCard(p)),
           ],
         );
       },
@@ -1954,11 +1965,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 items: const [
                   DropdownMenuItem(
                     value: 'feminino',
-                    child: Text('🌸 Feminino'),
+                    child: Text('Feminino'),
                   ),
                   DropdownMenuItem(
                     value: 'masculino',
-                    child: Text('💪 Masculino'),
+                    child: Text('Masculino'),
                   ),
                 ],
                 onChanged: (v) => genero = v ?? 'feminino',
