@@ -44,6 +44,7 @@ class AuthState {
 
   bool get isAdmin => user?.isAdmin ?? false;
   bool get isAluno => user?.isAluno ?? false;
+
   /// A conclusão é permanente para esta ficha inicial.
   ///
   /// A configuração das perguntas pode ser editada pelo personal trainer sem
@@ -51,9 +52,7 @@ class AuthState {
   /// marcador histórico da versão usada no preenchimento, não como uma versão
   /// que tenha de coincidir com a configuração atual.
   bool get needsQuestionnaire =>
-      user != null &&
-      user!.isAluno &&
-      !user!.hasCompletedQuestionnaire;
+      user != null && user!.isAluno && !user!.hasCompletedQuestionnaire;
   bool get needsPrivacyPolicy =>
       user != null &&
       user!.isAluno &&
@@ -69,10 +68,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
   StreamSubscription<UserModel>? _profileSubscription;
   Timer? _accessTimer;
   Timer? _paymentReturnGraceTimer;
-  bool _allowPaymentReturn =
-      Uri.base.queryParameters['pagamento'] == 'sucesso';
+  bool _allowPaymentReturn = Uri.base.queryParameters['pagamento'] == 'sucesso';
 
-  AuthNotifier(this._authRepository, this._fcmService) : super(const AuthState()) {
+  AuthNotifier(this._authRepository, this._fcmService)
+    : super(const AuthState()) {
     if (_allowPaymentReturn) {
       // O webhook pode demorar alguns segundos a marcar o pagamento e a
       // renovar o contrato. Não expulsar a sessão durante esse retorno.
@@ -238,6 +237,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
       );
       state = state.copyWith(user: userModel, status: AuthStatus.authenticated);
     } catch (_) {}
+  }
+
+  /// Evita reabrir a ficha entre a confirmaÃ§Ã£o do servidor e a atualizaÃ§Ã£o
+  /// do listener do Firestore.
+  void markQuestionnaireCompleted(String version) {
+    final user = state.user;
+    if (user == null) return;
+    state = state.copyWith(
+      user: user.copyWith(
+        questionnaireCompletedAt: DateTime.now(),
+        questionnaireVersion: version,
+      ),
+      status: AuthStatus.authenticated,
+    );
   }
 
   @override

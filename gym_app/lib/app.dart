@@ -245,7 +245,6 @@ class PersonalFitApp extends ConsumerWidget {
 
     return SoundPreferenceSync(
       child: MaterialApp(
-        key: ValueKey(genero ?? 'default'),
         title: AppStrings.appName,
         debugShowCheckedModeBanner: false,
         theme: workspaceLightTheme,

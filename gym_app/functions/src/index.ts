@@ -266,6 +266,7 @@ createStudentApp.post('/', async (req: any, res: any) => {
   // Aceita ambos os formatos: {data: {...}} (onCall antigo) ou fields diretos
   const d = (req.body && req.body.data) ? req.body.data : (req.body || {});
   const { nome, email, personalId, password } = d;
+  const tipoCliente = d.tipoCliente === 'online' ? 'online' : 'presencial';
   const isActive = d.isActive !== false;
   const authToken = bearerToken(req);
 
@@ -319,6 +320,7 @@ createStudentApp.post('/', async (req: any, res: any) => {
       await db.collection('users').doc(existingUser.uid).set({
         nome, email, role: 'aluno',
         ...(personalId ? { personalId } : {}),
+        tipoCliente,
         isActive,
         ...(isActive ? {
           deactivatedAt: admin.firestore.FieldValue.delete(),
@@ -348,6 +350,7 @@ createStudentApp.post('/', async (req: any, res: any) => {
     await db.collection('users').doc(userRecord.uid).set({
       nome, email, role: 'aluno',
       personalId: personalId || null,
+      tipoCliente,
       pesoAtual: null, altura: null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       isActive: true,
@@ -369,6 +372,140 @@ createStudentApp.post('/', async (req: any, res: any) => {
 });
 
 export const createStudentHttp = functions.region('europe-west1').https.onRequest(createStudentApp);
+
+// The Flutter client uses a callable so Firebase can attach and refresh the
+// signed-in user's ID token. Keep createStudentHttp above for backwards
+// compatibility with already deployed clients.
+export const createStudent = functions.region('europe-west1').https.onCall(async (data, context) => {
+  const d = data ?? {};
+  let callerUid = context.auth?.uid;
+
+  // In some Flutter Web sessions the callable SDK does not attach the Auth
+  // header even though FirebaseAuth still has a valid signed-in user. Accept a
+  // token in the callable payload as a fallback and verify it server-side.
+  if (!callerUid && typeof d.authToken === 'string' && d.authToken.length > 0) {
+    try {
+      const decoded = await auth.verifyIdToken(d.authToken);
+      callerUid = decoded.uid;
+    } catch (_) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Sessão inválida. Inicia sessão novamente.',
+      );
+    }
+  }
+
+  if (!callerUid) {
+    throw new functions.https.HttpsError('unauthenticated', 'Login necessário.');
+  }
+
+  const nome = typeof d.nome === 'string' ? d.nome.trim() : '';
+  const email = typeof d.email === 'string' ? d.email.trim().toLowerCase() : '';
+  const password = typeof d.password === 'string' && d.password.length > 0
+    ? d.password
+    : undefined;
+  const tipoCliente = d.tipoCliente === 'online' ? 'online' : 'presencial';
+
+  if (!nome || !email) {
+    throw new functions.https.HttpsError('invalid-argument', 'Nome e email obrigatórios.');
+  }
+
+  const callerDoc = await db.collection('users').doc(callerUid).get();
+  if (callerDoc.data()?.role !== 'admin') {
+    throw new functions.https.HttpsError('permission-denied', 'Apenas admin.');
+  }
+
+  try {
+    await consumeHttpRateLimit(callerUid, 'createStudent');
+  } catch (error: any) {
+    if (error?.code === 'resource-exhausted') {
+      throw new functions.https.HttpsError(
+        'resource-exhausted',
+        'Tenta novamente dentro de um minuto.',
+      );
+    }
+    console.error('Could not apply create-student rate limit', error);
+    throw new functions.https.HttpsError(
+      'unavailable',
+      'Serviço temporariamente indisponível.',
+    );
+  }
+
+  try {
+    const existingUser = await auth.getUserByEmail(email);
+    const existingProfile = await db.collection('users').doc(existingUser.uid).get();
+    if (existingProfile.data()?.role === 'admin') {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Não é permitido converter um administrador em aluno.',
+      );
+    }
+    await db.collection('users').doc(existingUser.uid).set({
+      nome,
+      email,
+      role: 'aluno',
+      personalId: callerUid,
+      tipoCliente,
+      isActive: true,
+      deactivatedAt: admin.firestore.FieldValue.delete(),
+      contractEndsAt: admin.firestore.FieldValue.delete(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return { uid: existingUser.uid, email, alreadyExists: true };
+  } catch (error: any) {
+    if (error instanceof functions.https.HttpsError) throw error;
+    if (error?.code !== 'auth/user-not-found') {
+      console.error('Could not check existing student email', error);
+      throw new functions.https.HttpsError(
+        'internal',
+        'Não foi possível verificar o e-mail.',
+      );
+    }
+  }
+
+  try {
+    const temporaryPassword = password || `${randomBytes(18).toString('base64url')}A1!`;
+    const userRecord = await auth.createUser({
+      email,
+      password: temporaryPassword,
+      displayName: nome,
+    });
+    const activationPeriod = calculateBillingPeriod(new Date(), 'mensal');
+    await db.collection('users').doc(userRecord.uid).set({
+      nome,
+      email,
+      role: 'aluno',
+      personalId: callerUid,
+      tipoCliente,
+      pesoAtual: null,
+      altura: null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      isActive: true,
+      contractEndsAt: admin.firestore.Timestamp.fromDate(activationPeriod.end),
+      mustResetPassword: !password,
+    });
+    if (!password) {
+      const resetLink = await auth.generatePasswordResetLink(email);
+      await sendUserEmail(
+        email,
+        'Define a tua palavra-passe — GymBT',
+        `<p>Olá ${escapeHtml(nome)},</p><p>Usa o seguinte link para definires a tua palavra-passe de acesso:</p><p><a href="${resetLink}">Definir palavra-passe</a></p>`,
+      );
+    }
+    return {
+      uid: userRecord.uid,
+      email,
+      created: true,
+      passwordResetEmailSent: !password,
+    };
+  } catch (error: any) {
+    console.error('Could not create student', error);
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      error?.message || 'Erro ao criar utilizador.',
+    );
+  }
+});
 
 async function deleteQueryDocuments(
   collection: string,
@@ -722,6 +859,127 @@ export const acceptPrivacyPolicy = functions.region('europe-west1').https.onCall
       uid,
     }, { merge: false });
   });
+  return { success: true, version };
+});
+
+export const submitQuestionnaire = functions.region('europe-west1').https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Login necessÃ¡rio.');
+  }
+
+  const uid = context.auth.uid;
+  const version = typeof data?.version === 'string' ? data.version.trim() : '';
+  const rawAnswers = data?.answers;
+  if (!rawAnswers || typeof rawAnswers !== 'object' || Array.isArray(rawAnswers)) {
+    throw new functions.https.HttpsError('invalid-argument', 'Respostas invÃ¡lidas.');
+  }
+
+  const answerEntries = Object.entries(rawAnswers);
+  if (answerEntries.length === 0 || answerEntries.length > 100) {
+    throw new functions.https.HttpsError('invalid-argument', 'Respostas invÃ¡lidas.');
+  }
+  const answers: Record<string, string> = {};
+  for (const [key, value] of answerEntries) {
+    if (!/^[A-Za-z0-9_-]{1,80}$/.test(key) ||
+        typeof value !== 'string' || value.length > 2000) {
+      throw new functions.https.HttpsError('invalid-argument', 'Respostas invÃ¡lidas.');
+    }
+    answers[key] = value.trim();
+  }
+
+  const configSnapshot = await db.collection('questionnaireConfig').doc('active').get();
+  const config = configSnapshot.data();
+  const activeVersion = typeof config?.version === 'string'
+    ? config.version
+    : 'questionnaire-2026-08-health-v2';
+  if (version !== activeVersion) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      'A ficha foi atualizada. Recarrega a pÃ¡gina antes de concluir.',
+    );
+  }
+
+  const missing = new Set<string>();
+  const topics = Array.isArray(config?.topics) ? config.topics : [];
+  if (topics.length > 0) {
+    for (const topic of topics) {
+      const questions = Array.isArray(topic?.questions) ? topic.questions : [];
+      for (const question of questions) {
+        const id = typeof question?.id === 'string' ? question.id : '';
+        if (!id) continue;
+        if (question.required !== false && !answers[id]) missing.add(id);
+        const hasDetail = question.type === 'binary' &&
+          typeof question.detailLabel === 'string' &&
+          question.detailLabel.trim().length > 0;
+        if (hasDetail && answers[id]?.toLowerCase() === 'sim') {
+          const detailId = typeof question.detailId === 'string' && question.detailId
+            ? question.detailId
+            : `${id}_details`;
+          if (!answers[detailId]) missing.add(detailId);
+        }
+      }
+    }
+  } else {
+    const requiredAnswers = [
+      'birthDate', 'nome', 'genero', 'peso', 'altura',
+      'profession', 'activity', 'sedentary', 'meals', 'water', 'sleep',
+      'pathologiesHas', 'familyPathologiesHas', 'surgeryHas',
+      'medicationHas', 'supplementsHas', 'allergiesHas',
+      'dislikedFoods', 'preferredFoods', 'outsideMeals', 'objective',
+    ];
+    for (const id of requiredAnswers) {
+      if (!answers[id]) missing.add(id);
+    }
+  }
+  if (missing.size > 0) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'Preenche todos os campos obrigatÃ³rios da ficha.',
+    );
+  }
+
+  const userRef = db.collection('users').doc(uid);
+  const userSnapshot = await userRef.get();
+  if (!userSnapshot.exists || userSnapshot.data()?.role !== 'aluno') {
+    throw new functions.https.HttpsError('permission-denied', 'Perfil nÃ£o elegÃ­vel.');
+  }
+
+  const profileUpdates: Record<string, unknown> = {
+    questionnaireCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+    questionnaireVersion: version,
+  };
+  if (answers.nome) profileUpdates.nome = answers.nome.slice(0, 120);
+  if (answers.genero === 'masculino' || answers.genero === 'feminino') {
+    profileUpdates.genero = answers.genero;
+  }
+  const peso = Number(answers.peso?.replace(',', '.'));
+  if (Number.isFinite(peso) && peso > 0 && peso <= 500) profileUpdates.pesoAtual = peso;
+  const altura = Number(answers.altura?.replace(',', '.'));
+  if (Number.isFinite(altura) && altura > 0 && altura <= 300) profileUpdates.altura = altura;
+  const dateMatch = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(answers.birthDate ?? '');
+  if (dateMatch) {
+    const birthDate = new Date(Date.UTC(
+      Number(dateMatch[3]),
+      Number(dateMatch[2]) - 1,
+      Number(dateMatch[1]),
+    ));
+    if (birthDate.getUTCFullYear() === Number(dateMatch[3]) &&
+        birthDate.getUTCMonth() === Number(dateMatch[2]) - 1 &&
+        birthDate.getUTCDate() === Number(dateMatch[1]) &&
+        birthDate <= new Date()) {
+      profileUpdates.dataNascimento = admin.firestore.Timestamp.fromDate(birthDate);
+    }
+  }
+
+  const batch = db.batch();
+  batch.set(userRef.collection('questionario').doc('resposta'), {
+    version,
+    completedAt: admin.firestore.FieldValue.serverTimestamp(),
+    answers,
+  });
+  batch.set(userRef, profileUpdates, { merge: true });
+  await batch.commit();
+
   return { success: true, version };
 });
 

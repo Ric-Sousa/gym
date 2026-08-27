@@ -26,11 +26,22 @@ npm run test:emulator
 Ou, a partir de `gym_app`:
 
 ```bash
-npx firebase-tools emulators:exec --only firestore,storage "npm test --prefix rules-tests -- --runInBand"
+npx firebase-tools emulators:exec --project gymbt-rules-test --config firebase.rules-test.json --only firestore,storage "npm test --prefix rules-tests -- --runInBand"
 ```
 
 O comando termina com erro explícito se Java não estiver no `PATH`; não usa
 emuladores remotos nem dados de produção.
+
+No Windows, se o Java instalado não for detetado, definir primeiro o JDK 21
+na sessão PowerShell:
+
+```powershell
+$env:JAVA_HOME = 'C:\Program Files\Java\jdk-21'
+$env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
+```
+
+O ficheiro `firebase.rules-test.json` usa as portas 8180 e 9299 para evitar o
+conflito frequente da porta 8080 no Windows.
 
 A suite cobre, entre outros casos:
 

@@ -27,6 +27,9 @@ class MockAuthNotifier extends StateNotifier<AuthState>
 
   @override
   Future<void> refreshUser() async {}
+
+  @override
+  void markQuestionnaireCompleted(String version) {}
 }
 
 /// Estados de autenticação pré-configurados para testes.

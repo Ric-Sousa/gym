@@ -1891,6 +1891,7 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
     final nomeCtrl = TextEditingController();
     final emailCtrl = TextEditingController();
     final passwordCtrl = TextEditingController();
+    String tipoCliente = 'presencial';
     bool obscurePassword = true;
     bool loading = false;
 
@@ -1992,6 +1993,40 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                   ),
                 ),
                 const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: tipoCliente,
+                  decoration: InputDecoration(
+                    labelText: 'Tipo de acompanhamento',
+                    labelStyle: GoogleFonts.inter(
+                      color: AdminThemeColors.of(context).muted,
+                    ),
+                    filled: true,
+                    fillColor: AdminThemeColors.of(context).bg,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                        color: AdminThemeColors.of(context).border,
+                      ),
+                    ),
+                  ),
+                  dropdownColor: AdminThemeColors.of(context).surface,
+                  style: GoogleFonts.inter(
+                    color: AdminThemeColors.of(context).text,
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'presencial',
+                      child: Text('Presencial'),
+                    ),
+                    DropdownMenuItem(value: 'online', child: Text('Online')),
+                  ],
+                  onChanged: loading
+                      ? null
+                      : (value) => setDialogState(
+                          () => tipoCliente = value ?? 'presencial',
+                        ),
+                ),
+                const SizedBox(height: 8),
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(
@@ -2048,8 +2083,9 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                   ? null
                   : () async {
                       if (nomeCtrl.text.trim().isEmpty ||
-                          emailCtrl.text.trim().isEmpty)
+                          emailCtrl.text.trim().isEmpty) {
                         return;
+                      }
                       final pw = passwordCtrl.text.trim();
                       if (pw.isNotEmpty && pw.length < 6) {
                         showAppNotification(
@@ -2061,74 +2097,91 @@ class _AdminClientsListState extends ConsumerState<_AdminClientsList> {
                       }
                       setDialogState(() => loading = true);
                       try {
-                        // Obtém token fresco para verificação manual na Cloud Function
-                        final token = await FirebaseAuth.instance.currentUser
-                            ?.getIdToken(true);
-                        final adminId =
-                            FirebaseAuth.instance.currentUser?.uid ?? '';
-                        final body = <String, dynamic>{
-                          'nome': nomeCtrl.text.trim(),
-                          'email': emailCtrl.text.trim(),
-                          'personalId': adminId,
-                        };
-                        if (pw.isNotEmpty) body['password'] = pw;
-
-                        final response = await http.post(
-                          Uri.parse(
-                            'https://europe-west1-gymbt-4ef87.cloudfunctions.net/createStudentHttp',
-                          ),
-                          headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'Bearer ${token ?? ''}',
-                          },
-                          body: json.encode(body),
-                        );
-                        if (!mounted) return;
-                        if (response.statusCode != 200) {
-                          final errData =
-                              json.decode(response.body)
-                                  as Map<String, dynamic>;
-                          final err = errData['error'] as Map<String, dynamic>?;
-                          final msg =
-                              err?['message'] as String? ?? 'Erro desconhecido';
+                        final firebaseUser = FirebaseAuth.instance.currentUser;
+                        if (firebaseUser == null) {
                           setDialogState(() => loading = false);
-                          if (msg.contains('unauthenticated') ||
-                              msg.contains('Login necessário') ||
-                              msg.contains('Token inválido')) {
-                            showAppNotification(
-                              context,
-                              'Erro de autenticação. Tenta sair e entrar novamente.',
-                              type: NotificationType.error,
-                            );
-                          } else if (msg.contains('weak-password') ||
-                              msg.contains('Password should be')) {
-                            showAppNotification(
-                              context,
-                              'Password muito fraca. Usa pelo menos 6 caracteres.',
-                              type: NotificationType.error,
-                            );
-                          } else {
-                            showAppNotification(
-                              context,
-                              'Erro ao criar aluno: $msg',
-                              type: NotificationType.error,
-                            );
-                          }
+                          showAppNotification(
+                            context,
+                            'A sessão expirou. Inicia sessão novamente.',
+                            type: NotificationType.error,
+                          );
                           return;
                         }
-                        final data =
-                            json.decode(response.body) as Map<String, dynamic>;
+                        final authToken = await firebaseUser.getIdToken();
+                        if (!mounted || !ctx.mounted) return;
+                        if (authToken == null || authToken.isEmpty) {
+                          setDialogState(() => loading = false);
+                          showAppNotification(
+                            context,
+                            'Não foi possível validar a sessão. Inicia sessão novamente.',
+                            type: NotificationType.error,
+                          );
+                          return;
+                        }
+                        final params = <String, dynamic>{
+                          'nome': nomeCtrl.text.trim(),
+                          'email': emailCtrl.text.trim(),
+                          'tipoCliente': tipoCliente,
+                          'authToken': authToken,
+                        };
+                        if (pw.isNotEmpty) params['password'] = pw;
+
+                        final response =
+                            await FirebaseFunctions.instanceFor(
+                                  region: 'europe-west1',
+                                )
+                                .httpsCallable('createStudent')
+                                .call<Map<String, dynamic>>(params);
+                        if (!mounted || !ctx.mounted) return;
+                        final data = response.data;
                         setDialogState(() => loading = false);
-                        Future.microtask(
-                          () => Navigator.pop(ctx, {
-                            'uid': data['uid'] as String,
-                            'email': data['email'] as String,
-                            'password': data['temporaryPassword'] as String?,
-                            'alreadyExists': data['alreadyExists'] == true,
-                            'created': data['created'] == true,
-                          }),
+                        Navigator.pop(ctx, {
+                          'uid': data['uid'] as String,
+                          'email': data['email'] as String,
+                          'password': data['temporaryPassword'] as String?,
+                          'alreadyExists': data['alreadyExists'] == true,
+                          'created': data['created'] == true,
+                        });
+                      } on FirebaseAuthException {
+                        if (!mounted || !ctx.mounted) return;
+                        setDialogState(() => loading = false);
+                        showAppNotification(
+                          context,
+                          'Não foi possível validar a sessão. Inicia sessão novamente.',
+                          type: NotificationType.error,
                         );
+                      } on FirebaseFunctionsException catch (e) {
+                        if (!mounted || !ctx.mounted) return;
+                        setDialogState(() => loading = false);
+                        final message = e.message ?? 'Erro desconhecido';
+                        if (e.code == 'unauthenticated') {
+                          showAppNotification(
+                            context,
+                            'A sessão expirou. Inicia sessão novamente.',
+                            type: NotificationType.error,
+                          );
+                        } else if (e.code == 'resource-exhausted') {
+                          showAppNotification(
+                            context,
+                            message,
+                            type: NotificationType.error,
+                          );
+                        } else if (message.contains('weak-password') ||
+                            message.contains('Password should be')) {
+                          showAppNotification(
+                            context,
+                            'Password muito fraca. Usa pelo menos 6 caracteres.',
+                            type: NotificationType.error,
+                          );
+                        } else {
+                          showAppNotification(
+                            context,
+                            'Erro ao criar aluno: $message',
+                            type: NotificationType.error,
+                          );
+                        }
                       } catch (e) {
+                        if (!mounted || !ctx.mounted) return;
                         setDialogState(() => loading = false);
                         showAppNotification(
                           context,
@@ -6003,12 +6056,13 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
                           controller: _exerciseScrollController,
                           primary: false,
                           padding: const EdgeInsets.only(right: 5, bottom: 4),
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: columns,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                            mainAxisExtent: 174,
-                          ),
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: columns,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                                mainAxisExtent: 174,
+                              ),
                           itemCount: visible.length,
                           itemBuilder: (context, index) => _buildExerciseReveal(
                             exercise: visible[index],
@@ -6169,7 +6223,9 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
         ),
       ),
     );
-  }  Widget _buildModernGridItem(
+  }
+
+  Widget _buildModernGridItem(
     ExerciseCatalogModel exercise,
     int index,
     AdminThemeColors colors,
@@ -6265,7 +6321,6 @@ class _AdminExerciseLibraryState extends ConsumerState<_AdminExerciseLibrary> {
       ),
     );
   }
-
 
   Widget _buildViewModeToggle() {
     final colors = AdminThemeColors.of(context);
@@ -7217,13 +7272,32 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(children: [
-          Text(title, style: GoogleFonts.montserrat(color: colors.text, fontSize: 15, fontWeight: FontWeight.w800)),
-          const SizedBox(width: 8),
-          Text('${foods.length}', style: GoogleFonts.inter(color: colors.lime, fontSize: 11, fontWeight: FontWeight.w800)),
-        ]),
+        Row(
+          children: [
+            Text(
+              title,
+              style: GoogleFonts.montserrat(
+                color: colors.text,
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '${foods.length}',
+              style: GoogleFonts.inter(
+                color: colors.lime,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 3),
-        Text(description, style: GoogleFonts.inter(color: colors.muted, fontSize: 11)),
+        Text(
+          description,
+          style: GoogleFonts.inter(color: colors.muted, fontSize: 11),
+        ),
         const SizedBox(height: 10),
         ...foods.map((food) => _foodListTile(food)),
       ],
@@ -7244,16 +7318,50 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
         dense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 2),
         leading: Icon(Icons.restaurant_rounded, color: colors.lime, size: 20),
-        title: Text(food.nome, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.inter(color: colors.text, fontSize: 13, fontWeight: FontWeight.w700)),
-        subtitle: Text('${category.toUpperCase()} · ${FoodSearch.kindOf(food).label}', style: GoogleFonts.inter(color: colors.muted, fontSize: 10)),
+        title: Text(
+          food.nome,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.inter(
+            color: colors.text,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        subtitle: Text(
+          '${category.toUpperCase()} · ${FoodSearch.kindOf(food).label}',
+          style: GoogleFonts.inter(color: colors.muted, fontSize: 10),
+        ),
         onTap: () => _showFoodDetails(food),
         trailing: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 150),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            IconButton(onPressed: () => _showFoodDetails(food), tooltip: 'Ver detalhes nutricionais', icon: Icon(Icons.info_outline_rounded, color: colors.lime, size: 18)),
-            Flexible(child: Text('${food.caloriasPor100g.toStringAsFixed(0)} kcal', maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.montserrat(color: colors.text, fontSize: 12, fontWeight: FontWeight.w700))),
-            IconButton(onPressed: () => _confirmDeleteFood(food), tooltip: 'Remover alimento', icon: Icon(Icons.delete_outline_rounded, color: colors.muted, size: 18)),
-          ]),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                onPressed: () => _showFoodDetails(food),
+                tooltip: 'Ver detalhes nutricionais',
+                icon: Icon(Icons.info_outline_rounded, color: colors.lime, size: 18),
+              ),
+              Flexible(
+                child: Text(
+                  '${food.caloriasPor100g.toStringAsFixed(0)} kcal',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.montserrat(
+                    color: colors.text,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () => _confirmDeleteFood(food),
+                tooltip: 'Remover alimento',
+                icon: Icon(Icons.delete_outline_rounded, color: colors.muted, size: 18),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -7372,9 +7480,8 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
                 selected: {_isFoodListView || compact ? true : false},
                 onSelectionChanged: compact
                     ? null
-                    : (selection) => setState(
-                        () => _isFoodListView = selection.first,
-                      ),
+                    : (selection) =>
+                          setState(() => _isFoodListView = selection.first),
                 showSelectedIcon: false,
               ),
             ],
@@ -7532,45 +7639,99 @@ class _AdminFoodLibraryState extends ConsumerState<_AdminFoodLibrary> {
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(food.nome, style: GoogleFonts.montserrat(fontWeight: FontWeight.w800)),
+        title: Text(
+          food.nome,
+          style: GoogleFonts.montserrat(fontWeight: FontWeight.w800),
+        ),
         content: SizedBox(
           width: 420,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('${(food.categoria ?? 'Geral').toUpperCase()} · ${FoodSearch.kindOf(food).label}', style: GoogleFonts.inter(color: colors.muted, fontSize: 12)),
+              Text(
+                '${(food.categoria ?? 'Geral').toUpperCase()} · ${FoodSearch.kindOf(food).label}',
+                style: GoogleFonts.inter(color: colors.muted, fontSize: 12),
+              ),
               const SizedBox(height: 18),
-              _nutritionDetailRow('Calorias', '${food.caloriasPor100g.toStringAsFixed(0)} kcal', colors.orange),
-              _nutritionDetailRow('Proteínas', _formatNutrition(food.proteinasPor100g), colors.blue),
-              _nutritionDetailRow('Carboidratos', _formatNutrition(food.hidratosPor100g), colors.orange),
-              _nutritionDetailRow('Gorduras', _formatNutrition(food.gordurasPor100g), colors.purple),
+              _nutritionDetailRow(
+                'Calorias',
+                '${food.caloriasPor100g.toStringAsFixed(0)} kcal',
+                colors.orange,
+              ),
+              _nutritionDetailRow(
+                'Proteínas',
+                _formatNutrition(food.proteinasPor100g),
+                colors.blue,
+              ),
+              _nutritionDetailRow(
+                'Carboidratos',
+                _formatNutrition(food.hidratosPor100g),
+                colors.orange,
+              ),
+              _nutritionDetailRow(
+                'Gorduras',
+                _formatNutrition(food.gordurasPor100g),
+                colors.purple,
+              ),
               const SizedBox(height: 8),
-              Text('Valores por 100 g/ml', style: GoogleFonts.inter(color: colors.muted, fontSize: 11)),
+              Text(
+                'Valores por 100 g/ml',
+                style: GoogleFonts.inter(color: colors.muted, fontSize: 11),
+              ),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Fechar')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Fechar'),
+          ),
         ],
       ),
     );
   }
 
-  String _formatNutrition(double? value) => value == null ? 'Não informado' : '${value.toStringAsFixed(1)} g';
+  String _formatNutrition(double? value) =>
+      value == null ? 'Não informado' : '${value.toStringAsFixed(1)} g';
 
   Widget _nutritionDetailRow(String label, String value, Color color) {
     final colors = AdminThemeColors.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(color: colors.bg, borderRadius: BorderRadius.circular(10)),
-      child: Row(children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 10),
-        Expanded(child: Text(label, style: GoogleFonts.inter(color: colors.text, fontSize: 13, fontWeight: FontWeight.w600))),
-        Text(value, style: GoogleFonts.montserrat(color: colors.text, fontSize: 13, fontWeight: FontWeight.w800)),
-      ]),
+      decoration: BoxDecoration(
+        color: colors.bg,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                color: colors.text,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.montserrat(
+              color: colors.text,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
