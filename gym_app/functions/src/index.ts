@@ -376,9 +376,9 @@ export const createStudentHttp = functions.region('europe-west1').https.onReques
 // The Flutter client uses a callable so Firebase can attach and refresh the
 // signed-in user's ID token. Keep createStudentHttp above for backwards
 // compatibility with already deployed clients.
-export const createStudent = functions.region('europe-west1').https.onCall(async (request) => {
-  const d = request.data ?? {};
-  let callerUid = request.auth?.uid;
+export const createStudent = functions.region('europe-west1').https.onCall(async (data, context) => {
+  const d = data ?? {};
+  let callerUid = context.auth?.uid;
 
   // In some Flutter Web sessions the callable SDK does not attach the Auth
   // header even though FirebaseAuth still has a valid signed-in user. Accept a
